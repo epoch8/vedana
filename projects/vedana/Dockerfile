@@ -15,8 +15,8 @@ COPY vedana/pyproject.toml vedana/uv.lock vedana/alembic.ini ./
 RUN --mount=type=cache,target=/root/.cache uv sync --no-install-project
 
 # Copy application code
-COPY vedana/app/ ./app/
+COPY vedana/vedana/ ./vedana/
 COPY vedana/data/ ./data/
 COPY vedana/migrations/ ./migrations/
 
-RUN uv sync
+RUN --mount=type=cache,target=/root/.cache uv sync

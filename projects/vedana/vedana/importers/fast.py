@@ -1,19 +1,20 @@
+import json
 import logging
 import multiprocessing
-import json
-from uuid import UUID
 import time
 from math import ceil
-from typing import List, Dict, Any, Optional, Tuple, Set, Union, Generator
+from typing import Any, Dict, Generator, List, Optional, Set, Tuple, Union
+from uuid import UUID
 
 import numpy as np
 from neo4j import GraphDatabase
 
-from data_model import DataModel, Link as DmLink
-from data_provider import DataProvider, Anchor
-from data_model import Anchor as DmAnchor
-from embeddings import EmbeddingProvider
-from graph import Graph, MemgraphGraph
+from vedana.data_model import Anchor as DmAnchor
+from vedana.data_model import DataModel
+from vedana.data_model import Link as DmLink
+from vedana.data_provider import Anchor, DataProvider
+from vedana.embeddings import EmbeddingProvider
+from vedana.graph import Graph, MemgraphGraph
 
 logger = logging.getLogger(__name__)
 

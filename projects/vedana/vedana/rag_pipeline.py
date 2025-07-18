@@ -3,13 +3,14 @@ import traceback
 from dataclasses import asdict
 from typing import Any
 
-from data_model import DataModel
-from embeddings import EmbeddingProvider
-from graph import Graph
 from jims_core.thread.thread_context import ThreadContext
-from llm import LLM
-from rag_agent import RagAgent
-from settings import settings
+
+from vedana.data_model import DataModel
+from vedana.embeddings import EmbeddingProvider
+from vedana.graph import Graph
+from vedana.llm import LLM
+from vedana.rag_agent import RagAgent
+from vedana.settings import settings
 
 
 class StartPipeline:

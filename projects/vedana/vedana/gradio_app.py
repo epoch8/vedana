@@ -5,18 +5,19 @@ import fastapi
 import gradio as gr
 import sentry_sdk
 import uvicorn
-from data_model import DataModel
-from db import get_sessionmaker
-from embeddings import OpenaiEmbeddingProvider
-from gradio_ui import create_gradio_interface, init_async_stuff
-from graph import MemgraphGraph
-from importers.fast import DataModelLoader
 from opentelemetry import trace
 from opentelemetry.propagate import set_global_textmap
 from opentelemetry.sdk.trace import TracerProvider
 from prometheus_client import start_http_server
 from sentry_sdk.integrations.opentelemetry import SentryPropagator, SentrySpanProcessor
-from settings import settings as s
+
+from vedana.data_model import DataModel
+from vedana.db import get_sessionmaker
+from vedana.embeddings import OpenaiEmbeddingProvider
+from vedana.gradio_ui import create_gradio_interface, init_async_stuff
+from vedana.graph import MemgraphGraph
+from vedana.importers.fast import DataModelLoader
+from vedana.settings import settings as s
 
 logging.basicConfig(
     level=(logging.DEBUG if s.debug else logging.INFO),

@@ -10,17 +10,18 @@ from typing import Any
 
 import gradio as gr
 import pandas as pd
-from data_model import DataModel
-from data_provider import GristSQLDataProvider
-from embeddings import EmbeddingProvider, OpenaiEmbeddingProvider
-from graph import Graph, MemgraphGraph
-from importers.fast import DataModelLoader, update_graph
 from jims_core.thread.thread_controller import ThreadController
 from opentelemetry import trace
-from rag_pipeline import RagPipeline
-from settings import get_custom_settings
-from settings import settings as s
 from uuid_extensions import uuid7
+
+from vedana.data_model import DataModel
+from vedana.data_provider import GristSQLDataProvider
+from vedana.embeddings import EmbeddingProvider, OpenaiEmbeddingProvider
+from vedana.graph import Graph, MemgraphGraph
+from vedana.importers.fast import DataModelLoader, update_graph
+from vedana.rag_pipeline import RagPipeline
+from vedana.settings import get_custom_settings
+from vedana.settings import settings as s
 
 tracer = trace.get_tracer(__name__)
 
