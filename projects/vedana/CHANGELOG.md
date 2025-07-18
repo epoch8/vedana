@@ -1,3 +1,7 @@
+# 2025.07.18-dev.6
+
+* (vedana) Rename memgraph-rag to vedana
+
 # 2025.07.18-dev.5
 
 * (jims-backoffice) Add feedback form
