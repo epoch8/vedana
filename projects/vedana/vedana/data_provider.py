@@ -9,8 +9,9 @@ from typing import Any, NamedTuple
 import grist_api
 import pandas as pd
 import requests
-from data_model import DataModel
-from utils import cast_dtype
+
+from vedana.data_model import DataModel
+from vedana.utils import cast_dtype
 
 
 @dataclass
@@ -363,7 +364,6 @@ class GristSQLDataProvider(GristDataProvider):
         *,
         batch_size: int = 800,
     ) -> None:
-
         super().__init__()
         self.doc_id = doc_id
         self.grist_server = grist_server
@@ -484,12 +484,14 @@ class GristSQLDataProvider(GristDataProvider):
             # grist meta columns
             row.pop("manualSort", None)
             row = {
-                k: v for k, v in row.items()
+                k: v
+                for k, v in row.items()
                 if not (isinstance(v, dict) and v.get("type") == "Buffer") and not k.startswith("gristHelper_")
             }
 
             clean_data = {
-                k: cast_dtype(flatten(v), k, dtypes.get(k)) for k, v in row.items()
+                k: cast_dtype(flatten(v), k, dtypes.get(k))
+                for k, v in row.items()
                 if not isinstance(v, (bytes, type(None))) and not pd.isna(v) and v != ""
             }
 

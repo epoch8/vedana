@@ -1,19 +1,20 @@
+import enum
 import json
 import logging
 import re
-import enum
 from dataclasses import dataclass
 from itertools import islice
-from typing import Type, Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Type
 
 import neo4j
 import neo4j.graph
-from data_model import DataModel
-from embeddings import EmbeddingProvider
-from graph import Graph, Record
 from jims_core.thread.thread_context import ThreadContext
-from llm import LLM, Tool, clear_cypher
 from pydantic import BaseModel, Field, create_model
+
+from vedana.data_model import DataModel
+from vedana.embeddings import EmbeddingProvider
+from vedana.graph import Graph, Record
+from vedana.llm import LLM, Tool, clear_cypher
 
 QueryResult = list[Record] | Exception
 
@@ -294,7 +295,9 @@ class RagAgent:
         if not history_text:
             return f"No relevant conversation history found (out of {len(relevant_events)} total messages)."
 
-        self.logger.info(f"Retrieved conversation history (last {len(history_msgs)} messages with total length {len(history_text)}).")
+        self.logger.info(
+            f"Retrieved conversation history (last {len(history_msgs)} messages with total length {len(history_text)})."
+        )
         return history_text
 
     async def text_to_answer_with_vts_and_cypher(

@@ -99,7 +99,8 @@ resource "helm_release" "demo" {
       - uv
       - run
       - python
-      - app/gradio_app.py
+      - -m
+      - vedana.gradio_app
 
     resources:
       requests:
@@ -212,7 +213,9 @@ resource "helm_release" "tg" {
     command:
       - uv
       - run
-      - app/tg_app.py
+      - python
+      - -m
+      - vedana.tg_app
 
     resources:
       requests:

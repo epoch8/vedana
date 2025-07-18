@@ -11,7 +11,8 @@ from typing import Any, Iterable
 import grist_api
 import pandas as pd
 import requests
-from graph import Graph
+
+from vedana.graph import Graph
 
 logger = logging.getLogger(__name__)
 

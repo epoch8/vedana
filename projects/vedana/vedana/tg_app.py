@@ -2,13 +2,14 @@ import asyncio
 import logging
 
 from aiohttp import web
-from data_model import DataModel
-from db import get_sessionmaker
-from embeddings import OpenaiEmbeddingProvider
-from graph import MemgraphGraph
 from jims_telegram import TelegramController
-from rag_pipeline import RagPipeline, StartPipeline
-from settings import settings as s
+
+from vedana.data_model import DataModel
+from vedana.db import get_sessionmaker
+from vedana.embeddings import OpenaiEmbeddingProvider
+from vedana.graph import MemgraphGraph
+from vedana.rag_pipeline import RagPipeline, StartPipeline
+from vedana.settings import settings as s
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
