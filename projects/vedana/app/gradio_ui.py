@@ -360,10 +360,10 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
         logger.info(f"Created new thread with ID: {thread_controller.thread.thread_id}")
         return thread_controller
 
-    with gr.Blocks(title="Graph Knowledge Base Demo") as iface:
+    with gr.Blocks(title="Vedana Demo") as iface:
         with gr.Row(equal_height=True):
             with gr.Column(scale=5):
-                gr.Markdown("# Graph Knowledge Base Demo")
+                gr.Markdown("# Vedana Demo")
 
             if s.debug:
                 # todo move available projects to env
