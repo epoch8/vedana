@@ -1,0 +1,93 @@
+x-app-common: &app-common
+  build:
+    context: ../
+    dockerfile: vedana/Dockerfile
+  volumes:
+    - ./data:/app/vedana/data
+  environment:
+    JIMS_DB_CONN_URI: "postgresql://postgres:postgres@db:5432"
+    MEMGRAPH_URI: "bolt://memgraph:7687"
+  env_file:
+    - .env
+  depends_on:
+    - memgraph
+    - db
+
+services:
+  # db-migrate:
+  #   <<: *app-common
+  #   command: uv run alembic upgrade head
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+
+  # app:
+  #   <<: *app-common
+  #   ports:
+  #     - "7860:7860"  # gradio
+  #   command: uv run python app/gradio_app.py
+  #   depends_on:
+  #     db-migrate:
+  #       condition: service_completed_successfully
+
+  # tg:
+  #   <<: *app-common
+  #   command: uv run app/tg_app.py
+  #   depends_on:
+  #     db-migrate:
+  #       condition: service_completed_successfully
+  #     memgraph:
+  #       condition: service_started
+  #     db:
+  #       condition: service_healthy
+
+  memgraph:
+    image: memgraph/memgraph-mage
+    ports:
+      - 7687:7687
+      - 7444:7444
+    volumes:
+      - mg_graph:/var/lib/memgraph
+    env_file: .env
+    restart: always
+    command:
+      [
+        '--telemetry-enabled=false',
+        '--storage-mode=IN_MEMORY_ANALYTICAL',
+      ]
+
+  memgraph-lab:
+    image: memgraph/lab
+    ports:
+      - 3000:3000
+    depends_on:
+      - memgraph
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  jims-backoffice:
+    <<: *app-common
+    command: uv run jims-backoffice
+    ports:
+      - "8000:8000"
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+    
+
+
+volumes:
+  mg_graph:
+  postgres_data:
