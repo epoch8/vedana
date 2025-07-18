@@ -60,7 +60,7 @@ def make_jims_app() -> fastapi.FastAPI:
     sessionmaker = get_sessionmaker()
     init_async_stuff()
 
-    from gradio_ui import loop
+    from vedana.gradio_ui import loop
 
     # gradio setup
     iface = create_gradio_interface(
