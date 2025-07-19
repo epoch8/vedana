@@ -1,4 +1,4 @@
-# 2025.07.18-dev.6
+# 2025.07.19-dev.7
 
 * (vedana) Rename memgraph-rag to vedana
 
