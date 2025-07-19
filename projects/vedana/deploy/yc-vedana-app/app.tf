@@ -8,7 +8,7 @@ locals {
 }
 
 
-resource "random_string" "demo_password" {
+resource "random_password" "demo_password" {
   length  = 16
   special = false
 }
@@ -20,7 +20,7 @@ locals {
 
   vedana_env = {
     APP_USER = "admin"
-    APP_PWD  = random_string.demo_password.result
+    APP_PWD  = random_password.demo_password.result
 
     JIMS_DB_CONN_URI = "postgresql://${yandex_mdb_postgresql_user.jims.name}:${random_string.db.result}@${data.yandex_mdb_postgresql_cluster.db_cluster.host.0.fqdn}:6432/${yandex_mdb_postgresql_database.jims.name}"
 
@@ -271,7 +271,7 @@ output "config" {
     demo = {
       uri      = "http://${local.demo_domain}"
       user     = "admin"
-      password = random_string.demo_password.result
+      password = random_password.demo_password.result
     }
   }
 }

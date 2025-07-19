@@ -10,8 +10,5 @@ module "memgraph" {
   name                 = "${var.project}-memgraph"
   user                 = var.project
   password             = random_password.memgraph_password.result
-  resources = {
-    requests = { cpu = "0.1", memory = "2Gi" }
-    limits   = { cpu = "1", memory = "3Gi" }
-  }
+  resources            = var.memgraph_resources
 }

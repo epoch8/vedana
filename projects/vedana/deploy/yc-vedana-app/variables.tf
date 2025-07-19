@@ -20,6 +20,21 @@ variable "base_domain" {
   type = string
 }
 
+variable "yc_mdb_cluster_id" {
+  type = string
+}
+
+variable "memgraph_resources" {
+  type = object({
+    requests : map(string)
+    limits   : map(string)
+  })
+  default = {
+    requests = { cpu = "0.1", memory = "2Gi" }
+    limits   = { cpu = "1", memory = "3Gi" }
+  }
+}
+
 variable "image_repository" {
   type    = string
   default = null
@@ -49,6 +64,3 @@ variable "grist" {
   })
 }
 
-variable "yc_mdb_cluster_id" {
-  type = string
-}
