@@ -64,7 +64,34 @@ variable "grist" {
   })
 }
 
+###
+
 variable "authentik_enabled" {
   type = bool
   default = false
+}
+
+variable "authentik_host" {
+  type    = string
+  default = "https://authentik.chatbot.epoch8.co"
+}
+
+variable "authentik_group_ids" {
+  type = list(string)
+  default = []
+}
+
+variable "authentik_service_connection_kubernetes_name" {
+  type    = string
+  default = "Local Kubernetes Cluster"
+}
+
+variable "authentik_authorization_flow_slug" {
+  type    = string
+  default = "default-provider-authorization-implicit-consent"
+}
+
+variable "authentik_invalidation_flow_slug" {
+  type    = string
+  default = "default-provider-invalidation-flow"
 }
