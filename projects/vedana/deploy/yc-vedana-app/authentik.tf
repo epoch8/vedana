@@ -1,18 +1,3 @@
-data "authentik_group" "internal" {
-  name = "Epoch8 AI Team"
-}
-
-resource "authentik_group" "project" {
-  name  = "vedana-${var.project}-${var.environment}"
-  users = []
-
-  lifecycle {
-    ignore_changes = [
-      users,
-    ]
-  }
-}
-
 module "authentik_domain_auth" {
   source = "../authentik-app"
 
@@ -24,10 +9,7 @@ module "authentik_domain_auth" {
   authentik_authorization_flow_slug            = var.authentik_authorization_flow_slug
   authentik_invalidation_flow_slug             = var.authentik_invalidation_flow_slug
 
-  authentik_group_ids = [
-    authentik_group.project.id,
-    data.authentik_group.internal.id,
-  ]
+  authentik_group_ids = var.authentik_group_ids
 }
 
 locals {
