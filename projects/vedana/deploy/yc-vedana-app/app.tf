@@ -126,7 +126,7 @@ resource "helm_release" "demo" {
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
         nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
         nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-        %{~for key, value in local.authentik_ingress_annotations~}
+        %{~for key, value in var.authentik_ingress_annotations~}
         ${key}: ${value}
         %{~endfor~}
       tls:
@@ -175,7 +175,7 @@ resource "helm_release" "backoffice" {
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
         nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
         nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-        %{~for key, value in local.authentik_ingress_annotations~}
+        %{~for key, value in var.authentik_ingress_annotations~}
         ${key}: ${value}
         %{~endfor~}
       tls:
