@@ -52,17 +52,6 @@ data "authentik_flow" "default_invalidation_flow" {
   slug = var.authentik_invalidation_flow_slug
 }
 
-resource "authentik_group" "project" {
-  name  = "vedana-${var.slug}"
-  users = []
-
-  lifecycle {
-    ignore_changes = [
-      users,
-    ]
-  }
-}
-
 resource "authentik_provider_proxy" "project" {
   name = "${var.slug}-proxy"
 
@@ -84,27 +73,11 @@ resource "authentik_application" "project" {
   protocol_provider = authentik_provider_proxy.project.id
 }
 
-resource "authentik_policy_binding" "project" {
-  target = authentik_application.project.uuid
-  group  = authentik_group.project.id
-  order  = 0
-}
-
-data "authentik_group" "internal" {
-  name = "Epoch8 AI Team"
-}
-
 resource "authentik_policy_binding" "project_groups" {
   for_each = toset(var.authentik_group_ids)
 
   target = authentik_application.project.uuid
   group  = each.value
-  order  = 0
-}
-
-resource "authentik_policy_binding" "internal" {
-  target = authentik_application.project.uuid
-  group  = data.authentik_group.internal.id
   order  = 0
 }
 
