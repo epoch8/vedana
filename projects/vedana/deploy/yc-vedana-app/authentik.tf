@@ -1,5 +1,5 @@
 module "authentik_domain_auth" {
-  source = "../authentik-app"
+  source = "../authentik-domain-auth"
 
   slug        = "${var.project}-${var.environment}"
   base_domain = "${var.project}-${var.environment}.${var.base_domain}"
