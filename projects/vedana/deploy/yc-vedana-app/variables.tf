@@ -64,3 +64,7 @@ variable "grist" {
   })
 }
 
+variable "authentik_enabled" {
+  type = bool
+  default = false
+}

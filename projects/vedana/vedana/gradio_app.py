@@ -84,7 +84,7 @@ def make_jims_app() -> fastapi.FastAPI:
     async def healthz_check():
         return {"status": "ok"}
 
-    app = gr.mount_gradio_app(app, iface, path="/", auth=(s.app_user, s.app_pwd))
+    app = gr.mount_gradio_app(app, iface, path="/")
     return app
 
 
