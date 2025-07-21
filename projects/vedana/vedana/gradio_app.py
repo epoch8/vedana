@@ -95,6 +95,8 @@ def main():
         instrumenter="otel",
     )
 
+    sentry_sdk.set_tag("medium", "gradio")
+
     provider = TracerProvider()
     provider.add_span_processor(SentrySpanProcessor())
     trace.set_tracer_provider(provider)

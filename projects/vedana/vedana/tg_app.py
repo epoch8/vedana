@@ -44,6 +44,8 @@ async def main_tg():
         instrumenter="otel",
     )
 
+    sentry_sdk.set_tag("medium", "telegram")
+
     provider = TracerProvider()
     provider.add_span_processor(SentrySpanProcessor())
     trace.set_tracer_provider(provider)
