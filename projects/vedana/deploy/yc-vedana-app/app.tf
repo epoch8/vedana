@@ -23,6 +23,7 @@ locals {
 
     SENTRY_DSN         = var.sentry_dsn
     SENTRY_ENVIRONMENT = local.slug
+    SENTRY_RELEASE     = local.image_tag
 
     OPENAI_BASE_URL = "https://oai-proxy-hzkr3iwwhq-ew.a.run.app/v1/"
     OPENAI_API_KEY  = "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"
