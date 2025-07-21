@@ -139,7 +139,7 @@ class RagAgent:
         return list(self.graph.text_search(idx, query, limit))
 
     def find_alternative_attribute_values(self, extracted_attributes: dict, top_n: int = 5) -> dict[str, set]:
-        self.logger.debug("🔎 Поиск альтернативных значений для атрибутов...")
+        self.logger.debug("🔎 Searching for alternative attribute values...")
         embeddable_attributes = self._data_model.embeddable_attributes()
 
         alternative_values: dict[str, set[str]] = {}
@@ -162,27 +162,27 @@ class RagAgent:
                         attr_values.add(val)
                 alternative_values[attr] = attr_values
 
-        self.logger.info(f"🔹 Итоговые альтернативные значения: {alternative_values}")
+        self.logger.info(f"🔹 Final alternative attribute values: {alternative_values}")
         return alternative_values
 
     async def text_to_cypher(self, text_query: str) -> list[str]:
-        self.logger.debug(f"🔹🔹 Генерируем Cypher-запрос для: {text_query}")
+        self.logger.debug(f"🔹🔹 Generating Cypher query for: {text_query}")
 
         filtered_graph_descr = await self.llm.filter_graph_structure(self._graph_descr, text_query)
         cypher_query = await self.llm.generate_cypher_query(filtered_graph_descr, text_query)
-        self.logger.debug(f"🔹🔹🔹 Сгенерированный Cypher-запрос:\n{cypher_query}\n")
+        self.logger.debug(f"🔹🔹🔹 Generated Cypher query:\n{cypher_query}\n")
 
-        # Извлекаем атрибуты из сгенерированного Cypher-запроса
+        # Extract attributes from the generated Cypher query
         extracted_attributes = await self.llm.extract_attributes_from_cypher(cypher_query)
-        self.logger.debug(f"🔹🔹🔹 Извлеченные атрибуты: {extracted_attributes}")
+        self.logger.debug(f"🔹🔹🔹 Extracted attributes: {extracted_attributes}")
 
-        # Ищем альтернативные значения атрибутов с использованием эмбеддингов
+        # Search for alternative attribute values using embeddings
         alternative_values = self.find_alternative_attribute_values(extracted_attributes)
         alternative_values = {k: v for k, v in alternative_values.items() if v}
-        self.logger.debug(f"🔹🔹🔹 Альтернативные значения: {alternative_values}")
+        self.logger.debug(f"🔹🔹🔹 Alternative values: {alternative_values}")
 
-        # Подставляем альтернативные значения в Cypher-запрос
-        # 🔄 Если есть альтернативные значения, просим LLM обновить запрос
+        # Substitute alternative values into the Cypher query
+        # 🔄 If there are alternative values, ask the LLM to update the query
         if alternative_values:
             cypher_query = await self.llm.update_cypher_with_alt_values(text_query, cypher_query, alternative_values)
 
