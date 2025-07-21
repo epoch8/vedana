@@ -88,7 +88,7 @@ class RagPipeline:
 
         except Exception as e:
             self.logger.exception(f"Error in RAG pipeline: {e}")
-            error_msg = "An error occurred while processing the request"  # do not show raw error to the user
+            error_msg = "An error occurred while processing the request"  # не передаем ошибку пользователю в диалог
             ctx.send_message(error_msg)
 
             # Store error event
