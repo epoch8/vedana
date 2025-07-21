@@ -2468,7 +2468,7 @@ wheels = [
 
 [[package]]
 name = "vedana"
-version = "2025.7.19.dev7+authentik.1"
+version = "2025.7.19.dev7+authentik.3"
 source = { virtual = "." }
 dependencies = [
     { name = "aiogram" },
