@@ -11,11 +11,11 @@ locals {
 locals {
   slug = "${var.project}-${var.environment}"
 
-  demo_domain       = "demo.${local.slug}.${var.base_domain}"
-  backoffice_domain = "backoffice.${local.slug}.${var.base_domain}"
+  demo_domain       = "demo.${var.base_domain}"
+  backoffice_domain = "backoffice.${var.base_domain}"
 
   vedana_env = {
-    JIMS_DB_CONN_URI = "postgresql://${yandex_mdb_postgresql_user.jims.name}:${random_string.db.result}@${data.yandex_mdb_postgresql_cluster.db_cluster.host.0.fqdn}:6432/${yandex_mdb_postgresql_database.jims.name}"
+    JIMS_DB_CONN_URI = "postgresql://${yandex_mdb_postgresql_user.jims.name}:${random_string.jims_db_password.result}@${data.yandex_mdb_postgresql_cluster.db_cluster.host.0.fqdn}:6432/${yandex_mdb_postgresql_database.jims.name}"
 
     MEMGRAPH_URI  = module.memgraph.config.local_uri
     MEMGRAPH_USER = module.memgraph.config.user
@@ -135,6 +135,13 @@ resource "helm_release" "demo" {
             - ${local.demo_domain}
     EOF
   ]
+
+  lifecycle {
+    ignore_changes = [
+      name,
+      namespace,
+    ]
+  }
 }
 
 resource "helm_release" "backoffice" {
@@ -184,6 +191,13 @@ resource "helm_release" "backoffice" {
             - ${local.backoffice_domain}
     EOF
   ]
+
+  lifecycle {
+    ignore_changes = [
+      name,
+      namespace,
+    ]
+  }
 }
 
 resource "helm_release" "tg" {
@@ -218,6 +232,13 @@ resource "helm_release" "tg" {
       path: "/healthz"
     EOF
   ]
+
+  lifecycle {
+    ignore_changes = [
+      name,
+      namespace,
+    ]
+  }
 }
 
 # resource "helm_release" "rag_tg_jims" {
