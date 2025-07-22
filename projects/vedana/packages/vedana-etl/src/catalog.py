@@ -54,7 +54,6 @@ grist_tables = {
             )
         )
     ),
-
     "grist_nodes_filtered": (
         Table(
             store=TableStoreDB(
@@ -74,6 +73,32 @@ grist_tables = {
         )
     ),
 }
+
+# ---
+# This part is customisable (can be replaced with a connection of other branches
+
+default_custom_tables = {
+    "processed_nodes": (
+        Table(
+            store=TableStoreDB(
+                dbconn=DBCONN_DATAPIPE,
+                name="processed_nodes",
+                data_sql_schema=schemas.GENERIC_NODE_DATA_SCHEMA,
+            )
+        )
+    ),
+    "processed_edges": (
+        Table(
+            store=TableStoreDB(
+                dbconn=DBCONN_DATAPIPE,
+                name="processed_edges",
+                data_sql_schema=schemas.GENERIC_EDGE_DATA_SCHEMA,
+            )
+        )
+    ),
+}
+
+# ---
 
 memgraph_tables = {
     "memgraph_indexes": (
@@ -113,7 +138,7 @@ memgraph_tables = {
 }
 
 
-def init_catalog(catalog_extra_tables: dict = {}):
+def init_catalog(catalog_extra_tables: dict):
     catalog_dict = {
         **data_model_tables,
         **grist_tables,
