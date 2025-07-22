@@ -15,10 +15,12 @@ dependencies = [
     "grist-api>=0.1.1",
     "neo4j>=5.28.1",
     "openai>=1.96.0",
+    "vedana-core",
 ]
 
 [tool.uv.sources]
 datapipe-core = { path = "C:/Users/sheyd/PycharmProjects/Epoch8/datapipe", editable = true }
+vedana-core = { workspace = true }
 
 [dependency-groups]
 dev = [

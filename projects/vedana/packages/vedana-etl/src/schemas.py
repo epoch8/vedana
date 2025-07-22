@@ -61,4 +61,3 @@ MEMGRAPH_VECTOR_INDEXES_SCHEMA: list[Column] = [
     Column("anchor", String),
     Column("link", String),
 ]
-

@@ -11,17 +11,15 @@ from neo4j import GraphDatabase
 
 from vedana_core.embeddings import OpenaiEmbeddingProvider
 from vedana_core.data_provider import GristSQLDataProvider
-from vedana_etl.settings import settings
-from vedana_etl.config import MEMGRAPH_CONN_ARGS
+from src.settings import settings
+from src.config import MEMGRAPH_CONN_ARGS
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
 # https://github.com/pandas-dev/pandas/issues/57734
-pd.set_option('future.no_silent_downcasting', True)
+pd.set_option("future.no_silent_downcasting", True)
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-AUTH = (settings.api_username, settings.api_password)
 
 
 def is_uuid(val: str):
@@ -145,9 +143,7 @@ def filter_grist_nodes(df: pd.DataFrame, dm_nodes: pd.DataFrame, dm_attributes: 
     """keep only those nodes that are described in data model"""
 
     # filter nodes
-    filtered_nodes = df.loc[
-        df.node_type.isin(dm_nodes["noun"])
-    ].copy()
+    filtered_nodes = df.loc[df.node_type.isin(dm_nodes["noun"])].copy()
 
     # filter attribute keys
     filtered_nodes["attributes"] = filtered_nodes["attributes"].apply(
@@ -185,9 +181,7 @@ def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, 
     anchor_types: set[str] = set(dm_attributes["anchor"].dropna().unique())
 
     # embeddable attrs for vector indices
-    vec_attr_rows = dm_attributes[
-        (dm_attributes["embeddable"]) & (dm_attributes["dtype"].str.lower() == "str")
-    ]
+    vec_attr_rows = dm_attributes[(dm_attributes["embeddable"]) & (dm_attributes["dtype"].str.lower() == "str")]
 
     driver = GraphDatabase.driver(**MEMGRAPH_CONN_ARGS)
 
@@ -242,8 +236,6 @@ def generate_embeddings(
     memgraph_vector_indexes: pd.DataFrame,
 ) -> pd.DataFrame:
     """Generate embeddings for embeddable text attributes"""
-
-    # TODO replace with packages; keep embeddings in datapipe only
 
     if df.empty:
         return df
@@ -311,13 +303,13 @@ def merge_attr_dicts(dicts):
     return result
 
 
-# TODO upload dataModel node (get from vedana-core)
+# ---
+# Custom parts
 
 
-def sync_memgraph_nodes(
+def prepare_nodes(
     api_nodes_df: pd.DataFrame,
     grist_nodes_df: pd.DataFrame,
-    memgraph_vector_indexes: pd.DataFrame,
 ) -> pd.DataFrame:
     """concat source data, update attributes with priority of grist data"""
     # remove extra pkeys
@@ -325,22 +317,16 @@ def sync_memgraph_nodes(
 
     # merge tables, update attrs, drop duplicates
     df = pd.concat([api_nodes_df, grist_nodes_df], ignore_index=True)
-    df = df.groupby(
-        ["node_id", "node_type"], as_index=False
-    ).agg({'attributes': lambda dicts: merge_attr_dicts(dicts)})
+    df = df.groupby(["node_id", "node_type"], as_index=False).agg({"attributes": lambda dicts: merge_attr_dicts(dicts)})
     df = df.drop_duplicates(subset=["node_id"])
-
-    # add embeddings
-    df = generate_embeddings(df, memgraph_vector_indexes)
 
     return df
 
 
-def sync_memgraph_edges(
+def prepare_edges(
     api_edges_df: pd.DataFrame,
     api_related_products_edges_df: pd.DataFrame,
     grist_edges_df: pd.DataFrame,
-    memgraph_vector_indexes: pd.DataFrame,
 ) -> pd.DataFrame:
     # remove extra pkeys
     api_edges_df = api_edges_df.drop(columns=["item_guid"])
@@ -348,13 +334,10 @@ def sync_memgraph_edges(
 
     # merge tables, update attrs, drop duplicates
     df = pd.concat([api_edges_df, api_related_products_edges_df, grist_edges_df], ignore_index=True)
-    df = df.groupby(
-        ["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label"], as_index=False
-    ).agg({'attributes': lambda dicts: merge_attr_dicts(dicts)})
+    df = df.groupby(["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label"], as_index=False).agg(
+        {"attributes": lambda dicts: merge_attr_dicts(dicts)}
+    )
     df = df.drop_duplicates(subset=["from_node_id", "to_node_id", "edge_label"])
-
-    # add embeddings
-    df = generate_embeddings(df, memgraph_vector_indexes)
 
     return df
 
