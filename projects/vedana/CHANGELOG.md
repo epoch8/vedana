@@ -1,4 +1,4 @@
-# WIP
+# 2025.07.22-dev.9
 
 * (vedana) Turn off built-in password auth
 
