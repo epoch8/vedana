@@ -1,0 +1,128 @@
+from datapipe.compute import Table
+from datapipe.store.database import TableStoreDB
+from datapipe.store.neo4j import Neo4JStore
+
+import src.schemas as schemas
+from src.config import DBCONN_DATAPIPE, MEMGRAPH_CONN_ARGS, catalog
+
+data_model_tables = {
+    "dm_links": (
+        Table(
+            store=TableStoreDB(
+                dbconn=DBCONN_DATAPIPE,
+                name="dm_links",
+                data_sql_schema=schemas.DM_LINKS_SCHEMA,
+            )
+        )
+    ),
+    "dm_attributes": (
+        Table(
+            store=TableStoreDB(
+                dbconn=DBCONN_DATAPIPE,
+                name="dm_attributes",
+                data_sql_schema=schemas.DM_ATTRIBUTES_SCHEMA,
+            )
+        )
+    ),
+    "dm_anchors": (
+        Table(
+            store=TableStoreDB(
+                dbconn=DBCONN_DATAPIPE,
+                name="dm_anchors",
+                data_sql_schema=schemas.DM_ANCHORS_SCHEMA,
+            )
+        )
+    ),
+}
+
+grist_tables = {
+    "grist_nodes": (
+        Table(
+            store=TableStoreDB(
+                dbconn=DBCONN_DATAPIPE,
+                name="grist_nodes",
+                data_sql_schema=schemas.GENERIC_NODE_DATA_SCHEMA,
+            )
+        )
+    ),
+    "grist_edges": (
+        Table(
+            store=TableStoreDB(
+                dbconn=DBCONN_DATAPIPE,
+                name="grist_edges",
+                data_sql_schema=schemas.GENERIC_EDGE_DATA_SCHEMA,
+            )
+        )
+    ),
+
+    "grist_nodes_filtered": (
+        Table(
+            store=TableStoreDB(
+                dbconn=DBCONN_DATAPIPE,
+                name="grist_nodes_filtered",
+                data_sql_schema=schemas.GENERIC_NODE_DATA_SCHEMA,
+            )
+        )
+    ),
+    "grist_edges_filtered": (
+        Table(
+            store=TableStoreDB(
+                dbconn=DBCONN_DATAPIPE,
+                name="grist_edges_filtered",
+                data_sql_schema=schemas.GENERIC_EDGE_DATA_SCHEMA,
+            )
+        )
+    ),
+}
+
+memgraph_tables = {
+    "memgraph_indexes": (
+        Table(
+            store=TableStoreDB(
+                dbconn=DBCONN_DATAPIPE,
+                name="memgraph_indexes",
+                data_sql_schema=schemas.MEMGRAPH_INDEXES_SCHEMA,
+            )
+        )
+    ),
+    "memgraph_vector_indexes": (
+        Table(
+            store=TableStoreDB(
+                dbconn=DBCONN_DATAPIPE,
+                name="memgraph_vector_indexes",
+                data_sql_schema=schemas.MEMGRAPH_VECTOR_INDEXES_SCHEMA,
+            )
+        )
+    ),
+    "memgraph_nodes": (
+        Table(
+            store=Neo4JStore(
+                connection_kwargs=MEMGRAPH_CONN_ARGS,
+                data_sql_schema=schemas.GENERIC_NODE_DATA_SCHEMA,
+            )
+        )
+    ),
+    "memgraph_edges": (
+        Table(
+            store=Neo4JStore(
+                connection_kwargs=MEMGRAPH_CONN_ARGS,
+                data_sql_schema=schemas.GENERIC_EDGE_DATA_SCHEMA,
+            )
+        )
+    ),
+}
+
+
+def init_catalog(catalog_extra_tables: dict = {}):
+    catalog_dict = {
+        **data_model_tables,
+        **grist_tables,
+        **catalog_extra_tables,
+        **memgraph_tables,
+    }
+
+    for subcatalog in [catalog_dict]:
+        for table_name, table_store in subcatalog.items():
+            catalog.add_datatable(table_name, table_store)
+
+    return catalog
