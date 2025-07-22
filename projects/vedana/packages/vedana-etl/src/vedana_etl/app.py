@@ -1,8 +1,8 @@
 from datapipe_app import DatapipeAPI
 
-from src.config import ds
-from src.catalog import init_catalog, default_custom_tables
-from src.pipeline import get_pipeline, default_custom_steps
+from vedana_etl.config import ds
+from vedana_etl.catalog import init_catalog, default_custom_tables
+from vedana_etl.pipeline import get_pipeline, default_custom_steps
 
 
 # base app - no extra tables / steps

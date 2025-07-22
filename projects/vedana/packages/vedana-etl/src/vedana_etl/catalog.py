@@ -2,8 +2,8 @@ from datapipe.compute import Table
 from datapipe.store.database import TableStoreDB
 from datapipe.store.neo4j import Neo4JStore
 
-import src.schemas as schemas
-from src.config import DBCONN_DATAPIPE, MEMGRAPH_CONN_ARGS, catalog
+import vedana_etl.schemas as schemas
+from vedana_etl.config import DBCONN_DATAPIPE, MEMGRAPH_CONN_ARGS, catalog
 
 data_model_tables = {
     "dm_links": (
@@ -77,7 +77,11 @@ grist_tables = {
 # ---
 # This part is customisable (can be replaced with a connection of other branches
 
-default_custom_tables = {
+default_custom_tables = {}
+
+# ---
+
+memgraph_tables = {
     "nodes": (
         Table(
             store=TableStoreDB(
@@ -96,11 +100,6 @@ default_custom_tables = {
             )
         )
     ),
-}
-
-# ---
-
-memgraph_tables = {
     "memgraph_indexes": (
         Table(
             store=TableStoreDB(

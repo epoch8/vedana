@@ -5,7 +5,7 @@ from datapipe.compute import Catalog
 from datapipe.datatable import DataStore
 from datapipe.store.database import DBConn
 
-from src.settings import settings
+from vedana_etl.settings import settings
 
 MEMGRAPH_CONN_ARGS = {
     "uri": f"bolt://{settings.memgraph_host}:{settings.memgraph_port}",
