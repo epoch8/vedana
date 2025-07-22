@@ -5,14 +5,13 @@ from unicodedata import normalize
 from uuid import UUID
 
 import pandas as pd
-import requests
 from pandas import DataFrame
 from neo4j import GraphDatabase
 
 from vedana_core.embeddings import OpenaiEmbeddingProvider
 from vedana_core.data_provider import GristSQLDataProvider
-from src.settings import settings
-from src.config import MEMGRAPH_CONN_ARGS
+from vedana_etl.settings import settings
+from vedana_etl.config import MEMGRAPH_CONN_ARGS
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
 # https://github.com/pandas-dev/pandas/issues/57734

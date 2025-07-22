@@ -2,7 +2,7 @@ from datapipe.compute import Pipeline
 from datapipe.step.batch_generate import BatchGenerate
 from datapipe.step.batch_transform import BatchTransform
 
-import src.steps as steps
+import vedana_etl.steps as steps
 
 data_model_steps = [
     BatchGenerate(
