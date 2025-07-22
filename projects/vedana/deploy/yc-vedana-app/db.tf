@@ -2,7 +2,12 @@ data "yandex_mdb_postgresql_cluster" "db_cluster" {
   cluster_id = var.yc_mdb_cluster_id
 }
 
-resource "random_string" "db" {
+moved {
+  from = random_string.db
+  to   = random_string.jims_db_password
+}
+
+resource "random_string" "jims_db_password" {
   length  = 16
   special = false
 }
@@ -10,7 +15,7 @@ resource "random_string" "db" {
 resource "yandex_mdb_postgresql_user" "jims" {
   cluster_id = var.yc_mdb_cluster_id
   name       = "${local.project_underscore}_vedana"
-  password   = random_string.db.result
+  password   = random_string.jims_db_password.result
   conn_limit = 10
 
   lifecycle {

@@ -55,8 +55,5 @@ class Settings(BaseSettings):
     # csv_path: DirectoryPath = Path("assets/")  # local data files
     # data_model_path: DirectoryPath = Path("data/Data Model.grist")  # local data model snapshot
 
-    app_user: str = "admin"  # for Gradio UI auth
-    app_pwd: str = "admin"
-
 
 settings = Settings()
