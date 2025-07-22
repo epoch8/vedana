@@ -41,14 +41,14 @@ default_custom_steps = [
     BatchTransform(
         func=steps.prepare_nodes,
         inputs=["grist_nodes_filtered"],
-        outputs=["processed_nodes"],
+        outputs=["nodes"],
         labels=[("stage", "transform"), ("stage", "grist")],
         transform_keys=["node_id"],
     ),
     BatchTransform(
         func=steps.prepare_edges,
         inputs=["grist_edges"],
-        outputs=["processed_edges"],
+        outputs=["edges"],
         labels=[("stage", "transform"), ("stage", "grist")],
         transform_keys=["from_node_id", "to_node_id", "edge_label"],
     ),
@@ -59,7 +59,7 @@ default_custom_steps = [
 memgraph_steps = [
     BatchTransform(
         func=steps.ensure_memgraph_indexes,
-        inputs=["processed_nodes"],
+        inputs=["dm_attributes"],
         outputs=["memgraph_indexes", "memgraph_vector_indexes"],
         labels=[("stage", "load"), ("stage", "memgraph")],
         transform_keys=["attribute_name"],
@@ -69,7 +69,7 @@ memgraph_steps = [
     # generate_embeddings is a last processing step, making DataFrame ready for upload
     BatchTransform(
         func=steps.generate_embeddings,
-        inputs=["processed_nodes", "memgraph_vector_indexes"],
+        inputs=["nodes", "memgraph_vector_indexes"],
         outputs=["memgraph_nodes"],
         labels=[("stage", "load")],
         transform_keys=["node_id", "node_type"],
@@ -77,7 +77,7 @@ memgraph_steps = [
     ),
     BatchTransform(
         func=steps.generate_embeddings,
-        inputs=["processed_edges", "memgraph_vector_indexes"],
+        inputs=["edges", "memgraph_vector_indexes"],
         outputs=["memgraph_edges"],
         labels=[("stage", "load")],
         transform_keys=["from_node_id", "to_node_id", "edge_label"],

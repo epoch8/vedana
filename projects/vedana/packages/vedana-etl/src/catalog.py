@@ -78,20 +78,20 @@ grist_tables = {
 # This part is customisable (can be replaced with a connection of other branches
 
 default_custom_tables = {
-    "processed_nodes": (
+    "nodes": (
         Table(
             store=TableStoreDB(
                 dbconn=DBCONN_DATAPIPE,
-                name="processed_nodes",
+                name="nodes",
                 data_sql_schema=schemas.GENERIC_NODE_DATA_SCHEMA,
             )
         )
     ),
-    "processed_edges": (
+    "edges": (
         Table(
             store=TableStoreDB(
                 dbconn=DBCONN_DATAPIPE,
-                name="processed_edges",
+                name="edges",
                 data_sql_schema=schemas.GENERIC_EDGE_DATA_SCHEMA,
             )
         )
