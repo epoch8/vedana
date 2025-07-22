@@ -388,17 +388,9 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
         with gr.Row():
             nl_input = gr.Textbox(
                 lines=2,
-                placeholder="Введите вопрос текстом...",
-                label="Вопрос",
+                placeholder="Enter your question here...",
+                label="Query",
             )
-        # with gr.Row():
-        #     _nl_examples = gr.Examples(
-        #         examples=[
-        #             ["Какой ОКПД у роботов?"],
-        #             ["Как добавить в реестр 3д-принтеры?"],
-        #         ],
-        #         inputs=nl_input,
-        #     )
 
         submit_btn_text = gr.Button("Submit")
 
