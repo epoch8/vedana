@@ -1,8 +1,8 @@
 """initial
 
-Revision ID: 0aa5636c4d25
+Revision ID: 0752f3cfee39
 Revises:
-Create Date: 2025-07-22 18:58:55.882729
+Create Date: 2025-07-22 22:13:09.839898
 
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = "0aa5636c4d25"
+revision = "0752f3cfee39"
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -85,7 +85,31 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("anchor1", "anchor2", "sentence"),
     )
     op.create_table(
-        "ensure_memgraph_indexes_854aab6897_meta",
+        "edges",
+        sa.Column("from_node_id", sa.String(), nullable=False),
+        sa.Column("to_node_id", sa.String(), nullable=False),
+        sa.Column("from_node_type", sa.String(), nullable=False),
+        sa.Column("to_node_type", sa.String(), nullable=False),
+        sa.Column("edge_label", sa.String(), nullable=False),
+        sa.Column("attributes", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.PrimaryKeyConstraint("from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label"),
+    )
+    op.create_table(
+        "edges_meta",
+        sa.Column("from_node_id", sa.String(), nullable=False),
+        sa.Column("to_node_id", sa.String(), nullable=False),
+        sa.Column("from_node_type", sa.String(), nullable=False),
+        sa.Column("to_node_type", sa.String(), nullable=False),
+        sa.Column("edge_label", sa.String(), nullable=False),
+        sa.Column("hash", sa.Integer(), nullable=True),
+        sa.Column("create_ts", sa.Float(), nullable=True),
+        sa.Column("update_ts", sa.Float(), nullable=True),
+        sa.Column("process_ts", sa.Float(), nullable=True),
+        sa.Column("delete_ts", sa.Float(), nullable=True),
+        sa.PrimaryKeyConstraint("from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label"),
+    )
+    op.create_table(
+        "ensure_memgraph_indexes_783e90e30d_meta",
         sa.Column("attribute_name", sa.String(), nullable=False),
         sa.Column("process_ts", sa.Float(), nullable=True),
         sa.Column("is_success", sa.Boolean(), nullable=True),
@@ -114,7 +138,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("node_id"),
     )
     op.create_table(
-        "generate_embeddings_e4ac8f5c04_meta",
+        "generate_embeddings_634a8be398_meta",
         sa.Column("from_node_id", sa.String(), nullable=False),
         sa.Column("to_node_id", sa.String(), nullable=False),
         sa.Column("edge_label", sa.String(), nullable=False),
@@ -125,7 +149,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("from_node_id", "to_node_id", "edge_label"),
     )
     op.create_table(
-        "generate_embeddings_e4f38b75fc_meta",
+        "generate_embeddings_e949b6491e_meta",
         sa.Column("node_id", sa.String(), nullable=False),
         sa.Column("node_type", sa.String(), nullable=False),
         sa.Column("process_ts", sa.Float(), nullable=True),
@@ -276,7 +300,25 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("attribute_name"),
     )
     op.create_table(
-        "prepare_edges_515943144d_meta",
+        "nodes",
+        sa.Column("node_id", sa.String(), nullable=False),
+        sa.Column("node_type", sa.String(), nullable=False),
+        sa.Column("attributes", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.PrimaryKeyConstraint("node_id", "node_type"),
+    )
+    op.create_table(
+        "nodes_meta",
+        sa.Column("node_id", sa.String(), nullable=False),
+        sa.Column("node_type", sa.String(), nullable=False),
+        sa.Column("hash", sa.Integer(), nullable=True),
+        sa.Column("create_ts", sa.Float(), nullable=True),
+        sa.Column("update_ts", sa.Float(), nullable=True),
+        sa.Column("process_ts", sa.Float(), nullable=True),
+        sa.Column("delete_ts", sa.Float(), nullable=True),
+        sa.PrimaryKeyConstraint("node_id", "node_type"),
+    )
+    op.create_table(
+        "prepare_edges_c225902fe6_meta",
         sa.Column("from_node_id", sa.String(), nullable=False),
         sa.Column("to_node_id", sa.String(), nullable=False),
         sa.Column("edge_label", sa.String(), nullable=False),
@@ -287,7 +329,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("from_node_id", "to_node_id", "edge_label"),
     )
     op.create_table(
-        "prepare_nodes_edbb3e0878_meta",
+        "prepare_nodes_53d78b4abd_meta",
         sa.Column("node_id", sa.String(), nullable=False),
         sa.Column("process_ts", sa.Float(), nullable=True),
         sa.Column("is_success", sa.Boolean(), nullable=True),
@@ -295,59 +337,15 @@ def upgrade() -> None:
         sa.Column("error", sa.String(), nullable=True),
         sa.PrimaryKeyConstraint("node_id"),
     )
-    op.create_table(
-        "processed_edges",
-        sa.Column("from_node_id", sa.String(), nullable=False),
-        sa.Column("to_node_id", sa.String(), nullable=False),
-        sa.Column("from_node_type", sa.String(), nullable=False),
-        sa.Column("to_node_type", sa.String(), nullable=False),
-        sa.Column("edge_label", sa.String(), nullable=False),
-        sa.Column("attributes", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.PrimaryKeyConstraint("from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label"),
-    )
-    op.create_table(
-        "processed_edges_meta",
-        sa.Column("from_node_id", sa.String(), nullable=False),
-        sa.Column("to_node_id", sa.String(), nullable=False),
-        sa.Column("from_node_type", sa.String(), nullable=False),
-        sa.Column("to_node_type", sa.String(), nullable=False),
-        sa.Column("edge_label", sa.String(), nullable=False),
-        sa.Column("hash", sa.Integer(), nullable=True),
-        sa.Column("create_ts", sa.Float(), nullable=True),
-        sa.Column("update_ts", sa.Float(), nullable=True),
-        sa.Column("process_ts", sa.Float(), nullable=True),
-        sa.Column("delete_ts", sa.Float(), nullable=True),
-        sa.PrimaryKeyConstraint("from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label"),
-    )
-    op.create_table(
-        "processed_nodes",
-        sa.Column("node_id", sa.String(), nullable=False),
-        sa.Column("node_type", sa.String(), nullable=False),
-        sa.Column("attributes", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.PrimaryKeyConstraint("node_id", "node_type"),
-    )
-    op.create_table(
-        "processed_nodes_meta",
-        sa.Column("node_id", sa.String(), nullable=False),
-        sa.Column("node_type", sa.String(), nullable=False),
-        sa.Column("hash", sa.Integer(), nullable=True),
-        sa.Column("create_ts", sa.Float(), nullable=True),
-        sa.Column("update_ts", sa.Float(), nullable=True),
-        sa.Column("process_ts", sa.Float(), nullable=True),
-        sa.Column("delete_ts", sa.Float(), nullable=True),
-        sa.PrimaryKeyConstraint("node_id", "node_type"),
-    )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_table("processed_nodes_meta")
-    op.drop_table("processed_nodes")
-    op.drop_table("processed_edges_meta")
-    op.drop_table("processed_edges")
-    op.drop_table("prepare_nodes_edbb3e0878_meta")
-    op.drop_table("prepare_edges_515943144d_meta")
+    op.drop_table("prepare_nodes_53d78b4abd_meta")
+    op.drop_table("prepare_edges_c225902fe6_meta")
+    op.drop_table("nodes_meta")
+    op.drop_table("nodes")
     op.drop_table("memgraph_vector_indexes_meta")
     op.drop_table("memgraph_vector_indexes")
     op.drop_table("memgraph_nodes_meta")
@@ -362,11 +360,13 @@ def downgrade() -> None:
     op.drop_table("grist_edges_filtered_meta")
     op.drop_table("grist_edges_filtered")
     op.drop_table("grist_edges")
-    op.drop_table("generate_embeddings_e4f38b75fc_meta")
-    op.drop_table("generate_embeddings_e4ac8f5c04_meta")
+    op.drop_table("generate_embeddings_e949b6491e_meta")
+    op.drop_table("generate_embeddings_634a8be398_meta")
     op.drop_table("filter_grist_nodes_b185c84840_meta")
     op.drop_table("filter_grist_edges_8e9fdd46a0_meta")
-    op.drop_table("ensure_memgraph_indexes_854aab6897_meta")
+    op.drop_table("ensure_memgraph_indexes_783e90e30d_meta")
+    op.drop_table("edges_meta")
+    op.drop_table("edges")
     op.drop_table("dm_links_meta")
     op.drop_table("dm_links")
     op.drop_table("dm_attributes_meta")
