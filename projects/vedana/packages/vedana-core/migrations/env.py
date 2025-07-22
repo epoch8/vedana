@@ -3,7 +3,7 @@ from logging.config import fileConfig
 import jims_core.db
 from alembic import context
 
-from vedana import db
+from src.vedana_core import db
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

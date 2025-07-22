@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class DbSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="JIMS_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    db_conn_uri: str = "postgresql://postgres:postgres@localhost:5433"
+    db_conn_uri: str = "postgresql://postgres:postgres@localhost:5432"
 
 
 db_settings = DbSettings()  # type: ignore
