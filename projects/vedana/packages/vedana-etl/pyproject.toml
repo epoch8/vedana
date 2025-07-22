@@ -1,7 +1,7 @@
 [project]
-name = "maytoni_etl"
+name = "vedana-etl"
 version = "0.2.0"
-description = "API to graph pipeline"
+description = "Pipeline template for Vedana"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -16,6 +16,9 @@ dependencies = [
     "neo4j>=5.28.1",
     "openai>=1.96.0",
 ]
+
+[tool.uv.sources]
+datapipe-core = { path = "C:/Users/sheyd/PycharmProjects/Epoch8/datapipe", editable = true }
 
 [dependency-groups]
 dev = [
