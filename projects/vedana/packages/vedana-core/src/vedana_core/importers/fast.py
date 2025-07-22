@@ -9,12 +9,12 @@ from uuid import UUID
 import numpy as np
 from neo4j import GraphDatabase
 
-from vedana.data_model import Anchor as DmAnchor
-from vedana.data_model import DataModel
-from vedana.data_model import Link as DmLink
-from vedana.data_provider import Anchor, DataProvider
-from vedana.embeddings import EmbeddingProvider
-from vedana.graph import Graph, MemgraphGraph
+from vedana_core.data_model import Anchor as DmAnchor
+from vedana_core.data_model import DataModel
+from vedana_core.data_model import Link as DmLink
+from vedana_core.data_provider import Anchor, DataProvider
+from vedana_core.embeddings import EmbeddingProvider
+from vedana_core.graph import Graph, MemgraphGraph
 
 logger = logging.getLogger(__name__)
 

@@ -232,13 +232,14 @@ class OpenaiEmbeddingProvider(EmbeddingProvider):
         missing = list(set([t for t in texts if t not in cached]))
         new_embeddings = {}
         if missing:
-
             # check chunk lengths and trim excessively long chunks
             single_text_char_limit = 17000  # openai single request token limit
             for i, t in enumerate(missing):
                 if len(t) > single_text_char_limit:
-                    logger.error(f"text too long for embedding:{len(t)} vs ~{single_text_char_limit} symbol limit."
-                                 f"\nText header: {t[:200]}...")
+                    logger.error(
+                        f"text too long for embedding:{len(t)} vs ~{single_text_char_limit} symbol limit."
+                        f"\nText header: {t[:200]}..."
+                    )
                     missing[i] = missing[i][:single_text_char_limit]
                     texts[texts.index(t)] = t[:single_text_char_limit]
 
