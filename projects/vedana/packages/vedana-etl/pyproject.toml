@@ -15,7 +15,7 @@ dependencies = [
     "grist-api>=0.1.1",
     "neo4j>=5.28.1",
     "openai>=1.96.0",
-    "vedana-core",
+    "vedana-core>=0.5.0",
 ]
 
 [tool.uv.sources]

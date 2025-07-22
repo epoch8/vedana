@@ -1,11 +1,13 @@
 [project]
 name = "vedana-gradio"
-version = "0.5.0"
-description = "Vedana Gradio interface"
+version = "0.1.0"
+description = "Gradio UI for Vedana"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "gradio>=5.25.2",
+    "gradio",
+    "vedana-core>=0.5.0",
+    "prometheus-client>=0.22.0",
     "grist-api>=0.1.1",
     "neo4j>=5.28.1",
     "openai>=1.75.0",
@@ -24,10 +26,9 @@ dependencies = [
     "sentry-sdk[fastapi,opentelemetry]>=2.32.0",
 ]
 
-[tool.uv.sources]
+[tool.sources]
 jims-core = { path = "../../../jims/packages/jims-core/", editable = true }
-jims-tui = { path = "../../../jims/packages/jims-tui/", editable = true }
-jims-backoffice = { path = "../../../jims/packages/jims-backoffice/", editable = true }
+vedana-core = { workspace = true }
 
 [tool.mypy]
 plugins = ['pydantic.mypy']
