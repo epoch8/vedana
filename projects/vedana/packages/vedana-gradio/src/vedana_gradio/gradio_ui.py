@@ -14,14 +14,16 @@ from jims_core.thread.thread_controller import ThreadController
 from opentelemetry import trace
 from uuid_extensions import uuid7
 
-from vedana.data_model import DataModel
-from vedana.data_provider import GristSQLDataProvider
-from vedana.embeddings import EmbeddingProvider, OpenaiEmbeddingProvider
-from vedana.graph import Graph, MemgraphGraph
-from vedana.importers.fast import DataModelLoader, update_graph
-from vedana.rag_pipeline import RagPipeline
-from vedana.settings import get_custom_settings
-from vedana.settings import settings as s
+from vedana_core.data_model import DataModel
+from vedana_core.data_provider import GristSQLDataProvider
+from vedana_core.embeddings import EmbeddingProvider, OpenaiEmbeddingProvider
+from vedana_core.graph import Graph, MemgraphGraph
+from vedana_core.importers.fast import DataModelLoader, update_graph
+from vedana_core.rag_pipeline import RagPipeline
+
+# todo
+from vedana_core.settings import get_custom_settings
+from vedana_core.settings import settings as s
 
 tracer = trace.get_tracer(__name__)
 

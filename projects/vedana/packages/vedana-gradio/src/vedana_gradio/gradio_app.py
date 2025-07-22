@@ -11,13 +11,15 @@ from opentelemetry.sdk.trace import TracerProvider
 from prometheus_client import start_http_server
 from sentry_sdk.integrations.opentelemetry import SentryPropagator, SentrySpanProcessor
 
-from vedana.data_model import DataModel
-from vedana.db import get_sessionmaker
-from vedana.embeddings import OpenaiEmbeddingProvider
-from vedana.gradio_ui import create_gradio_interface, init_async_stuff
-from vedana.graph import MemgraphGraph
-from vedana.importers.fast import DataModelLoader
-from vedana.settings import settings as s
+from vedana_core.data_model import DataModel
+from vedana_core.db import get_sessionmaker
+from vedana_core.embeddings import OpenaiEmbeddingProvider
+from vedana_core.graph import MemgraphGraph
+from vedana_core.importers.fast import DataModelLoader
+from vedana_core.settings import settings as s
+
+from gradio_ui import create_gradio_interface, init_async_stuff
+
 
 logging.basicConfig(
     level=(logging.DEBUG if s.debug else logging.INFO),
