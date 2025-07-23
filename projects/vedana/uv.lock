@@ -3055,7 +3055,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.21.0" },
     { name = "alembic", specifier = ">=1.13.0" },
     { name = "asyncpg", specifier = ">=0.29.0" },
-    { name = "gradio" },
+    { name = "gradio", specifier = "==5.38.0" },
     { name = "grist-api", specifier = ">=0.1.1" },
     { name = "jims-backoffice", specifier = ">=0.1.0" },
     { name = "jims-core", specifier = ">=0.1.0" },
