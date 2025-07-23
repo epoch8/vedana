@@ -86,7 +86,7 @@ def make_jims_app() -> fastapi.FastAPI:
     async def healthz_check():
         return {"status": "ok"}
 
-    app = gr.mount_gradio_app(app, iface, path="/", auth=(s.app_user, s.app_pwd))
+    app = gr.mount_gradio_app(app, iface, path="/")
     return app
 
 
@@ -96,6 +96,8 @@ def main():
         traces_sample_rate=1.0,
         instrumenter="otel",
     )
+
+    sentry_sdk.set_tag("medium", "gradio")
 
     provider = TracerProvider()
     provider.add_span_processor(SentrySpanProcessor())

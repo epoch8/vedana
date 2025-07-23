@@ -26,6 +26,6 @@ def cast_dtype(value, value_name: str, dtype: str):
             return value  # Fallback
 
     except (ValueError, TypeError):
-        print(f"Ошибка cast_dtype для значения {value_name} {value} (ожидаемый dtype {dtype})")
+        print(f"cast_dtype error for value {value_name} {value} (expected dtype {dtype})")
 
     return value
