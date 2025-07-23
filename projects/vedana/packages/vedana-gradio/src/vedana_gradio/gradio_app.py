@@ -18,7 +18,7 @@ from vedana_core.graph import MemgraphGraph
 from vedana_core.importers.fast import DataModelLoader
 from vedana_core.settings import settings as s
 
-from gradio_ui import create_gradio_interface, init_async_stuff
+from vedana_gradio.gradio_ui import create_gradio_interface, init_async_stuff
 
 
 logging.basicConfig(
@@ -62,7 +62,7 @@ def make_jims_app() -> fastapi.FastAPI:
     sessionmaker = get_sessionmaker()
     init_async_stuff()
 
-    from vedana.gradio_ui import loop
+    from vedana_gradio.gradio_ui import loop
 
     # gradio setup
     iface = create_gradio_interface(
