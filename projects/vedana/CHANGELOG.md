@@ -1,3 +1,11 @@
+# 0.5.0
+
+* (vedana) Refactor Vedana into packages: 
+  * `vedana-core`
+  * `vedana-gradio`
+  * `vedana-tg`
+  * `vedana-etl`
+
 # 2025.07.19-dev.7
 
 * (vedana) Rename memgraph-rag to vedana
