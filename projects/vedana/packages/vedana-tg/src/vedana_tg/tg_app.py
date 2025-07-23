@@ -1,8 +1,13 @@
 import asyncio
 import logging
 
+import sentry_sdk
 from aiohttp import web
 from jims_telegram import TelegramController
+from opentelemetry import trace
+from opentelemetry.propagate import set_global_textmap
+from opentelemetry.sdk.trace import TracerProvider
+from sentry_sdk.integrations.opentelemetry import SentryPropagator, SentrySpanProcessor
 
 from vedana_core.data_model import DataModel
 from vedana_core.db import get_sessionmaker
@@ -33,6 +38,19 @@ async def healthcheck(host: str = "0.0.0.0", port: int = 8000):
 
 
 async def main_tg():
+    sentry_sdk.init(
+        send_default_pii=True,
+        traces_sample_rate=1.0,
+        instrumenter="otel",
+    )
+
+    sentry_sdk.set_tag("medium", "telegram")
+
+    provider = TracerProvider()
+    provider.add_span_processor(SentrySpanProcessor())
+    trace.set_tracer_provider(provider)
+    set_global_textmap(SentryPropagator())
+
     try:
         # data setup
         data_model = DataModel.load_grist_online(

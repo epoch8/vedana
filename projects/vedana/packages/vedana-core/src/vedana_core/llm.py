@@ -141,7 +141,7 @@ class LLM:
         Извлекает атрибуты и их значения из Cypher-запроса с помощью LLM.
         Возвращает словарь, где значения могут быть списками, если ключ повторяется.
         """
-        self.logger.debug("🔍 Разбираем Cypher-запрос:")
+        self.logger.debug("🔍 Parsing Cypher query:")
         self.logger.debug(cypher_query)
 
         prompt = extract_attributes_from_cypher_tmplt.format(cypher_query=cypher_query)
@@ -153,21 +153,21 @@ class LLM:
         response = await self.llm.chat_completion_plain(messages)  # todo parse format а не костыли ниже
         raw_response = content_from_completion(response)
 
-        self.logger.debug("🧐 LLM вернул (сырой ответ):")
+        self.logger.debug("🧐 LLM returned (raw):")
         self.logger.debug(raw_response)
 
-        # Убираем обёртки ```json и ```
+        # Remove wrapping ```json and ``` blocks
         cleaned = re.sub(r"```json\s*", "", raw_response, flags=re.IGNORECASE)
         cleaned = re.sub(r"```", "", cleaned).strip()
 
-        self.logger.debug("🧼 Очищенный JSON-блок:")
+        self.logger.debug("🧼 Cleaned JSON block:")
         self.logger.debug(cleaned)
 
         try:
             parsed = json.loads(cleaned)
 
             if isinstance(parsed, dict):
-                self.logger.debug("✅ Извлечённый словарь:")
+                self.logger.debug("✅ Extracted dictionary:")
                 self.logger.debug(parsed)
                 return parsed
 
@@ -176,24 +176,24 @@ class LLM:
                 for d in parsed:
                     for key, value in d.items():
                         merged[key].append(value)
-                self.logger.debug("✅ Извлечён и объединён список словарей:")
+                self.logger.debug("✅ Extracted and merged list of dictionaries:")
                 self.logger.debug(merged)
                 return dict(merged)
 
             else:
-                self.logger.warning("⚠️ JSON корректный, но структура не соответствует ожиданиям.")
+                self.logger.warning("⚠️ JSON is valid, but the structure does not match expectations.")
                 return {}
 
         except json.JSONDecodeError as e:
-            self.logger.warning(f"⚠️ Ошибка разбора JSON: {e}")
+            self.logger.warning(f"⚠️ JSON parsing error: {e}")
             return {}
 
     async def filter_graph_structure(self, graph_descr: str, natural_language_query: str) -> str:
         """
-        Смотрим на структуру графа (в текстовом виде), и на текстовый запрос, оставляем только нужные ноды/атрибуты/линки
+        Inspect the graph structure (in text form) and the natural language query, leaving only the required nodes/attributes/links.
         """
-        self.logger.debug(f"🔹 Фильтруем структуру графа под запрос {natural_language_query}")
-        self.logger.debug(f"🔹 Полная структура графа:\n{graph_descr}\n")
+        self.logger.debug(f"🔹 Filtering graph structure for query {natural_language_query}")
+        self.logger.debug(f"🔹 Full graph structure:\n{graph_descr}\n")
 
         prompt = filter_graph_structure_tmplt.format(
             graph_composition=graph_descr,
@@ -207,7 +207,7 @@ class LLM:
         response = await self.llm.chat_completion_plain(messages)
         response_text = content_from_completion(response)
 
-        self.logger.debug(f"🔹 Отфильтрованная структура графа:\n{response_text}\n")
+        self.logger.debug(f"🔹 Filtered graph structure:\n{response_text}\n")
         return response_text
 
     async def generate_human_answer(
@@ -281,7 +281,7 @@ class LLM:
         response = await self.llm.chat_completion_plain(messages)
 
         cypher_query = cypher_from_completion(response)
-        self.logger.debug(f"🔹 Обновленный Cypher-запрос:\n{cypher_query}\n")
+        self.logger.debug(f"🔹 Updated Cypher query:\n{cypher_query}\n")
         return cypher_query
 
 

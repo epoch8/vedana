@@ -6,6 +6,14 @@
   * `vedana-tg`
   * `vedana-etl`
 
+# 2025.07.22-dev.9
+
+* (vedana) Turn off built-in password auth
+
+# 2025.07.21-dev.8
+
+* (vedana) Translate UI fields and pipeline logs in English
+
 # 2025.07.19-dev.7
 
 * (vedana) Rename memgraph-rag to vedana

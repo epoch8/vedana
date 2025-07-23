@@ -9,4 +9,10 @@ resource "kubernetes_secret_v1" "memgraph_secrets" {
     PASSWORD = var.password
   }
   type = "Opaque"
+
+  lifecycle {
+    ignore_changes = [
+      metadata[0].namespace,
+    ]
+  }
 }
