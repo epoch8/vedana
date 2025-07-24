@@ -1,9 +1,10 @@
 from datapipe.compute import Table
 from datapipe.store.database import TableStoreDB
+from datapipe.compute import Catalog
 from datapipe.store.neo4j import Neo4JStore
 
 import vedana_etl.schemas as schemas
-from vedana_etl.config import DBCONN_DATAPIPE, MEMGRAPH_CONN_ARGS, catalog
+from vedana_etl.config import DBCONN_DATAPIPE, MEMGRAPH_CONN_ARGS
 
 data_model_tables = {
     "dm_links": (
@@ -137,16 +138,18 @@ memgraph_tables = {
 }
 
 
-def init_catalog(catalog_extra_tables: dict):
+def compile_catalog(catalog_extra_tables: dict):
     catalog_dict = {
         **data_model_tables,
         **grist_tables,
         **catalog_extra_tables,
         **memgraph_tables,
     }
+    return catalog_dict
 
-    for subcatalog in [catalog_dict]:
+
+def init_catalog(catalog: Catalog, catalog_tables: dict):
+    for subcatalog in [catalog_tables]:
         for table_name, table_store in subcatalog.items():
             catalog.add_datatable(table_name, table_store)
-
     return catalog
