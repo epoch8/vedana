@@ -15,9 +15,7 @@ COPY vedana/pyproject.toml vedana/uv.lock ./
 RUN --mount=type=cache,target=/root/.cache uv sync --no-install-project
 
 # Copy application code
-COPY vedana/packages/vedana-core/ ./packages/vedana-core/
-COPY vedana/packages/vedana-gradio/ ./packages/vedana-gradio/
-COPY vedana/packages/vedana-tg/ ./packages/vedana-tg/
+COPY vedana/packages/ ./packages/
 COPY vedana/data/ ./data/
 
 RUN --mount=type=cache,target=/root/.cache uv sync --all-packages
