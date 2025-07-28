@@ -14,8 +14,10 @@ def get_custom_settings(prefix: str = ""):
         grist_api_key: str
         grist_data_model_doc_id: str
         grist_data_doc_id: str
-        embeddings_cache_path: str = "data/cache/embeddings_cache.db"
+        model: str = "gpt-4.1-mini"
+        embeddings_model: str = "text-embedding-3-large"
         embeddings_dim: int = 1024
+        embeddings_cache_path: str = "data/cache/embeddings_cache.db"
         memgraph_uri: str = "bolt://memgraph:7687"  # localhost for local tests
         memgraph_user: str = "neo4j"
         memgraph_pwd: str = "modular-current-bonjour-senior-neptune-8618"
@@ -36,12 +38,13 @@ class Settings(BaseSettings):
     grist_data_model_doc_id: str
     grist_data_doc_id: str
 
-    embeddings_cache_path: str = "data/cache/embeddings_cache.db"
-    default_embeddings_cache_path: str = "data/cache/embeddings_cache.db"
+    debug: bool = False
+    model: str = "gpt-4.1-mini"
+    embeddings_model: str = "text-embedding-3-large"
     embeddings_dim: int = 1024
 
-    debug: bool = False
-    model: str = "gpt-4.1"
+    embeddings_cache_path: str = "data/cache/embeddings_cache.db"
+    default_embeddings_cache_path: str = "data/cache/embeddings_cache.db"
 
     memgraph_uri: str = "bolt://memgraph:7687"  # localhost for local tests
     memgraph_user: str = "neo4j"
