@@ -1,3 +1,7 @@
+# 2025.07.22-dev.10
+
+* (vedana) Get system prompts from Grist's DataModel, with fallback to hardcoded prompts
+
 # 2025.07.22-dev.9
 
 * (vedana) Turn off built-in password auth
