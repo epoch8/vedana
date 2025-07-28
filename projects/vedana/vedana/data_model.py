@@ -584,12 +584,12 @@ class GristOnlineDataModelLoader(DataModelLoader):
 
     def iter_prompts(self) -> Iterable[tuple]:
         try:
-            df = self.get_table("SystemPrompts")
+            df = self.get_table("Prompts")
             df = df[["name", "text"]]
             for row in df.dropna().itertuples(index=False):
                 yield row
         except requests.exceptions.HTTPError:
-            logger.warning("SystemPrompts table not found in Grist document")
+            logger.warning("Prompts table not found in Grist document")
 
     def _list_table_columns(self, table_name: str) -> list[str]:
         resp = self._client.columns(table_name)
