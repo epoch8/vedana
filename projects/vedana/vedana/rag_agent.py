@@ -213,21 +213,6 @@ class RagAgent:
 
         return queries
 
-    async def text_to_queries(self, text_query: str) -> list[DBQuery]:
-        # filtered_graph_descr = await self.llm.filter_graph_structure(
-        #     self._graph_descr, text_query
-        # )
-        # answer = await self.llm.generate_cypher_query_v5(filtered_graph_descr, text_query)
-        answer = await self.llm.generate_cypher_query_v5(self._graph_descr, text_query)
-        return self._llm_answer_to_queries(answer)
-
-    def execute_cypher_query(self, query, rows_limit: int = 30) -> QueryResult:
-        try:
-            return list(islice(self.graph.execute_ro_cypher_query(query), rows_limit))
-        except Exception as e:
-            self.logger.exception(e)
-            return e
-
     @staticmethod
     def result_to_text(query: str, result: list[Record] | Exception) -> str:
         if isinstance(result, Exception):
