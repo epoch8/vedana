@@ -2,6 +2,7 @@ import enum
 import json
 import logging
 import re
+from itertools import islice
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional, Type
 
@@ -143,6 +144,13 @@ class RagAgent:
             return f"Query: {query}\nResult: 'Error executing query'"
         rows_str = "\n".join(row_to_text(row) for row in result)
         return f"Query: {query}\nRows:\n{rows_str}"
+
+    def execute_cypher_query(self, query, rows_limit: int = 30) -> QueryResult:
+        try:
+            return list(islice(self.graph.execute_ro_cypher_query(query), rows_limit))
+        except Exception as e:
+            self.logger.exception(e)
+            return e
 
     def rag_results_to_text(self, results: RagResults) -> str:
         all_results = results.db_query_res or []
