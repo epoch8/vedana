@@ -2678,8 +2678,13 @@ wheels = [
 
 [[package]]
 name = "vedana"
-version = "0.5.0"
+version = "2025.7.28.dev10+split.packages.1"
 source = { virtual = "." }
+dependencies = [
+    { name = "vedana-etl" },
+    { name = "vedana-gradio" },
+    { name = "vedana-tg" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -2688,6 +2693,11 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [
+    { name = "vedana-etl", virtual = "packages/vedana-etl" },
+    { name = "vedana-gradio", virtual = "packages/vedana-gradio" },
+    { name = "vedana-tg", virtual = "packages/vedana-tg" },
+]
 
 [package.metadata.requires-dev]
 dev = [
