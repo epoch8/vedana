@@ -235,6 +235,9 @@ class DataModel:
     def conversation_lifecycle_events(self) -> dict[str, str]:
         return {cl.event: cl.text for cl in self.conversation_lifecycle}
 
+    def prompt_templates(self) -> dict[str, str]:
+        return {p.name: p.text for p in self.prompts}
+
     def vector_indices(self) -> dict[str, str]:
         return {
             anchor.noun: attr.name

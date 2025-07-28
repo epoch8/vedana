@@ -41,18 +41,20 @@ class LLM:
     def __init__(
         self,
         llm_provider: LLMProvider,
+        prompt_templates: dict[str, str],
         temperature: float | NotGiven = NOT_GIVEN,
         logger: logging.Logger | None = None,
     ) -> None:
         self.temperature = temperature
         self.logger = logger or logging.getLogger(__name__)
         self.llm = llm_provider
+        self.prompt_templates = prompt_templates
 
     async def generate_cypher_query(self, data_descr: str, text_query: str) -> str:
-        return await generate_cypher_query_v4(self.llm, data_descr, text_query)
+        return await generate_cypher_query_v4(self.llm, self.prompt_templates, data_descr, text_query)
 
     async def generate_cypher_query_v5(self, data_descr: str, text_query: str) -> str:
-        return await generate_cypher_query_v5(self.llm, data_descr, text_query)
+        return await generate_cypher_query_v5(self.llm, self.prompt_templates, data_descr, text_query)
 
     async def generate_cypher_query_v5_with_tools(
         self,
@@ -61,10 +63,7 @@ class LLM:
         tools: list[Tool],
         temperature: float = 0,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
-        msgs = make_cypher_query_v5_with_tools_dialog(
-            data_descr,
-            text_query,
-        )
+        msgs = make_cypher_query_v5_with_tools_dialog(data_descr, self.prompt_templates, text_query)
         return await self.create_completion_with_tools(msgs, tools=tools, temperature=temperature)
 
     # Current
@@ -76,7 +75,7 @@ class LLM:
         temperature: float = 0,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
         tool_names = [t.name for t in tools]
-        msgs = make_cypher_query_with_tools_dialog(data_descr, text_query, tool_names=tool_names)
+        msgs = make_cypher_query_with_tools_dialog(data_descr, self.prompt_templates, text_query, tool_names=tool_names)
         return await self.create_completion_with_tools(msgs, tools=tools, temperature=temperature)
 
     async def create_completion_with_tools(
@@ -144,9 +143,12 @@ class LLM:
         self.logger.debug("🔍 Parsing Cypher query:")
         self.logger.debug(cypher_query)
 
-        prompt = extract_attributes_from_cypher_tmplt.format(cypher_query=cypher_query)
+        prompt = self.prompt_templates.get(
+            "extract_attributes_from_cypher_tmplt", extract_attributes_from_cypher_tmplt
+        ).format(cypher_query=cypher_query)
 
         messages: list[ChatCompletionMessageParam] = [
+            # TODO отрефакторить промпты в корректный формат - системный промпт-инструкция и юзерский - контент.
             {"role": "system", "content": "Ты помощник по работе с базами данных."},
             {"role": "user", "content": prompt},
         ]
@@ -195,12 +197,11 @@ class LLM:
         self.logger.debug(f"🔹 Filtering graph structure for query {natural_language_query}")
         self.logger.debug(f"🔹 Full graph structure:\n{graph_descr}\n")
 
-        prompt = filter_graph_structure_tmplt.format(
-            graph_composition=graph_descr,
-            natural_language_query=natural_language_query,
-        )
+        prompt_template = self.prompt_templates.get("filter_graph_structure_tmplt", filter_graph_structure_tmplt)
+        prompt = prompt_template.format(graph_composition=graph_descr, natural_language_query=natural_language_query)
 
         messages: list[ChatCompletionMessageParam] = [
+            # TODO отрефакторить промпты в корректный формат - системный промпт-инструкция и юзерский - контент.
             {"role": "system", "content": "Ты — помощник по работе с графовыми базами данных."},
             {"role": "user", "content": prompt},
         ]
@@ -219,12 +220,11 @@ class LLM:
         """
         Generate a human-readable answer based on the question, Cypher query, and its results.
         """
-        prompt = generate_human_answer_tmplt.format(
-            question=question,
-            query_result=query_result,
-        )
+        prompt_template = self.prompt_templates.get("generate_human_answer_tmplt", generate_human_answer_tmplt)
+        prompt = prompt_template.format(question=question, query_result=query_result)
 
         messages: list[ChatCompletionMessageParam] = [
+            # TODO отрефакторить промпты в корректный формат - системный промпт-инструкция и юзерский - контент.
             {
                 "role": "system",
                 "content": "Ты помощник, который преобразует технические ответы в понятный человеку текст.",
@@ -245,11 +245,11 @@ class LLM:
         """
         Generate a human-readable answer based on the question, Cypher query, and its results.
         """
-        prompt = generate_no_answer_tmplt.format(
-            question=question,
-        )
+        prompt_template = self.prompt_templates.get("generate_no_answer_tmplt", generate_no_answer_tmplt)
+        prompt = prompt_template.format(question=question)
 
         messages: list[ChatCompletionMessageParam] = [
+            # TODO отрефакторить промпты в корректный формат - системный промпт-инструкция и юзерский - контент.
             {
                 "role": "system",
                 "content": "Ты помощник, который преобразует технические ответы в понятный человеку текст.",
@@ -265,13 +265,17 @@ class LLM:
     async def update_cypher_with_alt_values(
         self, text_query: str, cypher_query: str, alternative_values: dict[str, set]
     ) -> str:
-        refine_prompt = update_cypher_with_alt_values_tmplt.format(
+        prompt_template = self.prompt_templates.get(
+            "update_cypher_with_alt_values_tmplt", update_cypher_with_alt_values_tmplt
+        )
+        refine_prompt = prompt_template.format(
             natural_language_query=text_query,
             cypher_query=cypher_query,
             alternative_values=alternative_values,
         )
 
         messages: list[ChatCompletionMessageParam] = [
+            # TODO отрефакторить промпты в корректный формат - системный промпт-инструкция и юзерский - контент.
             {
                 "role": "system",
                 "content": "Ты — помощник по работе с графовыми базами данных, в которых используется подмножество Cypher, совместимое с NetworkX.",
@@ -438,11 +442,16 @@ MATCH (m:Vendor) RETURN m LIMIT 1
 """
 
 
-async def generate_cypher_query_v4(llm: LLMProvider, filtered_graph: str, natural_language_query: str):
-    prompt = generate_cypher_query_template_v4.format(
-        filtered_graph=filtered_graph, natural_language_query=natural_language_query
-    )
+async def generate_cypher_query_v4(
+    llm: LLMProvider,
+    prompt_templates: str,
+    filtered_graph: str,
+    natural_language_query: str
+):
+    prompt_template = prompt_templates.get("generate_cypher_query_template_v4", generate_cypher_query_template_v4)
+    prompt = prompt_template.format(filtered_graph=filtered_graph, natural_language_query=natural_language_query)
     messages: list[ChatCompletionMessageParam] = [
+        # TODO отрефакторить промпты в корректный формат - системный промпт-инструкция и юзерский - контент.
         {"role": "system", "content": "Ты — помощник по работе с графовыми базами данных."},
         {"role": "user", "content": prompt},
     ]
@@ -492,10 +501,12 @@ vector_search("document", "text", "пшеница зерновая");
 
 async def generate_cypher_query_v5(
     llm: LLMProvider,
+    prompt_templates: dict[str, str],
     filtered_graph: str,
     natural_language_query: str,
 ):
-    prompt = generate_cypher_query_template_v5.format(filtered_graph=filtered_graph)
+    prompt_template = prompt_templates.get("generate_cypher_query_template_v5", generate_cypher_query_template_v5)
+    prompt = prompt_template.format(filtered_graph=filtered_graph)
     messages: list[ChatCompletionMessageParam] = [
         {
             "role": "system",
@@ -545,9 +556,14 @@ MATCH (m:Vendor) RETURN m LIMIT 1
 
 def make_cypher_query_v5_with_tools_dialog(
     filtered_graph: str,
+    prompt_templates: dict[str, str],
     natural_language_query: str,
 ) -> list[ChatCompletionMessageParam]:
-    prompt = generate_cypher_query_template_v5_with_tools.format(filtered_graph=filtered_graph)
+    prompt_template = prompt_templates.get(
+        "generate_cypher_query_template_v5_with_tools", generate_cypher_query_template_v5_with_tools
+    )
+    prompt = prompt_template.format(filtered_graph=filtered_graph)
+
     return [
         {
             "role": "system",
@@ -588,13 +604,12 @@ generate_answer_with_tools_tmplt = """\
 
 def make_cypher_query_with_tools_dialog(
     graph_description: str,
+    prompt_templates: dict[str, str],
     natural_language_query: str,
     tool_names: list[str],
 ) -> list[ChatCompletionMessageParam]:
-    prompt = generate_answer_with_tools_tmplt.format(
-        graph_description=graph_description,
-        tools=", ".join(tool_names),
-    )
+    prompt_template = prompt_templates.get("generate_answer_with_tools_tmplt", generate_answer_with_tools_tmplt)
+    prompt = prompt_template.format(graph_description=graph_description, tools=", ".join(tool_names))
     return [
         {
             "role": "system",
