@@ -7,4 +7,5 @@
         }
     },
     "notebook.formatOnSave.enabled": true,
+    "makefile.configureOnOpen": false,
 }
