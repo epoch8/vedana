@@ -46,6 +46,15 @@ services:
   #     db:
   #       condition: service_healthy
 
+  # jims-backoffice:
+  #   <<: *app-common
+  #   command: uv run jims-backoffice
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     db-migrate:
+  #       condition: service_completed_successfully
+
   memgraph:
     image: memgraph/memgraph-mage
     ports:
@@ -80,17 +89,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
-      retries: 5
-
-  jims-backoffice:
-    <<: *app-common
-    command: uv run jims-backoffice
-    ports:
-      - "8000:8000"
-    depends_on:
-      db-migrate:
-        condition: service_completed_successfully
-    
+      retries: 5    
 
 
 volumes:
