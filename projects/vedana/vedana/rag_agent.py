@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, create_model
 from vedana.data_model import DataModel
 from vedana.embeddings import EmbeddingProvider
 from vedana.graph import Graph, Record
-from vedana.llm import LLM, Tool, clear_cypher
+from vedana.llm import LLM, Tool
 
 QueryResult = list[Record] | Exception
 

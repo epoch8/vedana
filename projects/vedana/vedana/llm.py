@@ -128,79 +128,24 @@ class LLM:
         prompt = prompt_template.format(question=question)
 
         messages: list[ChatCompletionMessageParam] = [
-            # TODO отрефакторить промпты в корректный формат - системный промпт-инструкция и юзерский - контент.
-            {
-                "role": "system",
-                "content": base_helper_prompt_4,
-            },
-            *(dialog or []),
-            {"role": "user", "content": prompt},
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": question},
         ]
         response = await self.llm.chat_completion_plain(messages, temperature=0.3)
-        human_answer = content_from_completion(response)
+        human_answer = "" if response.content is None else response.content.strip()
         self.logger.info(f"Generated 'no answer' response: {human_answer}")
         return human_answer
 
 
- # TODO эти промпты существуют по большей части из-за некорректного определения system и user промптов.
- #   Нужно правильно отформатировать основные промпты, а эти убрать.
-base_helper_prompt_4 = "Ты помощник, который преобразует технические ответы в понятный человеку текст."
-
 generate_no_answer_tmplt = """\
-Вопрос пользователя: {question}
+Ты - помощник, который преобразует технические ответы в понятный человеку текст. 
 
-Мы не смогли найти ответ на данный вопрос в базе знаний.
+Мы не смогли найти ответ на вопрос пользователя в базе знаний.
 
 Сформулируй ответ, сообщающий кратко и информативно, что ответа не найдено.
 
 Предложи пару вариантов уточняющих вопросов на основе информации в контексте. Предложи в casual стиле.
 """
-
-def content_from_completion(completion: ChatCompletionMessage) -> str:
-    if completion.content is None:
-        return ""
-    return completion.content.strip() or ""
-
-
-def clear_cypher(cypher: str) -> str:
-    return cypher.strip().removeprefix("""```cypher""").removeprefix("""```""").removesuffix("```").strip()
-
-
-def cypher_from_completion(completion: ChatCompletionMessage) -> str:
-    return clear_cypher(content_from_completion(completion))
-
-
-generate_cypher_query_template_v5_with_tools = """\
-Ты — помощник по работе с графовыми базами данных, в которых используется язык запросов Cypher
-
-Цель: сгенерировать **НЕСКОЛЬКО корректных Cypher-запросов** на основе текстового описания графовой базы данных и запроса пользователя.
-
-На вход ты получаешь graph_composition: – описание графа и примеры запросов по нему, и user_query – пользовательский запрос.
-
-**Что нужно сделать:**
-1. Сгенерировать `Cypher`-запросы, используя узлы, атрибуты и связи перечисленные в **graph_composition**.
-2. Руководствуйся данными в **graph_composition** примерами запросов, чтобы составить итоговый запрос.
-3. Не добавляй пояснений или обёрток — верни только валидные Cypher-запросы
-4. Каждый запрос должен полностью отвечать на вопрос пользователя. Допустимо вернуть массив из нескольких запросов, если пользователь спрашивает про несколько разных узлов одного типа (например, запрос типа "сравни/в чем разница")
-5. Используй при необходимости инструмент vector_text_search
-
-Если нужно, используй несколько `MATCH`-блоков, например:
-    MATCH (o:offer)-[:OFFER_belongs_to_CATEGORY]->(c:category)
-    MATCH (o)-[:OFFER_made_of_MATERIAL]->(m:material)
-    WHERE c.category_name = "Встраиваемый светильник" AND m.material_name IN ["Стекло", "Металл и Стекло", "Алюминий и стекло"]
-    RETURN o
-
-Теперь проанализируй следующую структуру графа, и преобразуй пользовательский запрос в Cypher запросы и запросы для текстового поиска.
-
-**graph_composition**
-{filtered_graph}
-
-ВЕРНИ ОТВЕТ В ВИДЕ строк, разделённых знаком "---", пример:
-MATCH (n:Product) RETURN n LIMIT 1
----
-MATCH (m:Vendor) RETURN m LIMIT 1
-"""
-
 
 generate_answer_with_tools_tmplt = """\
 Ты — помощник по работе с графовыми базами данных, в которых используется язык запросов Cypher
