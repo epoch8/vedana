@@ -156,9 +156,7 @@ class EmbeddingsCache:
 
 
 class EmbeddingProvider(abc.ABC):
-    def __init__(self, llm: LLMProvider, embeddings_model: str, embeddings_dim: int):
-        self.llm = llm
-        self.embeddings_model = embeddings_model
+    def __init__(self, embeddings_dim: int):
         self.embeddings_dim = embeddings_dim
 
     @abc.abstractmethod
@@ -172,8 +170,8 @@ class EmbeddingProvider(abc.ABC):
 
 
 class OpenaiEmbeddingProvider(EmbeddingProvider):
-    def __init__(self, cache_dir: Path, llm: LLMProvider, embeddings_model: str, embeddings_dim: int):
-        super().__init__(llm, embeddings_model, embeddings_dim)
+    def __init__(self, cache_dir: Path, embeddings_dim: int):
+        super().__init__(embeddings_dim)
         self._cache = EmbeddingsCache(cache_dir, embeddings_dim=embeddings_dim)
 
     def get_embedding(self, text: str) -> np.ndarray:
@@ -188,8 +186,13 @@ class OpenaiEmbeddingProvider(EmbeddingProvider):
             return cached_embedding
 
         # Generate new embedding if not in cache
-        embedding = self.llm.create_embedding(text)
-        embedding = np.array(embedding)
+        with openai.OpenAI() as client:
+            response = client.embeddings.create(
+                model="text-embedding-3-large",
+                input=text,
+                dimensions=self.embeddings_dim,
+            )
+        embedding = np.array(response.data[0].embedding)
 
         # Cache the new embedding
         self._cache.set(text, embedding)
