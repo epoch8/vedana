@@ -3,7 +3,6 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from itertools import islice
 from typing import Any, Mapping, Optional, Type
 
 import neo4j
