@@ -82,9 +82,10 @@ resource "helm_release" "demo" {
   name      = "${local.slug}-demo"
   namespace = var.k8s_namespace
 
-  repository = "https://epoch8.github.io/helm-charts/"
-  chart      = "simple-app"
-  version    = "0.16.1"
+  # repository = "https://epoch8.github.io/helm-charts/"
+  # chart      = "simple-app"
+  # version    = "0.16.1"
+  chart = "${path.module}/../../../../../helm-charts/charts/simple-app/"
 
   values = [
     local.common_values,
@@ -94,7 +95,7 @@ resource "helm_release" "demo" {
       - run
       - python
       - -m
-      - vedana.gradio_app
+      - vedana_gradio.gradio_app
 
     resources:
       requests:
@@ -111,6 +112,7 @@ resource "helm_release" "demo" {
 
     initJob:
       enabled: true
+      workingDir: /app/vedana/packages/vedana-core
       command:
         - uv
         - run
@@ -217,7 +219,7 @@ resource "helm_release" "tg" {
       - run
       - python
       - -m
-      - vedana.tg_app
+      - vedana_tg.tg_app
 
     resources:
       requests:
