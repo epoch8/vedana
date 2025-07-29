@@ -7,7 +7,10 @@ import openai
 from sqlalchemy import create_engine, Column, String, LargeBinary, text, select
 from sqlalchemy.orm import declarative_base, sessionmaker
 import threading
-from jims_core.llms.llm_provider import LLMProvider
+
+from jims_core.llms.llm_provider import LLMProvider, LLMSettings
+
+from vedana.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -275,7 +278,14 @@ class LitellmEmbeddingProvider(EmbeddingProvider):
     ):
         super().__init__(embeddings_dim)
         self._cache = EmbeddingsCache(cache_dir, embeddings_dim=embeddings_dim)
-        self._llm = llm_provider or LLMProvider()
+
+        if not llm_provider:
+            llm_settings = LLMSettings(
+                model=settings.model,
+                embeddings_model=settings.embeddings_model,
+                embeddings_dim=embeddings_dim
+            )
+            self._llm = llm_provider or LLMProvider(llm_settings)
 
     # Single embedding
     def get_embedding(self, text: str) -> np.ndarray:
