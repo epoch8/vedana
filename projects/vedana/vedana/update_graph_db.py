@@ -5,7 +5,7 @@ import psycopg
 
 from vedana.data_model import DataModel
 from vedana.data_provider import GristSQLDataProvider
-from vedana.embeddings import OpenaiEmbeddingProvider
+from vedana.embeddings import LitellmEmbeddingProvider
 from vedana.graph import MemgraphGraph
 from vedana.importers.fast import update_graph
 from vedana.settings import settings as s
@@ -20,7 +20,7 @@ def main():
     print("Loaded data model:")
     print(data_model.to_text_descr())
     graph = MemgraphGraph(s.memgraph_uri, s.memgraph_user, s.memgraph_pwd, "")
-    embeds = OpenaiEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
+    embeds = LitellmEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
     with graph:
         try:
             n_nodes = graph.number_of_nodes()
