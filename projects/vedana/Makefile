@@ -3,6 +3,8 @@ VERSION=$(shell uv version --short | sed 's/\+/-/')
 
 IMAGE=${REPO}:${VERSION}
 
+TAG="vedana/${VERSION}"
+
 build:
 	@git diff-index --quiet HEAD || (echo "Error: There are uncommitted changes" && exit 1)
 
@@ -11,8 +13,9 @@ build:
 	git commit -m "Update vedana version to ${VERSION}"
 
 	docker build -t ${IMAGE} -f ../vedana/Dockerfile ..
-	git tag "vedana-${VERSION}"
+	git tag "${TAG}"
 
 upload:
-	git push origin "vedana-${VERSION}"
+	git push
+	git push origin "${TAG}"
 	docker push ${IMAGE}
