@@ -271,12 +271,11 @@ class LitellmEmbeddingProvider(EmbeddingProvider):
         self,
         cache_dir: Path,
         embeddings_dim: int,
-        llm_provider: LLMProvider, # | None = None,
+        llm_provider: LLMProvider | None = None,
     ):
         super().__init__(embeddings_dim)
         self._cache = EmbeddingsCache(cache_dir, embeddings_dim=embeddings_dim)
-        # self._llm = llm_provider or LLMProvider()
-        self._llm = llm_provider
+        self._llm = llm_provider or LLMProvider()
 
     # Single embedding
     def get_embedding(self, text: str) -> np.ndarray:
