@@ -17,8 +17,5 @@ dependencies = [
     "vedana-core>=0.5.0",
 ]
 
-[tool.uv.sources]
-vedana-core = { workspace = true }
-
 [tool.ruff]
 line-length = 120
