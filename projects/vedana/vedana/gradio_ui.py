@@ -16,7 +16,7 @@ from uuid_extensions import uuid7
 
 from vedana.data_model import DataModel
 from vedana.data_provider import GristSQLDataProvider
-from vedana.embeddings import EmbeddingProvider, OpenaiEmbeddingProvider
+from vedana.embeddings import EmbeddingProvider, LitellmEmbeddingProvider
 from vedana.graph import Graph, MemgraphGraph
 from vedana.importers.fast import DataModelLoader, update_graph
 from vedana.rag_pipeline import RagPipeline
@@ -302,7 +302,7 @@ def load_data_source(selected_project: str = None):
     # embeds (for reloads)
     s.embeddings_cache_path = project_settings.embeddings_cache_path or s.default_embeddings_cache_path
     s.embeddings_dim = project_settings.embeddings_dim
-    _global_state.embed_provider = OpenaiEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
+    _global_state.embed_provider = LitellmEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
 
     # Re-initialize pipeline
     _global_state.pipeline = RagPipeline(

@@ -6,7 +6,7 @@ from jims_telegram import TelegramController
 
 from vedana.data_model import DataModel
 from vedana.db import get_sessionmaker
-from vedana.embeddings import OpenaiEmbeddingProvider
+from vedana.embeddings import LitellmEmbeddingProvider
 from vedana.graph import MemgraphGraph
 from vedana.rag_pipeline import RagPipeline, StartPipeline
 from vedana.settings import settings as s
@@ -39,7 +39,7 @@ async def main_tg():
             s.grist_data_model_doc_id, grist_server=s.grist_server_url, api_key=s.grist_api_key
         )
         graph = MemgraphGraph(s.memgraph_uri, s.memgraph_user, s.memgraph_pwd)
-        embed_provider = OpenaiEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
+        embed_provider = LitellmEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
 
         pipeline = RagPipeline(
             graph=graph,
