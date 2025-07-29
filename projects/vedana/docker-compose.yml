@@ -14,25 +14,30 @@ x-app-common: &app-common
     - db
 
 services:
-  # db-migrate:
-  #   <<: *app-common
-  #   command: uv run alembic upgrade head
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
+ # db-migrate:
+ #   <<: *app-common
+ #   command: uv run alembic upgrade head
+ #   working_dir: /app/vedana/packages/vedana-core
+ #   depends_on:
+ #     db:
+ #       condition: service_healthy
 
-  # app:
-  #   <<: *app-common
-  #   ports:
-  #     - "7860:7860"  # gradio
-  #   command: uv run python app/gradio_app.py
-  #   depends_on:
-  #     db-migrate:
-  #       condition: service_completed_successfully
+ # app:
+ #   <<: *app-common
+ #   ports:
+ #     - "7860:7860"  # gradio
+ #   command: uv run python -m vedana_gradio.gradio_app
+ #   depends_on:
+ #     db-migrate:
+ #       condition: service_completed_successfully
+ #     memgraph:
+ #       condition: service_started
+ #     db:
+ #       condition: service_healthy
 
   # tg:
   #   <<: *app-common
-  #   command: uv run app/tg_app.py
+  #   command: uv run python -m vedana_tg.tg_app
   #   depends_on:
   #     db-migrate:
   #       condition: service_completed_successfully
@@ -40,6 +45,15 @@ services:
   #       condition: service_started
   #     db:
   #       condition: service_healthy
+
+  # jims-backoffice:
+  #   <<: *app-common
+  #   command: uv run jims-backoffice
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     db-migrate:
+  #       condition: service_completed_successfully
 
   memgraph:
     image: memgraph/memgraph-mage
@@ -75,17 +89,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
-      retries: 5
-
-  jims-backoffice:
-    <<: *app-common
-    command: uv run jims-backoffice
-    ports:
-      - "8000:8000"
-    depends_on:
-      db-migrate:
-        condition: service_completed_successfully
-    
+      retries: 5    
 
 
 volumes:
