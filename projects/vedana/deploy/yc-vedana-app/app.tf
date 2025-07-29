@@ -120,10 +120,10 @@ resource "helm_release" "demo" {
   name      = "${local.slug}-demo"
   namespace = var.k8s_namespace
 
-  # repository = "https://epoch8.github.io/helm-charts/"
-  # chart      = "simple-app"
-  # version    = "0.16.1"
-  chart = "${path.module}/../../../../../helm-charts/charts/simple-app/"
+  repository = "https://epoch8.github.io/helm-charts/"
+  chart      = "simple-app"
+  version    = "0.17.1"
+  # chart = "${path.module}/../../../../../helm-charts/charts/simple-app/"
 
   values = [
     local.common_values,
@@ -191,7 +191,7 @@ resource "helm_release" "backoffice" {
 
   repository = "https://epoch8.github.io/helm-charts/"
   chart      = "simple-app"
-  version    = "0.16.1"
+  version    = "0.17.1"
 
   values = [
     local.common_values,
@@ -247,7 +247,7 @@ resource "helm_release" "tg" {
 
   repository = "https://epoch8.github.io/helm-charts/"
   chart      = "simple-app"
-  version    = "0.16.1"
+  version    = "0.17.1"
 
   values = [
     local.common_values,
