@@ -35,12 +35,22 @@ variable "memgraph_resources" {
   }
 }
 
-variable "image_repository" {
+variable "app_image_repository" {
   type    = string
   default = null
 }
 
-variable "image_tag" {
+variable "app_image_tag" {
+  type    = string
+  default = null
+}
+
+variable "etl_image_repository" {
+  type    = string
+  default = null
+}
+
+variable "etl_image_tag" {
   type    = string
   default = null
 }
