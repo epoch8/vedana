@@ -8,28 +8,22 @@ locals {
 }
 
 
-resource "random_password" "demo_password" {
-  length  = 16
-  special = false
-}
-
-
 locals {
-  demo_domain       = "demo.${var.project}.${var.base_domain}"
-  backoffice_domain = "backoffice.${var.project}.${var.base_domain}"
+  slug = "${var.project}-${var.environment}"
+
+  demo_domain       = "demo.${var.base_domain}"
+  backoffice_domain = "backoffice.${var.base_domain}"
 
   vedana_env = {
-    APP_USER = "admin"
-    APP_PWD  = random_password.demo_password.result
-
-    JIMS_DB_CONN_URI = "postgresql://${yandex_mdb_postgresql_user.jims.name}:${random_string.db.result}@${data.yandex_mdb_postgresql_cluster.db_cluster.host.0.fqdn}:6432/${yandex_mdb_postgresql_database.jims.name}"
+    JIMS_DB_CONN_URI = "postgresql://${yandex_mdb_postgresql_user.jims.name}:${random_string.jims_db_password.result}@${data.yandex_mdb_postgresql_cluster.db_cluster.host.0.fqdn}:6432/${yandex_mdb_postgresql_database.jims.name}"
 
     MEMGRAPH_URI  = module.memgraph.config.local_uri
     MEMGRAPH_USER = module.memgraph.config.user
     MEMGRAPH_PWD  = module.memgraph.config.password
 
     SENTRY_DSN         = var.sentry_dsn
-    SENTRY_ENVIRONMENT = "${var.project}-${var.environment}"
+    SENTRY_ENVIRONMENT = local.slug
+    SENTRY_RELEASE     = local.image_tag
 
     OPENAI_BASE_URL = "https://oai-proxy-hzkr3iwwhq-ew.a.run.app/v1/"
     OPENAI_API_KEY  = "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"
@@ -85,12 +79,13 @@ locals {
 }
 
 resource "helm_release" "demo" {
-  name      = "${var.project}-demo"
+  name      = "${local.slug}-demo"
   namespace = var.k8s_namespace
 
-  repository = "https://epoch8.github.io/helm-charts/"
-  chart      = "simple-app"
-  version    = "0.16.1"
+  # repository = "https://epoch8.github.io/helm-charts/"
+  # chart      = "simple-app"
+  # version    = "0.16.1"
+  chart = "${path.module}/../../../../../helm-charts/charts/simple-app/"
 
   values = [
     local.common_values,
@@ -100,7 +95,7 @@ resource "helm_release" "demo" {
       - run
       - python
       - -m
-      - vedana.gradio_app
+      - vedana_gradio.gradio_app
 
     resources:
       requests:
@@ -117,6 +112,7 @@ resource "helm_release" "demo" {
 
     initJob:
       enabled: true
+      workingDir: /app/vedana/packages/vedana-core
       command:
         - uv
         - run
@@ -133,6 +129,9 @@ resource "helm_release" "demo" {
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
         nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
         nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+        %{~for key, value in var.authentik_ingress_annotations~}
+        ${key}: ${value}
+        %{~endfor~}
       tls:
         - secretName: ${local.demo_domain}-tls
           hosts:
@@ -143,12 +142,13 @@ resource "helm_release" "demo" {
   lifecycle {
     ignore_changes = [
       name,
+      namespace,
     ]
   }
 }
 
 resource "helm_release" "backoffice" {
-  name      = "${var.project}-backoffice"
+  name      = "${local.slug}-backoffice"
   namespace = var.k8s_namespace
 
   repository = "https://epoch8.github.io/helm-charts/"
@@ -185,6 +185,9 @@ resource "helm_release" "backoffice" {
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
         nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
         nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+        %{~for key, value in var.authentik_ingress_annotations~}
+        ${key}: ${value}
+        %{~endfor~}
       tls:
         - secretName: ${local.backoffice_domain}-tls
           hosts:
@@ -195,12 +198,13 @@ resource "helm_release" "backoffice" {
   lifecycle {
     ignore_changes = [
       name,
+      namespace,
     ]
   }
 }
 
 resource "helm_release" "tg" {
-  name      = "${var.project}-tg"
+  name      = "${local.slug}-tg"
   namespace = var.k8s_namespace
 
   repository = "https://epoch8.github.io/helm-charts/"
@@ -215,7 +219,7 @@ resource "helm_release" "tg" {
       - run
       - python
       - -m
-      - vedana.tg_app
+      - vedana_tg.tg_app
 
     resources:
       requests:
@@ -235,6 +239,7 @@ resource "helm_release" "tg" {
   lifecycle {
     ignore_changes = [
       name,
+      namespace,
     ]
   }
 }
@@ -268,10 +273,7 @@ resource "helm_release" "tg" {
 
 output "config" {
   value = {
-    demo = {
-      uri      = "http://${local.demo_domain}"
-      user     = "admin"
-      password = random_password.demo_password.result
-    }
+    demo       = "https://${local.demo_domain}"
+    backoffice = "https://${local.backoffice_domain}"
   }
 }

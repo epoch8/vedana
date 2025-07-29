@@ -1,0 +1,24 @@
+[project]
+name = "vedana-etl"
+version = "0.2.0"
+description = "Pipeline template for Vedana"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.16.1",
+    "datapipe-core>=0.14.3",
+    "datapipe-app>=0.5.4",
+    "pandas>=1.2.0   ",
+    "requests>=2.32.4",
+    "sqlalchemy>=2.0.41",
+    "grist-api>=0.1.1",
+    "neo4j>=5.28.1",
+    "openai>=1.96.0",
+    "vedana-core>=0.5.0",
+]
+
+[tool.uv.sources]
+vedana-core = { workspace = true }
+
+[tool.ruff]
+line-length = 120

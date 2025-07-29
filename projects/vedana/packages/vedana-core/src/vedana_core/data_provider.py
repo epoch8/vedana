@@ -1,0 +1,563 @@
+import abc
+import io
+import sqlite3
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, NamedTuple
+
+import grist_api
+import pandas as pd
+import requests
+
+from vedana_core.data_model import DataModel
+from vedana_core.utils import cast_dtype
+
+
+@dataclass
+class Table:
+    columns: list[str]
+    rows: list[NamedTuple]
+
+
+@dataclass
+class Anchor:
+    id: str
+    type: str
+    data: dict[str, Any]
+    dp_id: int | None = None
+
+
+@dataclass
+class Attribute:
+    name: str
+    description: str
+    example: str
+    dtype: str
+    query: str
+    meta: dict[str, Any]
+    embeddable: bool = False
+    embed_threshold: float = 0
+
+
+@dataclass
+class Link:
+    id_from: str
+    id_to: str
+    type: str
+    data: dict[str, Any]
+
+
+class DataProvider(abc.ABC):
+    @abc.abstractmethod
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute]) -> list[Anchor]: ...
+
+    @abc.abstractmethod
+    def get_links(self, type_: str) -> list[Link]: ...
+
+    @abc.abstractmethod
+    def get_anchor_types(self) -> list[str]: ...
+
+    @abc.abstractmethod
+    def get_link_types(self) -> list[str]: ...
+
+    def close(self) -> None: ...
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        self.close()
+
+
+class CsvDataProvider(DataProvider):
+    anchor_file_prefix = "anchor_"
+    link_file_prefix = "link_"
+
+    def __init__(self, csv_dir: Path, data_model: DataModel) -> None:
+        self.csv_dir = Path(csv_dir)
+        self.data_model = data_model
+        self._anchor_files = {}
+        self._link_files = {}
+        self._scan_csv_files()
+
+    def _scan_csv_files(self):
+        for file in self.csv_dir.glob("*.csv"):
+            fname = file.name.lower()
+            if fname.startswith(self.anchor_file_prefix):
+                # anchor_type is after prefix and before .csv
+                anchor_type = fname[len(self.anchor_file_prefix) : -4]
+                self._anchor_files[anchor_type] = file
+            elif fname.startswith(self.link_file_prefix):
+                link_type = fname[len(self.link_file_prefix) : -4]
+                self._link_files[link_type] = file
+
+    def get_anchor_types(self) -> list[str]:
+        return list(self._anchor_files.keys())
+
+    def get_link_types(self) -> list[str]:
+        # todo: link_files != link types
+        return list(self._link_files.keys())
+
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute]) -> list[Anchor]:
+        import pandas as pd
+
+        file = self._anchor_files.get(type_)
+        if not file:
+            return []
+        df = pd.read_csv(file)
+        anchors = []
+        attrs_dtypes = {a.name: a.dtype for a in self.data_model.attrs}
+        grouped = df.groupby(["node_id", "node_type"])
+        for (node_id, node_type), group in grouped:
+            data = {
+                k: cast_dtype(v, k, dtype=attrs_dtypes.get(k))
+                for k, v in zip(group["attribute_key"], group["attribute_value"])
+            }
+            anchors.append(Anchor(str(node_id), str(node_type), data))
+        return anchors
+
+    def get_links(self, type_: str) -> list[Link]:
+        import pandas as pd
+
+        file = self._link_files.get(type_)
+        if not file:
+            return []
+        df = pd.read_csv(file)
+        links = []
+        grouped = df.groupby(["from_node_id", "to_node_id", "edge_label"])
+        for (id_from, id_to, edge_label), group in grouped:
+            data = {k: v for k, v in zip(group["attribute_key"], group["attribute_value"]) if not pd.isna(k)}
+            links.append(Link(str(id_from), str(id_to), str(edge_label), data))
+        return links
+
+    def close(self) -> None:
+        pass
+
+
+class GristDataProvider(DataProvider):
+    anchor_table_prefix = "Anchor_"
+    link_table_prefix = "Link_"
+
+    @abc.abstractmethod
+    def list_anchor_tables(self) -> list[str]: ...
+
+    @abc.abstractmethod
+    def list_link_tables(self) -> list[str]: ...
+
+    @abc.abstractmethod
+    def get_table(self, table_name: str) -> Table: ...
+
+    def get_anchor_types(self) -> list[str]:
+        prefix_len = len(self.anchor_table_prefix)
+        return [t[prefix_len:] for t in self.list_anchor_tables()]
+
+    def get_link_types(self) -> list[str]:
+        prefix_len = len(self.link_table_prefix)
+        return [t[prefix_len:] for t in self.list_link_tables()]
+
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute]) -> list[Anchor]:
+        table_name = f"{self.anchor_table_prefix}{type_}"
+        table = self.get_table(table_name)
+        if "id" not in table.columns:
+            table.columns.append("id")
+        id_key = f"{type_}_id"
+        anchor_ids = set()
+        anchors: list[Anchor] = []
+
+        def flatten_list_cells(el):
+            if isinstance(el, list) and el[0] == "L":  # flatten List type fields
+                if len(el) == 2:
+                    return el[1]
+                return el[1:]
+            elif pd.isna(el):
+                return None
+            return el
+
+        for row in table.rows:
+            row_dict = {col: getattr(row, col) for col in table.columns}
+            db_id = flatten_list_cells(row_dict.pop("id"))
+            id_ = row_dict.pop(id_key, None)
+            if id_ is None:
+                id_ = f"{type_}:{db_id}"
+            elif pd.isna(id_):
+                # print(f"{type_}:{db_id} has {id_key}=nan, skipping")
+                continue
+
+            row_dict = {k: flatten_list_cells(v) for k, v in row_dict.items()}
+            row_dict = {k: v for k, v in row_dict.items() if not isinstance(v, (bytes, type(None)))}
+
+            if id_ not in anchor_ids:
+                anchor_ids.add(id_)
+            else:
+                print(f"Duplicate anchor id {id_} in table {table_name}\nduplicate data: {row_dict}\n record skipped.")
+                continue
+
+            anchors.append(Anchor(id_, type_, row_dict, dp_id=db_id))
+
+        return anchors
+
+    def get_links(self, type_: str) -> list[Link]:
+        table_name = f"{self.link_table_prefix}{type_}"
+        table = self.get_table(table_name)
+        if "id" not in table.columns:
+            table.columns.append("id")
+
+        def flatten_list_cells(el):
+            if isinstance(el, list) and "L" in el and len(el) == 2:  # flatten List type fields
+                el = el[1]
+            return el
+
+        links: list[Link] = []
+        for row in table.rows:
+            row_dict = {col: getattr(row, col) for col in table.columns}
+            id_from = row_dict.pop("from_node_id")
+            id_to = row_dict.pop("to_node_id")
+            type_ = row_dict.pop("edge_label")
+            row_dict.pop("id")
+
+            if not id_from or not id_to or not type_ or pd.isna(type_) or pd.isna(id_from) or pd.isna(id_to):
+                continue
+            row_dict = {k: flatten_list_cells(v) for k, v in row_dict.items()}
+            row_dict = {k: v for k, v in row_dict.items() if not isinstance(v, (bytes, list)) and not pd.isna(v)}
+
+            links.append(Link(id_from, id_to, type_, row_dict))
+
+        return links
+
+
+class GristOfflineDataProvider(GristDataProvider):
+    def __init__(self, sqlite_path: Path) -> None:
+        super().__init__()
+        self._conn = sqlite3.connect(sqlite_path)
+
+    def close(self):
+        self._conn.close()
+
+    def list_anchor_tables(self) -> list[str]:
+        rows = self._conn.execute(
+            f"SELECT name FROM sqlite_master WHERE type='table' and name like '{self.anchor_table_prefix}%'"
+        ).fetchall()
+        return [row[0] for row in rows]
+
+    def list_link_tables(self) -> list[str]:
+        rows = self._conn.execute(
+            f"SELECT name FROM sqlite_master WHERE type='table' and name like '{self.link_table_prefix}%'"
+        ).fetchall()
+        return [row[0] for row in rows]
+
+    def get_table(self, table_name: str) -> Table:
+        cur = self._conn.execute(f"SELECT * FROM {table_name}")
+        columns = [t[0] for t in cur.description]
+        rows = cur.fetchall()
+        return Table(columns, rows)
+
+
+class GristOnlineCsvDataProvider(GristDataProvider):
+    def __init__(self, doc_id: str, grist_server: str, api_key: str | None = None) -> None:
+        super().__init__()
+        self.doc_id = doc_id
+        self.grist_server = grist_server
+        self.api_key = api_key
+        self._tables: dict[str, pd.DataFrame] = {}
+        self._load_csv_tables(self._fetch_table_list())
+
+    def _fetch_table_list(self) -> list[str]:
+        url = f"{self.grist_server}/api/docs/{self.doc_id}/tables"
+        resp = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
+        resp.raise_for_status()
+        return [t["id"] for t in resp.json()["tables"]]
+
+    def _download_table_csv(self, table_id: str) -> pd.DataFrame:
+        url = f"{self.grist_server}/api/docs/{self.doc_id}/download/csv?tableId={table_id}"
+        resp = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
+        resp.raise_for_status()
+        return pd.read_csv(io.StringIO(resp.text)).reset_index(drop=False, names=["id"])
+
+    def _load_csv_tables(self, table_list: list):
+        for table_id in table_list:
+            try:
+                self._tables[table_id] = self._download_table_csv(table_id)
+            except Exception as e:
+                print(f"Failed to load table {table_id}: {e}")
+
+    def _list_tables_with_prefix(self, prefix: str) -> list[str]:
+        return [t for t in self._tables if t.startswith(prefix)]
+
+    def list_anchor_tables(self) -> list[str]:
+        return self._list_tables_with_prefix(self.anchor_table_prefix)
+
+    def list_link_tables(self) -> list[str]:
+        return self._list_tables_with_prefix(self.link_table_prefix)
+
+    def _list_table_columns(self, table_name: str) -> list[str]:
+        df = self._tables.get(table_name)
+        if df is not None:
+            return list(df.columns)
+        return []
+
+    def get_table(self, table_name: str) -> Table:
+        df = self._tables.get(table_name)
+        if df is None:
+            return Table([], [])
+        columns = list(df.columns)
+        rows = [tuple(row) for row in df.itertuples(index=False, name=None)]
+        return Table(columns, rows)
+
+
+class GristOnlineDataProvider(GristDataProvider):
+    def __init__(self, doc_id: str, grist_server: str, api_key: str | None = None) -> None:
+        super().__init__()
+        self.grist_server = grist_server
+        self.doc_id = doc_id
+        self.api_key = api_key
+        self._client = grist_api.GristDocAPI(doc_id, api_key=api_key, server=grist_server)
+
+    def get_table_csv(self, table_id: str) -> Table:
+        """table download via API as csv, used for Links"""
+        print(f"Downloading table {table_id} via CSV API for fixed references...")
+        url = f"{self.grist_server}/api/docs/{self.doc_id}/download/csv?tableId={table_id}"
+        resp = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
+        resp.raise_for_status()
+        df = pd.read_csv(io.StringIO(resp.text)).reset_index(drop=False, names=["id"])
+        columns = list(df.columns)
+        rows = [row for row in df.itertuples(index=False, name=table_id)]
+        return Table(columns, rows)
+
+    def _list_tables_with_prefix(self, prefix: str) -> list[str]:
+        resp = self._client.tables()
+        if not resp:
+            return []
+        table_ids: list[str] = [table["id"] for table in resp.json()["tables"]]
+        return [t_id for t_id in table_ids if t_id.startswith(prefix)]
+
+    def list_anchor_tables(self) -> list[str]:
+        return self._list_tables_with_prefix(self.anchor_table_prefix)
+
+    def list_link_tables(self) -> list[str]:
+        return self._list_tables_with_prefix(self.link_table_prefix)
+
+    def _list_table_columns(self, table_name: str) -> list[str]:
+        resp = self._client.columns(table_name)
+        if not resp:
+            return []
+        return [column["id"] for column in resp.json()["columns"]]
+
+    def get_table(self, table_name: str) -> Table:
+        # fix for tables with Foreign Key links - csv gets actual values
+        if table_name.startswith(self.link_table_prefix):
+            return self.get_table_csv(table_name)
+
+        columns = self._list_table_columns(table_name)
+        rows = self._client.fetch_table(table_name)
+        return Table(columns, rows)
+
+
+class GristSQLDataProvider(GristDataProvider):
+    """fetches rows via the /sql endpoint in chunks"""
+
+    def __init__(
+        self,
+        doc_id: str,
+        grist_server: str,
+        api_key: str | None = None,
+        *,
+        batch_size: int = 800,
+    ) -> None:
+        super().__init__()
+        self.doc_id = doc_id
+        self.grist_server = grist_server
+        self.api_key = api_key
+        self.batch_size = max(1, batch_size)
+        self.headers = {"Authorization": f"Bearer {self.api_key}"}
+        self._client = grist_api.GristDocAPI(doc_id, server=grist_server, api_key=api_key)
+
+    def reset_doc(self, doc_id: str):
+        print("reopening doc")
+        resp = requests.post(
+            f"{self.grist_server}/api/docs/{doc_id}/force-reload",
+            headers=self.headers,
+            timeout=120,
+        )
+        resp.raise_for_status()
+
+    def clean_doc_history(self, doc_id: str):
+        print("cleaning memory")
+        resp = requests.post(
+            f"{self.grist_server}/api/docs/{doc_id}/states/remove",
+            headers=self.headers,
+            json={"keep": 1},
+            timeout=120,
+        )
+        resp.raise_for_status()
+
+    def _sql_endpoint(self) -> str:
+        """Fully qualified URL of the /sql POST endpoint for this document."""
+        return f"{self.grist_server}/api/docs/{self.doc_id}/sql"
+
+    def _run_sql(self, sql: str, att=1) -> list[dict]:
+        try:
+            resp = requests.post(
+                self._sql_endpoint(),
+                json={"sql": sql},
+                headers=self.headers,
+                timeout=180,
+            )
+            resp.raise_for_status()
+            data = resp.json()  # { "records": [ { "fields": {...} }, ... ] }.
+            data = data.get("records", [])
+        except Exception as e:
+            print(f"Failed to fetch {sql}: {e}\n Retrying in 120 seconds...")  # todo logging
+            time.sleep(120)
+            self.clean_doc_history(self.doc_id)
+            self.reset_doc(self.doc_id)
+            if att < 3:
+                att += 1
+                data = self._run_sql(sql, att)
+            else:
+                raise e
+        return data
+
+    def _list_tables_with_prefix(self, prefix: str) -> list[str]:
+        resp = self._client.tables()
+        if not resp:
+            return []
+        table_ids: list[str] = [table["id"] for table in resp.json()["tables"]]
+        return [t_id for t_id in table_ids if t_id.startswith(prefix)]
+
+    def list_anchor_tables(self) -> list[str]:
+        return self._list_tables_with_prefix(self.anchor_table_prefix)
+
+    def list_link_tables(self) -> list[str]:
+        return self._list_tables_with_prefix(self.link_table_prefix)
+
+    def _iter_table_rows(self, table_name: str):
+        offset = 0
+        while True:
+            sql = f'SELECT * FROM "{table_name}" ORDER BY id LIMIT {self.batch_size} OFFSET {offset}'
+            batch = self._run_sql(sql)
+            if not batch:
+                break
+            for record in batch:
+                yield record.get("fields", {})
+            offset += self.batch_size
+
+    def get_anchors(self, type_: str, dm_attrs: list[str]) -> list[Anchor]:
+        dtypes = {e.name: e.dtype for e in dm_attrs}
+        table_name = f"{self.anchor_table_prefix}{type_}"
+        # columns_resp = self._client.columns(table_name)
+        # if not columns_resp:
+        #     return []
+        # cols = [c["id"] for c in columns_resp.json()["columns"]]
+        # if "id" not in cols:
+        #     cols.append("id")
+        default_id_key = "node_id"
+
+        anchors: dict[str, Anchor] = {}
+
+        def flatten(el):
+            if isinstance(el, list) and el and el[0] == "L":
+                return el[1] if len(el) == 2 else el[1:]
+            elif pd.isna(el):
+                return None
+            return el
+
+        for row in self._iter_table_rows(table_name):
+            db_id = flatten(row.get("id"))
+            _id = row.get(f"{type_}_id") or row.get(default_id_key) or f"{type_}:{db_id}"
+            if pd.isna(_id) or (isinstance(_id, dict) and _id.get("type") == "Buffer"):
+                continue
+
+            # extract value from row (narrow table structure)
+            # clean_data = {row["attribute_key"]: row["attribute_value"]}
+            # if _id in anchors:  # node already present - populate its attributes
+            #     anchors[_id].data.update(clean_data)
+            # else:
+            #     anchors[_id] = Anchor(str(_id), type_, clean_data, dp_id=db_id)
+
+            # wide table structure
+            row.pop("id", None)
+            row.pop("node_type", None)
+            row.pop(default_id_key, None)
+            # row.pop(f"{type_}_id", None)
+
+            # grist meta columns
+            row.pop("manualSort", None)
+            row = {
+                k: v
+                for k, v in row.items()
+                if not (isinstance(v, dict) and v.get("type") == "Buffer") and not k.startswith("gristHelper_")
+            }
+
+            clean_data = {
+                k: cast_dtype(flatten(v), k, dtypes.get(k))
+                for k, v in row.items()
+                if not isinstance(v, (bytes, type(None))) and not pd.isna(v) and v != ""
+            }
+
+            if _id in anchors:  # node already present - populate its attributes
+                # anchors[_id].data.update(clean_data)
+                print(f"duplicate {type_} id {_id}, skipping...")
+            else:
+                anchors[_id] = Anchor(str(_id), type_, clean_data, dp_id=db_id)
+
+        return list(anchors.values())
+
+    def get_links(self, type_: str) -> list[Link]:
+        table_name = f"{self.link_table_prefix}{type_}"
+        columns_resp = self._client.columns(table_name)
+        if not columns_resp:
+            return []
+
+        def flatten(el):
+            if isinstance(el, list) and "L" in el and len(el) == 2:
+                el = el[1]
+            return el
+
+        links: list[Link] = []
+        for row in self._iter_table_rows(table_name):
+            id_from = row.get("id_from") or row.get("from_node_id")
+            id_to = row.get("id_to") or row.get("to_node_id")
+            edge_label = row.get("type") or row.get("edge_label")
+            if not id_from or not id_to or not edge_label or pd.isna(edge_label) or pd.isna(id_from) or pd.isna(id_to):
+                continue
+
+            row.pop("manualSort", None)
+            row.pop("from_node_id", None)
+            row.pop("to_node_id", None)
+            row.pop("edge_label", None)
+            row.pop("id_from", None)
+            row.pop("id_to", None)
+            row.pop("type", None)
+            row.pop("id", None)
+
+            clean_data = {k: flatten(v) for k, v in row.items() if not isinstance(v, (bytes, list)) and not pd.isna(v)}
+            links.append(Link(str(id_from), str(id_to), str(edge_label), clean_data))
+        return links
+
+    def get_table(self, table_name: str) -> Table:
+        """
+        Table with 1st batch_size rows.
+        To iterate over the remaining rows use _iter_table_rows
+        """
+        cols_resp = self._client.columns(table_name)
+        columns: list[str] = []
+        if cols_resp:
+            columns = [c["id"] for c in cols_resp.json()["columns"]]
+
+        rows_data = []
+        for i, row in enumerate(self._iter_table_rows(table_name)):
+            if i >= self.batch_size:
+                break
+            # row dict to tuple in deterministic column order
+            rows_data.append(tuple(row.get(col) for col in columns))
+
+        return Table(columns, rows_data)
+
+    def get_table_df(self, table_name: str) -> pd.DataFrame:
+        """
+        Format table to dataframe
+        """
+        table: Table = self.get_table(table_name)
+        df = pd.DataFrame(table.rows, columns=table.columns)
+        return df
