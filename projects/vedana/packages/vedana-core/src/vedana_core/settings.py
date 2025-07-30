@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     grist_data_model_doc_id: str
     grist_data_doc_id: str
 
+    # todo remove, keep embeds in datapipe only
     embeddings_cache_path: str = "data/cache/embeddings_cache.db"
     default_embeddings_cache_path: str = "data/cache/embeddings_cache.db"
     embeddings_dim: int = 1024
@@ -43,11 +44,9 @@ class Settings(BaseSettings):
     debug: bool = False
     model: str = "gpt-4.1"
 
-    memgraph_uri: str = "bolt://memgraph:7687"  # localhost for local tests
-    memgraph_user: str = "neo4j"
-    memgraph_pwd: str = "modular-current-bonjour-senior-neptune-8618"
-
-    db_conn_uri: str = "postgresql://user:password@localhost:5432"
+    memgraph_uri: str
+    memgraph_user: str
+    memgraph_pwd: str
 
 
-settings = Settings()
+settings = Settings()  # type: ignore

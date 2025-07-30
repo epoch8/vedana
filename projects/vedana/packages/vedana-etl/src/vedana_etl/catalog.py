@@ -1,6 +1,5 @@
-from datapipe.compute import Table
+from datapipe.compute import Catalog, Table
 from datapipe.store.database import TableStoreDB
-from datapipe.compute import Catalog
 from datapipe.store.neo4j import Neo4JStore
 
 import vedana_etl.schemas as schemas
@@ -78,7 +77,7 @@ grist_tables = {
 # ---
 # This part is customisable (can be replaced with a connection of other branches
 
-default_custom_tables = {}
+default_custom_tables: dict[str, Table] = {}
 
 # ---
 

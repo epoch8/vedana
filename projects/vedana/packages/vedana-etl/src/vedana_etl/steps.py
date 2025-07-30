@@ -5,13 +5,10 @@ from unicodedata import normalize
 from uuid import UUID
 
 import pandas as pd
-from pandas import DataFrame
 from neo4j import GraphDatabase
-
-from vedana_core.embeddings import OpenaiEmbeddingProvider
 from vedana_core.data_provider import GristSQLDataProvider
-from vedana_etl.settings import settings
-from vedana_etl.config import MEMGRAPH_CONN_ARGS
+from vedana_core.embeddings import OpenaiEmbeddingProvider
+from vedana_core.settings import settings as core_settings
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
 # https://github.com/pandas-dev/pandas/issues/57734
@@ -50,9 +47,9 @@ def get_data_model():
     TODO: replace with DataModel from memgraph-rag.data_model once it is refactored as a package.
     """
     loader = GristSQLDataProvider(
-        doc_id=settings.grist_data_model_doc_id,
-        grist_server=settings.grist_server_url,
-        api_key=settings.grist_api_key,
+        doc_id=core_settings.grist_data_model_doc_id,
+        grist_server=core_settings.grist_server_url,
+        api_key=core_settings.grist_api_key,
         batch_size=1000,  # to always load in one batch
     )
 
@@ -72,9 +69,9 @@ def get_grist_data(batch_size: int = 500):
     """
 
     dp = GristSQLDataProvider(
-        doc_id=settings.grist_data_doc_id,
-        grist_server=settings.grist_server_url,
-        api_key=settings.grist_api_key,
+        doc_id=core_settings.grist_data_doc_id,
+        grist_server=core_settings.grist_server_url,
+        api_key=core_settings.grist_api_key,
         batch_size=batch_size,
     )
 
@@ -182,7 +179,13 @@ def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, 
     # embeddable attrs for vector indices
     vec_attr_rows = dm_attributes[(dm_attributes["embeddable"]) & (dm_attributes["dtype"].str.lower() == "str")]
 
-    driver = GraphDatabase.driver(**MEMGRAPH_CONN_ARGS)
+    driver = GraphDatabase.driver(
+        uri=core_settings.memgraph_uri,
+        auth=(
+            core_settings.memgraph_user,
+            core_settings.memgraph_pwd,
+        ),
+    )
 
     with driver.session() as session:
         # Indices
@@ -200,7 +203,7 @@ def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, 
         # Vector indices
         for _, row in vec_attr_rows.iterrows():
             attr: str = row["attribute_name"]
-            embeddings_dim = settings.embeddings_dim
+            embeddings_dim = core_settings.embeddings_dim
 
             if pd.notna(row["anchor"]):
                 label = row["anchor"]
@@ -250,8 +253,8 @@ def generate_embeddings(
         mapping.setdefault(record_type, []).append(row["attribute_name"])
 
     provider = OpenaiEmbeddingProvider(
-        cache_dir=Path(settings.embeddings_cache_path),
-        embeddings_dim=settings.embeddings_dim,
+        cache_dir=Path(core_settings.embeddings_cache_path),
+        embeddings_dim=core_settings.embeddings_dim,
     )
 
     tasks: list[tuple[int, str, str]] = []  # (row_idx, attr_name, text)
