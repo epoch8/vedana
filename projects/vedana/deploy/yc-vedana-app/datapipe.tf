@@ -33,10 +33,10 @@ resource "helm_release" "datapipe" {
   name      = "${local.slug}-datapipe"
   namespace = var.k8s_namespace
 
-  # repository = "https://epoch8.github.io/helm-charts/"
-  # chart      = "datapipe"
-  # version    = "0.2.3"
-  chart = "${path.module}/../../../../../helm-charts/charts/datapipe/"
+  repository = "https://epoch8.github.io/helm-charts/"
+  chart      = "datapipe"
+  version    = "0.3.0"
+  # chart = "${path.module}/../../../../../helm-charts/charts/datapipe/"
 
 
   values = [
