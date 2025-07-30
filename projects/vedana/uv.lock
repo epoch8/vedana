@@ -2255,19 +2255,21 @@ dependencies = [
 dev = [
     { name = "mypy" },
     { name = "ruff" },
+    { name = "types-requests" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "vedana-etl", virtual = "packages/vedana-etl" },
-    { name = "vedana-gradio", virtual = "packages/vedana-gradio" },
-    { name = "vedana-tg", virtual = "packages/vedana-tg" },
+    { name = "vedana-etl", editable = "packages/vedana-etl" },
+    { name = "vedana-gradio", editable = "packages/vedana-gradio" },
+    { name = "vedana-tg", editable = "packages/vedana-tg" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "mypy", specifier = ">=1.16.1" },
     { name = "ruff", specifier = ">=0.12.2" },
+    { name = "types-requests", specifier = ">=2.32.4.20250611" },
 ]
 
 [[package]]
@@ -2340,7 +2342,7 @@ dev = [
 [[package]]
 name = "vedana-etl"
 version = "0.2.0"
-source = { virtual = "packages/vedana-etl" }
+source = { editable = "packages/vedana-etl" }
 dependencies = [
     { name = "alembic" },
     { name = "datapipe-app" },
@@ -2371,7 +2373,7 @@ requires-dist = [
 [[package]]
 name = "vedana-gradio"
 version = "0.1.0"
-source = { virtual = "packages/vedana-gradio" }
+source = { editable = "packages/vedana-gradio" }
 dependencies = [
     { name = "aiogram" },
     { name = "aiohttp" },
@@ -2444,7 +2446,7 @@ dev = [
 [[package]]
 name = "vedana-tg"
 version = "0.1.0"
-source = { virtual = "packages/vedana-tg" }
+source = { editable = "packages/vedana-tg" }
 dependencies = [
     { name = "jims-telegram" },
     { name = "vedana-core" },

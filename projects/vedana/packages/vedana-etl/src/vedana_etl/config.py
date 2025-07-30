@@ -4,12 +4,13 @@ from functools import partial
 from datapipe.compute import Catalog
 from datapipe.datatable import DataStore
 from datapipe.store.database import DBConn
+from vedana_core.settings import settings as core_settings
 
 from vedana_etl.settings import settings
 
 MEMGRAPH_CONN_ARGS = {
-    "uri": settings.memgraph_uri,
-    "auth": (settings.memgraph_user, settings.memgraph_pwd),
+    "uri": core_settings.memgraph_uri,
+    "auth": (core_settings.memgraph_user, core_settings.memgraph_pwd),
 }
 
 DBCONN_DATAPIPE = DBConn(
