@@ -61,9 +61,9 @@ resource "helm_release" "datapipe" {
 
       loops = [
         {
-          name     = "all"
+          name     = "regular"
           schedule = "0 0 * * *"
-          labels = "stage=data-model"
+          labels = "flow=regular"
           resources = {
             requests = {
               cpu    = "200m"
