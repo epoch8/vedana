@@ -8,7 +8,7 @@ data_model_steps = [
     BatchGenerate(
         func=steps.get_data_model,  # Generator with main graph data
         outputs=["dm_anchors", "dm_attributes", "dm_links"],
-        labels=[("stage", "extract"), ("stage", "data-model")],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "extract"), ("stage", "data-model")],
     ),
 ]
 
@@ -16,20 +16,20 @@ grist_steps = [
     BatchGenerate(
         func=steps.get_grist_data,
         outputs=["grist_nodes", "grist_edges"],
-        labels=[("stage", "extract"), ("stage", "grist")],
+        labels=[("flow", "on-demand"), ("stage", "extract"), ("stage", "grist")],
     ),
     BatchTransform(
         func=steps.filter_grist_nodes,
         inputs=["grist_nodes", "dm_anchors", "dm_attributes"],
         outputs=["grist_nodes_filtered"],
-        labels=[("stage", "transform"), ("stage", "grist")],
+        labels=[("flow", "on-demand"), ("stage", "transform"), ("stage", "grist")],
         transform_keys=["node_id"],
     ),
     BatchTransform(
         func=steps.filter_grist_edges,
         inputs=["grist_edges", "dm_links"],
         outputs=["grist_edges_filtered"],
-        labels=[("stage", "transform"), ("stage", "grist")],
+        labels=[("flow", "on-demand"), ("stage", "transform"), ("stage", "grist")],
         transform_keys=["from_node_id", "to_node_id", "edge_label"],
     ),
 ]
@@ -42,14 +42,14 @@ default_custom_steps = [
         func=steps.prepare_nodes,
         inputs=["grist_nodes_filtered"],
         outputs=["nodes"],
-        labels=[("stage", "transform"), ("stage", "grist")],
+        labels=[("flow", "on-demand"), ("stage", "transform"), ("stage", "grist")],
         transform_keys=["node_id"],
     ),
     BatchTransform(
         func=steps.prepare_edges,
         inputs=["grist_edges"],
         outputs=["edges"],
-        labels=[("stage", "transform"), ("stage", "grist")],
+        labels=[("flow", "on-demand"), ("stage", "transform"), ("stage", "grist")],
         transform_keys=["from_node_id", "to_node_id", "edge_label"],
     ),
 ]
@@ -61,7 +61,7 @@ memgraph_steps = [
         func=steps.ensure_memgraph_indexes,
         inputs=["dm_attributes"],
         outputs=["memgraph_indexes", "memgraph_vector_indexes"],
-        labels=[("stage", "load"), ("stage", "memgraph")],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["attribute_name"],
     ),
     # TODO move embeddings to pgvector, store embeddings persistently
@@ -71,7 +71,7 @@ memgraph_steps = [
         func=steps.generate_embeddings,
         inputs=["nodes", "memgraph_vector_indexes"],
         outputs=["memgraph_nodes"],
-        labels=[("stage", "load")],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["node_id", "node_type"],
         chunk_size=100,
     ),
@@ -79,7 +79,7 @@ memgraph_steps = [
         func=steps.generate_embeddings,
         inputs=["edges", "memgraph_vector_indexes"],
         outputs=["memgraph_edges"],
-        labels=[("stage", "load")],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["from_node_id", "to_node_id", "edge_label"],
         chunk_size=300,
     ),
