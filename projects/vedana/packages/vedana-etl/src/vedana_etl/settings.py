@@ -21,8 +21,7 @@ class Settings(BaseSettings):
 
     embeddings_dim: int = 1024
 
-    memgraph_host: str = "localhost"  # localhost for local tests
-    memgraph_port: int = 7687
+    memgraph_uri: str = "bolt://localhost:7687"  # localhost for local tests
     memgraph_user: str = "user"
     memgraph_pwd: str = "password"
 
