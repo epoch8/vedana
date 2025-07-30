@@ -8,7 +8,7 @@ from datapipe.store.database import DBConn
 from vedana_etl.settings import settings
 
 MEMGRAPH_CONN_ARGS = {
-    "uri": f"bolt://{settings.memgraph_host}:{settings.memgraph_port}",
+    "uri": settings.memgraph_uri,
     "auth": (settings.memgraph_user, settings.memgraph_pwd),
 }
 
