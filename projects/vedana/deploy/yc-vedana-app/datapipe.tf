@@ -51,8 +51,6 @@ resource "helm_release" "datapipe" {
         enabled : true
         # workingDir: "/app/vedana/packages/vedana-core"
         command : [
-          "uv",
-          "run",
           "alembic",
           "upgrade",
           "head"
