@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [tool.sources]
-jims-core = { path = "../../../jims/packages/jims-core/", editable = true }
+jims-core = { workspace = true }
 vedana-core = { workspace = true }
 
 [tool.mypy]
