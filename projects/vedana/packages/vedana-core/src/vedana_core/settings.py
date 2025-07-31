@@ -16,9 +16,9 @@ def get_custom_settings(prefix: str = ""):
         grist_data_doc_id: str
         embeddings_cache_path: str = "data/cache/embeddings_cache.db"
         embeddings_dim: int = 1024
-        memgraph_uri: str = "bolt://memgraph:7687"  # localhost for local tests
-        memgraph_user: str = "neo4j"
-        memgraph_pwd: str = "modular-current-bonjour-senior-neptune-8618"
+        memgraph_uri: str
+        memgraph_user: str
+        memgraph_pwd: str
 
     return CustomSettings
 
