@@ -310,38 +310,15 @@ def merge_attr_dicts(dicts):
 
 
 def prepare_nodes(
-    api_nodes_df: pd.DataFrame,
     grist_nodes_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    """concat source data, update attributes with priority of grist data"""
-    # remove extra pkeys
-    api_nodes_df = api_nodes_df.drop(columns=["item_guid"])
-
-    # merge tables, update attrs, drop duplicates
-    df = pd.concat([api_nodes_df, grist_nodes_df], ignore_index=True)
-    df = df.groupby(["node_id", "node_type"], as_index=False).agg({"attributes": lambda dicts: merge_attr_dicts(dicts)})
-    df = df.drop_duplicates(subset=["node_id"])
-
-    return df
+    return grist_nodes_df.copy()
 
 
 def prepare_edges(
-    api_edges_df: pd.DataFrame,
-    api_related_products_edges_df: pd.DataFrame,
     grist_edges_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    # remove extra pkeys
-    api_edges_df = api_edges_df.drop(columns=["item_guid"])
-    api_related_products_edges_df = api_related_products_edges_df.drop(columns=["owner_guid", "guid"])
-
-    # merge tables, update attrs, drop duplicates
-    df = pd.concat([api_edges_df, api_related_products_edges_df, grist_edges_df], ignore_index=True)
-    df = df.groupby(["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label"], as_index=False).agg(
-        {"attributes": lambda dicts: merge_attr_dicts(dicts)}
-    )
-    df = df.drop_duplicates(subset=["from_node_id", "to_node_id", "edge_label"])
-
-    return df
+    return grist_edges_df.copy()
 
 
 if __name__ == "__main__":
