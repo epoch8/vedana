@@ -6,8 +6,8 @@ from uuid import UUID
 
 import pandas as pd
 from neo4j import GraphDatabase
-from vedana_core.data_provider import GristSQLDataProvider
 from vedana_core.embeddings import OpenaiEmbeddingProvider
+from vedana_core.data_provider import GristSQLDataProvider, GristOnlineDataProvider, GristOnlineCsvDataProvider
 from vedana_core.settings import settings as core_settings
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
@@ -46,16 +46,51 @@ def get_data_model():
     """
     TODO: replace with DataModel from memgraph-rag.data_model once it is refactored as a package.
     """
-    loader = GristSQLDataProvider(
+    loader = GristOnlineCsvDataProvider(
         doc_id=core_settings.grist_data_model_doc_id,
         grist_server=core_settings.grist_server_url,
         api_key=core_settings.grist_api_key,
-        batch_size=1000,  # to always load in one batch
     )
 
     links_df = loader.get_table_df("Links")
+    links_df = links_df[[
+        "anchor1",
+        "anchor2",
+        "sentence",
+        "description",
+        "query",
+        "anchor1_link_column_name",
+        "anchor2_link_column_name",
+        "has_direction"
+    ]]
+    links_df = links_df.astype(str)
+    links_df["has_direction"] = links_df["has_direction"].astype(bool)
+
     attrs_df = loader.get_table_df("Attributes")
+    attrs_df = attrs_df[[
+        "attribute_name",
+        "description",
+        "anchor",
+        "link",
+        "data_example",
+        "embeddable",
+        "query",
+        "dtype",
+        "embed_threshold",
+    ]]
+    # attrs_df = attrs_df.astype(str)
+    attrs_df["embeddable"] = attrs_df["embeddable"].astype(bool)
+    attrs_df["embed_threshold"] = attrs_df["embed_threshold"].astype(float)
+
     anchors_df = loader.get_table_df("Anchors")
+    anchors_df = anchors_df[[
+        "noun",
+        "description",
+        "id_example",
+        "query",
+    ]]
+    anchors_df = anchors_df.astype(str)
+
     yield anchors_df, attrs_df, links_df
 
 
