@@ -129,8 +129,6 @@ resource "helm_release" "demo" {
     local.common_values,
     <<EOF
     command:
-      - uv
-      - run
       - python
       - -m
       - vedana_gradio.gradio_app
@@ -197,8 +195,6 @@ resource "helm_release" "backoffice" {
     local.common_values,
     <<EOF
     command:
-      - uv
-      - run
       - jims-backoffice
 
     resources:
@@ -253,8 +249,6 @@ resource "helm_release" "tg" {
     local.common_values,
     <<EOF
     command:
-      - uv
-      - run
       - python
       - -m
       - vedana_tg.tg_app
