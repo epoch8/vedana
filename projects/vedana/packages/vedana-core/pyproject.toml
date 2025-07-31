@@ -12,10 +12,10 @@ dependencies = [
     "psycopg2-binary>=2.9.10",
     "pydantic-settings>=2.9.1",
     "sqlalchemy>=2.0.41",
-    "jims-core>=0.1.0",
-    "jims-tui>=0.1.0",
-    "jims-telegram>=0.1.0",
-    "jims-backoffice>=0.1.0",
+    "jims-core",
+    "jims-tui",
+    "jims-telegram",
+    "jims-backoffice",
     "alembic>=1.13.0",
     "asyncpg>=0.29.0",
     "aiosqlite>=0.21.0",
@@ -26,12 +26,6 @@ dependencies = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.uv.sources]
-jims-core = { path = "../../../jims/packages/jims-core/", editable = true }
-jims-tui = { path = "../../../jims/packages/jims-tui/", editable = true }
-jims-telegram = { path = "../../../jims/packages/jims-telegram/", editable = true }
-jims-backoffice = { path = "../../../jims/packages/jims-backoffice/", editable = true }
 
 [tool.mypy]
 plugins = ['pydantic.mypy']
