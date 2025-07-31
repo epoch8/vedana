@@ -1,3 +1,19 @@
+locals {
+  datapipe_domain = "datapipe.${var.base_domain}"
+
+  datapipe_env = concat([
+        for key, value in local.vedana_env : {
+          name  = key
+          value = value
+        }
+      ], [
+        {
+          name  = "DB_CONN_URI"
+          value = "postgresql://${yandex_mdb_postgresql_user.etl.name}:${random_string.etl_db_password.result}@${data.yandex_mdb_postgresql_cluster.db_cluster.host.0.fqdn}:6432/${yandex_mdb_postgresql_database.etl.name}"
+        }
+      ])
+}
+
 resource "random_string" "etl_db_password" {
   length  = 16
   special = false
@@ -29,6 +45,72 @@ resource "yandex_mdb_postgresql_database" "etl" {
   }
 }
 
+resource "helm_release" "datapipe_api" {
+  name      = "${local.slug}-datapipe-api"
+  namespace = var.k8s_namespace
+
+  repository = "https://epoch8.github.io/helm-charts/"
+  chart      = "simple-app"
+  version    = "0.17.1"
+
+  values = [
+    jsonencode({
+      env=local.datapipe_env
+    }),
+    <<EOF
+    image:
+      repository: ${local.app_image_repository}
+      tag: ${local.app_image_tag}
+
+    %{~if var.image_pull_secrets != null~}
+    imagePullSecrets:
+      - name: ${var.image_pull_secrets}
+    %{~endif~}
+
+    command:
+      - datapipe
+      - api
+
+    resources:
+      requests:
+        cpu: 0.1
+        memory: 256Mi
+      limits:
+        cpu: 1
+        memory: 1Gi
+
+    port: 8000
+
+    probe:
+      path: "/"
+
+    initJob:
+      enabled: true
+      command:
+        - alembic
+        - upgrade
+        - head
+
+    domain: "${local.datapipe_domain}"
+    ingress:
+      enabled: true
+      nginx: true
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt
+        nginx.ingress.kubernetes.io/proxy-body-size: "0"
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+        %{~for key, value in var.authentik_ingress_annotations~}
+        ${key}: ${value}
+        %{~endfor~}
+      tls:
+        - secretName: ${local.datapipe_domain}-tls
+          hosts:
+            - ${local.datapipe_domain}
+    EOF
+  ]
+}
+
 resource "helm_release" "datapipe" {
   name      = "${local.slug}-datapipe"
   namespace = var.k8s_namespace
@@ -47,16 +129,6 @@ resource "helm_release" "datapipe" {
       }
       imagePullSecrets = [{ name = var.image_pull_secrets }]
 
-      initJob : {
-        enabled : true
-        # workingDir: "/app/vedana/packages/vedana-core"
-        command : [
-          "alembic",
-          "upgrade",
-          "head"
-        ]
-      }
-
       loops = [
         {
           name     = "regular"
@@ -74,17 +146,7 @@ resource "helm_release" "datapipe" {
           }
         }
       ]
-      env = concat([
-        for key, value in local.vedana_env : {
-          name  = key
-          value = value
-        }
-      ], [
-        {
-          name  = "DB_CONN_URI"
-          value = "postgresql://${yandex_mdb_postgresql_user.etl.name}:${random_string.etl_db_password.result}@${data.yandex_mdb_postgresql_cluster.db_cluster.host.0.fqdn}:6432/${yandex_mdb_postgresql_database.etl.name}"
-        }
-      ])
+      env = local.datapipe_env
     }),
   ]
 }
