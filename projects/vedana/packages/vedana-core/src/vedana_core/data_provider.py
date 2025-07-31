@@ -304,6 +304,14 @@ class GristOnlineCsvDataProvider(GristDataProvider):
         rows = [tuple(row) for row in df.itertuples(index=False, name=None)]
         return Table(columns, rows)
 
+    def get_table_df(self, table_name: str) -> pd.DataFrame:
+        """
+        Format table to dataframe
+        """
+        table: Table = self.get_table(table_name)
+        df = pd.DataFrame(table.rows, columns=table.columns)
+        return df
+
 
 class GristOnlineDataProvider(GristDataProvider):
     def __init__(self, doc_id: str, grist_server: str, api_key: str | None = None) -> None:
@@ -351,6 +359,14 @@ class GristOnlineDataProvider(GristDataProvider):
         columns = self._list_table_columns(table_name)
         rows = self._client.fetch_table(table_name)
         return Table(columns, rows)
+
+    def get_table_df(self, table_name: str) -> pd.DataFrame:
+        """
+        Format table to dataframe
+        """
+        table: Table = self.get_table(table_name)
+        df = pd.DataFrame(table.rows, columns=table.columns)
+        return df
 
 
 class GristSQLDataProvider(GristDataProvider):
