@@ -81,10 +81,6 @@ resource "helm_release" "datapipe" {
         }
       ], [
         {
-          name = "EMBEDDINGS_CACHE_PATH"
-          value = "/tmp/embeddings_cache.db"
-        },
-        {
           name  = "DB_CONN_URI"
           value = "postgresql://${yandex_mdb_postgresql_user.etl.name}:${random_string.etl_db_password.result}@${data.yandex_mdb_postgresql_cluster.db_cluster.host.0.fqdn}:6432/${yandex_mdb_postgresql_database.etl.name}"
         }

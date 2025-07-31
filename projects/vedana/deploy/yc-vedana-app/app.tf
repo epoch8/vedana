@@ -39,6 +39,8 @@ locals {
 
     TELEGRAM_BOT_TOKEN = var.telegram_bot_token
     MODEL              = "gpt-4.1-mini"
+
+    EMBEDDINGS_CACHE_PATH = "/tmp/embeddings_cache.db"
   }
 
   common_values = <<EOF
@@ -150,8 +152,6 @@ resource "helm_release" "demo" {
       enabled: true
       workingDir: /app/vedana/packages/vedana-core
       command:
-        - uv
-        - run
         - alembic
         - upgrade
         - head
