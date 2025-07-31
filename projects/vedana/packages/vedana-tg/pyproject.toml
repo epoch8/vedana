@@ -9,11 +9,6 @@ dependencies = [
     "vedana-core>=0.5.0",
 ]
 
-[tool.uv.sources]
-jims-telegram = { path = "../../../jims/packages/jims-telegram/", editable = true }
-jims-core = { path = "../../../jims/packages/jims-core/", editable = true }
-vedana-core = { workspace = true }
-
 [dependency-groups]
 dev = [
     "ruff>=0.11.1",

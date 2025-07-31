@@ -64,12 +64,12 @@ resource "helm_release" "datapipe" {
           labels = "flow=regular"
           resources = {
             requests = {
-              cpu    = "200m"
-              memory = "256Mi"
+              cpu    = "1"
+              memory = "512Mi"
             }
             limits = {
-              cpu    = "500m"
-              memory = "512Mi"
+              cpu    = "1"
+              memory = "1Gi"
             }
           }
         }
@@ -80,6 +80,10 @@ resource "helm_release" "datapipe" {
           value = value
         }
       ], [
+        {
+          name = "EMBEDDINGS_CACHE_PATH"
+          value = "/tmp/embeddings_cache.db"
+        },
         {
           name  = "DB_CONN_URI"
           value = "postgresql://${yandex_mdb_postgresql_user.etl.name}:${random_string.etl_db_password.result}@${data.yandex_mdb_postgresql_cluster.db_cluster.host.0.fqdn}:6432/${yandex_mdb_postgresql_database.etl.name}"
