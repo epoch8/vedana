@@ -301,7 +301,7 @@ class GristOnlineCsvDataProvider(GristDataProvider):
         if df is None:
             return Table([], [])
         columns = list(df.columns)
-        rows = [tuple(row) for row in df.itertuples(index=False, name=None)]
+        rows = [row for row in df.itertuples(index=False, name="Row")]
         return Table(columns, rows)
 
     def get_table_df(self, table_name: str) -> pd.DataFrame:
