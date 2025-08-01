@@ -21,7 +21,7 @@ resource "random_string" "etl_db_password" {
 
 resource "yandex_mdb_postgresql_user" "etl" {
   cluster_id = var.yc_mdb_cluster_id
-  name       = "${local.project_underscore}_etl"
+  name       = "${local.project_underscore}_${var.environment}_etl"
   password   = random_string.etl_db_password.result
   conn_limit = 10
 
@@ -35,7 +35,7 @@ resource "yandex_mdb_postgresql_user" "etl" {
 
 resource "yandex_mdb_postgresql_database" "etl" {
   cluster_id = var.yc_mdb_cluster_id
-  name       = "${local.project_underscore}_etl"
+  name       = "${local.project_underscore}_${var.environment}_etl"
   owner      = yandex_mdb_postgresql_user.etl.name
 
   lifecycle {
