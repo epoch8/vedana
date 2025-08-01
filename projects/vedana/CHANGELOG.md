@@ -1,4 +1,4 @@
-# WIP
+# 2025.08.01-dev.11
 
 * (jims-core) Switch to LiteLLM for LLMProvider functioning
 
