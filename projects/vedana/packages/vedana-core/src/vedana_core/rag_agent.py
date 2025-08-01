@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, create_model
 from vedana_core.data_model import DataModel
 from vedana_core.embeddings import EmbeddingProvider
 from vedana_core.graph import Graph, Record
-from vedana_core.llm import LLM, Tool, clear_cypher
+from vedana_core.llm import LLM, Tool
 
 QueryResult = list[Record] | Exception
 
