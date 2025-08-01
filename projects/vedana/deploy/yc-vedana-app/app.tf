@@ -6,7 +6,7 @@ locals {
   app_image_repository = var.app_image_repository != null ? var.app_image_repository : local.current_version.repository
   app_image_tag        = var.app_image_tag != null ? var.app_image_tag : local.current_version.tag
 
-  etl_image_repository = var.etl_image_repository != null ? var.etl_image_repository : local.current_version.etl_repository
+  etl_image_repository = var.etl_image_repository
   etl_image_tag        = var.etl_image_tag
 }
 
