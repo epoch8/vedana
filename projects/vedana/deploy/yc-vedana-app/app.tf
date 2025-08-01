@@ -27,7 +27,7 @@ locals {
 
     OPENAI_BASE_URL = "https://oai-proxy-hzkr3iwwhq-ew.a.run.app/v1/"
     OPENAI_API_KEY  = "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"
-    EMBEDDINGS_DIM  = 1024
+    EMBEDDINGS_DIM  = "1024"
 
     GRIST_SERVER_URL        = var.grist.server_url
     GRIST_API_KEY           = var.grist.api_key
@@ -36,6 +36,8 @@ locals {
 
     TELEGRAM_BOT_TOKEN = var.telegram_bot_token
     MODEL              = "gpt-4.1-mini"
+
+    EMBEDDINGS_CACHE_PATH = "/tmp/embeddings_cache.db"
   }
 
   common_values = <<EOF
@@ -63,7 +65,7 @@ locals {
     timeoutSeconds: 1
     periodSeconds: 10
     successThreshold: 1
-    failureThreshold: 3
+    failureThreshold: 10
 
   readinessProbe:
     httpGet:
@@ -74,9 +76,44 @@ locals {
     timeoutSeconds: 1
     periodSeconds: 10
     successThreshold: 1
-    failureThreshold: 3
+    failureThreshold: 10
   EOF
 }
+
+###
+
+resource "random_string" "jims_db_password" {
+  length  = 16
+  special = false
+}
+
+resource "yandex_mdb_postgresql_user" "jims" {
+  cluster_id = var.yc_mdb_cluster_id
+  name       = "${local.project_underscore}_vedana"
+  password   = random_string.jims_db_password.result
+  conn_limit = 10
+
+  lifecycle {
+    ignore_changes = [
+      name,
+      password,
+    ]
+  }
+}
+
+resource "yandex_mdb_postgresql_database" "jims" {
+  cluster_id = var.yc_mdb_cluster_id
+  name       = "${local.project_underscore}_vedana"
+  owner      = yandex_mdb_postgresql_user.jims.name
+
+  lifecycle {
+    ignore_changes = [
+      name,
+    ]
+  }
+}
+
+###
 
 resource "helm_release" "demo" {
   name      = "${local.slug}-demo"
@@ -84,17 +121,16 @@ resource "helm_release" "demo" {
 
   repository = "https://epoch8.github.io/helm-charts/"
   chart      = "simple-app"
-  version    = "0.16.1"
+  version    = "0.17.1"
+  # chart = "${path.module}/../../../../../helm-charts/charts/simple-app/"
 
   values = [
     local.common_values,
     <<EOF
     command:
-      - uv
-      - run
       - python
       - -m
-      - vedana.gradio_app
+      - vedana_gradio.gradio_app
 
     resources:
       requests:
@@ -111,9 +147,8 @@ resource "helm_release" "demo" {
 
     initJob:
       enabled: true
+      workingDir: /app/vedana/packages/vedana-core
       command:
-        - uv
-        - run
         - alembic
         - upgrade
         - head
@@ -151,14 +186,12 @@ resource "helm_release" "backoffice" {
 
   repository = "https://epoch8.github.io/helm-charts/"
   chart      = "simple-app"
-  version    = "0.16.1"
+  version    = "0.17.1"
 
   values = [
     local.common_values,
     <<EOF
     command:
-      - uv
-      - run
       - jims-backoffice
 
     resources:
@@ -207,17 +240,15 @@ resource "helm_release" "tg" {
 
   repository = "https://epoch8.github.io/helm-charts/"
   chart      = "simple-app"
-  version    = "0.16.1"
+  version    = "0.17.1"
 
   values = [
     local.common_values,
     <<EOF
     command:
-      - uv
-      - run
       - python
       - -m
-      - vedana.tg_app
+      - vedana_tg.tg_app
 
     resources:
       requests:
@@ -241,33 +272,6 @@ resource "helm_release" "tg" {
     ]
   }
 }
-
-# resource "helm_release" "rag_tg_jims" {
-#   count = var.tg_jims.enabled ? 1 : 0
-
-#   name      = "${var.name}-tg-jims"
-#   namespace = var.kubernetes_namespace
-
-#   repository = "https://epoch8.github.io/helm-charts/"
-#   chart      = "simple-app"
-#   version    = "0.15.2"
-
-#   values = [
-#     templatefile(
-#       "${path.module}/tg_jims_values.yaml",
-#       {
-#         image              = var.rag_image
-#         version            = var.rag_version
-#         image_pull_secrets = var.image_pull_secrets
-#         resources          = var.tg_jims.resources
-#         envs               = var.envs
-#         size               = var.size
-#         host               = "tg-jims-${var.host}"
-#       }
-#     )
-#   ]
-# }
-
 
 output "config" {
   value = {
