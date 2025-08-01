@@ -8,6 +8,10 @@ from sqlalchemy import create_engine, Column, String, LargeBinary, text, select
 from sqlalchemy.orm import declarative_base, sessionmaker
 import threading
 
+from jims_core.llms.llm_provider import LLMProvider, LLMSettings
+
+from vedana.settings import settings
+
 logger = logging.getLogger(__name__)
 
 Base = declarative_base()
@@ -257,6 +261,96 @@ class OpenaiEmbeddingProvider(EmbeddingProvider):
                 self._cache.set_many(new_embeddings)
 
         # Return in the same order as input
+        all_embeddings = {**cached, **new_embeddings}
+        return [all_embeddings[t] for t in texts]
+
+    def close(self) -> None:
+        self._cache.close()
+
+
+class LitellmEmbeddingProvider(EmbeddingProvider):
+    """Embedding provider with JIMS LLMProvider (LiteLLM) backend"""
+
+    def __init__(
+        self,
+        cache_dir: Path,
+        embeddings_dim: int,
+        llm_provider: LLMProvider | None = None,
+    ):
+        super().__init__(embeddings_dim)
+        self._cache = EmbeddingsCache(cache_dir, embeddings_dim=embeddings_dim)
+
+        if not llm_provider:
+            llm_settings = LLMSettings(
+                model=settings.model,
+                embeddings_model=settings.embeddings_model,
+                embeddings_dim=embeddings_dim
+            )
+            self._llm = llm_provider or LLMProvider(llm_settings)
+
+    # Single embedding
+    def get_embedding(self, text: str) -> np.ndarray:
+
+        cached_embedding = self._cache.get(text)
+        if cached_embedding is not None:
+            limited_text = text if len(text) <= 256 else f"{text[:256]}..."
+            logger.info(f'Hit on cached embedding for "{limited_text}"')
+            return cached_embedding
+
+        emb = np.array(self._llm.create_embedding_sync(text))
+
+        self._cache.set(text, emb)
+        return emb
+
+    # Batch embeddings
+    def split_into_batches(self, texts: List[str]):
+        char_limit = 450000
+        current_batch: list[str] = []
+        current_length = 0
+        for t in texts:
+            t_len = len(t)
+            if current_length + t_len > char_limit:
+                if current_batch:
+                    logger.info(
+                        f"processing batch with len {len(current_batch)} chunks and total length {sum(len(t) for t in current_batch)}"
+                    )
+                    yield current_batch
+                current_batch = [t]
+                current_length = t_len
+            else:
+                current_batch.append(t)
+                current_length += t_len
+        if current_batch:
+            logger.info(
+                f"processing last batch with len {len(current_batch)} chunks and total length {sum(len(t) for t in current_batch)}"
+            )
+            yield current_batch
+
+    def get_embeddings(self, texts: List[str]) -> List[np.ndarray]:
+        # Get cached first
+        cached = self._cache.get_many(texts)
+        missing = [t for t in texts if t not in cached]
+        new_embeddings: dict[str, np.ndarray] = {}
+
+        if missing:
+            single_text_char_limit = 17000  # OpenAI ~8191 tokens, todo check for other models
+            for i, t in enumerate(missing):
+                if len(t) > single_text_char_limit:
+                    logger.error(
+                        f"text too long for embedding:{len(t)} vs ~{single_text_char_limit} symbol limit.\nText header: {t[:200]}..."
+                    )
+                    missing[i] = t[:single_text_char_limit]
+                    # Also trim original order list so indexes match
+                    texts[texts.index(t)] = t[:single_text_char_limit]
+
+            for batch in self.split_into_batches(missing):
+                embs = self._llm.create_embeddings_sync(batch)
+                for i, text in enumerate(batch):
+                    emb_arr = np.array(embs[i])
+                    new_embeddings[text] = emb_arr
+
+                self._cache.set_many(new_embeddings)
+
         all_embeddings = {**cached, **new_embeddings}
         return [all_embeddings[t] for t in texts]
 
