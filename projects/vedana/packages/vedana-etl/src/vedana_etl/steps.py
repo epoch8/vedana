@@ -178,7 +178,7 @@ def filter_grist_nodes(df: pd.DataFrame, dm_nodes: pd.DataFrame, dm_attributes: 
 
     # filter attribute keys
     filtered_nodes["attributes"] = filtered_nodes["attributes"].apply(
-        lambda x: {k: v for k, v in x.items() if k in dm_attributes["attribute_name"]}
+        lambda x: {k: v for k, v in x.items() if k in dm_attributes["attribute_name"].values}
     )
     return filtered_nodes
 
