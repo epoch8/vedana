@@ -1,16 +1,16 @@
 import abc
 import logging
+import threading
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
+
 import numpy as np
 import openai
-from sqlalchemy import create_engine, Column, String, LargeBinary, text, select
-from sqlalchemy.orm import declarative_base, sessionmaker
-import threading
-
 from jims_core.llms.llm_provider import LLMProvider, LLMSettings
+from sqlalchemy import Column, LargeBinary, String, create_engine, select, text
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-from vedana.settings import settings
+from vedana_core.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -282,15 +282,12 @@ class LitellmEmbeddingProvider(EmbeddingProvider):
 
         if not llm_provider:
             llm_settings = LLMSettings(
-                model=settings.model,
-                embeddings_model=settings.embeddings_model,
-                embeddings_dim=embeddings_dim
+                model=settings.model, embeddings_model=settings.embeddings_model, embeddings_dim=embeddings_dim
             )
             self._llm = llm_provider or LLMProvider(llm_settings)
 
     # Single embedding
     def get_embedding(self, text: str) -> np.ndarray:
-
         cached_embedding = self._cache.get(text)
         if cached_embedding is not None:
             limited_text = text if len(text) <= 256 else f"{text[:256]}..."
