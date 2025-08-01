@@ -59,8 +59,8 @@ resource "helm_release" "datapipe_api" {
     }),
     <<EOF
     image:
-      repository: ${local.app_image_repository}
-      tag: ${local.app_image_tag}
+      repository: ${local.image_repository}
+      tag: ${local.image_tag}
 
     %{~if var.image_pull_secrets != null~}
     imagePullSecrets:
@@ -124,8 +124,8 @@ resource "helm_release" "datapipe" {
   values = [
     jsonencode({
       image = {
-        repository = local.etl_image_repository
-        tag        = local.etl_image_tag
+        repository = local.image_repository
+        tag        = local.image_tag
       }
       imagePullSecrets = [{ name = var.image_pull_secrets }]
 
@@ -137,11 +137,26 @@ resource "helm_release" "datapipe" {
           resources = {
             requests = {
               cpu    = "1"
-              memory = "512Mi"
+              memory = "1Gi"
             }
             limits = {
               cpu    = "1"
+              memory = "2Gi"
+            }
+          }
+        },
+        {
+          name     = "all"
+          schedule = "0 0 * * *"
+          labels = ""
+          resources = {
+            requests = {
+              cpu    = "1"
               memory = "1Gi"
+            }
+            limits = {
+              cpu    = "1"
+              memory = "2Gi"
             }
           }
         }

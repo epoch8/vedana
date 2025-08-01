@@ -3,11 +3,8 @@ locals {
 
   current_version = jsondecode(file("${path.module}/current_version.json"))
 
-  app_image_repository = var.app_image_repository != null ? var.app_image_repository : local.current_version.repository
-  app_image_tag        = var.app_image_tag != null ? var.app_image_tag : local.current_version.tag
-
-  etl_image_repository = var.etl_image_repository
-  etl_image_tag        = var.etl_image_tag
+  image_repository = var.image_repository != null ? var.image_repository : local.current_version.repository
+  image_tag        = var.image_tag != null ? var.image_tag : local.current_version.tag
 }
 
 
@@ -26,7 +23,7 @@ locals {
 
     SENTRY_DSN         = var.sentry_dsn
     SENTRY_ENVIRONMENT = local.slug
-    SENTRY_RELEASE     = local.app_image_tag
+    SENTRY_RELEASE     = local.image_tag
 
     OPENAI_BASE_URL = "https://oai-proxy-hzkr3iwwhq-ew.a.run.app/v1/"
     OPENAI_API_KEY  = "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"
@@ -45,8 +42,8 @@ locals {
 
   common_values = <<EOF
   image:
-    repository: ${local.app_image_repository}
-    tag: ${local.app_image_tag}
+    repository: ${local.image_repository}
+    tag: ${local.image_tag}
 
   %{~if var.image_pull_secrets != null~}
   imagePullSecrets:
