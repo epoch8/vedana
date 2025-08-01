@@ -11,7 +11,7 @@ WORKDIR /app/vedana
 
 # Copy dependency files, startup and migration scripts
 COPY vedana/pyproject.toml vedana/uv.lock ./
-RUN --mount=type=cache,target=/root/.cache uv sync --all-packages
+RUN --mount=type=cache,target=/root/.cache uv sync --all-packages --all-groups
 
 ENV DATAPIPE_PIPELINE=vedana_etl.app
 WORKDIR /app/vedana/packages/vedana-etl
