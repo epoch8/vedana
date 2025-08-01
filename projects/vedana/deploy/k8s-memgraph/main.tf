@@ -19,11 +19,18 @@ resource "helm_release" "memgraph" {
       }
     )
   ]
+
+  lifecycle {
+    ignore_changes = [
+      name,
+      namespace,
+    ]
+  }
 }
 
 output "config" {
   value = {
-    local_uri = "bolt://${var.name}.${var.kubernetes_namespace}.svc.cluster.local:7687"
+    local_uri = "bolt://${helm_release.memgraph.name}.${helm_release.memgraph.metadata[0].namespace}.svc.cluster.local:7687"
     user      = var.user
     password  = var.password
   }

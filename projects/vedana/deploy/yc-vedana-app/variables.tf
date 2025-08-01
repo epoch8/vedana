@@ -64,3 +64,9 @@ variable "grist" {
   })
 }
 
+###
+
+variable "authentik_ingress_annotations" {
+  type = map(string)
+  default = {}
+}

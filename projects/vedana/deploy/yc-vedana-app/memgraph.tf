@@ -7,7 +7,7 @@ module "memgraph" {
   source = "../k8s-memgraph"
 
   kubernetes_namespace = var.k8s_namespace
-  name                 = "${var.project}-memgraph"
+  name                 = "${local.slug}-memgraph"
   user                 = var.project
   password             = random_password.memgraph_password.result
   resources            = var.memgraph_resources
