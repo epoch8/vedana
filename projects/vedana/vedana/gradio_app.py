@@ -13,7 +13,7 @@ from sentry_sdk.integrations.opentelemetry import SentryPropagator, SentrySpanPr
 
 from vedana.data_model import DataModel
 from vedana.db import get_sessionmaker
-from vedana.embeddings import LitellmEmbeddingProvider
+from vedana.embeddings import OpenaiEmbeddingProvider
 from vedana.gradio_ui import create_gradio_interface, init_async_stuff
 from vedana.graph import MemgraphGraph
 from vedana.importers.fast import DataModelLoader
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: fastapi.FastAPI):
     init_async_stuff()
 
-    embeds = LitellmEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
+    embeds = OpenaiEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
     app.state.embed_provider = embeds
 
     yield
@@ -54,7 +54,7 @@ def make_jims_app() -> fastapi.FastAPI:
         except Exception as e:
             logger.warning(f"Unable to cache DataModel in graph: {e}")
 
-    embed_provider = LitellmEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
+    embed_provider = OpenaiEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
 
     # load JIMS
     sessionmaker = get_sessionmaker()
