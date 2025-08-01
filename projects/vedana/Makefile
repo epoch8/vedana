@@ -1,6 +1,6 @@
-BASE_VERSION=$(shell uv version --short | sed 's/\+/-/')
+BASE_VERSION=$(shell uv version --short | sed 's/[\+\/]/-/g')
 
-BRANCH=$(shell git rev-parse --abbrev-ref HEAD)-$(shell git rev-parse --short HEAD)
+BRANCH=$(shell git rev-parse --abbrev-ref HEAD | sed 's/[\+\/]/-/g')-$(shell git rev-parse --short HEAD)
 
 REPO=ghcr.io/epoch8/ai-assistants/vedana
 BASE_IMAGE=${REPO}:$(VERSION)
