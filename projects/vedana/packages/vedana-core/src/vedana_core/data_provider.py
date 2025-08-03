@@ -4,20 +4,20 @@ import sqlite3
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Union
 
 import grist_api
 import pandas as pd
 import requests
 
-from vedana_core.data_model import DataModel
+from vedana_core.data_model import Attribute, DataModel
 from vedana_core.utils import cast_dtype
 
 
 @dataclass
 class Table:
     columns: list[str]
-    rows: list[NamedTuple]
+    rows: list[Union[tuple, NamedTuple]]
 
 
 @dataclass
@@ -26,18 +26,6 @@ class Anchor:
     type: str
     data: dict[str, Any]
     dp_id: int | None = None
-
-
-@dataclass
-class Attribute:
-    name: str
-    description: str
-    example: str
-    dtype: str
-    query: str
-    meta: dict[str, Any]
-    embeddable: bool = False
-    embed_threshold: float = 0
 
 
 @dataclass
@@ -77,8 +65,8 @@ class CsvDataProvider(DataProvider):
     def __init__(self, csv_dir: Path, data_model: DataModel) -> None:
         self.csv_dir = Path(csv_dir)
         self.data_model = data_model
-        self._anchor_files = {}
-        self._link_files = {}
+        self._anchor_files: dict[str, Path] = {}
+        self._link_files: dict[str, Path] = {}
         self._scan_csv_files()
 
     def _scan_csv_files(self):
@@ -111,7 +99,7 @@ class CsvDataProvider(DataProvider):
         grouped = df.groupby(["node_id", "node_type"])
         for (node_id, node_type), group in grouped:
             data = {
-                k: cast_dtype(v, k, dtype=attrs_dtypes.get(k))
+                k: cast_dtype(v, k, dtype=attrs_dtypes[k])
                 for k, v in zip(group["attribute_key"], group["attribute_value"])
             }
             anchors.append(Anchor(str(node_id), str(node_type), data))
@@ -301,7 +289,7 @@ class GristOnlineCsvDataProvider(GristDataProvider):
         if df is None:
             return Table([], [])
         columns = list(df.columns)
-        rows = [row for row in df.itertuples(index=False, name="Row")]
+        rows = [tuple(row) for row in df.itertuples(index=False, name="Row")]
         return Table(columns, rows)
 
     def get_table_df(self, table_name: str) -> pd.DataFrame:
@@ -329,7 +317,7 @@ class GristOnlineDataProvider(GristDataProvider):
         resp.raise_for_status()
         df = pd.read_csv(io.StringIO(resp.text)).reset_index(drop=False, names=["id"])
         columns = list(df.columns)
-        rows = [row for row in df.itertuples(index=False, name=table_id)]
+        rows = [tuple(row) for row in df.itertuples(index=False, name=table_id)]
         return Table(columns, rows)
 
     def _list_tables_with_prefix(self, prefix: str) -> list[str]:
@@ -458,7 +446,7 @@ class GristSQLDataProvider(GristDataProvider):
                 yield record.get("fields", {})
             offset += self.batch_size
 
-    def get_anchors(self, type_: str, dm_attrs: list[str]) -> list[Anchor]:
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute]) -> list[Anchor]:
         dtypes = {e.name: e.dtype for e in dm_attrs}
         table_name = f"{self.anchor_table_prefix}{type_}"
         # columns_resp = self._client.columns(table_name)
@@ -506,7 +494,7 @@ class GristSQLDataProvider(GristDataProvider):
             }
 
             clean_data = {
-                k: cast_dtype(flatten(v), k, dtypes.get(k))
+                k: cast_dtype(flatten(v), k, dtypes[k])
                 for k, v in row.items()
                 if not isinstance(v, (bytes, type(None))) and not pd.isna(v) and v != ""
             }
