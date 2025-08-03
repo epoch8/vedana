@@ -4,7 +4,7 @@ import sqlite3
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Union
 
 import grist_api
 import pandas as pd
@@ -17,7 +17,7 @@ from vedana_core.utils import cast_dtype
 @dataclass
 class Table:
     columns: list[str]
-    rows: list[tuple | NamedTuple]
+    rows: list[Union[tuple, NamedTuple]]
 
 
 @dataclass
