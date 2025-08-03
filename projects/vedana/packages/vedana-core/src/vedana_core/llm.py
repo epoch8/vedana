@@ -1,15 +1,16 @@
+import asyncio
 import json
 import logging
 import re
 from collections import defaultdict
-from typing import Any, Callable, Iterable, Type, TypeVar
-import asyncio
+from typing import Any, Callable, Iterable
 
+import litellm
 import openai
 from jims_core.llms.llm_provider import LLMProvider
+from jims_core.thread.schema import CommunicationEvent
 from openai import NOT_GIVEN, NotGiven
 from openai.types.chat import (
-    ChatCompletionMessage,
     ChatCompletionMessageParam,
     ChatCompletionToolMessageParam,
 )
@@ -18,11 +19,8 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 
-T = TypeVar("T", bound=BaseModel)
-
-
-class Tool:
-    def __init__(self, name: str, description: str, args_cls: Type[T], fn: Callable[[T], str]) -> None:
+class Tool[T: BaseModel]:
+    def __init__(self, name: str, description: str, args_cls: type[T], fn: Callable[[T], str]) -> None:
         self.name = name
         self.description = description
         self.args_cls = args_cls
@@ -83,7 +81,7 @@ class LLM:
         self,
         messages: list[ChatCompletionMessageParam],
         tools: Iterable[Tool],
-        temperature: float | NotGiven = NOT_GIVEN,
+        temperature: float | None = None,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
         messages = messages.copy()
         tool_defs = [tool.openai_def for tool in tools]
@@ -240,7 +238,7 @@ class LLM:
     async def generate_no_answer(
         self,
         question: str,
-        dialog: list[ChatCompletionMessageParam] | None = None,
+        dialog: list[CommunicationEvent] | None = None,
     ) -> str:
         """
         Generate a human-readable answer based on the question, Cypher query, and its results.
@@ -249,7 +247,7 @@ class LLM:
             question=question,
         )
 
-        messages: list[ChatCompletionMessageParam] = [
+        messages = [
             {
                 "role": "system",
                 "content": "Ты помощник, который преобразует технические ответы в понятный человеку текст.",
@@ -381,7 +379,7 @@ update_cypher_with_alt_values_tmplt = """\
 """
 
 
-def content_from_completion(completion: ChatCompletionMessage) -> str:
+def content_from_completion(completion: litellm.Message) -> str:
     if completion.content is None:
         return ""
     return completion.content.strip() or ""
@@ -391,7 +389,7 @@ def clear_cypher(cypher: str) -> str:
     return cypher.strip().removeprefix("""```cypher""").removeprefix("""```""").removesuffix("```").strip()
 
 
-def cypher_from_completion(completion: ChatCompletionMessage) -> str:
+def cypher_from_completion(completion: litellm.Message) -> str:
     return clear_cypher(content_from_completion(completion))
 
 

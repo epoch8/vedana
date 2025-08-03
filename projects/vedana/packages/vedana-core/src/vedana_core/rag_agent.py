@@ -66,7 +66,7 @@ class RagAgent:
     _data_model: DataModel
     _graph_descr: str
     _vts_indices: dict[str, str]
-    _vts_args: Type[BaseModel]
+    _vts_args: type[VTSArgs]
 
     def __init__(
         self,
@@ -74,8 +74,8 @@ class RagAgent:
         embeds: EmbeddingProvider,
         data_model: DataModel,
         llm: LLM,
+        ctx: ThreadContext,
         logger: logging.Logger | None = None,
-        ctx: Optional[ThreadContext] = None,
     ) -> None:
         self.graph = graph
         self.embeds = embeds
@@ -90,14 +90,14 @@ class RagAgent:
         self._vts_indices = data_model.vector_indices()
         self._vts_args = self._build_vts_arg_model()
 
-    def _build_vts_arg_model(self) -> Type[BaseModel]:
+    def _build_vts_arg_model(self) -> Type[VTSArgs]:
         """Create a Pydantic model with Enum-constrained fields for the VTS tool."""
 
         if not self._vts_indices:
             return VTSArgs
 
         # Label Enum – keys of `_vts_indices`
-        LabelEnum = enum.Enum("LabelEnum", {name: name for name in self._vts_indices.keys()})
+        LabelEnum = enum.Enum("LabelEnum", {name: name for name in self._vts_indices.keys()})  # type: ignore
 
         # Property Enum – unique values of `_vts_indices`
         unique_props = set(self._vts_indices.values())
@@ -111,14 +111,14 @@ class RagAgent:
             used_names.add(sanitized)
             prop_member_mapping[sanitized] = prop
 
-        PropertyEnum = enum.Enum("PropertyEnum", prop_member_mapping)
+        PropertyEnum = enum.Enum("PropertyEnum", prop_member_mapping)  # type: ignore
 
         VTSArgsEnum = create_model(
             "VTSArgsEnum",
             label=(LabelEnum, Field(description="node label")),
             property=(PropertyEnum, Field(description="node property to search in")),
             text=(str, Field(description="text for semantic search")),
-            __base__=BaseModel,
+            __base__=VTSArgs,
         )
 
         return VTSArgsEnum
@@ -138,57 +138,60 @@ class RagAgent:
     def search_full_text(self, idx: str, query: str, limit: int = 10) -> list[Record]:
         return list(self.graph.text_search(idx, query, limit))
 
-    def find_alternative_attribute_values(self, extracted_attributes: dict, top_n: int = 5) -> dict[str, set]:
-        self.logger.debug("🔎 Searching for alternative attribute values...")
-        embeddable_attributes = self._data_model.embeddable_attributes()
+    # TODO remove dead code
+    # def find_alternative_attribute_values(self, extracted_attributes: dict, top_n: int = 5) -> dict[str, set]:
+    #     self.logger.debug("🔎 Searching for alternative attribute values...")
+    #     embeddable_attributes = self._data_model.embeddable_attributes()
 
-        alternative_values: dict[str, set[str]] = {}
-        for node_type, attr, embed_threshold in embeddable_attributes:
-            embed_threshold = embed_threshold or 0.8
-            value = extracted_attributes.get(attr)
-            if not value:
-                continue
-            if isinstance(value, list):
-                values = value
-            else:
-                values = [value]
-            for value in values:
-                embed = self.embeds.get_embedding(value)
-                similar_nodes = self.graph.vector_search(node_type, attr, embed, embed_threshold, top_n)
-                attr_values = alternative_values.get(attr) or set()
-                for n in similar_nodes:
-                    val = n["node"][attr]
-                    if val:
-                        attr_values.add(val)
-                alternative_values[attr] = attr_values
+    #     alternative_values: dict[str, set[str]] = {}
 
-        self.logger.info(f"🔹 Final alternative attribute values: {alternative_values}")
-        return alternative_values
+    #     # WTF это же не работает
+    #     for node_type, attr, embed_threshold in embeddable_attributes:
+    #         embed_threshold = embed_threshold or 0.8
+    #         value = extracted_attributes.get(attr)
+    #         if not value:
+    #             continue
+    #         if isinstance(value, list):
+    #             values = value
+    #         else:
+    #             values = [value]
+    #         for value in values:
+    #             embed = self.embeds.get_embedding(value)
+    #             similar_nodes = self.graph.vector_search(node_type, attr, embed, embed_threshold, top_n)
+    #             attr_values = alternative_values.get(attr) or set()
+    #             for n in similar_nodes:
+    #                 val = n["node"][attr]
+    #                 if val:
+    #                     attr_values.add(val)
+    #             alternative_values[attr] = attr_values
 
-    async def text_to_cypher(self, text_query: str) -> list[str]:
-        self.logger.debug(f"🔹🔹 Generating Cypher query for: {text_query}")
+    #     self.logger.info(f"🔹 Final alternative attribute values: {alternative_values}")
+    #     return alternative_values
 
-        filtered_graph_descr = await self.llm.filter_graph_structure(self._graph_descr, text_query)
-        cypher_query = await self.llm.generate_cypher_query(filtered_graph_descr, text_query)
-        self.logger.debug(f"🔹🔹🔹 Generated Cypher query:\n{cypher_query}\n")
+    # async def text_to_cypher(self, text_query: str) -> list[str]:
+    #     self.logger.debug(f"🔹🔹 Generating Cypher query for: {text_query}")
 
-        # Extract attributes from the generated Cypher query
-        extracted_attributes = await self.llm.extract_attributes_from_cypher(cypher_query)
-        self.logger.debug(f"🔹🔹🔹 Extracted attributes: {extracted_attributes}")
+    #     filtered_graph_descr = await self.llm.filter_graph_structure(self._graph_descr, text_query)
+    #     cypher_query = await self.llm.generate_cypher_query(filtered_graph_descr, text_query)
+    #     self.logger.debug(f"🔹🔹🔹 Generated Cypher query:\n{cypher_query}\n")
 
-        # Search for alternative attribute values using embeddings
-        alternative_values = self.find_alternative_attribute_values(extracted_attributes)
-        alternative_values = {k: v for k, v in alternative_values.items() if v}
-        self.logger.debug(f"🔹🔹🔹 Alternative values: {alternative_values}")
+    #     # Extract attributes from the generated Cypher query
+    #     extracted_attributes = await self.llm.extract_attributes_from_cypher(cypher_query)
+    #     self.logger.debug(f"🔹🔹🔹 Extracted attributes: {extracted_attributes}")
 
-        # Substitute alternative values into the Cypher query
-        # 🔄 If there are alternative values, ask the LLM to update the query
-        if alternative_values:
-            cypher_query = await self.llm.update_cypher_with_alt_values(text_query, cypher_query, alternative_values)
+    #     # Search for alternative attribute values using embeddings
+    #     alternative_values = self.find_alternative_attribute_values(extracted_attributes)
+    #     alternative_values = {k: v for k, v in alternative_values.items() if v}
+    #     self.logger.debug(f"🔹🔹🔹 Alternative values: {alternative_values}")
 
-        cypher_queries = [str(q) for q in self._llm_answer_to_queries(cypher_query) if isinstance(q, CypherQuery)]
-        self.logger.info(f"Generated Cypher queries: {cypher_queries}")
-        return cypher_queries
+    #     # Substitute alternative values into the Cypher query
+    #     # 🔄 If there are alternative values, ask the LLM to update the query
+    #     if alternative_values:
+    #         cypher_query = await self.llm.update_cypher_with_alt_values(text_query, cypher_query, alternative_values)
+
+    #     cypher_queries = [str(q) for q in self._llm_answer_to_queries(cypher_query) if isinstance(q, CypherQuery)]
+    #     self.logger.info(f"Generated Cypher queries: {cypher_queries}")
+    #     return cypher_queries
 
     def _llm_answer_to_queries(self, answer: str) -> list[DBQuery]:
         str_queries: list[str]
@@ -337,7 +340,7 @@ class RagAgent:
             cypher_fn,
         )
 
-        tools = [vts_tool, cypher_tool]
+        tools: list[Tool] = [vts_tool, cypher_tool]
 
         if self.ctx.history:
             tools.append(
@@ -390,10 +393,11 @@ def row_to_text(row: Any) -> str:
 def main():
     import logging
 
-    from embeddings import OpenaiEmbeddingProvider
-    from graph import MemgraphGraph
     from jims_core.llms.llm_provider import LLMProvider
-    from settings import settings as s
+
+    from vedana_core.embeddings import OpenaiEmbeddingProvider
+    from vedana_core.graph import MemgraphGraph
+    from vedana_core.settings import settings as s
 
     logging.basicConfig(level=logging.INFO)
 
