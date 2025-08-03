@@ -180,7 +180,8 @@ class BatchImporter:
                 pass
 
         if reverse:
-            links_to_add = [(anchor2, anchor1, label) for anchor1, anchor2, label in links_to_add]
+            # TODO look at this carefully, typing does not add up here
+            links_to_add = [(anchor2, anchor1, label) for anchor1, anchor2, label in links_to_add]  # type: ignore
 
         self.f_key_links_to_add.extend(links_to_add)
 

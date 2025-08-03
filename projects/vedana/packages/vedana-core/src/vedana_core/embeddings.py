@@ -8,13 +8,15 @@ import numpy as np
 import openai
 from jims_core.llms.llm_provider import LLMProvider, LLMSettings
 from sqlalchemy import Column, LargeBinary, String, create_engine, select, text
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from vedana_core.settings import settings
 
 logger = logging.getLogger(__name__)
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    pass
 
 
 class EmbeddingModel(Base):
@@ -26,7 +28,7 @@ class EmbeddingModel(Base):
 
 
 class EmbeddingsCache:
-    def __init__(self, cache_path: str, embeddings_dim: int, db_url: Optional[str] = None):
+    def __init__(self, cache_path: Path | str, embeddings_dim: int, db_url: Optional[str] = None):
         self.embeddings_dim = embeddings_dim
         if db_url:
             self.engine = create_engine(db_url)
@@ -207,7 +209,7 @@ class OpenaiEmbeddingProvider(EmbeddingProvider):
 
         char_limit = 450000
 
-        current_batch = []
+        current_batch: list[str] = []
         current_length = 0
         for t in texts:
             text_length = len(t)
@@ -356,7 +358,7 @@ class LitellmEmbeddingProvider(EmbeddingProvider):
 
 
 def main():
-    from settings import settings as s
+    from vedana_core.settings import settings as s
 
     cache = EmbeddingsCache(s.embeddings_cache_path, s.embeddings_dim)
     print(cache.get("Maytoni").shape)
