@@ -6,8 +6,8 @@ from uuid import UUID
 
 import pandas as pd
 from neo4j import GraphDatabase
+from vedana_core.data_provider import GristOnlineCsvDataProvider, GristSQLDataProvider
 from vedana_core.embeddings import OpenaiEmbeddingProvider
-from vedana_core.data_provider import GristSQLDataProvider, GristOnlineDataProvider, GristOnlineCsvDataProvider
 from vedana_core.settings import settings as core_settings
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
@@ -53,42 +53,48 @@ def get_data_model():
     )
 
     links_df = loader.get_table_df("Links")
-    links_df = links_df[[
-        "anchor1",
-        "anchor2",
-        "sentence",
-        "description",
-        "query",
-        "anchor1_link_column_name",
-        "anchor2_link_column_name",
-        "has_direction"
-    ]]
+    links_df = links_df[
+        [
+            "anchor1",
+            "anchor2",
+            "sentence",
+            "description",
+            "query",
+            "anchor1_link_column_name",
+            "anchor2_link_column_name",
+            "has_direction",
+        ]
+    ]
     links_df = links_df.astype(str)
     links_df["has_direction"] = links_df["has_direction"].astype(bool)
 
     attrs_df = loader.get_table_df("Attributes")
-    attrs_df = attrs_df[[
-        "attribute_name",
-        "description",
-        "anchor",
-        "link",
-        "data_example",
-        "embeddable",
-        "query",
-        "dtype",
-        "embed_threshold",
-    ]]
+    attrs_df = attrs_df[
+        [
+            "attribute_name",
+            "description",
+            "anchor",
+            "link",
+            "data_example",
+            "embeddable",
+            "query",
+            "dtype",
+            "embed_threshold",
+        ]
+    ]
     # attrs_df = attrs_df.astype(str)
     attrs_df["embeddable"] = attrs_df["embeddable"].astype(bool)
     attrs_df["embed_threshold"] = attrs_df["embed_threshold"].astype(float)
 
     anchors_df = loader.get_table_df("Anchors")
-    anchors_df = anchors_df[[
-        "noun",
-        "description",
-        "id_example",
-        "query",
-    ]]
+    anchors_df = anchors_df[
+        [
+            "noun",
+            "description",
+            "id_example",
+            "query",
+        ]
+    ]
     anchors_df = anchors_df.astype(str)
 
     yield anchors_df, attrs_df, links_df
@@ -145,15 +151,15 @@ def get_grist_data(batch_size: int = 500):
             logger.error(f"Failed to fetch links for type {link_type}: {exc}")
             continue
 
-        for l in links:
+        for link in links:
             edge_records.append(
                 {
-                    "from_node_id": l.id_from,
-                    "to_node_id": l.id_to,
-                    "from_node_type": l.id_from.split(":")[0] if ":" in l.id_from else None,
-                    "to_node_type": l.id_to.split(":")[0] if ":" in l.id_to else None,
-                    "edge_label": l.type,
-                    "attributes": l.data or {},
+                    "from_node_id": link.id_from,
+                    "to_node_id": link.id_to,
+                    "from_node_type": link.id_from.split(":")[0] if ":" in link.id_from else None,
+                    "to_node_type": link.id_to.split(":")[0] if ":" in link.id_to else None,
+                    "edge_label": link.type,
+                    "attributes": link.data or {},
                 }
             )
 

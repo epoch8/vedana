@@ -67,20 +67,20 @@ class ConversationLifecycleEvent:
 
 
 class DataModelLoader(abc.ABC):
-    @abc.abstractmethod
-    def iter_anchors(self) -> Iterable[tuple]: ...
+    def iter_anchors(self) -> Iterable[tuple]:
+        raise NotImplementedError("Subclasses must implement iter_anchors")
 
-    @abc.abstractmethod
-    def iter_links(self) -> Iterable[tuple]: ...
+    def iter_links(self) -> Iterable[tuple]:
+        raise NotImplementedError("Subclasses must implement iter_links")
 
-    @abc.abstractmethod
-    def iter_attrs(self) -> Iterable[tuple]: ...
+    def iter_attrs(self) -> Iterable[tuple]:
+        raise NotImplementedError("Subclasses must implement iter_attrs")
 
-    @abc.abstractmethod
-    def iter_queries(self) -> Iterable[tuple]: ...
+    def iter_queries(self) -> Iterable[tuple]:
+        raise NotImplementedError("Subclasses must implement iter_queries")
 
-    @abc.abstractmethod
-    def iter_conversation_lifecycle_events(self) -> Iterable[tuple]: ...
+    def iter_conversation_lifecycle_events(self) -> Iterable[tuple]:
+        raise NotImplementedError("Subclasses must implement iter_conversation_lifecycle_events")
 
     def close(self) -> None: ...
 
@@ -229,10 +229,10 @@ class DataModel:
 
     def anchor_links(self, anchor_noun: str) -> list[Link]:
         return [
-            l
-            for l in self.links
-            if (l.anchor_from.noun == anchor_noun and l.anchor_from_link_attr_name)
-            or (l.anchor_to.noun == anchor_noun and l.anchor_to_link_attr_name)
+            link
+            for link in self.links
+            if (link.anchor_from.noun == anchor_noun and link.anchor_from_link_attr_name)
+            or (link.anchor_to.noun == anchor_noun and link.anchor_to_link_attr_name)
         ]
 
     def to_text_descr(self) -> str:
@@ -285,16 +285,16 @@ class DataModel:
 
         links = [
             {
-                "anchor_from": l.anchor_from.noun,
-                "anchor_to": l.anchor_to.noun,
-                "sentence": l.sentence,
-                "description": l.description,
-                "query": l.query,
-                "has_direction": l.has_direction,
-                "anchor_from_link_attr_name": l.anchor_from_link_attr_name,
-                "anchor_to_link_attr_name": l.anchor_to_link_attr_name,
+                "anchor_from": link.anchor_from.noun,
+                "anchor_to": link.anchor_to.noun,
+                "sentence": link.sentence,
+                "description": link.description,
+                "query": link.query,
+                "has_direction": link.has_direction,
+                "anchor_from_link_attr_name": link.anchor_from_link_attr_name,
+                "anchor_to_link_attr_name": link.anchor_to_link_attr_name,
             }
-            for l in self.links
+            for link in self.links
         ]
 
         # Flatten attributes and keep mapping to reconstruct later
@@ -315,8 +315,8 @@ class DataModel:
                     }
                 )
 
-        for l in self.links:
-            for attr in l.attributes:
+        for link in self.links:
+            for attr in link.attributes:
                 attrs.append(
                     {
                         "name": attr.name,
@@ -327,7 +327,7 @@ class DataModel:
                         "embeddable": attr.embeddable,
                         "embed_threshold": attr.embed_threshold,
                         "anchor_noun": None,
-                        "link_sentence": l.sentence,
+                        "link_sentence": link.sentence,
                     }
                 )
 
@@ -361,19 +361,19 @@ class DataModel:
 
         # 2. Links
         links_map: dict[str, Link] = {}
-        for l in d.get("links", []):
-            af_noun = l["anchor_from"]
-            at_noun = l["anchor_to"]
+        for link in d.get("links", []):
+            af_noun = link["anchor_from"]
+            at_noun = link["anchor_to"]
             link_obj = Link(
                 anchor_from=anchors_map[af_noun],
                 anchor_to=anchors_map[at_noun],
-                sentence=l["sentence"],
-                description=l.get("description", ""),
-                query=l.get("query", ""),
+                sentence=link["sentence"],
+                description=link.get("description", ""),
+                query=link.get("query", ""),
                 attributes=[],
-                has_direction=l.get("has_direction", False),
-                anchor_from_link_attr_name=l.get("anchor_from_link_attr_name", ""),
-                anchor_to_link_attr_name=l.get("anchor_to_link_attr_name", ""),
+                has_direction=link.get("has_direction", False),
+                anchor_from_link_attr_name=link.get("anchor_from_link_attr_name", ""),
+                anchor_to_link_attr_name=link.get("anchor_to_link_attr_name", ""),
             )
             # Use sentence as unique key for quick lookup
             links_map[link_obj.sentence] = link_obj
@@ -496,7 +496,9 @@ class GristOnlineDataModelLoader(DataModelLoader):
 
     def iter_links(self) -> Iterable[tuple]:
         anchors_df = self.get_table("Anchors")
-        anchors_df = anchors_df.set_index("id")["noun"].squeeze()  # get id <--> noun mapping for resolving links
+        anchors_ser = anchors_df.set_index("id")["noun"].squeeze()  # get id <--> noun mapping for resolving links
+        assert isinstance(anchors_ser, pd.Series)
+
         df = self.get_table("Links")
         df = df[
             [
@@ -511,15 +513,17 @@ class GristOnlineDataModelLoader(DataModelLoader):
                 "has_direction",
             ]
         ]
-        df["anchor1"] = df["anchor1"].apply(lambda x: anchors_df.get(x, x))
-        df["anchor2"] = df["anchor2"].apply(lambda x: anchors_df.get(x, x))
+        df["anchor1"] = df["anchor1"].apply(lambda x: anchors_ser.get(x, x))
+        df["anchor2"] = df["anchor2"].apply(lambda x: anchors_ser.get(x, x))
         for row in df.itertuples(index=False):
             if all([row.sentence, row.anchor1, row.anchor2]):
                 yield row
 
     def iter_attrs(self) -> Iterable[tuple]:
         anchors_df = self.get_table("Anchors")
-        anchors_df = anchors_df.set_index("id")["noun"].squeeze()  # get id <--> noun mapping for resolving links
+        anchors_ser = anchors_df.set_index("id")["noun"].squeeze()  # get id <--> noun mapping for resolving links
+        assert isinstance(anchors_ser, pd.Series)
+
         df = self.get_table("Attributes")
         df = df[
             [
@@ -535,7 +539,7 @@ class GristOnlineDataModelLoader(DataModelLoader):
                 "embed_threshold",
             ]
         ]
-        df["anchor"] = df["anchor"].apply(lambda x: anchors_df.get(x, x))
+        df["anchor"] = df["anchor"].apply(lambda x: anchors_ser.get(x, x))
         for row in df.itertuples(index=False):
             if row.attribute_name:
                 yield row
@@ -566,7 +570,7 @@ class GristOnlineDataModelLoader(DataModelLoader):
         rows = self._client.fetch_table(table_name)
         df = pd.DataFrame(data=rows)
         df = df[columns]
-        df.columns = [col.lower() for col in df.columns]
+        df.columns = pd.Index([col.lower() for col in df.columns])
         return df
 
 
@@ -628,7 +632,7 @@ class CsvDataModelLoader(DataModelLoader):
 
 
 def main():
-    from settings import settings as S
+    from vedana_core.settings import settings as S
 
     data_model2 = DataModel.load_grist_online(
         S.grist_data_model_doc_id, api_key=S.grist_api_key, grist_server=S.grist_server_url
