@@ -131,41 +131,6 @@ class RagAgent:
         embed = self.llm.llm.create_embedding_sync(search_value)
         return self.graph.vector_search(label, prop_name, embed, threshold=threshold, top_n=top_n)
 
-    # Unused for now
-    def search_full_text(self, idx: str, query: str, limit: int = 10) -> list[Record]:
-        return list(self.graph.text_search(idx, query, limit))
-
-    def _llm_answer_to_queries(self, answer: str) -> list[DBQuery]:
-        str_queries: list[str]
-        if answer.startswith("["):
-            str_queries = json.loads(answer)
-        elif "---" in answer:
-            str_queries = answer.split("---")
-        else:
-            str_queries = [answer]
-
-        str_queries = [clear_cypher(q) for q in str_queries if q]
-
-        vts_re = re.compile(r'vector_search\("(\S+)",\s*"(\S+)",\s*"(.+?)"\s*\)')
-
-        queries: list[DBQuery] = []
-        for str_q in str_queries:
-            vts_args = next(iter(vts_re.findall(str_q)), None)
-            if vts_args:
-                queries.append(VTSQuery(*vts_args))
-            else:
-                queries.append(CypherQuery(str_q))
-
-        return queries
-
-    async def text_to_queries(self, text_query: str) -> list[DBQuery]:
-        # filtered_graph_descr = await self.llm.filter_graph_structure(
-        #     self._graph_descr, text_query
-        # )
-        # answer = await self.llm.generate_cypher_query_v5(filtered_graph_descr, text_query)
-        answer = await self.llm.generate_cypher_query_v5(self._graph_descr, text_query)
-        return self._llm_answer_to_queries(answer)
-
     @staticmethod
     def result_to_text(query: str, result: list[Record] | Exception) -> str:
         if isinstance(result, Exception):
