@@ -392,7 +392,6 @@ def main():
 
     from jims_core.llms.llm_provider import LLMProvider
 
-    from vedana_core.embeddings import OpenaiEmbeddingProvider
     from vedana_core.graph import MemgraphGraph
     from vedana_core.settings import settings as s
 

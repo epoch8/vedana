@@ -1,6 +1,5 @@
 import logging
 import re
-from pathlib import Path
 from unicodedata import normalize
 from uuid import UUID
 
