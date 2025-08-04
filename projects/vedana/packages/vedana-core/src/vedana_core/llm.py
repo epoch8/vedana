@@ -1,12 +1,12 @@
-import logging
-from typing import Callable, Iterable, Type, TypeVar
 import asyncio
+import logging
+from typing import Callable, Iterable
 
 import openai
 from jims_core.llms.llm_provider import LLMProvider
+from jims_core.thread.schema import CommunicationEvent
 from openai import NOT_GIVEN, NotGiven
 from openai.types.chat import (
-    ChatCompletionMessage,
     ChatCompletionMessageParam,
     ChatCompletionToolMessageParam,
 )
@@ -15,11 +15,8 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 
-T = TypeVar("T", bound=BaseModel)
-
-
-class Tool:
-    def __init__(self, name: str, description: str, args_cls: Type[T], fn: Callable[[T], str]) -> None:
+class Tool[T: BaseModel]:
+    def __init__(self, name: str, description: str, args_cls: type[T], fn: Callable[[T], str]) -> None:
         self.name = name
         self.description = description
         self.args_cls = args_cls
@@ -63,7 +60,7 @@ class LLM:
         self,
         messages: list[ChatCompletionMessageParam],
         tools: Iterable[Tool],
-        temperature: float | NotGiven = NOT_GIVEN,
+        temperature: float | None = None,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
         messages = messages.copy()
         tool_defs = [tool.openai_def for tool in tools]
@@ -119,7 +116,7 @@ class LLM:
     async def generate_no_answer(
         self,
         question: str,
-        dialog: list[ChatCompletionMessageParam] | None = None,
+        dialog: list[CommunicationEvent] | None = None,
     ) -> str:
         """
         Generate a human-readable answer based on the question, Cypher query, and its results.
@@ -127,9 +124,13 @@ class LLM:
         prompt_template = self.prompt_templates.get("generate_no_answer_tmplt", generate_no_answer_tmplt)
         prompt = prompt_template.format(question=question)
 
-        messages: list[ChatCompletionMessageParam] = [
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": question},
+        messages = [
+            {
+                "role": "system",
+                "content": "Ты помощник, который преобразует технические ответы в понятный человеку текст.",
+            },
+            *(dialog or []),
+            {"role": "user", "content": prompt},
         ]
         response = await self.llm.chat_completion_plain(messages, temperature=0.3)
         human_answer = "" if response.content is None else response.content.strip()

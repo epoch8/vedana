@@ -4,7 +4,7 @@ import logging
 import re
 from dataclasses import dataclass
 from itertools import islice
-from typing import Any, Mapping, Optional, Type
+from typing import Any, Mapping, Type
 
 import neo4j
 import neo4j.graph
@@ -66,7 +66,7 @@ class RagAgent:
     _data_model: DataModel
     _graph_descr: str
     _vts_indices: dict[str, str]
-    _vts_args: Type[BaseModel]
+    _vts_args: type[VTSArgs]
 
     def __init__(
         self,
@@ -74,8 +74,8 @@ class RagAgent:
         embeds: EmbeddingProvider,
         data_model: DataModel,
         llm: LLM,
+        ctx: ThreadContext,
         logger: logging.Logger | None = None,
-        ctx: Optional[ThreadContext] = None,
     ) -> None:
         self.graph = graph
         self.embeds = embeds
@@ -90,14 +90,14 @@ class RagAgent:
         self._vts_indices = data_model.vector_indices()
         self._vts_args = self._build_vts_arg_model()
 
-    def _build_vts_arg_model(self) -> Type[BaseModel]:
+    def _build_vts_arg_model(self) -> Type[VTSArgs]:
         """Create a Pydantic model with Enum-constrained fields for the VTS tool."""
 
         if not self._vts_indices:
             return VTSArgs
 
         # Label Enum – keys of `_vts_indices`
-        LabelEnum = enum.Enum("LabelEnum", {name: name for name in self._vts_indices.keys()})
+        LabelEnum = enum.Enum("LabelEnum", {name: name for name in self._vts_indices.keys()})  # type: ignore
 
         # Property Enum – unique values of `_vts_indices`
         unique_props = set(self._vts_indices.values())
@@ -111,14 +111,14 @@ class RagAgent:
             used_names.add(sanitized)
             prop_member_mapping[sanitized] = prop
 
-        PropertyEnum = enum.Enum("PropertyEnum", prop_member_mapping)
+        PropertyEnum = enum.Enum("PropertyEnum", prop_member_mapping)  # type: ignore
 
         VTSArgsEnum = create_model(
             "VTSArgsEnum",
             label=(LabelEnum, Field(description="node label")),
             property=(PropertyEnum, Field(description="node property to search in")),
             text=(str, Field(description="text for semantic search")),
-            __base__=BaseModel,
+            __base__=VTSArgs,
         )
 
         return VTSArgsEnum
@@ -229,7 +229,7 @@ class RagAgent:
             cypher_fn,
         )
 
-        tools = [vts_tool, cypher_tool]
+        tools: list[Tool] = [vts_tool, cypher_tool]
 
         if self.ctx.history:
             tools.append(
@@ -282,10 +282,11 @@ def row_to_text(row: Any) -> str:
 def main():
     import logging
 
-    from embeddings import OpenaiEmbeddingProvider
-    from graph import MemgraphGraph
     from jims_core.llms.llm_provider import LLMProvider
-    from settings import settings as s
+
+    from vedana_core.embeddings import OpenaiEmbeddingProvider
+    from vedana_core.graph import MemgraphGraph
+    from vedana_core.settings import settings as s
 
     logging.basicConfig(level=logging.INFO)
 
