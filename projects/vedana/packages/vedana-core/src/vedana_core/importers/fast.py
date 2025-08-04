@@ -13,8 +13,9 @@ from vedana_core.data_model import Anchor as DmAnchor
 from vedana_core.data_model import DataModel
 from vedana_core.data_model import Link as DmLink
 from vedana_core.data_provider import Anchor, DataProvider
-from vedana_core.embeddings import EmbeddingProvider
 from vedana_core.graph import Graph, MemgraphGraph
+
+from jims_core.llms.llm_provider import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class BatchImporter:
         graph: MemgraphGraph,
         dp: DataProvider,
         data_model: DataModel,
-        embed_provider: EmbeddingProvider,
+        llm_provider: LLMProvider,
         node_batch_size: int = 1000,
         edge_batch_size: int = 3000,
         dry_run: bool = False,
@@ -40,7 +41,7 @@ class BatchImporter:
         self.graph = graph
         self.dp = dp
         self.data_model = data_model
-        self.embed_provider = embed_provider
+        self.llm_provider = llm_provider
         self.node_batch_size = node_batch_size
         self.edge_batch_size = edge_batch_size
         # self.num_processes = num_processes or max(1, multiprocessing.cpu_count() - 1)
@@ -50,7 +51,7 @@ class BatchImporter:
         self.auth = graph.auth
         self.anchor_embeddable_attributes = self._get_anchor_embeddable_attributes()
         self.link_embeddable_attributes = self._get_link_embeddable_attributes()
-        self.embed_size = embed_provider.embeddings_dim
+        self.embed_size = llm_provider.embeddings_dim
         # For foreign key link handling
         self.dp_to_graph_id_map: Dict[DPIdType, str] = {}
         self.f_key_links_to_add: List[Tuple[Union[str, DPIdType], Union[str, DPIdType], str]] = []
@@ -300,12 +301,12 @@ class BatchImporter:
 
         return node_dicts, embedding_tasks
 
-    def _process_embeddings(self, embedding_tasks: List[Tuple[str, str, str]]) -> Dict[Tuple[str, str], np.ndarray]:
+    def _process_embeddings(self, embedding_tasks: List[Tuple[str, str, str]]) -> Dict[Tuple[str, str], list[float]]:
         """Process embeddings in bulk using EmbeddingProvider."""
         texts = [task[2] for task in embedding_tasks]
         keys = [(task[0], task[1]) for task in embedding_tasks]
 
-        embed_vecs = self.embed_provider.get_embeddings(texts)
+        embed_vecs = self.llm_provider.create_embeddings_sync(texts)
         return {key: vec for key, vec in zip(keys, embed_vecs)}
 
     def _apply_embeddings_to_nodes(
@@ -420,12 +421,12 @@ class BatchImporter:
 
     def _process_edge_embeddings(
         self, embedding_tasks: List[Tuple[str, str, str, str]]
-    ) -> Dict[Tuple[str, str, str], np.ndarray]:
+    ) -> Dict[Tuple[str, str, str], list[float]]:
         """Process edge embeddings in bulk using EmbeddingProvider."""
         texts = [task[3] for task in embedding_tasks]  # Extract text from (edge_id, edge_type, attr_key, text)
         keys = [(task[0], task[1], task[2]) for task in embedding_tasks]  # (edge_id, edge_type, attr_key)
 
-        embed_vecs = self.embed_provider.get_embeddings(texts)
+        embed_vecs = self.llm_provider.create_embeddings_sync(texts)
         return {key: vec for key, vec in zip(keys, embed_vecs)}
 
     def _apply_embeddings_to_edges(
@@ -489,7 +490,6 @@ def update_graph(
     graph: Graph,
     dp: DataProvider,
     data_model: DataModel,
-    embed_provider: EmbeddingProvider,
     dry_run: bool = False,
     node_batch_size: int = 1000,
     edge_batch_size: int = 3000,
@@ -501,7 +501,6 @@ def update_graph(
         graph: The graph database instance
         dp: Data provider with nodes and edges
         data_model: Data model for the graph
-        embed_provider: Provider for generating embeddings
         dry_run: If True, don't actually write to the database
         node_batch_size: Size of node batches for parallel processing
         edge_batch_size: Size of edge batches for parallel processing
@@ -509,11 +508,13 @@ def update_graph(
     if not isinstance(graph, MemgraphGraph):
         raise NotImplementedError("update_graph only supports MemgraphGraph")
 
+    llm_provider = LLMProvider()
+
     loader = BatchImporter(
         graph=graph,
         dp=dp,
         data_model=data_model,
-        embed_provider=embed_provider,
+        llm_provider=llm_provider,
         node_batch_size=node_batch_size,
         edge_batch_size=edge_batch_size,
         dry_run=dry_run,
