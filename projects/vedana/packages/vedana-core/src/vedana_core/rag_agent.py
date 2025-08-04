@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, create_model
 
 from vedana_core.data_model import DataModel
 from vedana_core.graph import Graph, Record
-from vedana_core.llm import LLM, Tool, clear_cypher
+from vedana_core.llm import LLM, Tool
 
 QueryResult = list[Record] | Exception
 
@@ -166,19 +166,19 @@ class RagAgent:
         answer = await self.llm.generate_cypher_query_v5(self._graph_descr, text_query)
         return self._llm_answer_to_queries(answer)
 
-    def execute_cypher_query(self, query, rows_limit: int = 30) -> QueryResult:
-        try:
-            return list(islice(self.graph.execute_ro_cypher_query(query), rows_limit))
-        except Exception as e:
-            self.logger.exception(e)
-            return e
-
     @staticmethod
     def result_to_text(query: str, result: list[Record] | Exception) -> str:
         if isinstance(result, Exception):
             return f"Query: {query}\nResult: 'Error executing query'"
         rows_str = "\n".join(row_to_text(row) for row in result)
         return f"Query: {query}\nRows:\n{rows_str}"
+
+    def execute_cypher_query(self, query, rows_limit: int = 30) -> QueryResult:
+        try:
+            return list(islice(self.graph.execute_ro_cypher_query(query), rows_limit))
+        except Exception as e:
+            self.logger.exception(e)
+            return e
 
     def rag_results_to_text(self, results: RagResults) -> str:
         all_results = results.db_query_res or []
@@ -187,31 +187,6 @@ class RagAgent:
         if results.fts_res:
             all_results.append(("Full text search", results.fts_res))
         return "\n\n".join(self.result_to_text(str(q), r) for q, r in all_results)
-
-    async def rag_results_to_human_answer(self, text_query: str, rag_results: RagResults) -> str:
-        text_result = self.rag_results_to_text(rag_results)
-        return await self.llm.generate_human_answer(text_query, text_result)
-
-    def filter_results(self, rag_results: RagResults) -> RagResults:
-        """
-        db_query_res - first priority
-        if db_query_res:
-            vts_res (high threshold) - second priority
-        else:
-            vts_res (high threshold) - first priority
-            fts_res - second priority
-        """
-        filtered = RagResults()
-        if rag_results.db_query_res:
-            filtered.db_query_res = rag_results.db_query_res
-            if rag_results.vts_res:
-                filtered.vts_res = rag_results.vts_res
-            elif rag_results.fts_res:
-                filtered.fts_res = rag_results.fts_res
-        else:
-            filtered.vts_res = rag_results.vts_res
-            filtered.fts_res = rag_results.fts_res
-        return filtered
 
     def _get_conversation_history_tool_func(self, args: GetHistoryArgs) -> str:
         if not self.ctx or len(self.ctx.history) <= 1:

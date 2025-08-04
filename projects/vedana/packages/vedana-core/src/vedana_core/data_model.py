@@ -66,6 +66,12 @@ class ConversationLifecycleEvent:
     text: str
 
 
+@dataclass
+class Prompt:
+    name: str
+    text: str
+
+
 class DataModelLoader(abc.ABC):
     def iter_anchors(self) -> Iterable[tuple]:
         raise NotImplementedError("Subclasses must implement iter_anchors")
@@ -82,6 +88,9 @@ class DataModelLoader(abc.ABC):
     def iter_conversation_lifecycle_events(self) -> Iterable[tuple]:
         raise NotImplementedError("Subclasses must implement iter_conversation_lifecycle_events")
 
+    def iter_prompts(self) -> Iterable[tuple]:
+        raise NotImplementedError("Subclasses must implement iter_prompts")
+
     def close(self) -> None: ...
 
 
@@ -93,12 +102,14 @@ class DataModel:
         attrs: list[Attribute],
         queries: list[Query],
         conversation_lifecycle: list[ConversationLifecycleEvent],
+        prompts: list[Prompt],
     ) -> None:
         self.anchors = anchors
         self.links = links
         self.attrs = attrs
         self.queries = queries
         self.conversation_lifecycle = conversation_lifecycle
+        self.prompts = prompts
 
     @classmethod
     def load_sqlite(cls, db_path: Path) -> "DataModel":
@@ -200,12 +211,17 @@ class DataModel:
             ConversationLifecycleEvent(event, text) for event, text in loader.iter_conversation_lifecycle_events()
         ]
 
+        prompts = [
+            Prompt(name, text) for name, text in loader.iter_prompts()
+        ]
+
         return cls(
             anchors=list(anchors.values()),
             links=list(links.values()),
             attrs=attrs,
             queries=queries,
             conversation_lifecycle=conversation_lifecycle,
+            prompts=prompts,
         )
 
     def embeddable_attributes(self) -> dict[str, dict]:
@@ -218,6 +234,9 @@ class DataModel:
 
     def conversation_lifecycle_events(self) -> dict[str, str]:
         return {cl.event: cl.text for cl in self.conversation_lifecycle}
+
+    def prompt_templates(self) -> dict[str, str]:
+        return {p.name: p.text for p in self.prompts}
 
     def vector_indices(self) -> dict[str, str]:
         return {
@@ -332,12 +351,16 @@ class DataModel:
                 )
 
         queries = [{"name": q.name, "example": q.example} for q in self.queries]
+        conversation_lifecycle = [{"event": cl.event, "text": cl.text} for cl in self.conversation_lifecycle]
+        prompts = [{"name": p.name, "text": p.text} for p in self.prompts]
 
         return {
             "anchors": anchors,
             "links": links,
             "attrs": attrs,
             "queries": queries,
+            "conversation_lifecycle": conversation_lifecycle,
+            "prompts": prompts,
         }
 
     def to_json(self) -> str:
@@ -405,12 +428,16 @@ class DataModel:
         # 5. ConversationLifecycle
         cl = [ConversationLifecycleEvent(c["event"], c.get("text", "")) for c in d.get("conversation_lifecycle", [])]
 
+        # 6. Prompts
+        prompts = [Prompt(c["name"], c.get("text", "")) for c in d.get("prompts", [])]
+
         return cls(
             anchors=list(anchors_map.values()),
             links=list(links_map.values()),
             attrs=attrs,
             queries=queries,
             conversation_lifecycle=cl,
+            prompts=prompts,
         )
 
     @classmethod
@@ -558,6 +585,15 @@ class GristOnlineDataModelLoader(DataModelLoader):
                 yield row
         except requests.exceptions.HTTPError:
             logger.warning("ConversationLifecycle table not found in Grist document")
+
+    def iter_prompts(self) -> Iterable[tuple]:
+        try:
+            df = self.get_table("Prompts")
+            df = df[["name", "text"]]
+            for row in df.dropna().itertuples(index=False):
+                yield row
+        except requests.exceptions.HTTPError:
+            logger.warning("Prompts table not found in Grist document")
 
     def _list_table_columns(self, table_name: str) -> list[str]:
         resp = self._client.columns(table_name)
