@@ -3,10 +3,11 @@ import logging
 import multiprocessing
 import time
 from math import ceil
-from typing import Any, Dict, Generator, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Generator, List, Mapping, Optional, Set, Tuple, Union
 from uuid import UUID
 
 import numpy as np
+from jims_core.llms.llm_provider import LLMProvider
 from neo4j import GraphDatabase
 
 from vedana_core.data_model import Anchor as DmAnchor
@@ -14,8 +15,6 @@ from vedana_core.data_model import DataModel
 from vedana_core.data_model import Link as DmLink
 from vedana_core.data_provider import Anchor, DataProvider
 from vedana_core.graph import Graph, MemgraphGraph
-
-from jims_core.llms.llm_provider import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -312,7 +311,7 @@ class BatchImporter:
     def _apply_embeddings_to_nodes(
         self,
         node_dicts: List[Dict[str, Any]],
-        embedding_results: Dict[Tuple[str, str], np.ndarray],
+        embedding_results: Mapping[Tuple[str, str], np.ndarray | list[float]],
     ) -> None:
         """Apply calculated embeddings to node dictionaries."""
         # Build a node_id -> node_dict map for efficient lookup
@@ -432,7 +431,7 @@ class BatchImporter:
     def _apply_embeddings_to_edges(
         self,
         edge_dicts_by_type: Dict[str, List[Dict[str, Any]]],
-        embedding_results: Dict[Tuple[str, str, str], np.ndarray],
+        embedding_results: Mapping[Tuple[str, str, str], np.ndarray | list[float]],
     ) -> None:
         """Apply calculated embeddings to edge dictionaries."""
         # Build edge_id -> edge_dict map for efficient lookup across all types
