@@ -1,3 +1,7 @@
+# 2025.08.04-dev.12
+
+* (vedana) Get system prompts from Grist's DataModel, with fallback to hardcoded prompts
+
 # 2025.08.01-dev.11
 
 * (jims-core) Switch to LiteLLM for LLMProvider functioning

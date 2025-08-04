@@ -101,7 +101,7 @@ class RagPipeline:
     async def _process_rag_query(self, query: str, ctx: ThreadContext) -> tuple[str, dict[str, Any]]:
         """Process a RAG query and return human answer and technical info"""
 
-        llm = LLM(ctx.llm, logger=self.logger)
+        llm = LLM(ctx.llm, prompt_templates=self.data_model.prompt_templates(), logger=self.logger)
 
         if self.model != llm.llm.model and settings.debug:  # settings.model = env
             llm.llm.set_model(self.model)
