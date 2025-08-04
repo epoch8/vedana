@@ -135,61 +135,6 @@ class RagAgent:
     def search_full_text(self, idx: str, query: str, limit: int = 10) -> list[Record]:
         return list(self.graph.text_search(idx, query, limit))
 
-    # TODO remove dead code
-    # def find_alternative_attribute_values(self, extracted_attributes: dict, top_n: int = 5) -> dict[str, set]:
-    #     self.logger.debug("🔎 Searching for alternative attribute values...")
-    #     embeddable_attributes = self._data_model.embeddable_attributes()
-
-    #     alternative_values: dict[str, set[str]] = {}
-
-    #     # WTF это же не работает
-    #     for node_type, attr, embed_threshold in embeddable_attributes:
-    #         embed_threshold = embed_threshold or 0.8
-    #         value = extracted_attributes.get(attr)
-    #         if not value:
-    #             continue
-    #         if isinstance(value, list):
-    #             values = value
-    #         else:
-    #             values = [value]
-    #         for value in values:
-    #             embed = self.embeds.get_embedding(value)
-    #             similar_nodes = self.graph.vector_search(node_type, attr, embed, embed_threshold, top_n)
-    #             attr_values = alternative_values.get(attr) or set()
-    #             for n in similar_nodes:
-    #                 val = n["node"][attr]
-    #                 if val:
-    #                     attr_values.add(val)
-    #             alternative_values[attr] = attr_values
-
-    #     self.logger.info(f"🔹 Final alternative attribute values: {alternative_values}")
-    #     return alternative_values
-
-    # async def text_to_cypher(self, text_query: str) -> list[str]:
-    #     self.logger.debug(f"🔹🔹 Generating Cypher query for: {text_query}")
-
-    #     filtered_graph_descr = await self.llm.filter_graph_structure(self._graph_descr, text_query)
-    #     cypher_query = await self.llm.generate_cypher_query(filtered_graph_descr, text_query)
-    #     self.logger.debug(f"🔹🔹🔹 Generated Cypher query:\n{cypher_query}\n")
-
-    #     # Extract attributes from the generated Cypher query
-    #     extracted_attributes = await self.llm.extract_attributes_from_cypher(cypher_query)
-    #     self.logger.debug(f"🔹🔹🔹 Extracted attributes: {extracted_attributes}")
-
-    #     # Search for alternative attribute values using embeddings
-    #     alternative_values = self.find_alternative_attribute_values(extracted_attributes)
-    #     alternative_values = {k: v for k, v in alternative_values.items() if v}
-    #     self.logger.debug(f"🔹🔹🔹 Alternative values: {alternative_values}")
-
-    #     # Substitute alternative values into the Cypher query
-    #     # 🔄 If there are alternative values, ask the LLM to update the query
-    #     if alternative_values:
-    #         cypher_query = await self.llm.update_cypher_with_alt_values(text_query, cypher_query, alternative_values)
-
-    #     cypher_queries = [str(q) for q in self._llm_answer_to_queries(cypher_query) if isinstance(q, CypherQuery)]
-    #     self.logger.info(f"Generated Cypher queries: {cypher_queries}")
-    #     return cypher_queries
-
     def _llm_answer_to_queries(self, answer: str) -> list[DBQuery]:
         str_queries: list[str]
         if answer.startswith("["):
