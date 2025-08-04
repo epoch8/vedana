@@ -1,4 +1,4 @@
-from sqlalchemy import UUID, Boolean, Column, Integer, String, Float
+from sqlalchemy import Boolean, Column, Float, String
 from sqlalchemy.dialects.postgresql import JSONB
 
 # Grist data model

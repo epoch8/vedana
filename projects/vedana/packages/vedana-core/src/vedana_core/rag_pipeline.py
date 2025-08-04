@@ -109,7 +109,14 @@ class RagPipeline:
         if self.model != llm.llm.model and settings.debug:  # settings.model = env
             llm.llm.set_model(self.model)
 
-        agent = RagAgent(self.graph, self.embed_provider, self.data_model, llm, self.logger, ctx=ctx)
+        agent = RagAgent(
+            graph=self.graph,
+            embeds=self.embed_provider,
+            data_model=self.data_model,
+            llm=llm,
+            logger=self.logger,
+            ctx=ctx,
+        )
 
         # Use the most comprehensive RAG method that provides human-readable answers
         (

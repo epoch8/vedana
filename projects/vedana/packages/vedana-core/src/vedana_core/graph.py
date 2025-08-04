@@ -412,7 +412,7 @@ def escape_cypher(identifier: str) -> str:
 
 
 def escape_labels(labels: set[str]) -> str:
-    return ":".join(escape_cypher(l) for l in labels)
+    return ":".join(escape_cypher(label) for label in labels)
 
 
 _arg_name_re = re.compile(r"(\S+)")
