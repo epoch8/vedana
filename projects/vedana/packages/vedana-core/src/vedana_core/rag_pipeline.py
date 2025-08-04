@@ -6,7 +6,6 @@ from typing import Any
 from jims_core.thread.thread_context import ThreadContext
 
 from vedana_core.data_model import DataModel
-from vedana_core.embeddings import EmbeddingProvider
 from vedana_core.graph import Graph
 from vedana_core.llm import LLM
 from vedana_core.rag_agent import RagAgent
@@ -38,7 +37,6 @@ class RagPipeline:
     def __init__(
         self,
         graph: Graph,
-        embed_provider: EmbeddingProvider,
         data_model: DataModel,
         logger,
         threshold: float = 0.8,
@@ -47,7 +45,6 @@ class RagPipeline:
         model: str | None = None,
     ):
         self.graph = graph
-        self.embed_provider = embed_provider
         self.data_model = data_model
         self.logger = logger or logging.getLogger(__name__)
         self.threshold = threshold
@@ -111,11 +108,10 @@ class RagPipeline:
 
         agent = RagAgent(
             graph=self.graph,
-            embeds=self.embed_provider,
             data_model=self.data_model,
             llm=llm,
-            logger=self.logger,
             ctx=ctx,
+            logger=self.logger,
         )
 
         # Use the most comprehensive RAG method that provides human-readable answers
