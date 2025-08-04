@@ -88,8 +88,8 @@ class DataModelLoader(abc.ABC):
     def iter_conversation_lifecycle_events(self) -> Iterable[tuple]:
         raise NotImplementedError("Subclasses must implement iter_conversation_lifecycle_events")
 
-    @abc.abstractmethod
-    def iter_prompts(self) -> Iterable[tuple]: ...
+    def iter_prompts(self) -> Iterable[tuple]:
+        raise NotImplementedError("Subclasses must implement iter_prompts")
 
     def close(self) -> None: ...
 
