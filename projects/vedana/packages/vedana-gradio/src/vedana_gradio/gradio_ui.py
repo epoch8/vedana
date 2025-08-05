@@ -416,22 +416,9 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
                     show_debug = gr.Checkbox(label="Show Debug Output", value=True)
 
                     if s.debug:
-                        # https://platform.openai.com/docs/models
-                        # Можно распарсить все модели из API:
-                        # from openai import OpenAI
-                        # client = OpenAI()
-                        # models = client.models.list()
-                        # available_models = [
-                        #     model.id for model in models.data if "gpt" in model.id and not model.id.startswith("ft:")
-                        # ]
-                        available_models = [
-                            "gpt-4.1",
-                            "gpt-4.1-mini",
-                            "gpt-4.1-nano",
-                            "gpt-4o",
-                            "gpt-4o-mini",
-                            "o4-mini",
-                        ]
+                        available_models = list(
+                            {"gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini", "o4-mini", s.model}
+                        )
 
                         model_selector = gr.Dropdown(
                             choices=available_models,
