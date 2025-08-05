@@ -1,6 +1,11 @@
+# 2025.08.05-dev.13
+
+* (vedana) Use jims_core.LLMProvider directly for embeddings
+
 # 2025.08.04-dev.12
 
-* (vedana) Get system prompts from Grist's DataModel, with fallback to hardcoded prompts
+* (vedana) Get system prompts from Grist's DataModel, with fallback to hardcoded
+  prompts
 
 # 2025.08.01-dev.11
 
