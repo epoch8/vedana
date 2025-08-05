@@ -4,9 +4,9 @@ from unicodedata import normalize
 from uuid import UUID
 
 import pandas as pd
+from jims_core.llms.llm_provider import LLMProvider
 from neo4j import GraphDatabase
 from vedana_core.data_provider import GristOnlineCsvDataProvider, GristSQLDataProvider
-from jims_core.llms.llm_provider import LLMProvider
 from vedana_core.settings import settings as core_settings
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
@@ -124,7 +124,7 @@ def get_grist_data(batch_size: int = 500):
         try:
             anchors = dp.get_anchors(anchor_type, dm_attrs=[])  # We don't have DataModel attrs here
         except Exception as exc:
-            logger.error(f"Failed to fetch anchors for type {anchor_type}: {exc}")
+            logger.exception(f"Failed to fetch anchors for type {anchor_type}: {exc}")
             continue
 
         for a in anchors:
