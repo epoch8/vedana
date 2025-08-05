@@ -67,7 +67,7 @@ class Graph(abc.ABC):
         self,
         label: str,
         prop_name: str,
-        embedding: np.ndarray,
+        embedding: np.ndarray | list[float],
         threshold: float,
         top_n: int = 10,
     ) -> list[Record]:
@@ -275,7 +275,7 @@ class MemgraphGraph(CypherGraph):
         self,
         label: str,
         prop_name: str,
-        embedding: np.ndarray,
+        embedding: np.ndarray | list[float],
         threshold: float,
         top_n: int = 5,
     ) -> list[Record]:

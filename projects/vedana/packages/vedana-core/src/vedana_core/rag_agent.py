@@ -12,7 +12,6 @@ from jims_core.thread.thread_context import ThreadContext
 from pydantic import BaseModel, Field, create_model
 
 from vedana_core.data_model import DataModel
-from vedana_core.embeddings import EmbeddingProvider
 from vedana_core.graph import Graph, Record
 from vedana_core.llm import LLM, Tool
 
@@ -71,14 +70,12 @@ class RagAgent:
     def __init__(
         self,
         graph: Graph,
-        embeds: EmbeddingProvider,
         data_model: DataModel,
         llm: LLM,
         ctx: ThreadContext,
         logger: logging.Logger | None = None,
     ) -> None:
         self.graph = graph
-        self.embeds = embeds
         self.llm = llm
         self.logger = logger or logging.getLogger(__name__)
         self.set_data_model(data_model)
@@ -131,12 +128,8 @@ class RagAgent:
         threshold: float,
         top_n: int = 5,
     ) -> list[Record]:
-        embed = self.embeds.get_embedding(search_value)
+        embed = self.llm.llm.create_embedding_sync(search_value)
         return self.graph.vector_search(label, prop_name, embed, threshold=threshold, top_n=top_n)
-
-    # Unused for now
-    def search_full_text(self, idx: str, query: str, limit: int = 10) -> list[Record]:
-        return list(self.graph.text_search(idx, query, limit))
 
     @staticmethod
     def result_to_text(query: str, result: list[Record] | Exception) -> str:
@@ -284,7 +277,6 @@ def main():
 
     from jims_core.llms.llm_provider import LLMProvider
 
-    from vedana_core.embeddings import OpenaiEmbeddingProvider
     from vedana_core.graph import MemgraphGraph
     from vedana_core.settings import settings as s
 
@@ -297,8 +289,7 @@ def main():
     q = "если я произвожу роботов, то какой окпд мне взять?"
 
     with MemgraphGraph(s.memgraph_uri, s.memgraph_user, s.memgraph_pwd, "") as graph:
-        embeds = OpenaiEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
-        agent = RagAgent(graph, embeds, data_model, llm)
+        agent = RagAgent(graph, data_model, llm)
         answer, vts_q, cypher_q = agent.text_to_answer_with_vts_and_cypher(q, threshold=0.8, temperature=0)
         print()
         print("vts_q")
