@@ -209,6 +209,7 @@ def get_grist_data(batch_size: int = 500):
                 "attributes": a.data or {},
             }
 
+    # Resolve links (database id <-> our id)
     for l in fk_link_records_to:
         l["from_node_id"] = node_records[l["from_node_type"]].get(l["from_node_dp_id"], {}).get("node_id")
     for l in fk_link_records_from:
@@ -244,19 +245,35 @@ def get_grist_data(batch_size: int = 500):
     logger.info(f"Fetching {len(link_types)} link types from Grist: {link_types}")
 
     for link_type in link_types:
+        # check link's existence in data model
+        dm_link = [link for link in dm.links if link.sentence.lower() == link_type.lower()]
+        if not dm_link:
+            logger.error(f"Link type {dm_link} not described in data model, skipping")
+            continue
+        dm_link = dm_link[0]
+
         try:
-            links = dp.get_links(link_type)
+            links = dp.get_links(link_type, dm_link)
         except Exception as exc:
             logger.error(f"Failed to fetch links for type {link_type}: {exc}")
             continue
 
         for link in links:
+            id_from = link.id_from
+            id_to = link.id_to
+
+            # resolve foreign key link id's
+            if isinstance(id_from, int):
+                id_from = node_records[link.anchor_from].get(id_from, {}).get("node_id")
+            if isinstance(id_to, int):
+                id_to = node_records[link.anchor_to].get(id_to, {}).get("node_id")
+
             edge_records.append(
                 {
-                    "from_node_id": link.id_from,
-                    "to_node_id": link.id_to,
-                    "from_node_type": link.id_from.split(":")[0] if ":" in link.id_from else None,
-                    "to_node_type": link.id_to.split(":")[0] if ":" in link.id_to else None,
+                    "from_node_id": id_from,
+                    "to_node_id": id_to,
+                    "from_node_type": link.anchor_from,
+                    "to_node_type": link.anchor_to,
                     "edge_label": link.type,
                     "attributes": link.data or {},
                 }
