@@ -64,7 +64,6 @@ HISTORY_TOOL_NAME = "get_conversation_history"
 class RagAgent:
     _data_model: DataModel
     _graph_descr: str
-    _vts_indices: dict[str, str]
     _vts_args: type[VTSArgs]
 
     def __init__(
@@ -84,20 +83,21 @@ class RagAgent:
     def set_data_model(self, data_model: DataModel) -> None:
         self._data_model = data_model
         self._graph_descr = data_model.to_text_descr()
-        self._vts_indices = data_model.vector_indices()
         self._vts_args = self._build_vts_arg_model()
 
     def _build_vts_arg_model(self) -> Type[VTSArgs]:
         """Create a Pydantic model with Enum-constrained fields for the VTS tool."""
 
-        if not self._vts_indices:
+        _vts_indices = self._data_model.vector_indices()
+
+        if not _vts_indices:
             return VTSArgs
 
         # Label Enum – keys of `_vts_indices`
-        LabelEnum = enum.Enum("LabelEnum", {name: name for name in self._vts_indices.keys()})  # type: ignore
+        LabelEnum = enum.Enum("LabelEnum", {name: name for (name, _) in _vts_indices})
 
         # Property Enum – unique values of `_vts_indices`
-        unique_props = set(self._vts_indices.values())
+        unique_props = set(attr for (_, attr) in _vts_indices)
         prop_member_mapping: dict[str, str] = {}
 
         used_names: set[str] = set()
