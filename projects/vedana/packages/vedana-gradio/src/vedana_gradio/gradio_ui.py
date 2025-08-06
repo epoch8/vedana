@@ -17,7 +17,7 @@ from uuid_extensions import uuid7
 from vedana_core.data_model import DataModel
 from vedana_core.data_provider import GristSQLDataProvider
 from vedana_core.graph import Graph, MemgraphGraph
-from vedana_core.importers.fast import DataModelLoader, update_graph
+from vedana_core.importers.fast import DataModelLoader
 from vedana_core.rag_pipeline import RagPipeline
 
 # todo
@@ -100,22 +100,7 @@ def reload_graph(show_debug: bool = True) -> str:
         logger.info("Created data provider")
 
         with data_provider:
-            logger.info("Starting multiprocess graph update")
-            update_graph(
-                graph=graph,
-                dp=data_provider,
-                data_model=_global_state.data_model,
-                dry_run=False,
-                node_batch_size=200,
-                edge_batch_size=100,
-            )
-
-        success_msg = "Successfully reloaded graph data from Grist"
-        logger.info(success_msg)
-
-        if show_debug:
-            return f"{success_msg}\n\nDebug Logs:\n{logger.get_logs()}"
-        return success_msg
+            raise NotImplementedError("Graph updates from UI are temporarily disabled")
 
     except Exception as e:
         error_msg = f"Error reloading graph data: {str(e)}"
