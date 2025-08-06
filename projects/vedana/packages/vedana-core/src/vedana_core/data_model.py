@@ -211,9 +211,7 @@ class DataModel:
             ConversationLifecycleEvent(event, text) for event, text in loader.iter_conversation_lifecycle_events()
         ]
 
-        prompts = [
-            Prompt(name, text) for name, text in loader.iter_prompts()
-        ]
+        prompts = [Prompt(name, text) for name, text in loader.iter_prompts()]
 
         return cls(
             anchors=list(anchors.values()),
@@ -238,13 +236,13 @@ class DataModel:
     def prompt_templates(self) -> dict[str, str]:
         return {p.name: p.text for p in self.prompts}
 
-    def vector_indices(self) -> dict[str, str]:
-        return {
-            anchor.noun: attr.name
+    def vector_indices(self) -> list[tuple[str, str]]:
+        return [
+            (anchor.noun, attr.name)
             for anchor in self.anchors
             for attr in anchor.attributes
             if attr.embeddable and attr.dtype == "str"
-        }
+        ]
 
     def anchor_links(self, anchor_noun: str) -> list[Link]:
         return [
