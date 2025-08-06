@@ -118,7 +118,7 @@ def get_grist_data(batch_size: int = 500):
 
     # Nodes
     node_records = []
-    anchor_types = dp.get_anchor_types()  # does not check data model! only lists tables that are named anchor_...
+    anchor_types = dp.get_anchor_tables()  # does not check data model! only lists tables that are named anchor_...
     logger.info(f"Fetching {len(anchor_types)} anchor types from Grist: {anchor_types}")
 
     for anchor_type in anchor_types:
@@ -141,7 +141,7 @@ def get_grist_data(batch_size: int = 500):
 
     # Edges
     edge_records = []
-    link_types = dp.get_link_types()
+    link_types = dp.get_link_tables()
     logger.info(f"Fetching {len(link_types)} link types from Grist: {link_types}")
 
     for link_type in link_types:

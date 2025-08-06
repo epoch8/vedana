@@ -44,10 +44,10 @@ class DataProvider(abc.ABC):
     def get_links(self, type_: str) -> list[Link]: ...
 
     @abc.abstractmethod
-    def get_anchor_types(self) -> list[str]: ...
+    def get_anchor_tables(self) -> list[str]: ...
 
     @abc.abstractmethod
-    def get_link_types(self) -> list[str]: ...
+    def get_link_tables(self) -> list[str]: ...
 
     def close(self) -> None: ...
 
@@ -80,10 +80,10 @@ class CsvDataProvider(DataProvider):
                 link_type = fname[len(self.link_file_prefix) : -4]
                 self._link_files[link_type] = file
 
-    def get_anchor_types(self) -> list[str]:
+    def get_anchor_tables(self) -> list[str]:
         return list(self._anchor_files.keys())
 
-    def get_link_types(self) -> list[str]:
+    def get_link_tables(self) -> list[str]:
         # todo: link_files != link types
         return list(self._link_files.keys())
 
@@ -136,11 +136,11 @@ class GristDataProvider(DataProvider):
     @abc.abstractmethod
     def get_table(self, table_name: str) -> Table: ...
 
-    def get_anchor_types(self) -> list[str]:
+    def get_anchor_tables(self) -> list[str]:
         prefix_len = len(self.anchor_table_prefix)
         return [t[prefix_len:] for t in self.list_anchor_tables()]
 
-    def get_link_types(self) -> list[str]:
+    def get_link_tables(self) -> list[str]:
         prefix_len = len(self.link_table_prefix)
         return [t[prefix_len:] for t in self.list_link_tables()]
 

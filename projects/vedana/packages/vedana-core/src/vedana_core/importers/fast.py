@@ -84,8 +84,8 @@ class BatchImporter:
             self.graph.clear()
             logger.info("Graph cleared")
 
-        # self.dp.get_anchor_types() - anchor tables provided in data source
-        anchor_types = [a for a in self.data_model.anchors if a.noun in self.dp.get_anchor_types()]
+        # self.dp.get_anchor_tables() - anchor tables provided in data source
+        anchor_types = [a for a in self.data_model.anchors if a.noun in self.dp.get_anchor_tables()]
 
         # Step 0: Create indices
         if not self.dry_run:
@@ -120,7 +120,7 @@ class BatchImporter:
             self._process_foreign_key_links()
 
         # Step 3: Load all edges in parallel by type
-        link_types = self.dp.get_link_types()
+        link_types = self.dp.get_link_tables()
         logger.info(f"Processing {len(link_types)} link types: {link_types}")
 
         for link_type in link_types:
