@@ -111,14 +111,14 @@ resource "helm_release" "datapipe_api" {
   ]
 }
 
-resource "helm_release" "datapipe" {
-  name      = "${local.slug}-datapipe"
+resource "helm_release" "datapipe_all" {
+  name      = "${local.slug}-datapipe-all"
   namespace = var.k8s_namespace
 
   repository = "https://epoch8.github.io/helm-charts/"
-  chart      = "datapipe"
-  version    = "0.3.0"
-  # chart = "${path.module}/../../../../../helm-charts/charts/datapipe/"
+  chart      = "simple-cronjob"
+  version    = "0.1.3"
+  # chart = "${path.module}/../../../../../helm-charts/charts/simple-cronjob/"
 
 
   values = [
@@ -129,38 +129,26 @@ resource "helm_release" "datapipe" {
       }
       imagePullSecrets = [{ name = var.image_pull_secrets }]
 
-      loops = [
-        {
-          name     = "regular"
-          schedule = "0 0 * * *"
-          labels = "flow=regular"
-          resources = {
-            requests = {
-              cpu    = "1"
-              memory = "1Gi"
-            }
-            limits = {
-              cpu    = "1"
-              memory = "2Gi"
-            }
-          }
-        },
-        {
-          name     = "all"
-          schedule = "0 0 * * *"
-          labels = ""
-          resources = {
-            requests = {
-              cpu    = "1"
-              memory = "1Gi"
-            }
-            limits = {
-              cpu    = "1"
-              memory = "2Gi"
-            }
-          }
-        }
+      schedule = "0 0 * * *"
+
+      volumes = local.llm_volumes
+
+      command = [
+        "datapipe",
+        "step",
+        "run",
       ]
+      resources = {
+        requests = {
+          cpu    = "1"
+          memory = "1Gi"
+        }
+        limits = {
+          cpu    = "1"
+          memory = "2Gi"
+        }
+      }
+
       env = local.datapipe_env
     }),
   ]

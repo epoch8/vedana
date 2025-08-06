@@ -4,13 +4,13 @@ locals {
   gcp_llm_env = {
     GOOGLE_APPLICATION_CREDENTIALS = "/secrets/${local.slug}-gcp-sa/gcp-sa.json"
   }
-  gcp_llm_volume = {
+  gcp_llm_volume = local.gcp_sa_enabled ? [{
     name = "gcp-sa"
     secret = {
       secretName = kubernetes_secret_v1.gcp_sa[0].metadata[0].name
     }
     mountPath = "/secrets/${local.slug}-gcp-sa"
-  }
+  }] : []
 
   openai_env = merge(
     var.llm_config.openai_base_url != null ? {
@@ -34,7 +34,7 @@ locals {
       EMBEDDINGS_DIM = var.llm_config.embeddings_dim
     } : {}
   )
-  llm_volumes = local.gcp_sa_enabled ? [local.gcp_llm_volume] : []
+  llm_volumes = local.gcp_sa_enabled ? local.gcp_llm_volume : []
 }
 
 resource "kubernetes_secret_v1" "gcp_sa" {
