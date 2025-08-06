@@ -11,7 +11,6 @@ from sentry_sdk.integrations.opentelemetry import SentryPropagator, SentrySpanPr
 
 from vedana_core.data_model import DataModel
 from vedana_core.db import get_sessionmaker
-from vedana_core.embeddings import OpenaiEmbeddingProvider
 from vedana_core.graph import MemgraphGraph
 from vedana_core.rag_pipeline import RagPipeline, StartPipeline
 from vedana_core.settings import settings as s
@@ -57,11 +56,9 @@ async def main_tg():
             s.grist_data_model_doc_id, grist_server=s.grist_server_url, api_key=s.grist_api_key
         )
         graph = MemgraphGraph(s.memgraph_uri, s.memgraph_user, s.memgraph_pwd)
-        embed_provider = OpenaiEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
 
         pipeline = RagPipeline(
             graph=graph,
-            embed_provider=embed_provider,
             data_model=data_model,
             logger=logger,
             threshold=0.8,

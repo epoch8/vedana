@@ -12,7 +12,6 @@ from jims_core.thread.thread_context import ThreadContext
 from pydantic import BaseModel, Field, create_model
 
 from vedana_core.data_model import DataModel
-from vedana_core.embeddings import EmbeddingProvider
 from vedana_core.graph import Graph, Record
 from vedana_core.llm import LLM, Tool
 
@@ -65,20 +64,17 @@ HISTORY_TOOL_NAME = "get_conversation_history"
 class RagAgent:
     _data_model: DataModel
     _graph_descr: str
-    _vts_indices: dict[str, str]
     _vts_args: type[VTSArgs]
 
     def __init__(
         self,
         graph: Graph,
-        embeds: EmbeddingProvider,
         data_model: DataModel,
         llm: LLM,
         ctx: ThreadContext,
         logger: logging.Logger | None = None,
     ) -> None:
         self.graph = graph
-        self.embeds = embeds
         self.llm = llm
         self.logger = logger or logging.getLogger(__name__)
         self.set_data_model(data_model)
@@ -87,20 +83,21 @@ class RagAgent:
     def set_data_model(self, data_model: DataModel) -> None:
         self._data_model = data_model
         self._graph_descr = data_model.to_text_descr()
-        self._vts_indices = data_model.vector_indices()
         self._vts_args = self._build_vts_arg_model()
 
     def _build_vts_arg_model(self) -> Type[VTSArgs]:
         """Create a Pydantic model with Enum-constrained fields for the VTS tool."""
 
-        if not self._vts_indices:
+        _vts_indices = self._data_model.vector_indices()
+
+        if not _vts_indices:
             return VTSArgs
 
         # Label Enum – keys of `_vts_indices`
-        LabelEnum = enum.Enum("LabelEnum", {name: name for name in self._vts_indices.keys()})  # type: ignore
+        LabelEnum = enum.Enum("LabelEnum", {name: name for (name, _) in _vts_indices})  # type: ignore
 
         # Property Enum – unique values of `_vts_indices`
-        unique_props = set(self._vts_indices.values())
+        unique_props = set(attr for (_, attr) in _vts_indices)
         prop_member_mapping: dict[str, str] = {}
 
         used_names: set[str] = set()
@@ -131,12 +128,8 @@ class RagAgent:
         threshold: float,
         top_n: int = 5,
     ) -> list[Record]:
-        embed = self.embeds.get_embedding(search_value)
+        embed = self.llm.llm.create_embedding_sync(search_value)
         return self.graph.vector_search(label, prop_name, embed, threshold=threshold, top_n=top_n)
-
-    # Unused for now
-    def search_full_text(self, idx: str, query: str, limit: int = 10) -> list[Record]:
-        return list(self.graph.text_search(idx, query, limit))
 
     @staticmethod
     def result_to_text(query: str, result: list[Record] | Exception) -> str:
@@ -284,7 +277,6 @@ def main():
 
     from jims_core.llms.llm_provider import LLMProvider
 
-    from vedana_core.embeddings import OpenaiEmbeddingProvider
     from vedana_core.graph import MemgraphGraph
     from vedana_core.settings import settings as s
 
@@ -297,8 +289,7 @@ def main():
     q = "если я произвожу роботов, то какой окпд мне взять?"
 
     with MemgraphGraph(s.memgraph_uri, s.memgraph_user, s.memgraph_pwd, "") as graph:
-        embeds = OpenaiEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
-        agent = RagAgent(graph, embeds, data_model, llm)
+        agent = RagAgent(graph, data_model, llm)
         answer, vts_q, cypher_q = agent.text_to_answer_with_vts_and_cypher(q, threshold=0.8, temperature=0)
         print()
         print("vts_q")
