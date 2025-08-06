@@ -5,12 +5,13 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NamedTuple, Union
+from ast import literal_eval
 
 import grist_api
 import pandas as pd
 import requests
 
-from vedana_core.data_model import Attribute, DataModel
+from vedana_core.data_model import Attribute, DataModel, Link as DmLink
 from vedana_core.utils import cast_dtype
 
 
@@ -38,7 +39,7 @@ class Link:
 
 class DataProvider(abc.ABC):
     @abc.abstractmethod
-    def get_anchors(self, type_: str, dm_attrs: list[Attribute]) -> list[Anchor]: ...
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[DmLink]) -> list[Anchor]: ...
 
     @abc.abstractmethod
     def get_links(self, type_: str) -> list[Link]: ...
@@ -87,7 +88,7 @@ class CsvDataProvider(DataProvider):
         # todo: link_files != link types
         return list(self._link_files.keys())
 
-    def get_anchors(self, type_: str, dm_attrs: list[Attribute]) -> list[Anchor]:
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[DmLink]) -> list[Anchor]:
         import pandas as pd
 
         file = self._anchor_files.get(type_)
@@ -144,7 +145,7 @@ class GristDataProvider(DataProvider):
         prefix_len = len(self.link_table_prefix)
         return [t[prefix_len:] for t in self.list_link_tables()]
 
-    def get_anchors(self, type_: str, dm_attrs: list[Attribute]) -> list[Anchor]:
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[DmLink]) -> list[Anchor]:
         table_name = f"{self.anchor_table_prefix}{type_}"
         table = self.get_table(table_name)
         if "id" not in table.columns:
@@ -446,24 +447,29 @@ class GristSQLDataProvider(GristDataProvider):
                 yield record.get("fields", {})
             offset += self.batch_size
 
-    def get_anchors(self, type_: str, dm_attrs: list[Attribute]) -> list[Anchor]:
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[DmLink]) -> list[Anchor]:
         dtypes = {e.name: e.dtype for e in dm_attrs}
         table_name = f"{self.anchor_table_prefix}{type_}"
-        # columns_resp = self._client.columns(table_name)
-        # if not columns_resp:
-        #     return []
-        # cols = [c["id"] for c in columns_resp.json()["columns"]]
-        # if "id" not in cols:
-        #     cols.append("id")
         default_id_key = "node_id"
+        fk_links_cols = [c.anchor_from_link_attr_name for c in dm_anchor_links]
 
         anchors: dict[str, Anchor] = {}
 
         def flatten(el):
-            if isinstance(el, list) and el and el[0] == "L":
-                return el[1] if len(el) == 2 else el[1:]
+            if isinstance(el, list):
+                if el:
+                    if el[0] == "L":
+                        return el[1] if len(el) == 2 else el[1:]
             elif pd.isna(el):
                 return None
+            return el
+
+        def safe_fk_list_convert(el):
+            try:
+                if isinstance(el, str):
+                    el = literal_eval(el)
+            except SyntaxError:
+                print(f"str el not list: {el}")
             return el
 
         for row in self._iter_table_rows(table_name):
@@ -471,13 +477,6 @@ class GristSQLDataProvider(GristDataProvider):
             _id = row.get(f"{type_}_id") or row.get(default_id_key) or f"{type_}:{db_id}"
             if pd.isna(_id) or (isinstance(_id, dict) and _id.get("type") == "Buffer"):
                 continue
-
-            # extract value from row (narrow table structure)
-            # clean_data = {row["attribute_key"]: row["attribute_value"]}
-            # if _id in anchors:  # node already present - populate its attributes
-            #     anchors[_id].data.update(clean_data)
-            # else:
-            #     anchors[_id] = Anchor(str(_id), type_, clean_data, dp_id=db_id)
 
             # wide table structure
             row.pop("id", None)
@@ -487,16 +486,23 @@ class GristSQLDataProvider(GristDataProvider):
 
             # grist meta columns
             row.pop("manualSort", None)
+
             row = {
                 k: v
                 for k, v in row.items()
                 if not (isinstance(v, dict) and v.get("type") == "Buffer") and not k.startswith("gristHelper_")
+                   and not pd.isna(v)
             }
+
+            # foreign key link columns - either int id or a list of int ids cast to string
+            for col in fk_links_cols:
+                if col in row:
+                    row[col] = safe_fk_list_convert(row[col])
 
             clean_data = {
                 k: cast_dtype(flatten(v), k, dtypes[k])
                 for k, v in row.items()
-                if not isinstance(v, (bytes, type(None))) and not pd.isna(v) and v != ""
+                if not isinstance(v, (bytes, type(None))) and v != ""
             }
 
             if _id in anchors:  # node already present - populate its attributes
