@@ -41,6 +41,7 @@ dev = [
     "pytest>=8.4.0",
     "types-requests>=2.32.4.20250611",
     "pandas-stubs>=2.3.0.250703",
+    "litellm[caching]>=1.74.14",
 ]
 
 [tool.ruff]

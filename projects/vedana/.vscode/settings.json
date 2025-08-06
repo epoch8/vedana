@@ -6,6 +6,11 @@
             "source.organizeImports": "explicit"
         }
     },
+    "python.testing.pytestArgs": [
+        "."
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
     "notebook.formatOnSave.enabled": true,
     "makefile.configureOnOpen": false,
     "python-envs.defaultEnvManager": "ms-python.python:venv",

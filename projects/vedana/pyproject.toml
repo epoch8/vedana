@@ -1,6 +1,6 @@
 [project]
 name = "vedana"
-version = "2025.08.04-dev.12"
+version = "2025.08.06-dev.14"
 description = "Semantic Graph RAG App"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
