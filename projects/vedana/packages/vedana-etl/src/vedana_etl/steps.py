@@ -210,10 +210,10 @@ def get_grist_data(batch_size: int = 500):
             }
 
     # Resolve links (database id <-> our id)
-    for l in fk_link_records_to:
-        l["from_node_id"] = node_records[l["from_node_type"]].get(l["from_node_dp_id"], {}).get("node_id")
-    for l in fk_link_records_from:
-        l["to_node_id"] = node_records[l["to_node_type"]].get(l["to_node_dp_id"], {}).get("node_id")
+    for lk in fk_link_records_to:
+        lk["from_node_id"] = node_records[lk["from_node_type"]].get(lk["from_node_dp_id"], {}).get("node_id")
+    for lk in fk_link_records_from:
+        lk["to_node_id"] = node_records[lk["to_node_type"]].get(lk["to_node_dp_id"], {}).get("node_id")
 
     if fk_link_records_to and fk_link_records_from:
         fk_links_from_df = pd.DataFrame(fk_link_records_from).dropna(subset=["from_node_id", "to_node_id"])
