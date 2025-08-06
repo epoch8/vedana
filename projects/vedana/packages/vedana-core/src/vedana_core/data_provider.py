@@ -11,7 +11,7 @@ import grist_api
 import pandas as pd
 import requests
 
-from vedana_core.data_model import Attribute, DataModel, Link as DmLink
+from vedana_core.data_model import Attribute, DataModel, Link
 from vedana_core.utils import cast_dtype
 
 
@@ -22,7 +22,7 @@ class Table:
 
 
 @dataclass
-class Anchor:
+class AnchorRecord:
     id: str
     type: str
     data: dict[str, Any]
@@ -30,7 +30,7 @@ class Anchor:
 
 
 @dataclass
-class Link:
+class LinkRecord:
     id_from: str
     id_to: str
     anchor_from: str
@@ -41,10 +41,11 @@ class Link:
 
 class DataProvider(abc.ABC):
     @abc.abstractmethod
-    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[DmLink]) -> list[Anchor]: ...
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[Link]) -> list[AnchorRecord]:
+        ...
 
     @abc.abstractmethod
-    def get_links(self, type_: str, link: DmLink) -> list[Link]: ...
+    def get_links(self, type_: str, link: Link) -> list[LinkRecord]: ...
 
     @abc.abstractmethod
     def get_anchor_tables(self) -> list[str]: ...
@@ -77,10 +78,10 @@ class CsvDataProvider(DataProvider):
             fname = file.name.lower()
             if fname.startswith(self.anchor_file_prefix):
                 # anchor_type is after prefix and before .csv
-                anchor_type = fname[len(self.anchor_file_prefix) : -4]
+                anchor_type = fname[len(self.anchor_file_prefix): -4]
                 self._anchor_files[anchor_type] = file
             elif fname.startswith(self.link_file_prefix):
-                link_type = fname[len(self.link_file_prefix) : -4]
+                link_type = fname[len(self.link_file_prefix): -4]
                 self._link_files[link_type] = file
 
     def get_anchor_tables(self) -> list[str]:
@@ -90,9 +91,7 @@ class CsvDataProvider(DataProvider):
         # todo: link_files != link types
         return list(self._link_files.keys())
 
-    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[DmLink]) -> list[Anchor]:
-        import pandas as pd
-
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[Link]) -> list[AnchorRecord]:
         file = self._anchor_files.get(type_)
         if not file:
             return []
@@ -105,12 +104,10 @@ class CsvDataProvider(DataProvider):
                 k: cast_dtype(v, k, dtype=attrs_dtypes[k])
                 for k, v in zip(group["attribute_key"], group["attribute_value"])
             }
-            anchors.append(Anchor(str(node_id), str(node_type), data))
+            anchors.append(AnchorRecord(str(node_id), str(node_type), data))
         return anchors
 
-    def get_links(self, table_name: str, link: DmLink) -> list[Link]:
-        import pandas as pd
-
+    def get_links(self, table_name: str, link: Link) -> list[LinkRecord]:
         file = self._link_files.get(table_name)
         if not file:
             return []
@@ -119,7 +116,9 @@ class CsvDataProvider(DataProvider):
         grouped = df.groupby(["from_node_id", "to_node_id", "edge_label"])
         for (id_from, id_to, edge_label), group in grouped:
             data = {k: v for k, v in zip(group["attribute_key"], group["attribute_value"]) if not pd.isna(k)}
-            links.append(Link(str(id_from), str(id_to), link.anchor_from.noun, link.anchor_to.noun, str(edge_label), data))
+            links.append(
+                LinkRecord(str(id_from), str(id_to), link.anchor_from.noun, link.anchor_to.noun, str(edge_label), data)
+            )
         return links
 
     def close(self) -> None:
@@ -147,14 +146,14 @@ class GristDataProvider(DataProvider):
         prefix_len = len(self.link_table_prefix)
         return [t[prefix_len:] for t in self.list_link_tables()]
 
-    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[DmLink]) -> list[Anchor]:
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[Link]) -> list[AnchorRecord]:
         table_name = f"{self.anchor_table_prefix}{type_}"
         table = self.get_table(table_name)
         if "id" not in table.columns:
             table.columns.append("id")
         id_key = f"{type_}_id"
         anchor_ids = set()
-        anchors: list[Anchor] = []
+        anchors: list[AnchorRecord] = []
 
         def flatten_list_cells(el):
             if isinstance(el, list) and el[0] == "L":  # flatten List type fields
@@ -184,11 +183,11 @@ class GristDataProvider(DataProvider):
                 print(f"Duplicate anchor id {id_} in table {table_name}\nduplicate data: {row_dict}\n record skipped.")
                 continue
 
-            anchors.append(Anchor(id_, type_, row_dict, dp_id=db_id))
+            anchors.append(AnchorRecord(id_, type_, row_dict, dp_id=db_id))
 
         return anchors
 
-    def get_links(self, table_name: str, link: DmLink) -> list[Link]:
+    def get_links(self, table_name: str, link: Link) -> list[LinkRecord]:
         table_name = f"{self.link_table_prefix}{table_name}"
         table = self.get_table(table_name)
         if "id" not in table.columns:
@@ -199,7 +198,7 @@ class GristDataProvider(DataProvider):
                 el = el[1]
             return el
 
-        links: list[Link] = []
+        links: list[LinkRecord] = []
         for row in table.rows:
             row_dict = {col: getattr(row, col) for col in table.columns}
             id_from = row_dict.pop("from_node_id")
@@ -212,7 +211,7 @@ class GristDataProvider(DataProvider):
             row_dict = {k: flatten_list_cells(v) for k, v in row_dict.items()}
             row_dict = {k: v for k, v in row_dict.items() if not isinstance(v, (bytes, list)) and not pd.isna(v)}
 
-            links.append(Link(id_from, id_to, link.anchor_from.noun, link.anchor_to.noun, type_, row_dict))
+            links.append(LinkRecord(id_from, id_to, link.anchor_from.noun, link.anchor_to.noun, type_, row_dict))
 
         return links
 
@@ -449,13 +448,13 @@ class GristSQLDataProvider(GristDataProvider):
                 yield record.get("fields", {})
             offset += self.batch_size
 
-    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[DmLink]) -> list[Anchor]:
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[Link]) -> list[AnchorRecord]:
         dtypes = {e.name: e.dtype for e in dm_attrs}
         table_name = f"{self.anchor_table_prefix}{type_}"
         default_id_key = "node_id"
         fk_links_cols = [c.anchor_from_link_attr_name for c in dm_anchor_links]
 
-        anchors: dict[str, Anchor] = {}
+        anchors: dict[str, AnchorRecord] = {}
 
         def flatten(el):
             if isinstance(el, list):
@@ -492,7 +491,7 @@ class GristSQLDataProvider(GristDataProvider):
                 k: v
                 for k, v in row.items()
                 if not (isinstance(v, dict) and v.get("type") == "Buffer") and not k.startswith("gristHelper_")
-                   and not pd.isna(v)
+                and not pd.isna(v)
             }
 
             # foreign key link columns - either int id or a list of int ids cast to string
@@ -510,11 +509,11 @@ class GristSQLDataProvider(GristDataProvider):
                 # anchors[_id].data.update(clean_data)
                 print(f"duplicate {type_} id {_id}, skipping...")
             else:
-                anchors[_id] = Anchor(str(_id), type_, clean_data, dp_id=db_id)
+                anchors[_id] = AnchorRecord(str(_id), type_, clean_data, dp_id=db_id)
 
         return list(anchors.values())
 
-    def get_links(self, table_name: str, link: DmLink) -> list[Link]:
+    def get_links(self, table_name: str, link: Link) -> list[LinkRecord]:
         table_name = f"{self.link_table_prefix}{table_name}"
         columns_resp = self._client.columns(table_name)
         if not columns_resp:
@@ -525,7 +524,7 @@ class GristSQLDataProvider(GristDataProvider):
                 el = el[1]
             return el
 
-        links: list[Link] = []
+        links: list[LinkRecord] = []
         for row in self._iter_table_rows(table_name):
             id_from = row.get("id_from") or row.get("from_node_id")
             id_to = row.get("id_to") or row.get("to_node_id")
@@ -552,7 +551,9 @@ class GristSQLDataProvider(GristDataProvider):
                 if not isinstance(v, (bytes, list)) and not pd.isna(v) and not k.startswith("gristHelper_")
             }
 
-            links.append(Link(id_from, id_to, link.anchor_from.noun, link.anchor_to.noun, str(edge_label), clean_data))
+            links.append(
+                LinkRecord(id_from, id_to, link.anchor_from.noun, link.anchor_to.noun, str(edge_label), clean_data)
+            )
 
         return links
 

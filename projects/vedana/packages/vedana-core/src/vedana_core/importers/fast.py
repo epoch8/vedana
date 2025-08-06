@@ -9,10 +9,10 @@ from uuid import UUID
 import numpy as np
 from neo4j import GraphDatabase
 
-from vedana_core.data_model import Anchor as DmAnchor
+from vedana_core.data_model import Anchor
 from vedana_core.data_model import DataModel
 from vedana_core.data_model import Link as DmLink
-from vedana_core.data_provider import Anchor, DataProvider
+from vedana_core.data_provider import AnchorRecord, DataProvider
 from vedana_core.embeddings import EmbeddingProvider
 from vedana_core.graph import Graph, MemgraphGraph
 
@@ -134,7 +134,7 @@ class BatchImporter:
         total_time = time.time() - total_start_time
         logger.info(f"Total import completed in {total_time:.2f}s")
 
-    def _handle_anchor_links(self, anchor: Anchor, dm_anchor_links: List[DmLink]) -> None:
+    def _handle_anchor_links(self, anchor: AnchorRecord, dm_anchor_links: List[DmLink]) -> None:
         """Save anchor dp_id and foreign key links for future resolution"""
         if anchor.dp_id is not None:
             self.dp_to_graph_id_map[(anchor.type, anchor.dp_id)] = anchor.id
@@ -154,7 +154,7 @@ class BatchImporter:
 
     def _add_f_key_links(
         self,
-        anchor: Anchor,
+        anchor: AnchorRecord,
         linked_anchor_type: str,
         linked_anchor_id: Optional[Union[int, str]],
         label: str,
@@ -185,7 +185,7 @@ class BatchImporter:
 
         self.f_key_links_to_add.extend(links_to_add)
 
-    def _process_node_type(self, anchor: DmAnchor) -> None:
+    def _process_node_type(self, anchor: Anchor) -> None:
         """Process all nodes of a specific type with parallel embedding calculation."""
         anchor_type = anchor.noun
         start_time = time.time()
@@ -278,7 +278,7 @@ class BatchImporter:
         logger.info(f"Inserted {len(resolved_links)} foreign key links in {time.time() - start_time:.2f}s")
 
     def _prepare_node_embedding_tasks(
-        self, anchors: List[Anchor], anchor_attributes: list[str], embeds_to_calc: Set[str]
+        self, anchors: List[AnchorRecord], anchor_attributes: list[str], embeds_to_calc: Set[str]
     ) -> Tuple[List[Dict[str, Any]], List[Tuple[str, str, str]]]:
         """Prepare nodes and collect text for embeddings."""
         node_dicts = []
