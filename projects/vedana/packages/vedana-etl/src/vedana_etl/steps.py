@@ -7,6 +7,7 @@ from uuid import UUID
 import pandas as pd
 from neo4j import GraphDatabase
 from vedana_core.data_provider import GristOnlineCsvDataProvider, GristSQLDataProvider
+from vedana_core.data_model import DataModel
 from vedana_core.embeddings import OpenaiEmbeddingProvider
 from vedana_core.settings import settings as core_settings
 
@@ -109,6 +110,12 @@ def get_grist_data(batch_size: int = 500):
     Fetch all anchors and links from Grist into node/edge tables
     """
 
+    dm = DataModel.load_grist_online(
+        doc_id=core_settings.grist_data_model_doc_id,
+        grist_server=core_settings.grist_server_url,
+        api_key=core_settings.grist_api_key,
+    )
+
     dp = GristSQLDataProvider(
         doc_id=core_settings.grist_data_doc_id,
         grist_server=core_settings.grist_server_url,
@@ -116,28 +123,120 @@ def get_grist_data(batch_size: int = 500):
         batch_size=batch_size,
     )
 
+    # Foreign key type links
+    fk_link_records_from = []
+    fk_link_records_to = []
+
     # Nodes
-    node_records = []
+    node_records = {}
     anchor_types = dp.get_anchor_tables()  # does not check data model! only lists tables that are named anchor_...
-    logger.info(f"Fetching {len(anchor_types)} anchor types from Grist: {anchor_types}")
+    logger.info(f"Fetching {len(anchor_types)} anchor tables from Grist: {anchor_types}")
 
     for anchor_type in anchor_types:
+        # check anchor's existence in data model
+        dm_anchor = [a for a in dm.anchors if a.noun == anchor_type]
+        if not dm_anchor:
+            logger.error(f"Anchor {anchor_type} not described in data model, skipping")
+            continue
+        dm_anchor = dm_anchor[0]
+
+        # get anchor's links
+        # todo check link column directions
+        anchor_from_link_cols = [
+            link for link in dm.links if link.anchor_from.noun == anchor_type and link.anchor_from_link_attr_name
+        ]
+        anchor_to_link_cols = [
+            link for link in dm.links if link.anchor_to.noun == anchor_type and link.anchor_to_link_attr_name
+        ]
+
         try:
-            anchors = dp.get_anchors(anchor_type, dm_attrs=[])  # We don't have DataModel attrs here
+            anchors = dp.get_anchors(anchor_type, dm_attrs=dm_anchor.attributes, dm_anchor_links=anchor_from_link_cols)
         except Exception as exc:
-            logger.error(f"Failed to fetch anchors for type {anchor_type}: {exc}")
+            logger.exception(f"Failed to fetch anchors for type {anchor_type}: {exc}")
             continue
 
-        for a in anchors:
-            node_records.append(
-                {
-                    "node_id": a.id,
-                    "node_type": a.type,
-                    "attributes": a.data or {},
-                }
-            )
+        node_records[anchor_type] = {}
 
-    nodes_df = pd.DataFrame(node_records)
+        for a in anchors:
+
+            for link in anchor_from_link_cols:
+                # get link other end id(s)
+                link_ids = a.data.get(link.anchor_from_link_attr_name, [])
+                if isinstance(link_ids, (int, str)):
+                    link_ids = [link_ids]
+                elif link_ids is None:
+                    continue
+
+                for to_dp_id in link_ids:
+                    fk_link_records_from.append(
+                        {
+                            "from_node_id": a.id,
+                            "from_node_dp_id": a.dp_id,
+                            # "to_node_id": link.id_to, <-- not provided here
+                            "to_node_dp_id": to_dp_id,
+                            "from_node_type": anchor_type,
+                            "to_node_type": link.anchor_to.noun,
+                            "edge_label": link.sentence,
+                            # "attributes": {},  # not present in data (format not specified) yet
+                        }
+                    )
+
+            for link in anchor_to_link_cols:
+                # get link other end id(s)
+                link_ids = a.data.get(link.anchor_to_link_attr_name, [])
+                if isinstance(link_ids, (int, str)):
+                    link_ids = [link_ids]
+                elif link_ids is None:
+                    continue
+
+                for from_dp_id in link_ids:
+                    fk_link_records_to.append(
+                        {
+                            # "from_node_id": link.id_from,  <-- not provided here
+                            "from_node_dp_id": from_dp_id,
+                            "to_node_id": a.id,
+                            "to_node_dp_id": a.dp_id,
+                            "from_node_type": link.anchor_from.noun,
+                            "to_node_type": anchor_type,
+                            "edge_label": link.sentence,
+                            # "attributes": {},  # not present in data (format not specified) yet
+                        }
+                    )
+
+            node_records[anchor_type][a.dp_id] = {
+                "node_id": a.id,
+                "node_type": a.type,
+                "attributes": a.data or {},
+            }
+
+    for l in fk_link_records_to:
+        l["from_node_id"] = node_records[l["from_node_type"]].get(l["from_node_dp_id"], {}).get("node_id")
+    for l in fk_link_records_from:
+        l["to_node_id"] = node_records[l["to_node_type"]].get(l["to_node_dp_id"], {}).get("node_id")
+
+    if fk_link_records_to and fk_link_records_from:
+        fk_links_from_df = pd.DataFrame(fk_link_records_from).dropna(subset=["from_node_id", "to_node_id"])
+        fk_links_to_df = pd.DataFrame(fk_link_records_to).dropna(subset=["from_node_id", "to_node_id"])
+
+        fk_links_df = pd.concat([fk_links_from_df, fk_links_to_df], axis=0, ignore_index=True)
+        fk_links_df["attributes"] = [dict()] * fk_links_df.shape[0]
+
+        fk_links_df = fk_links_df[
+            ["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label", "attributes"]
+        ]
+
+    else:
+        fk_links_df = pd.DataFrame(
+            columns=["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label", "attributes"]
+        )
+
+    nodes_df = pd.DataFrame(
+        [
+            {"node_id": rec.get("node_id"), "node_type": rec.get("node_type"), "attributes": rec.get("attributes", {})}
+            for a in node_records.values()
+            for rec in a.values()
+        ]
+    )
 
     # Edges
     edge_records = []
@@ -164,6 +263,8 @@ def get_grist_data(batch_size: int = 500):
             )
 
     edges_df = pd.DataFrame(edge_records)
+
+    edges_df = pd.concat([edges_df, fk_links_df], ignore_index=True)
 
     # preventive drop_duplicates / na records
     if not nodes_df.empty:
