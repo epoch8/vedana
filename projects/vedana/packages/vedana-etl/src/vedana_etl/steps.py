@@ -1,14 +1,13 @@
 import logging
 import re
-from pathlib import Path
 from unicodedata import normalize
 from uuid import UUID
 
 import pandas as pd
+from jims_core.llms.llm_provider import LLMProvider
 from neo4j import GraphDatabase
 from vedana_core.data_provider import GristOnlineCsvDataProvider, GristSQLDataProvider
 from vedana_core.data_model import DataModel
-from vedana_core.embeddings import OpenaiEmbeddingProvider
 from vedana_core.settings import settings as core_settings
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
@@ -411,11 +410,6 @@ def generate_embeddings(
             continue
         mapping.setdefault(record_type, []).append(row["attribute_name"])
 
-    provider = OpenaiEmbeddingProvider(
-        cache_dir=Path(core_settings.embeddings_cache_path),
-        embeddings_dim=core_settings.embeddings_dim,
-    )
-
     tasks: list[tuple[int, str, str]] = []  # (row_idx, attr_name, text)
 
     for idx, row in df.iterrows():
@@ -430,12 +424,12 @@ def generate_embeddings(
                 tasks.append((idx, attr_name, text_val))
 
     if not tasks:
-        provider.close()
         return df
 
+    provider = LLMProvider()
+
     texts = [t[2] for t in tasks]
-    vectors = provider.get_embeddings(texts)
-    provider.close()
+    vectors = provider.create_embeddings_sync(texts)
 
     # Re-init attributes to store only embeddings
     # df = df.drop(columns=["attributes"])
@@ -448,7 +442,7 @@ def generate_embeddings(
             attr_dict = {}
         else:
             attr_dict = dict(attr_dict)
-        attr_dict[f"{attr_name}_embedding"] = vec.tolist()
+        attr_dict[f"{attr_name}_embedding"] = vec
         df.at[row_idx, "attributes"] = attr_dict
 
     # remove rows without embeddings
