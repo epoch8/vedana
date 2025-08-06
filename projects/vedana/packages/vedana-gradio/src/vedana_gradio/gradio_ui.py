@@ -16,7 +16,6 @@ from uuid_extensions import uuid7
 
 from vedana_core.data_model import DataModel
 from vedana_core.data_provider import GristSQLDataProvider
-from vedana_core.embeddings import EmbeddingProvider, OpenaiEmbeddingProvider
 from vedana_core.graph import Graph, MemgraphGraph
 from vedana_core.importers.fast import DataModelLoader, update_graph
 from vedana_core.rag_pipeline import RagPipeline
@@ -56,7 +55,6 @@ loop = None
 
 class GlobalState:
     data_model: DataModel
-    embed_provider: EmbeddingProvider
     graph: Graph
     pipeline: RagPipeline
 
@@ -84,8 +82,6 @@ def reload_graph(show_debug: bool = True) -> str:
         return "Error: GRIST_DATA_DOC_ID environment variable is not set. Cannot reload graph data."
     if not _global_state.data_model:
         return "Error: Data model not loaded. Reload data model first."
-    if not _global_state.embed_provider:
-        return "Error: Embedding provider not available."
 
     try:
         graph = _global_state.graph
@@ -109,7 +105,6 @@ def reload_graph(show_debug: bool = True) -> str:
                 graph=graph,
                 dp=data_provider,
                 data_model=_global_state.data_model,
-                embed_provider=_global_state.embed_provider,
                 dry_run=False,
                 node_batch_size=200,
                 edge_batch_size=100,
@@ -304,16 +299,14 @@ def load_data_source(selected_project: str = None):
     # embeds (for reloads)
     s.embeddings_cache_path = project_settings.embeddings_cache_path or s.default_embeddings_cache_path
     s.embeddings_dim = project_settings.embeddings_dim
-    _global_state.embed_provider = OpenaiEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
 
     # Re-initialize pipeline
     _global_state.pipeline = RagPipeline(
         graph=_global_state.graph,
-        embed_provider=_global_state.embed_provider,
         data_model=_global_state.data_model,
         logger=MemLogger("rag_pipeline", level=logging.DEBUG),
         threshold=0.8,
-        temperature=0.0,
+        temperature=0.0
     )
 
     # cache data model
@@ -325,18 +318,16 @@ def load_data_source(selected_project: str = None):
     return debug_output, data_model_textbox, vts_props
 
 
-def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, data_model: DataModel, sessionmaker, loop):
+def create_gradio_interface(graph: Graph, data_model: DataModel, sessionmaker, loop):
     """Gradio interface with JIMS integration"""
 
     # Store in global state for reload functions
     _global_state.data_model = data_model
-    _global_state.embed_provider = embed_provider
     _global_state.graph = graph
 
     # Initialize pipeline
     _global_state.pipeline = RagPipeline(
         graph=graph,
-        embed_provider=embed_provider,
         data_model=data_model,
         logger=MemLogger("rag_pipeline", level=logging.DEBUG),
         threshold=0.8,

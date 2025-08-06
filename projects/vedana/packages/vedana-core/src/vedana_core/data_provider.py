@@ -101,7 +101,7 @@ class CsvDataProvider(DataProvider):
         grouped = df.groupby(["node_id", "node_type"])
         for (node_id, node_type), group in grouped:
             data = {
-                k: cast_dtype(v, k, dtype=attrs_dtypes[k])
+                k: cast_dtype(v, k, dtype=attrs_dtypes.get(k))
                 for k, v in zip(group["attribute_key"], group["attribute_value"])
             }
             anchors.append(AnchorRecord(str(node_id), str(node_type), data))
@@ -500,7 +500,7 @@ class GristSQLDataProvider(GristDataProvider):
                     row[col] = safe_fk_list_convert(row[col])
 
             clean_data = {
-                k: cast_dtype(flatten(v), k, dtypes[k])
+                k: cast_dtype(flatten(v), k, dtypes.get(k))
                 for k, v in row.items()
                 if not isinstance(v, (bytes, type(None))) and v != ""
             }
