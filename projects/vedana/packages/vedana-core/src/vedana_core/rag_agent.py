@@ -94,7 +94,7 @@ class RagAgent:
             return VTSArgs
 
         # Label Enum – keys of `_vts_indices`
-        LabelEnum = enum.Enum("LabelEnum", {name: name for (name, _) in _vts_indices})
+        LabelEnum = enum.Enum("LabelEnum", {name: name for (name, _) in _vts_indices})  # type: ignore
 
         # Property Enum – unique values of `_vts_indices`
         unique_props = set(attr for (_, attr) in _vts_indices)
