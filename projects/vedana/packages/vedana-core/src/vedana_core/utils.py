@@ -1,4 +1,4 @@
-def cast_dtype(value, value_name: str, dtype: str):
+def cast_dtype(value, value_name: str, dtype: str | None):
     """
     умнейшая конвертация строковых переменных по заданному в дата-модели типу данных
     """
