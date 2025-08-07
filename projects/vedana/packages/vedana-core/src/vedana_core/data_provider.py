@@ -209,7 +209,9 @@ class GristDataProvider(DataProvider):
             if not id_from or not id_to or not type_ or pd.isna(type_) or pd.isna(id_from) or pd.isna(id_to):
                 continue
             row_dict = {k: flatten_list_cells(v) for k, v in row_dict.items()}
-            row_dict = {k: v for k, v in row_dict.items() if not isinstance(v, (bytes, list)) and not pd.isna(v)}
+            row_dict = {
+                k: v for k, v in row_dict.items() if not isinstance(v, (bytes, list, type(None))) and not pd.isna(v)
+            }
 
             links.append(LinkRecord(id_from, id_to, link.anchor_from.noun, link.anchor_to.noun, type_, row_dict))
 
@@ -548,7 +550,8 @@ class GristSQLDataProvider(GristDataProvider):
 
             clean_data = {
                 k: flatten(v) for k, v in row.items()
-                if not isinstance(v, (bytes, list)) and not pd.isna(v) and not k.startswith("gristHelper_")
+                if not isinstance(v, (bytes, list)) and not pd.isna(v) and not (isinstance(v, str) and v == "")
+                and not k.startswith("gristHelper_")
             }
 
             links.append(
