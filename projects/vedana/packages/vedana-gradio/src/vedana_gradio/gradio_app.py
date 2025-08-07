@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from contextlib import asynccontextmanager
 
 import fastapi
 import gradio as gr
@@ -17,7 +16,7 @@ from vedana_core.graph import MemgraphGraph
 from vedana_core.importers.fast import DataModelLoader
 from vedana_core.settings import settings as s
 
-from vedana_gradio.gradio_ui import create_gradio_interface, init_async_stuff
+from vedana_gradio.gradio_ui import create_gradio_interface
 
 logging.basicConfig(
     level=(logging.DEBUG if s.debug else logging.INFO),
@@ -25,12 +24,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
-
-@asynccontextmanager
-async def lifespan(app: fastapi.FastAPI):
-    init_async_stuff()
-    yield
 
 
 async def make_jims_app() -> fastapi.FastAPI:
@@ -51,21 +44,17 @@ async def make_jims_app() -> fastapi.FastAPI:
 
     # load JIMS
     sessionmaker = get_sessionmaker()
-    init_async_stuff()
-
-    from vedana_gradio.gradio_ui import loop
 
     # gradio setup
-    iface = create_gradio_interface(
+    iface = await create_gradio_interface(
         graph=graph,
         data_model=data_model,
         sessionmaker=sessionmaker,
-        loop=loop,
     )
     iface.queue(default_concurrency_limit=10)
 
     # app setup + health for k8s
-    app = fastapi.FastAPI(lifespan=lifespan)
+    app = fastapi.FastAPI()
 
     # TODO remove
     @app.get("/health")
