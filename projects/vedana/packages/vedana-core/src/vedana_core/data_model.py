@@ -443,10 +443,10 @@ class DataModel:
         return cls.from_dict(json.loads(json_str))
 
     @classmethod
-    def load_from_graph(cls, graph: "Graph") -> "DataModel | None":
+    async def load_from_graph(cls, graph: "Graph") -> "DataModel | None":
         try:
             res = list(
-                graph.execute_ro_cypher_query(
+                await graph.execute_ro_cypher_query(
                     "MATCH (dm:DataModel {id: 'data_model'}) RETURN dm.content AS content LIMIT 1"
                 )
             )
