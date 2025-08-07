@@ -227,7 +227,7 @@ class DataModel:
             attr.name: {"noun": anchor.noun, "th": attr.embed_threshold}
             for anchor in self.anchors
             for attr in anchor.attributes
-            if attr.embeddable and attr.dtype == "str"
+            if attr.embeddable
         }
 
     def conversation_lifecycle_events(self) -> dict[str, str]:
@@ -237,12 +237,7 @@ class DataModel:
         return {p.name: p.text for p in self.prompts}
 
     def vector_indices(self) -> list[tuple[str, str]]:
-        return [
-            (anchor.noun, attr.name)
-            for anchor in self.anchors
-            for attr in anchor.attributes
-            if attr.embeddable and attr.dtype == "str"
-        ]
+        return [(anchor.noun, attr.name) for anchor in self.anchors for attr in anchor.attributes if attr.embeddable]
 
     def anchor_links(self, anchor_noun: str) -> list[Link]:
         return [
