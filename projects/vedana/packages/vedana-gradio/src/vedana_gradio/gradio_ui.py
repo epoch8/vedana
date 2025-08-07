@@ -6,7 +6,6 @@ import re
 import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
 
 import gradio as gr
 import pandas as pd
@@ -130,11 +129,10 @@ def reload_graph(show_debug: bool = True) -> str:
         return error_msg
 
 
-def reload_data_model(current_selected_vts_props: list, show_debug: bool = True) -> tuple[str, str, dict[str, Any]]:
+def reload_data_model(show_debug: bool = True) -> tuple[str, str]:
     """Reload data model and return updated UI components"""
     logger = MemLogger("reload_data_model", level=logging.DEBUG)
     data_model_text = ""
-    new_vts_props = []
 
     try:
         logger.info("Starting data model reload")
@@ -161,12 +159,6 @@ def reload_data_model(current_selected_vts_props: list, show_debug: bool = True)
         if _global_state.data_model:
             data_model_text = _global_state.data_model.to_text_descr()
 
-            # Update the VTS properties dropdown
-            new_vts_props = sorted(
-                [f"{v['noun']}::{name}" for name, v in _global_state.data_model.embeddable_attributes().items()]
-            )
-            logger.info(f"Generated {len(new_vts_props)} VTS properties")
-
         # Add debug logs if requested
         if show_debug:
             result = f"{result}\n\nDebug Logs:\n{logger.get_logs()}"
@@ -177,14 +169,12 @@ def reload_data_model(current_selected_vts_props: list, show_debug: bool = True)
         if show_debug:
             result = f"{result}\n\nDebug Logs:\n{logger.get_logs()}"
 
-    current_selected_vts_props = [e for e in current_selected_vts_props if e in new_vts_props]
-
     try:
         DataModelLoader(_global_state.data_model, _global_state.graph).update_data_model_node()
     except Exception as exc:
         logger.warning(f"Failed to store DataModel in graph: {exc}")
 
-    return result, data_model_text, gr.update(choices=new_vts_props, value=current_selected_vts_props)
+    return result, data_model_text
 
 
 def parse_query_costs(model_usage: dict) -> list[dict]:
@@ -290,7 +280,7 @@ def load_data_source(selected_project: str = None):
     s.grist_server_url = project_settings.grist_server_url
     s.grist_api_key = project_settings.grist_api_key
 
-    debug_output, data_model_textbox, vts_props = reload_data_model(current_selected_vts_props=[], show_debug=True)
+    debug_output, data_model_textbox = reload_data_model(show_debug=True)
 
     # graph data path (for reloads)
     s.grist_data_doc_id = project_settings.grist_data_doc_id
@@ -322,7 +312,7 @@ def load_data_source(selected_project: str = None):
     except Exception as cache_exc:
         logger.warning(f"Failed to cache DataModel: {cache_exc}")
 
-    return debug_output, data_model_textbox, vts_props
+    return debug_output, data_model_textbox
 
 
 def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, data_model: DataModel, sessionmaker, loop):
@@ -445,17 +435,7 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
 
                 with gr.Column():
                     tct_temperature = gr.Number(0.01, label="Temperature", minimum=0, maximum=1, step=0.05)
-                with gr.Column():
-                    use_vector_text_search = gr.Checkbox(label="Use vector text search", value=False)
-                    vts_props = sorted([f"{v['noun']}::{n}" for n, v in data_model.embeddable_attributes().items()])
-                    vector_text_search_props = gr.Dropdown(
-                        vts_props,
-                        label="Search props",
-                        multiselect=True,
-                        value=vts_props[0] if vts_props else None,
-                    )
-                    vts_threshold = gr.Number(0.8, label="Threshold", minimum=0, maximum=1, step=0.05)
-                    vts_top_n = gr.Number(5, label="Top-N Results", minimum=1, maximum=30, step=1, precision=0)
+
             with gr.Accordion("Data model", open=False):
                 data_model_textbox = gr.Markdown(
                     value=data_model.to_text_descr(),
@@ -546,9 +526,6 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
         def process_query_sync(
             text_query,
             show_debug,
-            use_vector_text_search,
-            vts_threshold,
-            vts_top_n,
             tct_temperature,
             selected_model,
             thread_controller,
@@ -562,18 +539,15 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
 
                 # Update pipeline with current data model and settings
                 pipeline.data_model = _global_state.data_model
-                pipeline.threshold = vts_threshold
                 pipeline.temperature = tct_temperature
-                if use_vector_text_search:
-                    pipeline.top_n = vts_top_n
+
                 if s.debug:  # pass selected model if app set to debug=True
                     pipeline.model = selected_model
 
                 logger.info(f"Processing query: {text_query}")
                 logger.info(
                     f"Pipeline run settings:\n "
-                    f"- VTS: {use_vector_text_search}, threshold: {vts_threshold}, n={pipeline.top_n};\n"
-                    f" temperature: {tct_temperature};"
+                    f"- VTS: n={pipeline.top_n}; temperature: {tct_temperature};"
                 )
 
                 # Use the global event loop
@@ -695,9 +669,6 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
             inputs=[
                 nl_input,
                 show_debug,
-                use_vector_text_search,
-                vts_threshold,
-                vts_top_n,
                 tct_temperature,
                 model_selector,
                 thread_controller_state,
@@ -725,7 +696,7 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
         sync_project_id.click(
             fn=load_data_source,
             inputs=[project_id],
-            outputs=[debug_output, data_model_textbox, vector_text_search_props],
+            outputs=[debug_output, data_model_textbox],
         ).then(
             fn=clear_history_sync,
             inputs=[thread_controller_state],
@@ -745,8 +716,8 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
         # Reload data model button click
         reload_model_btn.click(
             fn=reload_data_model,
-            inputs=[vector_text_search_props, show_debug],
-            outputs=[debug_output, data_model_textbox, vector_text_search_props],
+            inputs=[show_debug],
+            outputs=[debug_output, data_model_textbox],
         )
 
         if s.debug:
