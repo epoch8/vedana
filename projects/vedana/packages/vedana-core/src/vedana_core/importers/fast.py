@@ -77,11 +77,11 @@ class BatchImporter:
             for link in self.data_model.links
         }
 
-    def load_all_data(self) -> None:
+    async def load_all_data(self) -> None:
         total_start_time = time.time()
 
         if not self.dry_run:
-            self.graph.clear()
+            await self.graph.clear()
             logger.info("Graph cleared")
 
         # self.dp.get_anchor_types() - anchor tables provided in data source
@@ -90,14 +90,14 @@ class BatchImporter:
         # Step 0: Create indices
         if not self.dry_run:
             logger.info("Creating indices")
-            self.graph.create_basic_indices(node_types=[[e.noun] for e in anchor_types])
+            await self.graph.create_basic_indices(node_types=[[e.noun] for e in anchor_types])
 
             logger.info("Creating vector indices")
             logger.info(f"node embeddable_attributes: {self.anchor_embeddable_attributes}")
             for label, attrs in self.anchor_embeddable_attributes.items():
                 for attr in attrs:
                     # todo estimate vector index capacity
-                    self.graph.create_vector_search_index(label, attr, self.embed_size)
+                    await self.graph.create_vector_search_index(label, attr, self.embed_size)
 
             # Create vector indices for edge embeddable attributes
             logger.info(f"edge embeddable_attributes: {self.link_embeddable_attributes}")
@@ -106,7 +106,7 @@ class BatchImporter:
                     if dm_link.anchor_from.noun == anchor_from and dm_link.anchor_to.noun == anchor_to:
                         edge_type = dm_link.sentence
                         for attr in attrs:
-                            self.graph.create_vector_search_index(edge_type, attr, self.embed_size)
+                            await self.graph.create_vector_search_index(edge_type, attr, self.embed_size)
 
         # Step 1: Load all nodes in parallel by type
         logger.info(f"Processing {len(anchor_types)} anchor types: {anchor_types}")
@@ -129,7 +129,7 @@ class BatchImporter:
         # Step 4: Create snapshot
         if not self.dry_run:
             logger.info("Creating snapshot")
-            self.graph.create_snapshot()
+            await self.graph.create_snapshot()
 
         total_time = time.time() - total_start_time
         logger.info(f"Total import completed in {total_time:.2f}s")
@@ -485,7 +485,7 @@ class DataModelLoader:
             logger.error("Failed to update DataModel node: %s", exc)
 
 
-def update_graph(
+async def update_graph(
     graph: Graph,
     dp: DataProvider,
     data_model: DataModel,
@@ -519,4 +519,4 @@ def update_graph(
         dry_run=dry_run,
     )
 
-    loader.load_all_data()
+    await loader.load_all_data()
