@@ -22,6 +22,7 @@ dependencies = [
     "aiohttp>=3.11.18",
     "sentry-sdk[fastapi,opentelemetry]>=2.32.0",
     "litellm>=1.74.14",
+    "aioitertools>=0.12.0",
 ]
 
 [build-system]

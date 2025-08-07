@@ -120,7 +120,7 @@ class RagAgent:
 
         return VTSArgsEnum
 
-    def search_vector_text(
+    async def search_vector_text(
         self,
         label: str,
         prop_name: str,
@@ -128,8 +128,8 @@ class RagAgent:
         threshold: float,
         top_n: int = 5,
     ) -> list[Record]:
-        embed = self.llm.llm.create_embedding_sync(search_value)
-        return self.graph.vector_search(label, prop_name, embed, threshold=threshold, top_n=top_n)
+        embed = await self.llm.llm.create_embedding(search_value)
+        return await self.graph.vector_search(label, prop_name, embed, threshold=threshold, top_n=top_n)
 
     @staticmethod
     def result_to_text(query: str, result: list[Record] | Exception) -> str:
@@ -138,9 +138,9 @@ class RagAgent:
         rows_str = "\n".join(row_to_text(row) for row in result)
         return f"Query: {query}\nRows:\n{rows_str}"
 
-    def execute_cypher_query(self, query, rows_limit: int = 30) -> QueryResult:
+    async def execute_cypher_query(self, query, rows_limit: int = 30) -> QueryResult:
         try:
-            return list(islice(self.graph.execute_ro_cypher_query(query), rows_limit))
+            return list(islice(await self.graph.execute_ro_cypher_query(query), rows_limit))
         except Exception as e:
             self.logger.exception(e)
             return e
@@ -191,7 +191,7 @@ class RagAgent:
         vts_queries: list[VTSQuery] = []
         cypher_queries: list[CypherQuery] = []
 
-        def vts_fn(args: VTSArgs) -> str:
+        async def vts_fn(args: VTSArgs) -> str:
             label = args.label.value if isinstance(args.label, enum.Enum) else args.label
             prop = args.property.value if isinstance(args.property, enum.Enum) else args.property
 
@@ -199,13 +199,13 @@ class RagAgent:
             self.logger.info(f"vts_fn(label={label}, property={prop}, th={th}, n={top_n})")
 
             vts_queries.append(VTSQuery(label, prop, args.text))
-            vts_res = self.search_vector_text(label, prop, args.text, threshold=th, top_n=top_n)
+            vts_res = await self.search_vector_text(label, prop, args.text, threshold=th, top_n=top_n)
             return self.result_to_text(VTS_TOOL_NAME, vts_res)
 
-        def cypher_fn(args: CypherArgs) -> str:
+        async def cypher_fn(args: CypherArgs) -> str:
             self.logger.info(f"cypher_fn({args})")
             cypher_queries.append(CypherQuery(args.query))
-            res = self.execute_cypher_query(args.query)
+            res = await self.execute_cypher_query(args.query)
             return self.result_to_text(CYPHER_TOOL_NAME, res)
 
         vts_tool = Tool(

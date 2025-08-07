@@ -1,3 +1,9 @@
+# 2025.08.07-dev.15
+
+* (vedana-core) Ported work with Memgraph to async
+* (vedana-core) Do not use attr.dtype to determine eligibility for VTS
+* (vedana-gradio) Migrate to pure async
+
 # 2025.08.06-dev.14
 
 * (deploy) Enable GCP LLM settings in vedana deploy
