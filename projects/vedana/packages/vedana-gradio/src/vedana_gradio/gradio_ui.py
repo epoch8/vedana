@@ -457,9 +457,9 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
             #     token_usage = gr.State(value=pd.DataFrame())
 
         # Ensure we have a thread controller for this session
-        def ensure_thread_controller(thread_controller):
+        async def ensure_thread_controller(thread_controller) -> tuple[ThreadController, str]:
             if thread_controller is None:
-                thread_controller = init_thread_controller()
+                thread_controller = await init_thread_controller()
             return (
                 thread_controller,
                 f"Session ID: {thread_controller.thread.thread_config.get('session_id', 'unknown')}",
@@ -599,9 +599,9 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
         def handle_cancel_reload_confirmation():
             return gr.update(visible=False)
 
-        def handle_confirm_reload_graph(show_debug):
+        async def handle_confirm_reload_graph(show_debug) -> tuple[str, Any]:
             # This function will call reload_graph and then hide the confirmation
-            debug_msg = reload_graph(show_debug)  # reload_graph is globally defined
+            debug_msg = await reload_graph(show_debug)  # reload_graph is globally defined
             return debug_msg, gr.update(visible=False)
 
         # Submit button click
