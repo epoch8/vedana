@@ -1,5 +1,5 @@
+import asyncio
 import logging
-from contextlib import asynccontextmanager
 
 import fastapi
 import gradio as gr
@@ -10,15 +10,13 @@ from opentelemetry.propagate import set_global_textmap
 from opentelemetry.sdk.trace import TracerProvider
 from prometheus_client import start_http_server
 from sentry_sdk.integrations.opentelemetry import SentryPropagator, SentrySpanProcessor
-
 from vedana_core.data_model import DataModel
 from vedana_core.db import get_sessionmaker
 from vedana_core.graph import MemgraphGraph
 from vedana_core.importers.fast import DataModelLoader
 from vedana_core.settings import settings as s
 
-from vedana_gradio.gradio_ui import create_gradio_interface, init_async_stuff
-
+from vedana_gradio.gradio_ui import create_gradio_interface
 
 logging.basicConfig(
     level=(logging.DEBUG if s.debug else logging.INFO),
@@ -28,17 +26,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(app: fastapi.FastAPI):
-    init_async_stuff()
-    yield
-
-
-def make_jims_app() -> fastapi.FastAPI:
+async def make_jims_app() -> fastapi.FastAPI:
     # load data
     graph = MemgraphGraph(s.memgraph_uri, s.memgraph_user, s.memgraph_pwd)
 
-    data_model = DataModel.load_from_graph(graph)
+    data_model = await DataModel.load_from_graph(graph)
     if data_model is None:
         logger.info("No DataModel found in graph – loading from Grist …")
         data_model = DataModel.load_grist_online(
@@ -52,21 +44,17 @@ def make_jims_app() -> fastapi.FastAPI:
 
     # load JIMS
     sessionmaker = get_sessionmaker()
-    init_async_stuff()
-
-    from vedana_gradio.gradio_ui import loop
 
     # gradio setup
-    iface = create_gradio_interface(
+    iface = await create_gradio_interface(
         graph=graph,
         data_model=data_model,
         sessionmaker=sessionmaker,
-        loop=loop,
     )
     iface.queue(default_concurrency_limit=10)
 
     # app setup + health for k8s
-    app = fastapi.FastAPI(lifespan=lifespan)
+    app = fastapi.FastAPI()
 
     # TODO remove
     @app.get("/health")
@@ -81,7 +69,7 @@ def make_jims_app() -> fastapi.FastAPI:
     return app
 
 
-def main():
+async def main():
     sentry_sdk.init(
         send_default_pii=True,
         traces_sample_rate=1.0,
@@ -97,9 +85,13 @@ def main():
 
     start_http_server(8000)
 
-    app = make_jims_app()
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+    app = await make_jims_app()
+
+    # Create uvicorn config for async startup
+    config = uvicorn.Config(app, host="0.0.0.0", port=7860)
+    server = uvicorn.Server(config)
+    await server.serve()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
