@@ -13,7 +13,7 @@ DM_ANCHORS_SCHEMA: list[Column] = [
 DM_ATTRIBUTES_SCHEMA: list[Column] = [
     Column("attribute_name", String, primary_key=True),
     Column("description", String),
-    Column("anchor", String),
+    Column("anchor", String, primary_key=True),
     Column("link", String),
     Column("data_example", String),
     Column("embeddable", Boolean),
