@@ -247,8 +247,9 @@ def get_grist_data(batch_size: int = 500):
     logger.info(f"Fetching {len(link_types)} link types from Grist: {link_types}")
 
     for link_type in link_types:
-        # check link's existence in data model
-        dm_link = [link for link in dm.links if link.sentence.lower() == link_type.lower()]
+        # check link's existence in data model (dm_link is used from anchor_from / to references only)
+        dm_link = [link for link in dm.links if link.sentence.lower() == link_type.lower()
+                   or link_type.lower() == f"{link.anchor_from}_{link.anchor_to}"]
         if not dm_link:
             logger.error(f"Link type {dm_link} not described in data model, skipping")
             continue
