@@ -258,7 +258,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
         data_model=data_model,
         logger=MemLogger("rag_pipeline", level=logging.DEBUG),
         threshold=0.8,
-        temperature=0.0,
     )
 
     # Function to create a new thread controller for a new session
@@ -329,9 +328,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
 
                     else:
                         model_selector = gr.State(value=s.model)
-
-                with gr.Column():
-                    tct_temperature = gr.Number(0.01, label="Temperature", minimum=0, maximum=1, step=0.05)
 
             with gr.Accordion("Data model", open=False):
                 data_model_textbox = gr.Markdown(
@@ -423,7 +419,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
         async def process_query_sync(
             text_query,
             show_debug,
-            tct_temperature,
             selected_model,
             thread_controller,
         ):
@@ -436,16 +431,11 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
 
                 # Update pipeline with current data model and settings
                 pipeline.data_model = _global_state.data_model
-                pipeline.temperature = tct_temperature
 
                 if s.debug:  # pass selected model if app set to debug=True
                     pipeline.model = selected_model
 
                 logger.info(f"Processing query: {text_query}")
-                logger.info(
-                    f"Pipeline run settings:\n "
-                    f"- VTS: n={pipeline.top_n}; temperature: {tct_temperature};"
-                )
 
                 try:
                     result = await process_query(
@@ -546,7 +536,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
             inputs=[
                 nl_input,
                 show_debug,
-                tct_temperature,
                 model_selector,
                 thread_controller_state,
             ],
