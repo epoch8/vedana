@@ -281,22 +281,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
             with gr.Column(scale=5):
                 gr.Markdown("# Vedana Demo")
 
-            if s.debug:
-                # todo move available projects to env
-                available_projects = ["Corestone", "Maytoni", "MaytoniV2", "NL", "Solar", "Agenyz", "Formelskin"]
-                project_id: gr.Component = gr.Dropdown(
-                    choices=available_projects,
-                    label="Select Project...",
-                    value="Maytoni",  # default = from env
-                    multiselect=False,
-                    interactive=True,
-                    scale=1,
-                )
-            else:
-                project_id = gr.State(value=None)  # noqa: F841
-
-            sync_project_id = gr.Button("Update Project", visible=s.debug, interactive=s.debug, scale=1)  # noqa: F841
-
         # Create a state component to store the thread controller for this session
         thread_controller_state = gr.State(value=None)
 
@@ -312,17 +296,7 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
         with gr.Accordion("Settings", open=True):
             with gr.Row():
                 reload_model_btn = gr.Button("Reload Data Model")
-                reload_graph_btn = gr.Button("Reload Graph Data", interactive=s.debug, visible=s.debug)
                 clear_history_btn = gr.Button("Clear Conversation History")
-
-            # Confirmation UI for graph reload
-            with gr.Row(visible=False) as confirm_reload_graph_row:
-                gr.Markdown(
-                    "⚠️ **Confirm Graph Reload** ⚠️\n\nThis is a slow and resource-expensive operation. Are you sure you want to proceed?"
-                )
-                with gr.Column(scale=1):  # Using a column for button arrangement
-                    confirm_reload_graph_yes_btn = gr.Button("✅ Yes, Reload Now")
-                    confirm_reload_graph_cancel_btn = gr.Button("❌ Cancel")
 
             with gr.Row():
                 with gr.Column():
@@ -566,18 +540,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                 pd.DataFrame(),
             )
 
-        # Helper functions for graph reload confirmation
-        def handle_show_reload_confirmation():
-            return gr.update(visible=True)
-
-        def handle_cancel_reload_confirmation():
-            return gr.update(visible=False)
-
-        async def handle_confirm_reload_graph(show_debug) -> tuple[str, Any]:
-            # This function will call reload_graph and then hide the confirmation
-            debug_msg = await reload_graph(show_debug)  # reload_graph is globally defined
-            return debug_msg, gr.update(visible=False)
-
         # Submit button click
         submit_btn_text.click(
             fn=process_query_sync,
@@ -612,23 +574,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
             fn=reload_data_model,
             inputs=[show_debug],
             outputs=[debug_output, data_model_textbox],
-        )
-
-        if s.debug:
-            reload_graph_btn.click(fn=handle_show_reload_confirmation, inputs=[], outputs=[confirm_reload_graph_row])
-
-            # Handlers for the graph reload confirmation buttons
-            confirm_reload_graph_yes_btn.click(
-                fn=handle_confirm_reload_graph,
-                inputs=[show_debug],
-                outputs=[
-                    debug_output,
-                    confirm_reload_graph_row,
-                ],  # debug_output first for the message, then the row to hide
-            )
-
-        confirm_reload_graph_cancel_btn.click(
-            fn=handle_cancel_reload_confirmation, inputs=[], outputs=[confirm_reload_graph_row]
         )
 
         # Clear history button click
