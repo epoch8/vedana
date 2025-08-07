@@ -303,9 +303,9 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                     scale=1,
                 )
             else:
-                project_id = gr.State(value=None)
+                project_id = gr.State(value=None)  # noqa: F841
 
-            sync_project_id = gr.Button("Update Project", visible=s.debug, interactive=s.debug, scale=1)
+            sync_project_id = gr.Button("Update Project", visible=s.debug, interactive=s.debug, scale=1)  # noqa: F841
 
         # Create a state component to store the thread controller for this session
         thread_controller_state = gr.State(value=None)
