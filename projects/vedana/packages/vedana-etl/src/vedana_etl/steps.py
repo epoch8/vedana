@@ -65,6 +65,7 @@ def get_data_model():
             "has_direction",
         ]
     ]
+    links_df = links_df.dropna(subset=["anchor1", "anchor2", "sentence"])
     links_df = links_df.astype(str)
     links_df["has_direction"] = links_df["has_direction"].astype(bool)
 
@@ -85,6 +86,7 @@ def get_data_model():
     # attrs_df = attrs_df.astype(str)
     attrs_df["embeddable"] = attrs_df["embeddable"].astype(bool)
     attrs_df["embed_threshold"] = attrs_df["embed_threshold"].astype(float)
+    attrs_df = attrs_df.dropna(subset=["anchor", "attribute_name"])
 
     anchors_df = loader.get_table_df("Anchors")
     anchors_df = anchors_df[
@@ -95,6 +97,7 @@ def get_data_model():
             "query",
         ]
     ]
+    anchors_df = anchors_df.dropna(subset=["noun"])
     anchors_df = anchors_df.astype(str)
 
     yield anchors_df, attrs_df, links_df
