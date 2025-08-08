@@ -403,15 +403,15 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                     "cached_tokens",
                     "completion_tokens",
                     "requests_cost",
+                    "model",
                 ],
-                datatype=["str"] + ["number"] * 5,
-                col_count=(6, "fixed"),
+                datatype=["str"] + ["number"] * 5 + ["str"],
+                col_count=(7, "fixed"),
+                max_chars=45,
                 interactive=False,
                 visible=True,
                 scale=7,
             )
-            # else:
-            #     token_usage = gr.State(value=pd.DataFrame())
 
         # Ensure we have a thread controller for this session
         async def ensure_thread_controller(thread_controller) -> tuple[ThreadController, str]:
