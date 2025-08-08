@@ -132,7 +132,7 @@ class LLM:
             *(dialog or []),
             {"role": "user", "content": prompt},
         ]
-        response = await self.llm.chat_completion_plain(messages, temperature=0.3)
+        response = await self.llm.chat_completion_plain(messages)
         human_answer = "" if response.content is None else response.content.strip()
         self.logger.info(f"Generated 'no answer' response: {human_answer}")
         return human_answer

@@ -417,7 +417,9 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
 
                     if s.debug:
                         available_models = list(
-                            {"gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini", "o4-mini", s.model}
+                            {"gpt-5", "gpt-5-mini", "gpt-5-nano",
+                             "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano",
+                             "gpt-4o", "gpt-4o-mini", "o4-mini", s.model}
                         )
 
                         model_selector = gr.Dropdown(
