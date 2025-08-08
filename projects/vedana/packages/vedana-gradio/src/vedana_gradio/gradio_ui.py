@@ -404,7 +404,7 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                     "requests_cost",
                     "model",
                 ],
-                datatype=["str"] + ["number"] * 5 + ["str"],
+                datatype=["str", "number", "number", "number", "number", "number", "str"],
                 col_count=(7, "fixed"),
                 max_chars=45,
                 interactive=False,
