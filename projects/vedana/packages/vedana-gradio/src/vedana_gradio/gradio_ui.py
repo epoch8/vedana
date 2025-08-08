@@ -1,7 +1,6 @@
 import datetime
 import io
 import logging
-import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
