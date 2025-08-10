@@ -45,6 +45,18 @@ resource "yandex_mdb_postgresql_database" "etl" {
   }
 }
 
+module "authentik_datapipe_auth" {
+  source = "../../../../../chatbot-terraform/modules/yc-k8s-authentik-app-auth/"
+
+  project = var.project
+
+  app_slug   = "${local.slug}-datapipe"
+  app_name   = "Datapipe ${var.environment} ${var.project}"
+  app_domain = local.datapipe_domain
+
+  authentik_group_ids = var.authentik_group_ids
+}
+
 resource "helm_release" "datapipe_api" {
   name      = "${local.slug}-datapipe-api"
   namespace = var.k8s_namespace
@@ -100,7 +112,7 @@ resource "helm_release" "datapipe_api" {
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
         nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
         nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-        %{~for key, value in var.authentik_ingress_annotations~}
+        %{~for key, value in module.authentik_datapipe_auth.ingress_annotations~}
         ${key}: ${value}
         %{~endfor~}
       tls:

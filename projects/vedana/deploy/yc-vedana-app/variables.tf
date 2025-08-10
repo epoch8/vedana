@@ -86,7 +86,7 @@ variable "llm_config" {
 
 ###
 
-variable "authentik_ingress_annotations" {
-  type    = map(string)
-  default = {}
+variable "authentik_group_ids" {
+  type = list(string)
+  default = []
 }

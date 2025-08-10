@@ -120,6 +120,18 @@ resource "yandex_mdb_postgresql_database" "jims" {
 
 ###
 
+module "authentik_demo_auth" {
+  source = "../../../../../chatbot-terraform/modules/yc-k8s-authentik-app-auth/"
+
+  project = var.project
+
+  app_slug   = "${local.slug}-demo"
+  app_name   = "Demo ${var.environment} ${var.project}"
+  app_domain = local.demo_domain
+
+  authentik_group_ids = var.authentik_group_ids
+}
+
 resource "helm_release" "demo" {
   name      = "${local.slug}-demo"
   namespace = var.k8s_namespace
@@ -167,7 +179,7 @@ resource "helm_release" "demo" {
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
         nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
         nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-        %{~for key, value in var.authentik_ingress_annotations~}
+        %{~for key, value in module.authentik_demo_auth.ingress_annotations~}
         ${key}: ${value}
         %{~endfor~}
       tls:
@@ -183,6 +195,18 @@ resource "helm_release" "demo" {
       namespace,
     ]
   }
+}
+
+module "authentik_backoffice_auth" {
+  source = "../../../../../chatbot-terraform/modules/yc-k8s-authentik-app-auth/"
+
+  project = var.project
+
+  app_slug   = "${local.slug}-backoffice"
+  app_name   = "Backoffice ${var.environment} ${var.project}"
+  app_domain = local.backoffice_domain
+
+  authentik_group_ids = var.authentik_group_ids
 }
 
 resource "helm_release" "backoffice" {
@@ -221,7 +245,7 @@ resource "helm_release" "backoffice" {
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
         nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
         nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-        %{~for key, value in var.authentik_ingress_annotations~}
+        %{~for key, value in module.authentik_backoffice_auth.ingress_annotations~}
         ${key}: ${value}
         %{~endfor~}
       tls:
@@ -284,5 +308,6 @@ output "config" {
   value = {
     demo       = "https://${local.demo_domain}"
     backoffice = "https://${local.backoffice_domain}"
+    image      = "${local.image_repository}:${local.image_tag}"
   }
 }
