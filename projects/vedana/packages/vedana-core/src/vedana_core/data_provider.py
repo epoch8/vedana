@@ -74,10 +74,10 @@ class CsvDataProvider(DataProvider):
             fname = file.name.lower()
             if fname.startswith(self.anchor_file_prefix):
                 # anchor_type is after prefix and before .csv
-                anchor_type = fname[len(self.anchor_file_prefix) : -4]
+                anchor_type = fname[len(self.anchor_file_prefix): -4]
                 self._anchor_files[anchor_type] = file
             elif fname.startswith(self.link_file_prefix):
-                link_type = fname[len(self.link_file_prefix) : -4]
+                link_type = fname[len(self.link_file_prefix): -4]
                 self._link_files[link_type] = file
 
     def get_anchor_types(self) -> list[str]:
@@ -88,7 +88,6 @@ class CsvDataProvider(DataProvider):
         return list(self._link_files.keys())
 
     def get_anchors(self, type_: str, dm_attrs: list[Attribute]) -> list[Anchor]:
-        import pandas as pd
 
         file = self._anchor_files.get(type_)
         if not file:
@@ -106,7 +105,6 @@ class CsvDataProvider(DataProvider):
         return anchors
 
     def get_links(self, type_: str) -> list[Link]:
-        import pandas as pd
 
         file = self._link_files.get(type_)
         if not file:
@@ -135,6 +133,14 @@ class GristDataProvider(DataProvider):
 
     @abc.abstractmethod
     def get_table(self, table_name: str) -> Table: ...
+
+    def get_table_df(self, table_name: str) -> pd.DataFrame:
+        """
+        Format table to dataframe
+        """
+        table: Table = self.get_table(table_name)
+        df = pd.DataFrame(table.rows, columns=table.columns)
+        return df
 
     def get_anchor_types(self) -> list[str]:
         prefix_len = len(self.anchor_table_prefix)
@@ -168,7 +174,7 @@ class GristDataProvider(DataProvider):
             id_ = row_dict.pop(id_key, None)
             if id_ is None:
                 id_ = f"{type_}:{db_id}"
-            elif pd.isna(id_):
+            if pd.isna(id_):
                 # print(f"{type_}:{db_id} has {id_key}=nan, skipping")
                 continue
 
@@ -215,6 +221,9 @@ class GristDataProvider(DataProvider):
 
 
 class GristOfflineDataProvider(GristDataProvider):
+    """
+    Load from grist backup file (.grist)
+    """
     def __init__(self, sqlite_path: Path) -> None:
         super().__init__()
         self._conn = sqlite3.connect(sqlite_path)
@@ -292,14 +301,6 @@ class GristOnlineCsvDataProvider(GristDataProvider):
         rows = [tuple(row) for row in df.itertuples(index=False, name="Row")]
         return Table(columns, rows)
 
-    def get_table_df(self, table_name: str) -> pd.DataFrame:
-        """
-        Format table to dataframe
-        """
-        table: Table = self.get_table(table_name)
-        df = pd.DataFrame(table.rows, columns=table.columns)
-        return df
-
 
 class GristOnlineDataProvider(GristDataProvider):
     def __init__(self, doc_id: str, grist_server: str, api_key: str | None = None) -> None:
@@ -347,14 +348,6 @@ class GristOnlineDataProvider(GristDataProvider):
         columns = self._list_table_columns(table_name)
         rows = self._client.fetch_table(table_name)
         return Table(columns, rows)
-
-    def get_table_df(self, table_name: str) -> pd.DataFrame:
-        """
-        Format table to dataframe
-        """
-        table: Table = self.get_table(table_name)
-        df = pd.DataFrame(table.rows, columns=table.columns)
-        return df
 
 
 class GristSQLDataProvider(GristDataProvider):
@@ -557,11 +550,3 @@ class GristSQLDataProvider(GristDataProvider):
             rows_data.append(tuple(row.get(col) for col in columns))
 
         return Table(columns, rows_data)
-
-    def get_table_df(self, table_name: str) -> pd.DataFrame:
-        """
-        Format table to dataframe
-        """
-        table: Table = self.get_table(table_name)
-        df = pd.DataFrame(table.rows, columns=table.columns)
-        return df
