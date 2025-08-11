@@ -42,9 +42,6 @@ def clean_str(text: str) -> str:
 
 
 def get_data_model():
-    """
-    TODO: replace with DataModel from memgraph-rag.data_model once it is refactored as a package.
-    """
     loader = GristOnlineCsvDataProvider(
         doc_id=core_settings.grist_data_model_doc_id,
         grist_server=core_settings.grist_server_url,
