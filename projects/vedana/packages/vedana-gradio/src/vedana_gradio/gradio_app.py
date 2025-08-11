@@ -10,10 +10,9 @@ from opentelemetry.propagate import set_global_textmap
 from opentelemetry.sdk.trace import TracerProvider
 from prometheus_client import start_http_server
 from sentry_sdk.integrations.opentelemetry import SentryPropagator, SentrySpanProcessor
-from vedana_core.data_model import DataModel
+from vedana_core.data_model import DataModel, GraphDataModelLoader
 from vedana_core.db import get_sessionmaker
 from vedana_core.graph import MemgraphGraph
-from vedana_core.importers.fast import DataModelLoader
 from vedana_core.settings import settings as s
 
 from vedana_gradio.gradio_ui import create_gradio_interface
@@ -38,7 +37,7 @@ async def make_jims_app() -> fastapi.FastAPI:
         )
 
         try:
-            DataModelLoader(data_model, graph).update_data_model_node()
+            GraphDataModelLoader(data_model, graph).update_data_model_node()
         except Exception as e:
             logger.warning(f"Unable to cache DataModel in graph: {e}")
 

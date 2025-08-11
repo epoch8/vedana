@@ -11,10 +11,10 @@ import pandas as pd
 from jims_core.thread.thread_controller import ThreadController
 from opentelemetry import trace
 from uuid_extensions import uuid7
-from vedana_core.data_model import DataModel
+from vedana_core.data_model import DataModel, GraphDataModelLoader
 from vedana_core.data_provider import GristSQLDataProvider
 from vedana_core.graph import Graph
-from vedana_core.importers.fast import DataModelLoader, update_graph
+from vedana_core.importers.fast import update_graph
 from vedana_core.rag_pipeline import RagPipeline
 
 # todo
@@ -158,7 +158,7 @@ def reload_data_model(current_selected_vts_props: list, show_debug: bool = True)
     current_selected_vts_props = [e for e in current_selected_vts_props if e in new_vts_props]
 
     try:
-        DataModelLoader(_global_state.data_model, _global_state.graph).update_data_model_node()
+        GraphDataModelLoader(_global_state.data_model, _global_state.graph).update_data_model_node()
     except Exception as exc:
         logger.warning(f"Failed to store DataModel in graph: {exc}")
 
