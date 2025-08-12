@@ -1,6 +1,7 @@
 import logging
 import re
 from unicodedata import normalize
+from datetime import datetime
 from uuid import UUID
 
 import pandas as pd
@@ -294,11 +295,17 @@ def get_grist_data(batch_size: int = 500):
             subset=["from_node_id", "to_node_id", "edge_label"]
         )
 
+    # add DataModel node
+    dm_node = {"content": dm.to_json(), "id": "data_model", "updated_at": str(datetime.now())}
+    nodes_df.loc[nodes_df.shape[0]] = {"node_id": "data_model", "node_type": "DataModel", "attributes": dm_node}
+
     yield nodes_df, edges_df
 
 
 def filter_grist_nodes(df: pd.DataFrame, dm_nodes: pd.DataFrame, dm_attributes: pd.DataFrame) -> pd.DataFrame:
-    """keep only those nodes that are described in data model"""
+    """keep only those nodes that are described in data model + datamodel node itself"""
+
+    dm_node = df.loc[df["node_type"] == "DataModel"].copy()
 
     # filter nodes
     filtered_nodes = df.loc[df.node_type.isin(dm_nodes["noun"])].copy()
@@ -307,6 +314,8 @@ def filter_grist_nodes(df: pd.DataFrame, dm_nodes: pd.DataFrame, dm_attributes: 
     filtered_nodes["attributes"] = filtered_nodes["attributes"].apply(
         lambda x: {k: v for k, v in x.items() if k in dm_attributes["attribute_name"].values}
     )
+
+    filtered_nodes = pd.concat([filtered_nodes, dm_node], ignore_index=True)
     return filtered_nodes
 
 
