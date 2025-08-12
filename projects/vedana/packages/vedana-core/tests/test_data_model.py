@@ -3,7 +3,6 @@ from typing import cast
 
 from vedana_core.graph import Graph
 from vedana_core.data_model import (
-    GraphDataModelLoader,
     Anchor,
     Attribute,
     ConversationLifecycleEvent,
@@ -24,7 +23,7 @@ class MockGraph:
     def __init__(self) -> None:
         self.last_params: dict | None = None
 
-    def run_cypher(self, query: str, params: dict) -> None:
+    async def run_cypher(self, query: str, params: dict) -> None:
         self.last_params = params
 
     async def execute_ro_cypher_query(self, query: str):
@@ -196,7 +195,7 @@ async def test_dm_graph_cache() -> None:
     dm = build_dm()
     mock_graph = MockGraph()
 
-    GraphDataModelLoader(dm, cast(Graph, mock_graph)).update_data_model_node()
+    await dm.update_data_model_node(cast(Graph, mock_graph))
     assert mock_graph.last_params and isinstance(mock_graph.last_params.get("content"), str)
 
     dm_loaded = await DataModel.load_from_graph(cast(Graph, mock_graph))

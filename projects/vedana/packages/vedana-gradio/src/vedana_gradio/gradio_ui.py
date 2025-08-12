@@ -11,7 +11,7 @@ import pandas as pd
 from jims_core.thread.thread_controller import ThreadController
 from opentelemetry import trace
 from uuid_extensions import uuid7
-from vedana_core.data_model import DataModel, GraphDataModelLoader
+from vedana_core.data_model import DataModel
 from vedana_core.data_provider import GristSQLDataProvider
 from vedana_core.graph import Graph
 from vedana_core.importers.fast import update_graph
@@ -108,7 +108,7 @@ async def reload_graph(show_debug: bool = True) -> str:
         return error_msg
 
 
-def reload_data_model(current_selected_vts_props: list, show_debug: bool = True) -> tuple[str, str, dict[str, Any]]:
+async def reload_data_model(current_selected_vts_props: list, show_debug: bool = True) -> tuple[str, str, dict[str, Any]]:
     """Reload data model and return updated UI components"""
     logger = MemLogger("reload_data_model", level=logging.DEBUG)
     data_model_text = ""
@@ -158,7 +158,7 @@ def reload_data_model(current_selected_vts_props: list, show_debug: bool = True)
     current_selected_vts_props = [e for e in current_selected_vts_props if e in new_vts_props]
 
     try:
-        GraphDataModelLoader(_global_state.data_model, _global_state.graph).update_data_model_node()
+        await _global_state.data_model.update_data_model_node(_global_state.graph)
     except Exception as exc:
         logger.warning(f"Failed to store DataModel in graph: {exc}")
 
