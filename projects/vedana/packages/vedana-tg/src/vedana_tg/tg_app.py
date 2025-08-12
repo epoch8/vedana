@@ -51,11 +51,19 @@ async def main_tg():
     set_global_textmap(SentryPropagator())
 
     try:
-        # data setup
-        data_model = DataModel.load_grist_online(
-            s.grist_data_model_doc_id, grist_server=s.grist_server_url, api_key=s.grist_api_key
-        )
         graph = MemgraphGraph(s.memgraph_uri, s.memgraph_user, s.memgraph_pwd)
+
+        data_model = await DataModel.load_from_graph(graph)
+        if data_model is None:
+            logger.info("No DataModel found in graph – loading from Grist …")
+            data_model = DataModel.load_grist_online(
+                s.grist_data_model_doc_id, grist_server=s.grist_server_url, api_key=s.grist_api_key
+            )
+
+            try:
+                await data_model.update_data_model_node(graph)
+            except Exception as e:
+                logger.warning(f"Unable to cache DataModel in graph: {e}")
 
         pipeline = RagPipeline(
             graph=graph,
