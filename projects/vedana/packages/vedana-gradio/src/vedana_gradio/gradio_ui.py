@@ -57,42 +57,6 @@ class GlobalState:
 _global_state = GlobalState()
 
 
-async def reload_graph(show_debug: bool = True) -> str:
-    """Reload graph data from Grist."""
-    logger = MemLogger("reload_graph", level=logging.DEBUG)
-
-    if not s.grist_data_doc_id:
-        return "Error: GRIST_DATA_DOC_ID environment variable is not set. Cannot reload graph data."
-    if not _global_state.data_model:
-        return "Error: Data model not loaded. Reload data model first."
-
-    try:
-        graph = _global_state.graph
-        logger.info("Starting graph reload process")
-
-        try:
-            n_nodes = await graph.number_of_nodes()
-            n_edges = await graph.number_of_edges()
-            logger.info(f"Current nodes count: {n_nodes}; current edges count: {n_edges}")
-        except Exception as e:
-            logger.warning(f"Error parsing current graph configuration: {str(e)}")
-
-        data_provider = GristSQLDataProvider(
-            doc_id=s.grist_data_doc_id, grist_server=s.grist_server_url, api_key=s.grist_api_key
-        )
-        logger.info("Created data provider")
-
-        with data_provider:
-            raise NotImplementedError("Graph updates from UI are temporarily disabled")
-
-    except Exception as e:
-        error_msg = f"Error reloading graph data: {str(e)}"
-        logger.exception(error_msg)
-        if show_debug:
-            return f"{error_msg}\n\nDebug Logs:\n{logger.get_logs()}"
-        return error_msg
-
-
 def reload_data_model(show_debug: bool = True) -> tuple[str, str]:
     """Reload data model and return updated UI components"""
     logger = MemLogger("reload_data_model", level=logging.DEBUG)
