@@ -270,37 +270,3 @@ def row_to_text(row: Any) -> str:
         return json.dumps(row, ensure_ascii=False, indent=2)
     except TypeError:
         return str(row)
-
-
-def main():
-    import logging
-
-    from jims_core.llms.llm_provider import LLMProvider
-
-    from vedana_core.graph import MemgraphGraph
-    from vedana_core.settings import settings as s
-
-    logging.basicConfig(level=logging.INFO)
-
-    data_model = DataModel.load_grist_online(
-        s.grist_data_model_doc_id, api_key=s.grist_api_key, grist_server=s.grist_server_url
-    )
-    llm = LLM(LLMProvider())
-    q = "если я произвожу роботов, то какой окпд мне взять?"
-
-    with MemgraphGraph(s.memgraph_uri, s.memgraph_user, s.memgraph_pwd, "") as graph:
-        agent = RagAgent(graph, data_model, llm)
-        answer, vts_q, cypher_q = agent.text_to_answer_with_vts_and_cypher(q, threshold=0.8, temperature=0)
-        print()
-        print("vts_q")
-        print(vts_q)
-        print()
-        print("cypher_q")
-        print(cypher_q)
-        print()
-        print("answer")
-        print(answer)
-
-
-if __name__ == "__main__":
-    main()

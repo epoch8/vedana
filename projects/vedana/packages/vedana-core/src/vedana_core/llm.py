@@ -34,7 +34,7 @@ class Tool[T: BaseModel]:
         if asyncio.iscoroutinefunction(self.fn):
             result = await self.fn(fn_args)
         else:
-            result = await asyncio.to_thread(self.fn, fn_args)
+            result: str = await asyncio.to_thread(self.fn, fn_args)  # type: ignore
 
         return result
 

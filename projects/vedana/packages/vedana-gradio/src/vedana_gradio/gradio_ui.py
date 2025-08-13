@@ -5,6 +5,7 @@ import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
+from uuid import UUID
 
 import gradio as gr
 import pandas as pd
@@ -209,7 +210,7 @@ async def process_query(
     pipeline.logger = logger  # pass this logger to pipeline, to retrieve logs for query
 
     try:
-        await thread_controller.store_user_message(uuid7(), text_query)
+        await thread_controller.store_user_message(uuid7(), text_query)  # type: ignore
 
         events = await thread_controller.run_pipeline_with_context(pipeline)
 
@@ -257,10 +258,10 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
     )
 
     # Function to create a new thread controller for a new session
-    async def init_thread_controller():
+    async def init_thread_controller() -> ThreadController:
         thread_controller = await ThreadController.new_thread(
             sessionmaker,
-            uuid7(),
+            uuid7(),  # type: ignore
             {
                 "interface": "gradio",
                 "created_at": str(datetime.datetime.now()),
@@ -325,9 +326,18 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
 
                     if s.debug:
                         available_models = list(
-                            {"gpt-5", "gpt-5-mini", "gpt-5-nano",
-                             "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano",
-                             "gpt-4o", "gpt-4o-mini", "o4-mini", s.model}
+                            {
+                                "gpt-5",
+                                "gpt-5-mini",
+                                "gpt-5-nano",
+                                "gpt-4.1",
+                                "gpt-4.1-mini",
+                                "gpt-4.1-nano",
+                                "gpt-4o",
+                                "gpt-4o-mini",
+                                "o4-mini",
+                                s.model,
+                            }
                         )
 
                         model_selector: gr.Component = gr.Dropdown(
@@ -453,7 +463,7 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
             with tracer.start_as_current_span("gradio_ui.process_query_sync"):
                 # Initialize thread_controller if needed
                 if thread_controller is None:
-                    thread_controller = init_thread_controller()
+                    thread_controller = await init_thread_controller()
 
                 pipeline = _global_state.pipeline
 
@@ -501,14 +511,14 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
             ctx = await ctl.make_context()
             history_text = ""
             for event in ctx.history:
-                role = "User" if event["role"] == "user" else "Assistant"
-                history_text += f"{role}: {event['content']}\n\n----------\n\n"
+                role = "User" if event.get("role") == "user" else "Assistant"
+                history_text += f"{role}: {event.get('content')}\n\n----------\n\n"
             return history_text
 
         # Function to clear conversation history
         async def clear_conversation_history(ctl: ThreadController) -> tuple[ThreadController, str]:
             # Create a new thread with a new ID
-            new_thr_id = uuid7()
+            new_thr_id: UUID = uuid7()  # type: ignore
             session_id = str(uuid7())
             new_controller = await ThreadController.new_thread(
                 ctl.sessionmaker,
@@ -551,7 +561,7 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
 
         async def clear_history_sync(thread_controller) -> tuple:
             if thread_controller is None:
-                thread_controller = init_thread_controller()
+                thread_controller = await init_thread_controller()
 
             new_controller, message = await clear_conversation_history(thread_controller)
             return (
