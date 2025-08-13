@@ -1,6 +1,9 @@
 # WIP
 
 * (vedana-etl) Implement parsing links from Grist links
+* (vedana-etl) Add datamodel node to graph
+* (vedana-gradio) Add GPT-5 to model selection
+* (vedana-gradio) Fix chat completion for gpt-5
 
 # 2025.08.07-dev.15
 

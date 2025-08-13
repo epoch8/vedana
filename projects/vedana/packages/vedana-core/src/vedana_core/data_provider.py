@@ -5,7 +5,7 @@ import time
 from ast import literal_eval
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple, Union
+from typing import Any, NamedTuple, Sequence
 
 import grist_api
 import pandas as pd
@@ -18,7 +18,7 @@ from vedana_core.utils import cast_dtype
 @dataclass
 class Table:
     columns: list[str]
-    rows: list[Union[tuple, NamedTuple]]
+    rows: Sequence[tuple | NamedTuple]
 
 
 @dataclass
@@ -182,7 +182,7 @@ class GristDataProvider(DataProvider):
                 print(f"Duplicate anchor id {id_} in table {table_name}\nduplicate data: {row_dict}\n record skipped.")
                 continue
 
-            anchors.append(AnchorRecord(id_, type_, row_dict, dp_id=db_id))
+            anchors.append(AnchorRecord(id_, type_, row_dict, dp_id=db_id))  # type: ignore
 
         return anchors
 
@@ -493,7 +493,7 @@ class GristSQLDataProvider(GristDataProvider):
                 for k, v in row.items()
                 if not (isinstance(v, dict) and v.get("type") == "Buffer")
                 and not k.startswith("gristHelper_")
-                and not pd.isna(v)
+                and not pd.isna(v)  # type: ignore
             }
 
             # foreign key link columns - either int id or a list of int ids cast to string
@@ -511,7 +511,7 @@ class GristSQLDataProvider(GristDataProvider):
                 # anchors[_id].data.update(clean_data)
                 print(f"duplicate {type_} id {_id}, skipping...")
             else:
-                anchors[_id] = AnchorRecord(str(_id), type_, clean_data, dp_id=db_id)
+                anchors[_id] = AnchorRecord(str(_id), type_, clean_data, dp_id=db_id)  # type: ignore
 
         return list(anchors.values())
 
@@ -534,11 +534,6 @@ class GristSQLDataProvider(GristDataProvider):
             if not id_from or not id_to or not edge_label or pd.isna(edge_label) or pd.isna(id_from) or pd.isna(id_to):
                 continue
 
-            if not isinstance(id_from, int):
-                id_from = str(id_from)
-            if not isinstance(id_to, int):
-                id_to = str(id_to)
-
             row.pop("manualSort", None)
             row.pop("from_node_id", None)
             row.pop("to_node_id", None)
@@ -558,7 +553,14 @@ class GristSQLDataProvider(GristDataProvider):
             }
 
             links.append(
-                LinkRecord(id_from, id_to, link.anchor_from.noun, link.anchor_to.noun, str(edge_label), clean_data)
+                LinkRecord(
+                    str(id_from),
+                    str(id_to),
+                    link.anchor_from.noun,
+                    link.anchor_to.noun,
+                    str(edge_label),
+                    clean_data,
+                )
             )
 
         return links
