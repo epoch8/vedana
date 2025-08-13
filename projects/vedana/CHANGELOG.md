@@ -1,3 +1,7 @@
+# WIP
+
+* (vedana-etl) Implement parsing links from Grist links
+
 # 2025.08.07-dev.15
 
 * (vedana-core) Ported work with Memgraph to async

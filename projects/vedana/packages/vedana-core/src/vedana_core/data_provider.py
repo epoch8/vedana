@@ -2,10 +2,10 @@ import abc
 import io
 import sqlite3
 import time
+from ast import literal_eval
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NamedTuple, Union
-from ast import literal_eval
 
 import grist_api
 import pandas as pd
@@ -41,11 +41,10 @@ class LinkRecord:
 
 class DataProvider(abc.ABC):
     @abc.abstractmethod
-    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[Link]) -> list[AnchorRecord]:
-        ...
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[Link]) -> list[AnchorRecord]: ...
 
     @abc.abstractmethod
-    def get_links(self, type_: str, link: Link) -> list[LinkRecord]: ...
+    def get_links(self, table_name: str, link: Link) -> list[LinkRecord]: ...
 
     @abc.abstractmethod
     def get_anchor_tables(self) -> list[str]: ...
@@ -78,10 +77,10 @@ class CsvDataProvider(DataProvider):
             fname = file.name.lower()
             if fname.startswith(self.anchor_file_prefix):
                 # anchor_type is after prefix and before .csv
-                anchor_type = fname[len(self.anchor_file_prefix): -4]
+                anchor_type = fname[len(self.anchor_file_prefix) : -4]
                 self._anchor_files[anchor_type] = file
             elif fname.startswith(self.link_file_prefix):
-                link_type = fname[len(self.link_file_prefix): -4]
+                link_type = fname[len(self.link_file_prefix) : -4]
                 self._link_files[link_type] = file
 
     def get_anchor_tables(self) -> list[str]:
@@ -492,7 +491,8 @@ class GristSQLDataProvider(GristDataProvider):
             row = {
                 k: v
                 for k, v in row.items()
-                if not (isinstance(v, dict) and v.get("type") == "Buffer") and not k.startswith("gristHelper_")
+                if not (isinstance(v, dict) and v.get("type") == "Buffer")
+                and not k.startswith("gristHelper_")
                 and not pd.isna(v)
             }
 
@@ -549,8 +549,11 @@ class GristSQLDataProvider(GristDataProvider):
             row.pop("id", None)
 
             clean_data = {
-                k: flatten(v) for k, v in row.items()
-                if not isinstance(v, (bytes, list)) and not pd.isna(v) and not (isinstance(v, str) and v == "")
+                k: flatten(v)
+                for k, v in row.items()
+                if not isinstance(v, (bytes, list))
+                and not pd.isna(v)
+                and not (isinstance(v, str) and v == "")
                 and not k.startswith("gristHelper_")
             }
 
