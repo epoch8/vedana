@@ -5,6 +5,7 @@
 * (vedana-gradio) Add GPT-5 to model selection
 * (vedana-gradio) Fix chat completion for gpt-5
 * (vedana-gradio) Remove obsolette UI components
+* (jims-core) Use LiteLLM reponse_cost
 
 # 2025.08.07-dev.15
 
