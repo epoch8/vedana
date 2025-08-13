@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Callable, Iterable
+from typing import Awaitable, Callable, Iterable
 
 import openai
 from jims_core.llms.llm_provider import LLMProvider
@@ -16,19 +16,27 @@ logger = logging.getLogger(__name__)
 
 
 class Tool[T: BaseModel]:
-    def __init__(self, name: str, description: str, args_cls: type[T], fn: Callable[[T], str]) -> None:
+    def __init__(
+        self, name: str, description: str, args_cls: type[T], fn: Callable[[T], Awaitable[str]] | Callable[[T], str]
+    ) -> None:
         self.name = name
         self.description = description
         self.args_cls = args_cls
         self.fn = fn
         self.openai_def = openai.pydantic_function_tool(args_cls, name=name, description=description)
 
-    def call(self, args_json: str) -> str:
+    async def call(self, args_json: str) -> str:
         try:
             fn_args = self.args_cls.model_validate_json(args_json)
         except ValueError:
             return f"Invalid tool args: {args_json}"
-        return self.fn(fn_args)
+
+        if asyncio.iscoroutinefunction(self.fn):
+            result = await self.fn(fn_args)
+        else:
+            result = await asyncio.to_thread(self.fn, fn_args)
+
+        return result
 
 
 class LLM:
@@ -92,7 +100,7 @@ class LLM:
 
                 self.logger.info(f"Calling tool {tool_name}")
                 try:
-                    tool_res = await asyncio.to_thread(tool.call, tool_call.function.arguments)
+                    tool_res = await tool.call(tool_call.function.arguments)
                 except Exception as e:
                     self.logger.exception("Error executing tool %s: %s", tool_name, e)
                     tool_res = f"Error executing tool {tool_name}: {e}"

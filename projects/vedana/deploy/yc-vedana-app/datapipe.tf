@@ -45,6 +45,18 @@ resource "yandex_mdb_postgresql_database" "etl" {
   }
 }
 
+module "authentik_datapipe_auth" {
+  source = "../../../../../chatbot-terraform/modules/yc-k8s-authentik-app-auth/"
+
+  project = var.project
+
+  app_slug   = "${local.slug}-datapipe"
+  app_name   = "Datapipe ${var.environment} ${var.project}"
+  app_domain = local.datapipe_domain
+
+  authentik_group_ids = var.authentik_group_ids
+}
+
 resource "helm_release" "datapipe_api" {
   name      = "${local.slug}-datapipe-api"
   namespace = var.k8s_namespace
@@ -100,7 +112,7 @@ resource "helm_release" "datapipe_api" {
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
         nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
         nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-        %{~for key, value in var.authentik_ingress_annotations~}
+        %{~for key, value in module.authentik_datapipe_auth.ingress_annotations~}
         ${key}: ${value}
         %{~endfor~}
       tls:
@@ -111,14 +123,14 @@ resource "helm_release" "datapipe_api" {
   ]
 }
 
-resource "helm_release" "datapipe" {
-  name      = "${local.slug}-datapipe"
+resource "helm_release" "datapipe_all" {
+  name      = "${local.slug}-datapipe-all"
   namespace = var.k8s_namespace
 
   repository = "https://epoch8.github.io/helm-charts/"
-  chart      = "datapipe"
-  version    = "0.3.0"
-  # chart = "${path.module}/../../../../../helm-charts/charts/datapipe/"
+  chart      = "simple-cronjob"
+  version    = "0.1.3"
+  # chart = "${path.module}/../../../../../helm-charts/charts/simple-cronjob/"
 
 
   values = [
@@ -129,38 +141,26 @@ resource "helm_release" "datapipe" {
       }
       imagePullSecrets = [{ name = var.image_pull_secrets }]
 
-      loops = [
-        {
-          name     = "regular"
-          schedule = "0 0 * * *"
-          labels = "flow=regular"
-          resources = {
-            requests = {
-              cpu    = "1"
-              memory = "1Gi"
-            }
-            limits = {
-              cpu    = "1"
-              memory = "2Gi"
-            }
-          }
-        },
-        {
-          name     = "all"
-          schedule = "0 0 * * *"
-          labels = ""
-          resources = {
-            requests = {
-              cpu    = "1"
-              memory = "1Gi"
-            }
-            limits = {
-              cpu    = "1"
-              memory = "2Gi"
-            }
-          }
-        }
+      schedule = "0 0 * * *"
+
+      volumes = local.llm_volumes
+
+      command = [
+        "datapipe",
+        "step",
+        "run",
       ]
+      resources = {
+        requests = {
+          cpu    = "1"
+          memory = "1Gi"
+        }
+        limits = {
+          cpu    = "1"
+          memory = "2Gi"
+        }
+      }
+
       env = local.datapipe_env
     }),
   ]

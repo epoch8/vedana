@@ -12,6 +12,7 @@ resource "kubernetes_secret_v1" "memgraph_secrets" {
 
   lifecycle {
     ignore_changes = [
+      metadata[0].name,
       metadata[0].namespace,
     ]
   }

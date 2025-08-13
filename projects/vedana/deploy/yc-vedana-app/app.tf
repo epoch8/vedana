@@ -5,40 +5,38 @@ locals {
 
   image_repository = var.image_repository != null ? var.image_repository : local.current_version.repository
   image_tag        = var.image_tag != null ? var.image_tag : local.current_version.tag
-}
 
-
-locals {
   slug = "${var.project}-${var.environment}"
 
   demo_domain       = "demo.${var.base_domain}"
   backoffice_domain = "backoffice.${var.base_domain}"
 
-  vedana_env = {
-    JIMS_DB_CONN_URI = "postgresql://${yandex_mdb_postgresql_user.jims.name}:${random_string.jims_db_password.result}@${data.yandex_mdb_postgresql_cluster.db_cluster.host.0.fqdn}:6432/${yandex_mdb_postgresql_database.jims.name}"
+  tg_enabled = var.telegram_bot_token != null && var.telegram_bot_token != ""
 
-    MEMGRAPH_URI  = module.memgraph.config.local_uri
-    MEMGRAPH_USER = module.memgraph.config.user
-    MEMGRAPH_PWD  = module.memgraph.config.password
+  vedana_env = merge(
+    {
+      JIMS_DB_CONN_URI = "postgresql://${yandex_mdb_postgresql_user.jims.name}:${random_string.jims_db_password.result}@${data.yandex_mdb_postgresql_cluster.db_cluster.host.0.fqdn}:6432/${yandex_mdb_postgresql_database.jims.name}"
 
-    SENTRY_DSN         = var.sentry_dsn
-    SENTRY_ENVIRONMENT = local.slug
-    SENTRY_RELEASE     = local.image_tag
+      MEMGRAPH_URI  = module.memgraph.config.local_uri
+      MEMGRAPH_USER = module.memgraph.config.user
+      MEMGRAPH_PWD  = module.memgraph.config.password
 
-    OPENAI_BASE_URL = "https://oai-proxy-hzkr3iwwhq-ew.a.run.app/v1/"
-    OPENAI_API_KEY  = "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"
-    EMBEDDINGS_DIM  = "1024"
+      SENTRY_DSN         = var.sentry_dsn
+      SENTRY_ENVIRONMENT = local.slug
+      SENTRY_RELEASE     = local.image_tag
 
-    GRIST_SERVER_URL        = var.grist.server_url
-    GRIST_API_KEY           = var.grist.api_key
-    GRIST_DATA_MODEL_DOC_ID = var.grist.data_model_doc_id
-    GRIST_DATA_DOC_ID       = var.grist.data_doc_id
+      GRIST_SERVER_URL        = var.grist.server_url
+      GRIST_API_KEY           = var.grist.api_key
+      GRIST_DATA_MODEL_DOC_ID = var.grist.data_model_doc_id
+      GRIST_DATA_DOC_ID       = var.grist.data_doc_id
 
-    TELEGRAM_BOT_TOKEN = var.telegram_bot_token
-    MODEL              = "gpt-4.1-mini"
-
-    EMBEDDINGS_CACHE_PATH = "/tmp/embeddings_cache.db"
-  }
+      EMBEDDINGS_CACHE_PATH = "/tmp/embeddings_cache.db"
+    },
+    local.tg_enabled ? {
+      TELEGRAM_BOT_TOKEN = var.telegram_bot_token
+    } : {},
+    local.llm_env
+  )
 
   common_values = <<EOF
   image:
@@ -55,6 +53,13 @@ locals {
     - name: ${key}
       value: "${value}"
   %{~endfor~}
+
+  %{~if local.llm_volumes != []~}
+  volumes:
+  %{~for volume in local.llm_volumes~}
+    - ${jsonencode(volume)}
+  %{~endfor~}
+  %{~endif~}
 
   livenessProbe:
     httpGet:
@@ -115,6 +120,18 @@ resource "yandex_mdb_postgresql_database" "jims" {
 
 ###
 
+module "authentik_demo_auth" {
+  source = "../../../../../chatbot-terraform/modules/yc-k8s-authentik-app-auth/"
+
+  project = var.project
+
+  app_slug   = "${local.slug}-demo"
+  app_name   = "Demo ${var.environment} ${var.project}"
+  app_domain = local.demo_domain
+
+  authentik_group_ids = var.authentik_group_ids
+}
+
 resource "helm_release" "demo" {
   name      = "${local.slug}-demo"
   namespace = var.k8s_namespace
@@ -135,10 +152,10 @@ resource "helm_release" "demo" {
     resources:
       requests:
         cpu: "200m"
-        memory: "256Mi"
+        memory: "512Mi"
       limits:
         cpu: "500m"
-        memory: "512Mi"
+        memory: "1Gi"
 
     port: 7860
 
@@ -162,7 +179,7 @@ resource "helm_release" "demo" {
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
         nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
         nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-        %{~for key, value in var.authentik_ingress_annotations~}
+        %{~for key, value in module.authentik_demo_auth.ingress_annotations~}
         ${key}: ${value}
         %{~endfor~}
       tls:
@@ -178,6 +195,18 @@ resource "helm_release" "demo" {
       namespace,
     ]
   }
+}
+
+module "authentik_backoffice_auth" {
+  source = "../../../../../chatbot-terraform/modules/yc-k8s-authentik-app-auth/"
+
+  project = var.project
+
+  app_slug   = "${local.slug}-backoffice"
+  app_name   = "Backoffice ${var.environment} ${var.project}"
+  app_domain = local.backoffice_domain
+
+  authentik_group_ids = var.authentik_group_ids
 }
 
 resource "helm_release" "backoffice" {
@@ -216,7 +245,7 @@ resource "helm_release" "backoffice" {
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
         nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
         nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-        %{~for key, value in var.authentik_ingress_annotations~}
+        %{~for key, value in module.authentik_backoffice_auth.ingress_annotations~}
         ${key}: ${value}
         %{~endfor~}
       tls:
@@ -235,6 +264,8 @@ resource "helm_release" "backoffice" {
 }
 
 resource "helm_release" "tg" {
+  count = local.tg_enabled ? 1 : 0
+
   name      = "${local.slug}-tg"
   namespace = var.k8s_namespace
 
@@ -277,5 +308,6 @@ output "config" {
   value = {
     demo       = "https://${local.demo_domain}"
     backoffice = "https://${local.backoffice_domain}"
+    image      = "${local.image_repository}:${local.image_tag}"
   }
 }

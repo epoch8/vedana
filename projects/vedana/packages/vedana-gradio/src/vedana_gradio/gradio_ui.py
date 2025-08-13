@@ -1,9 +1,7 @@
-import asyncio
 import datetime
 import io
 import logging
 import re
-import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -13,16 +11,13 @@ import pandas as pd
 from jims_core.thread.thread_controller import ThreadController
 from opentelemetry import trace
 from uuid_extensions import uuid7
-
 from vedana_core.data_model import DataModel
 from vedana_core.data_provider import GristSQLDataProvider
-from vedana_core.embeddings import EmbeddingProvider, OpenaiEmbeddingProvider
-from vedana_core.graph import Graph, MemgraphGraph
+from vedana_core.graph import Graph
 from vedana_core.importers.fast import DataModelLoader, update_graph
 from vedana_core.rag_pipeline import RagPipeline
 
 # todo
-from vedana_core.settings import get_custom_settings
 from vedana_core.settings import settings as s
 
 tracer = trace.get_tracer(__name__)
@@ -51,12 +46,10 @@ logger = logging.getLogger(__name__)
 
 # Global async event loop that runs in a separate thread
 executor = ThreadPoolExecutor(max_workers=1)
-loop = None
 
 
 class GlobalState:
     data_model: DataModel
-    embed_provider: EmbeddingProvider
     graph: Graph
     pipeline: RagPipeline
 
@@ -64,19 +57,7 @@ class GlobalState:
 _global_state = GlobalState()
 
 
-def start_background_loop(loop):
-    asyncio.set_event_loop(loop)
-    loop.run_forever()
-
-
-def init_async_stuff():
-    global loop
-    loop = asyncio.new_event_loop()
-    t = threading.Thread(target=start_background_loop, args=(loop,), daemon=True)
-    t.start()
-
-
-def reload_graph(show_debug: bool = True) -> str:
+async def reload_graph(show_debug: bool = True) -> str:
     """Reload graph data from Grist."""
     logger = MemLogger("reload_graph", level=logging.DEBUG)
 
@@ -84,16 +65,14 @@ def reload_graph(show_debug: bool = True) -> str:
         return "Error: GRIST_DATA_DOC_ID environment variable is not set. Cannot reload graph data."
     if not _global_state.data_model:
         return "Error: Data model not loaded. Reload data model first."
-    if not _global_state.embed_provider:
-        return "Error: Embedding provider not available."
 
     try:
         graph = _global_state.graph
         logger.info("Starting graph reload process")
 
         try:
-            n_nodes = graph.number_of_nodes()
-            n_edges = graph.number_of_edges()
+            n_nodes = await graph.number_of_nodes()
+            n_edges = await graph.number_of_edges()
             logger.info(f"Current nodes count: {n_nodes}; current edges count: {n_edges}")
         except Exception as e:
             logger.warning(f"Error parsing current graph configuration: {str(e)}")
@@ -105,11 +84,10 @@ def reload_graph(show_debug: bool = True) -> str:
 
         with data_provider:
             logger.info("Starting multiprocess graph update")
-            update_graph(
+            await update_graph(
                 graph=graph,
                 dp=data_provider,
                 data_model=_global_state.data_model,
-                embed_provider=_global_state.embed_provider,
                 dry_run=False,
                 node_batch_size=200,
                 edge_batch_size=100,
@@ -203,7 +181,7 @@ def parse_query_costs(model_usage: dict) -> list[dict]:
     # actual model_id = re.sub(r'-\d{4}-\d{2}-\d{2}$', '', s)  # "gpt-4.1-2025-04-14" --> "gpt-4.1"
     model_usage = {re.sub(r"-\d{4}-\d{2}-\d{2}$", "", model): v for model, v in model_usage.items()}
 
-    model_usage = [
+    model_usage_list = [
         {"model": m}
         | v
         | {
@@ -223,7 +201,7 @@ def parse_query_costs(model_usage: dict) -> list[dict]:
         }
         for m, v in model_usage.items()
     ]
-    return model_usage
+    return model_usage_list
 
 
 async def process_query(
@@ -277,66 +255,16 @@ async def process_query(
         return "", "", error_msg, error_msg, debug_logs, model_usage
 
 
-def load_data_source(selected_project: str = None):
-    if not s.debug:
-        return "Error updating project config: debug set to False", "", ""
-
-    # update envs
-    ProjectConfig = get_custom_settings(selected_project.upper() + "_")
-    project_settings = ProjectConfig()
-
-    # data model
-    s.grist_data_model_doc_id = project_settings.grist_data_model_doc_id
-    s.grist_server_url = project_settings.grist_server_url
-    s.grist_api_key = project_settings.grist_api_key
-
-    debug_output, data_model_textbox, vts_props = reload_data_model(current_selected_vts_props=[], show_debug=True)
-
-    # graph data path (for reloads)
-    s.grist_data_doc_id = project_settings.grist_data_doc_id
-
-    # memgraph connection
-    s.memgraph_uri = project_settings.memgraph_uri
-    s.memgraph_user = project_settings.memgraph_user
-    s.memgraph_pwd = project_settings.memgraph_pwd
-    _global_state.graph = MemgraphGraph(s.memgraph_uri, s.memgraph_user, s.memgraph_pwd)
-
-    # embeds (for reloads)
-    s.embeddings_cache_path = project_settings.embeddings_cache_path or s.default_embeddings_cache_path
-    s.embeddings_dim = project_settings.embeddings_dim
-    _global_state.embed_provider = OpenaiEmbeddingProvider(s.embeddings_cache_path, s.embeddings_dim)
-
-    # Re-initialize pipeline
-    _global_state.pipeline = RagPipeline(
-        graph=_global_state.graph,
-        embed_provider=_global_state.embed_provider,
-        data_model=_global_state.data_model,
-        logger=MemLogger("rag_pipeline", level=logging.DEBUG),
-        threshold=0.8,
-        temperature=0.0,
-    )
-
-    # cache data model
-    try:
-        DataModelLoader(_global_state.data_model, _global_state.graph).update_data_model_node()
-    except Exception as cache_exc:
-        logger.warning(f"Failed to cache DataModel: {cache_exc}")
-
-    return debug_output, data_model_textbox, vts_props
-
-
-def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, data_model: DataModel, sessionmaker, loop):
+async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionmaker) -> gr.Blocks:
     """Gradio interface with JIMS integration"""
 
     # Store in global state for reload functions
     _global_state.data_model = data_model
-    _global_state.embed_provider = embed_provider
     _global_state.graph = graph
 
     # Initialize pipeline
     _global_state.pipeline = RagPipeline(
         graph=graph,
-        embed_provider=embed_provider,
         data_model=data_model,
         logger=MemLogger("rag_pipeline", level=logging.DEBUG),
         threshold=0.8,
@@ -344,22 +272,17 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
     )
 
     # Function to create a new thread controller for a new session
-    def init_thread_controller():
-        # Create a future to run the async function
-        future = asyncio.run_coroutine_threadsafe(
-            ThreadController.new_thread(
-                sessionmaker,
-                uuid7(),
-                {
-                    "interface": "gradio",
-                    "created_at": str(datetime.datetime.now()),
-                    "session_id": str(uuid7()),
-                },
-            ),
-            loop,
+    async def init_thread_controller():
+        thread_controller = await ThreadController.new_thread(
+            sessionmaker,
+            uuid7(),
+            {
+                "interface": "gradio",
+                "created_at": str(datetime.datetime.now()),
+                "session_id": str(uuid7()),
+            },
         )
-        # Wait for the result
-        thread_controller = future.result(timeout=10)
+
         logger.info(f"Created new thread with ID: {thread_controller.thread.thread_id}")
         return thread_controller
 
@@ -371,7 +294,7 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
             if s.debug:
                 # todo move available projects to env
                 available_projects = ["Corestone", "Maytoni", "MaytoniV2", "NL", "Solar", "Agenyz", "Formelskin"]
-                project_id = gr.Dropdown(
+                project_id: gr.Component = gr.Dropdown(
                     choices=available_projects,
                     label="Select Project...",
                     value="Maytoni",  # default = from env
@@ -380,9 +303,9 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
                     scale=1,
                 )
             else:
-                project_id = gr.State(value=None)
+                project_id = gr.State(value=None)  # noqa: F841
 
-            sync_project_id = gr.Button("Update Project", visible=s.debug, interactive=s.debug, scale=1)
+            sync_project_id = gr.Button("Update Project", visible=s.debug, interactive=s.debug, scale=1)  # noqa: F841
 
         # Create a state component to store the thread controller for this session
         thread_controller_state = gr.State(value=None)
@@ -422,7 +345,7 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
                              "gpt-4o", "gpt-4o-mini", "o4-mini", s.model}
                         )
 
-                        model_selector = gr.Dropdown(
+                        model_selector: gr.Component = gr.Dropdown(
                             choices=available_models,
                             label="Select LLM",
                             value=s.model,  # default = env
@@ -523,16 +446,16 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
             #     token_usage = gr.State(value=pd.DataFrame())
 
         # Ensure we have a thread controller for this session
-        def ensure_thread_controller(thread_controller):
+        async def ensure_thread_controller(thread_controller) -> tuple[ThreadController, str]:
             if thread_controller is None:
-                thread_controller = init_thread_controller()
+                thread_controller = await init_thread_controller()
             return (
                 thread_controller,
                 f"Session ID: {thread_controller.thread.thread_config.get('session_id', 'unknown')}",
             )
 
         # Synchronous wrapper for async process_query
-        def process_query_sync(
+        async def process_query_sync(
             text_query,
             show_debug,
             use_vector_text_search,
@@ -565,19 +488,13 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
                     f" temperature: {tct_temperature};"
                 )
 
-                # Use the global event loop
-                future = asyncio.run_coroutine_threadsafe(
-                    process_query(
+                try:
+                    result = await process_query(
                         text_query,
                         show_debug,
                         thread_controller,
                         pipeline,
-                    ),
-                    loop,
-                )
-
-                try:
-                    result = future.result(timeout=120)
+                    )
                     return (thread_controller,) + result
                 except Exception as e:
                     logger.error(f"Error in process_query_sync: {str(e)}")
@@ -624,17 +541,16 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
             )
 
         # Synchronous wrapper for async get_conversation_history
-        def get_history_sync(thread_controller):
+        async def get_history_sync(thread_controller) -> str:
             if thread_controller is None:
                 return "No conversation history yet."
 
-            future = asyncio.run_coroutine_threadsafe(get_conversation_history(thread_controller), loop)
-            return future.result(timeout=10)
+            return await get_conversation_history(thread_controller)
 
         def get_llm_use_sync(session_tokens: pd.DataFrame, request_tokens: dict, request_query: str) -> pd.DataFrame:
             """Update total token usage per gradio instance / session"""
-            new_row = parse_query_costs(request_tokens)
-            new_row = pd.DataFrame(new_row)
+            new_row_list = parse_query_costs(request_tokens)
+            new_row = pd.DataFrame(new_row_list)
             new_row["query"] = request_query
 
             if session_tokens.shape[0] > 1:
@@ -648,12 +564,11 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
                 session_df = pd.concat([session_df, pd.DataFrame(sum_row).T], ignore_index=True)
             return session_df
 
-        def clear_history_sync(thread_controller):
+        async def clear_history_sync(thread_controller) -> tuple:
             if thread_controller is None:
                 thread_controller = init_thread_controller()
 
-            future = asyncio.run_coroutine_threadsafe(clear_conversation_history(thread_controller), loop)
-            new_controller, message = future.result(timeout=10)
+            new_controller, message = await clear_conversation_history(thread_controller)
             return (
                 new_controller,
                 message,
@@ -673,9 +588,9 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
         def handle_cancel_reload_confirmation():
             return gr.update(visible=False)
 
-        def handle_confirm_reload_graph(show_debug):
+        async def handle_confirm_reload_graph(show_debug) -> tuple[str, Any]:
             # This function will call reload_graph and then hide the confirmation
-            debug_msg = reload_graph(show_debug)  # reload_graph is globally defined
+            debug_msg = await reload_graph(show_debug)  # reload_graph is globally defined
             return debug_msg, gr.update(visible=False)
 
         # Submit button click
@@ -708,27 +623,6 @@ def create_gradio_interface(graph: Graph, embed_provider: EmbeddingProvider, dat
             fn=get_llm_use_sync,
             inputs=[token_usage, last_query_token_stats, nl_input],
             outputs=[token_usage],
-        )
-
-        # Change data source (debug app)
-        sync_project_id.click(
-            fn=load_data_source,
-            inputs=[project_id],
-            outputs=[debug_output, data_model_textbox, vector_text_search_props],
-        ).then(
-            fn=clear_history_sync,
-            inputs=[thread_controller_state],
-            outputs=[
-                thread_controller_state,
-                history_output,
-                session_info,
-                debug_output,
-                vts_output,
-                technical_output,
-                human_output,
-                human_output_tools,
-                token_usage,
-            ],
         )
 
         # Reload data model button click
