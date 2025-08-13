@@ -4,7 +4,6 @@ import logging
 import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
 from uuid import UUID
 
 import gradio as gr
@@ -58,47 +57,10 @@ class GlobalState:
 _global_state = GlobalState()
 
 
-async def reload_graph(show_debug: bool = True) -> str:
-    """Reload graph data from Grist."""
-    logger = MemLogger("reload_graph", level=logging.DEBUG)
-
-    if not s.grist_data_doc_id:
-        return "Error: GRIST_DATA_DOC_ID environment variable is not set. Cannot reload graph data."
-    if not _global_state.data_model:
-        return "Error: Data model not loaded. Reload data model first."
-
-    try:
-        graph = _global_state.graph
-        logger.info("Starting graph reload process")
-
-        try:
-            n_nodes = await graph.number_of_nodes()
-            n_edges = await graph.number_of_edges()
-            logger.info(f"Current nodes count: {n_nodes}; current edges count: {n_edges}")
-        except Exception as e:
-            logger.warning(f"Error parsing current graph configuration: {str(e)}")
-
-        data_provider = GristSQLDataProvider(
-            doc_id=s.grist_data_doc_id, grist_server=s.grist_server_url, api_key=s.grist_api_key
-        )
-        logger.info("Created data provider")
-
-        with data_provider:
-            raise NotImplementedError("Graph updates from UI are temporarily disabled")
-
-    except Exception as e:
-        error_msg = f"Error reloading graph data: {str(e)}"
-        logger.exception(error_msg)
-        if show_debug:
-            return f"{error_msg}\n\nDebug Logs:\n{logger.get_logs()}"
-        return error_msg
-
-
-def reload_data_model(current_selected_vts_props: list, show_debug: bool = True) -> tuple[str, str, dict[str, Any]]:
+def reload_data_model(show_debug: bool = True) -> tuple[str, str]:
     """Reload data model and return updated UI components"""
     logger = MemLogger("reload_data_model", level=logging.DEBUG)
     data_model_text = ""
-    new_vts_props = []
 
     try:
         logger.info("Starting data model reload")
@@ -125,12 +87,6 @@ def reload_data_model(current_selected_vts_props: list, show_debug: bool = True)
         if _global_state.data_model:
             data_model_text = _global_state.data_model.to_text_descr()
 
-            # Update the VTS properties dropdown
-            new_vts_props = sorted(
-                [f"{v['noun']}::{name}" for name, v in _global_state.data_model.embeddable_attributes().items()]
-            )
-            logger.info(f"Generated {len(new_vts_props)} VTS properties")
-
         # Add debug logs if requested
         if show_debug:
             result = f"{result}\n\nDebug Logs:\n{logger.get_logs()}"
@@ -141,14 +97,12 @@ def reload_data_model(current_selected_vts_props: list, show_debug: bool = True)
         if show_debug:
             result = f"{result}\n\nDebug Logs:\n{logger.get_logs()}"
 
-    current_selected_vts_props = [e for e in current_selected_vts_props if e in new_vts_props]
-
     try:
         DataModelLoader(_global_state.data_model, _global_state.graph).update_data_model_node()
     except Exception as exc:
         logger.warning(f"Failed to store DataModel in graph: {exc}")
 
-    return result, data_model_text, gr.update(choices=new_vts_props, value=current_selected_vts_props)
+    return result, data_model_text
 
 
 def parse_query_costs(model_usage: dict) -> list[dict]:
@@ -254,7 +208,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
         data_model=data_model,
         logger=MemLogger("rag_pipeline", level=logging.DEBUG),
         threshold=0.8,
-        temperature=0.0,
     )
 
     # Function to create a new thread controller for a new session
@@ -277,22 +230,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
             with gr.Column(scale=5):
                 gr.Markdown("# Vedana Demo")
 
-            if s.debug:
-                # todo move available projects to env
-                available_projects = ["Corestone", "Maytoni", "MaytoniV2", "NL", "Solar", "Agenyz", "Formelskin"]
-                project_id: gr.Component = gr.Dropdown(
-                    choices=available_projects,
-                    label="Select Project...",
-                    value="Maytoni",  # default = from env
-                    multiselect=False,
-                    interactive=True,
-                    scale=1,
-                )
-            else:
-                project_id = gr.State(value=None)  # noqa: F841
-
-            sync_project_id = gr.Button("Update Project", visible=s.debug, interactive=s.debug, scale=1)  # noqa: F841
-
         # Create a state component to store the thread controller for this session
         thread_controller_state = gr.State(value=None)
 
@@ -308,17 +245,7 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
         with gr.Accordion("Settings", open=True):
             with gr.Row():
                 reload_model_btn = gr.Button("Reload Data Model")
-                reload_graph_btn = gr.Button("Reload Graph Data", interactive=s.debug, visible=s.debug)
                 clear_history_btn = gr.Button("Clear Conversation History")
-
-            # Confirmation UI for graph reload
-            with gr.Row(visible=False) as confirm_reload_graph_row:
-                gr.Markdown(
-                    "⚠️ **Confirm Graph Reload** ⚠️\n\nThis is a slow and resource-expensive operation. Are you sure you want to proceed?"
-                )
-                with gr.Column(scale=1):  # Using a column for button arrangement
-                    confirm_reload_graph_yes_btn = gr.Button("✅ Yes, Reload Now")
-                    confirm_reload_graph_cancel_btn = gr.Button("❌ Cancel")
 
             with gr.Row():
                 with gr.Column():
@@ -350,19 +277,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                     else:
                         model_selector = gr.State(value=s.model)
 
-                with gr.Column():
-                    tct_temperature = gr.Number(0.01, label="Temperature", minimum=0, maximum=1, step=0.05)
-                with gr.Column():
-                    use_vector_text_search = gr.Checkbox(label="Use vector text search", value=False)
-                    vts_props = sorted([f"{v['noun']}::{n}" for n, v in data_model.embeddable_attributes().items()])
-                    vector_text_search_props = gr.Dropdown(
-                        vts_props,
-                        label="Search props",
-                        multiselect=True,
-                        value=vts_props[0] if vts_props else None,
-                    )
-                    vts_threshold = gr.Number(0.8, label="Threshold", minimum=0, maximum=1, step=0.05)
-                    vts_top_n = gr.Number(5, label="Top-N Results", minimum=1, maximum=30, step=1, precision=0)
             with gr.Accordion("Data model", open=False):
                 data_model_textbox = gr.Markdown(
                     value=data_model.to_text_descr(),
@@ -453,10 +367,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
         async def process_query_sync(
             text_query,
             show_debug,
-            use_vector_text_search,
-            vts_threshold,
-            vts_top_n,
-            tct_temperature,
             selected_model,
             thread_controller,
         ):
@@ -469,19 +379,11 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
 
                 # Update pipeline with current data model and settings
                 pipeline.data_model = _global_state.data_model
-                pipeline.threshold = vts_threshold
-                pipeline.temperature = tct_temperature
-                if use_vector_text_search:
-                    pipeline.top_n = vts_top_n
+
                 if s.debug:  # pass selected model if app set to debug=True
                     pipeline.model = selected_model
 
                 logger.info(f"Processing query: {text_query}")
-                logger.info(
-                    f"Pipeline run settings:\n "
-                    f"- VTS: {use_vector_text_search}, threshold: {vts_threshold}, n={pipeline.top_n};\n"
-                    f" temperature: {tct_temperature};"
-                )
 
                 try:
                     result = await process_query(
@@ -576,28 +478,12 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                 pd.DataFrame(),
             )
 
-        # Helper functions for graph reload confirmation
-        def handle_show_reload_confirmation():
-            return gr.update(visible=True)
-
-        def handle_cancel_reload_confirmation():
-            return gr.update(visible=False)
-
-        async def handle_confirm_reload_graph(show_debug) -> tuple[str, Any]:
-            # This function will call reload_graph and then hide the confirmation
-            debug_msg = await reload_graph(show_debug)  # reload_graph is globally defined
-            return debug_msg, gr.update(visible=False)
-
         # Submit button click
         submit_btn_text.click(
             fn=process_query_sync,
             inputs=[
                 nl_input,
                 show_debug,
-                use_vector_text_search,
-                vts_threshold,
-                vts_top_n,
-                tct_temperature,
                 model_selector,
                 thread_controller_state,
             ],
@@ -623,25 +509,8 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
         # Reload data model button click
         reload_model_btn.click(
             fn=reload_data_model,
-            inputs=[vector_text_search_props, show_debug],
-            outputs=[debug_output, data_model_textbox, vector_text_search_props],
-        )
-
-        if s.debug:
-            reload_graph_btn.click(fn=handle_show_reload_confirmation, inputs=[], outputs=[confirm_reload_graph_row])
-
-            # Handlers for the graph reload confirmation buttons
-            confirm_reload_graph_yes_btn.click(
-                fn=handle_confirm_reload_graph,
-                inputs=[show_debug],
-                outputs=[
-                    debug_output,
-                    confirm_reload_graph_row,
-                ],  # debug_output first for the message, then the row to hide
-            )
-
-        confirm_reload_graph_cancel_btn.click(
-            fn=handle_cancel_reload_confirmation, inputs=[], outputs=[confirm_reload_graph_row]
+            inputs=[show_debug],
+            outputs=[debug_output, data_model_textbox],
         )
 
         # Clear history button click
