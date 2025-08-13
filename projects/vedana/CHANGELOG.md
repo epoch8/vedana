@@ -1,4 +1,4 @@
-# WIP
+# 2025.08.13-dev.16
 
 * (vedana-etl) Implement parsing links from Grist links
 * (vedana-etl) Add datamodel node to graph
