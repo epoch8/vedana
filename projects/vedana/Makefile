@@ -12,8 +12,6 @@ else
 	VERSION=$(BASE_VERSION)-$(BRANCH)-$(GIT_HASH)
 endif
 
-TAG=vedana-$(VERSION)
-
 IMAGE=$(REPO):$(VERSION)
 
 build:
@@ -28,6 +26,10 @@ build:
 
 CURRENT_VERSION=$(shell yq -r .tag ./deploy/yc-vedana-app/current_version.json)
 CURRENT_IMAGE=$(REPO):$(CURRENT_VERSION)
+
+git-tag:
+	git tag -f "vedana-${CURRENT_VERSION}"
+	git push -f origin "vedana-${CURRENT_VERSION}"
 
 upload:
 # 	git push
