@@ -6,6 +6,7 @@
 * (vedana-gradio) Fix chat completion for gpt-5
 * (vedana-gradio) Remove obsolette UI components
 * (jims-core) Use LiteLLM reponse_cost
+* (vedana-gradio) Localized data model representation
 
 # 2025.08.07-dev.15
 
