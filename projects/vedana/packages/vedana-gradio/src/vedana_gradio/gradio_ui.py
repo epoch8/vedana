@@ -1,7 +1,6 @@
 import datetime
 import io
 import logging
-import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from uuid import UUID
@@ -12,7 +11,6 @@ from jims_core.thread.thread_controller import ThreadController
 from opentelemetry import trace
 from uuid_extensions import uuid7
 from vedana_core.data_model import DataModel
-from vedana_core.data_provider import GristSQLDataProvider
 from vedana_core.graph import Graph
 from vedana_core.importers.fast import DataModelLoader
 from vedana_core.rag_pipeline import RagPipeline
@@ -103,45 +101,6 @@ def reload_data_model(show_debug: bool = True) -> tuple[str, str]:
         logger.warning(f"Failed to store DataModel in graph: {exc}")
 
     return result, data_model_text
-
-
-def parse_query_costs(model_usage: dict) -> list[dict]:
-    # cost per 1M tokens - https://platform.openai.com/docs/pricing
-    model_prices = {
-        "gpt-4.1": {"prompt_tokens": 2, "cached_tokens": 0.5, "completion_tokens": 8},
-        "gpt-4.1-mini": {"prompt_tokens": 0.4, "cached_tokens": 0.1, "completion_tokens": 1.6},
-        "gpt-4.1-nano": {"prompt_tokens": 0.1, "cached_tokens": 0.025, "completion_tokens": 0.4},
-        "gpt-4o": {"prompt_tokens": 2.5, "cached_tokens": 1.25, "completion_tokens": 10},
-        "gpt-4o-mini": {"prompt_tokens": 0.15, "cached_tokens": 0.075, "completion_tokens": 0.6},
-        "o4-mini": {"prompt_tokens": 1.1, "cached_tokens": 0.275, "completion_tokens": 4.4},
-    }
-    # cost per 1M --> cost per token
-    model_prices = {mk: {k: v / 1e6 for k, v in mv.items()} for mk, mv in model_prices.items()}
-
-    # actual model_id = re.sub(r'-\d{4}-\d{2}-\d{2}$', '', s)  # "gpt-4.1-2025-04-14" --> "gpt-4.1"
-    model_usage = {re.sub(r"-\d{4}-\d{2}-\d{2}$", "", model): v for model, v in model_usage.items()}
-
-    model_usage_list = [
-        {"model": m}
-        | v
-        | {
-            "prompt_tokens, $": round(
-                (v["prompt_tokens"] - v["cached_tokens"]) * model_prices.get(m, {}).get("prompt_tokens", 0), 4
-            ),
-            "cached_tokens, $": round(v["cached_tokens"] * model_prices.get(m, {}).get("cached_tokens", 0), 4),
-            "completion_tokens, $": round(
-                v["completion_tokens"] * model_prices.get(m, {}).get("completion_tokens", 0), 4
-            ),
-            "total, $": round(
-                (v["prompt_tokens"] - v["cached_tokens"]) * model_prices.get(m, {}).get("prompt_tokens", 0)
-                + v["cached_tokens"] * model_prices.get(m, {}).get("cached_tokens", 0)
-                + v["completion_tokens"] * model_prices.get(m, {}).get("completion_tokens", 0),
-                4,
-            ),
-        }
-        for m, v in model_usage.items()
-    ]
-    return model_usage_list
 
 
 async def process_query(
@@ -332,27 +291,23 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
         with gr.Row():  # Session stats
             session_info = gr.Textbox(label="Session ID", visible=True, interactive=False, scale=2)
             last_query_token_stats = gr.State(value={})
-            # if s.debug:
             token_usage = gr.Dataframe(
                 headers=[
                     "query",
                     "requests_count",
                     "prompt_tokens",
-                    "prompt_tokens, $",
                     "cached_tokens",
-                    "cached_tokens, $",
                     "completion_tokens",
-                    "completion_tokens, $",
-                    "total, $",
+                    "requests_cost",
+                    "model",
                 ],
-                datatype=["str", "number", "number", "number", "number", "number", "number", "number", "number"],
-                col_count=(9, "fixed"),
+                datatype=["str", "number", "number", "number", "number", "number", "str"],
+                col_count=(7, "fixed"),
+                max_chars=45,
                 interactive=False,
                 visible=True,
                 scale=7,
             )
-            # else:
-            #     token_usage = gr.State(value=pd.DataFrame())
 
         # Ensure we have a thread controller for this session
         async def ensure_thread_controller(thread_controller) -> tuple[ThreadController, str]:
@@ -446,10 +401,7 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
 
         def get_llm_use_sync(session_tokens: pd.DataFrame, request_tokens: dict, request_query: str) -> pd.DataFrame:
             """Update total token usage per gradio instance / session"""
-            new_row_list = parse_query_costs(request_tokens)
-            new_row = pd.DataFrame(new_row_list)
-            new_row["query"] = request_query
-
+            new_row = pd.DataFrame([{"query": request_query, "model": k} | v for k, v in request_tokens.items()])
             if session_tokens.shape[0] > 1:
                 session_tokens = session_tokens.head(session_tokens.shape[0] - 1)  # remove previous "Total:"
 
