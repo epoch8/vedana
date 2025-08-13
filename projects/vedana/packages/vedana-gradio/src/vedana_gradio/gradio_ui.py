@@ -54,7 +54,7 @@ class GlobalState:
 _global_state = GlobalState()
 
 
-def reload_data_model(show_debug: bool = True) -> tuple[str, str]:
+async def reload_data_model(show_debug: bool = True) -> tuple[str, str]:
     """Reload data model and return updated UI components"""
     logger = MemLogger("reload_data_model", level=logging.DEBUG)
     data_model_text = ""
