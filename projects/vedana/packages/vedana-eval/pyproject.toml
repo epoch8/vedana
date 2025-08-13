@@ -1,0 +1,15 @@
+[project]
+name = "vedana-eval"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = "==3.12.*"
+dependencies = [
+    "vedana-core>=0.5.0",
+    "jims-core",
+    "grist-api>=0.1.1",
+]
+
+[tool.mypy]
+ignore_missing_imports = true
+plugins = ['pydantic.mypy']
