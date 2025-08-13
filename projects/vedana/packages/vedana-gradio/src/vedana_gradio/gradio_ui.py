@@ -11,7 +11,6 @@ from jims_core.thread.thread_controller import ThreadController
 from opentelemetry import trace
 from uuid_extensions import uuid7
 from vedana_core.data_model import DataModel
-from vedana_core.data_provider import GristSQLDataProvider
 from vedana_core.graph import Graph
 from vedana_core.importers.fast import DataModelLoader
 from vedana_core.rag_pipeline import RagPipeline
