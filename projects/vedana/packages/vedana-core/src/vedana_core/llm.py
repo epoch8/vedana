@@ -73,7 +73,9 @@ class LLM:
         messages = messages.copy()
         tool_defs = [tool.openai_def for tool in tools]
         tools_map = {tool.name: tool for tool in tools}
-        for i in range(4):
+
+        max_iter = 6
+        for i in range(max_iter):
             msg, tool_calls = await self.llm.chat_completion_with_tools(
                 messages=messages,
                 tools=tool_defs,
@@ -82,9 +84,9 @@ class LLM:
 
             messages.append(msg.to_dict())  # type: ignore
 
-            self.logger.info(f"Tool call iter {i}")
-            if i == 3:
-                self.logger.warning("Too much iterations. Exiting tool call loop")
+            self.logger.info(f"Tool call iter {i + 1}/{max_iter}")
+            if i == max_iter - 1:
+                self.logger.warning(f"Reached tool call iteration limit ({max_iter}). Exiting tool call loop")
                 break
 
             if not tool_calls:
