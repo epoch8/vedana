@@ -186,7 +186,7 @@ class RagAgent:
         return history_text
 
     async def text_to_answer_with_vts_and_cypher(
-        self, text_query: str, threshold: float, temperature: float = 0, top_n: int = 5
+        self, text_query: str, threshold: float, temperature: float | None = None, top_n: int = 5
     ) -> tuple[str, list[VTSQuery], list[CypherQuery]]:
         vts_queries: list[VTSQuery] = []
         cypher_queries: list[CypherQuery] = []
