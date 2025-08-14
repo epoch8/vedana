@@ -128,10 +128,11 @@ async def run_tests(gds: pd.DataFrame) -> None:
         data_model = DataModel.load_grist_online(
             s.grist_data_model_doc_id, grist_server=s.grist_server_url, api_key=s.grist_api_key
         )
-        try:
-            await data_model.update_data_model_node(graph)
-        except Exception as e:
-            logger.warning(f"Unable to cache DataModel in graph: {e}")
+        # todo
+        # try:
+        #     await data_model.update_data_model_node(graph)
+        # except Exception as e:
+        #     logger.warning(f"Unable to cache DataModel in graph: {e}")
 
     pipeline = RagPipeline(
         graph=graph,
@@ -152,6 +153,7 @@ async def run_tests(gds: pd.DataFrame) -> None:
     today = datetime.date.today().isoformat()
 
     for row in gds.itertuples(index=False):
+        logger.info(f"Processing row: {row}")
         # Workaround for grist changing template column names on imports/exports
         gq = getattr(row, "gds_question", getattr(row, "Gds_Question", ""))
         ga = getattr(row, "gds_answer", getattr(row, "Gds_Answer", ""))
@@ -180,14 +182,15 @@ async def run_tests(gds: pd.DataFrame) -> None:
             "test_status": judge_res.test_status,
             "comment": judge_res.comment,
             "errors": "\n".join(judge_res.errors) if isinstance(judge_res.errors, list) else judge_res.errors,
-            "test_model": tech.get("model_used") or "",
+            "test_model": "\n".join(tech.get("model_stats")),
+            "tool_calls": "\n".join(tech.get("vts_queries")) + "\n---\n" + "\n".join(tech.get("cypher_queries")),
             "test_environment": eval_settings.test_environment,
             "test_date": today,
         }
         rows_to_write.append(record)
 
         # Flush in small batches to reduce memory and see progress
-        if len(rows_to_write) >= 50:
+        if len(rows_to_write) >= 10:
             client.add_records(eval_settings.tests_table_name, rows_to_write)
             rows_to_write.clear()
 
