@@ -5,7 +5,6 @@ from typing import Awaitable, Callable, Iterable
 import openai
 from jims_core.llms.llm_provider import LLMProvider
 from jims_core.thread.schema import CommunicationEvent
-from openai import NOT_GIVEN, NotGiven
 from openai.types.chat import (
     ChatCompletionMessageParam,
     ChatCompletionToolMessageParam,
@@ -44,7 +43,7 @@ class LLM:
         self,
         llm_provider: LLMProvider,
         prompt_templates: dict[str, str],
-        temperature: float | NotGiven = NOT_GIVEN,
+        temperature: float | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         self.temperature = temperature
@@ -58,7 +57,7 @@ class LLM:
         data_descr: str,
         text_query: str,
         tools: list[Tool],
-        temperature: float = 0,
+        temperature: float | None = None,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
         tool_names = [t.name for t in tools]
         msgs = make_cypher_query_with_tools_dialog(data_descr, self.prompt_templates, text_query, tool_names=tool_names)
