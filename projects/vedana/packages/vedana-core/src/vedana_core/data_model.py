@@ -248,33 +248,37 @@ class DataModel:
         ]
 
     def to_text_descr(self) -> str:
+        dm_templates = self.prompt_templates()
+
         anchor_descr = "\n".join(
-            f"- {anchor.noun}: {anchor.description}; пример ID: {anchor.id_example};"
-            f" запрос для получения: {anchor.query}"
+            dm_templates.get("dm_anchor_descr_template", dm_anchor_descr_template).format(anchor=anchor)
             for anchor in self.anchors
         )
 
         anchor_attrs_descr = "\n".join(
-            f"- {anchor.noun}.{attr.name}: {attr.description}; пример: {attr.example};"
-            f" запрос для получения: {attr.query}"
+            dm_templates.get("dm_attr_descr_template", dm_attr_descr_template).format(anchor=anchor, attr=attr)
             for anchor in self.anchors
             for attr in anchor.attributes
         )
 
         link_descr = "\n".join(
-            f"- {link.sentence}: {link.description}; пример запроса: {link.query}" for link in self.links
+            dm_templates.get("dm_link_descr_template", dm_link_descr_template).format(link=link) for link in self.links
         )
 
         link_attrs_descr = "\n".join(
-            f"- {link.sentence}.{attr.name}: {attr.description}; пример: {attr.example};"
-            f" запрос для получения: {attr.query}"
+            dm_templates.get("dm_link_attr_descr_template", dm_link_attr_descr_template).format(link=link, attr=attr)
             for link in self.links
             for attr in link.attributes
         )
 
-        queries_descr = "\n".join(f"- {query.name}\n{query.example}" for query in self.queries)
+        queries_descr = "\n".join(
+            dm_templates.get("dm_query_descr_template", dm_query_descr_template).format(query=query)
+            for query in self.queries
+        )
 
-        return text_description_template.format(
+        dm_template = dm_templates.get("dm_descr_template", dm_descr_template)
+
+        return dm_template.format(
             anchors=anchor_descr,
             anchor_attrs=anchor_attrs_descr,
             links=link_descr,
@@ -437,16 +441,6 @@ class DataModel:
     def from_json(cls, json_str: str) -> "DataModel":
         return cls.from_dict(json.loads(json_str))
 
-    async def update_data_model_node(self, graph: "Graph") -> None:
-        try:
-            await graph.run_cypher(
-                "MERGE (dm:DataModel {id: 'data_model'}) SET dm.content = $content, dm.updated_at = datetime()",
-                {"content": self.to_json()},
-            )
-            logger.info("DataModel node updated in graph")
-        except Exception as exc:
-            logger.exception("Failed to update DataModel node: %s", exc)
-
     @classmethod
     async def load_from_graph(cls, graph: "Graph") -> "DataModel | None":
         try:
@@ -465,7 +459,7 @@ class DataModel:
         return cls.from_json(content)
 
 
-text_description_template = """\
+dm_descr_template = """\
 ## Узлы:
 {anchors}
 
@@ -481,6 +475,18 @@ text_description_template = """\
 ## Типичные вопросы:
 {queries}
 """
+
+dm_anchor_descr_template = (
+    "- {anchor.noun}: {anchor.description}; пример ID: {anchor.id_example}; запрос для получения: {anchor.query}"
+)
+dm_attr_descr_template = (
+    "- {anchor.noun}.{attr.name}: {attr.description}; пример: {attr.example}; запрос для получения: {attr.query}"
+)
+dm_link_descr_template = "- {link.sentence}: {link.description}; пример запроса: {link.query}"
+dm_link_attr_descr_template = (
+    "- {link.sentence}.{attr.name}: {attr.description}; пример: {attr.example}; запрос для получения: {attr.query}"
+)
+dm_query_descr_template = "- {query.name}\n{query.example}"
 
 
 class SqliteDataModelLoader(DataModelLoader):

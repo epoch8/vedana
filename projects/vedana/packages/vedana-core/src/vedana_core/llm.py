@@ -34,7 +34,7 @@ class Tool[T: BaseModel]:
         if asyncio.iscoroutinefunction(self.fn):
             result = await self.fn(fn_args)
         else:
-            result = await asyncio.to_thread(self.fn, fn_args)
+            result: str = await asyncio.to_thread(self.fn, fn_args)  # type: ignore
 
         return result
 
@@ -140,7 +140,7 @@ class LLM:
             *(dialog or []),
             {"role": "user", "content": prompt},
         ]
-        response = await self.llm.chat_completion_plain(messages, temperature=0.3)
+        response = await self.llm.chat_completion_plain(messages)
         human_answer = "" if response.content is None else response.content.strip()
         self.logger.info(f"Generated 'no answer' response: {human_answer}")
         return human_answer
