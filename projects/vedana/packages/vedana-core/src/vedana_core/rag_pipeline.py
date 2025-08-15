@@ -41,7 +41,7 @@ class RagPipeline:
         logger,
         threshold: float = 0.8,
         top_n: int = 5,
-        temperature: float = 0.0,
+        temperature: float | None = None,
         model: str | None = None,
     ):
         self.graph = graph
