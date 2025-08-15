@@ -39,20 +39,21 @@ class LinkRecord:
     data: dict[str, Any]
 
 
-class DataProvider(abc.ABC):
-    @abc.abstractmethod
-    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[Link]) -> list[AnchorRecord]: ...
+class DataProvider:
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[Link]) -> list[AnchorRecord]:
+        raise NotImplementedError("get_anchors must be implemented in subclass")
 
-    @abc.abstractmethod
-    def get_links(self, table_name: str, link: Link) -> list[LinkRecord]: ...
+    def get_links(self, table_name: str, link: Link) -> list[LinkRecord]:
+        raise NotImplementedError("get_links must be implemented in subclass")
 
-    @abc.abstractmethod
-    def get_anchor_tables(self) -> list[str]: ...
+    def get_anchor_tables(self) -> list[str]:
+        raise NotImplementedError("get_anchor_tables must be implemented in subclass")
 
-    @abc.abstractmethod
-    def get_link_tables(self) -> list[str]: ...
+    def get_link_tables(self) -> list[str]:
+        raise NotImplementedError("get_link_tables must be implemented in subclass")
 
-    def close(self) -> None: ...
+    def close(self) -> None:
+        pass
 
     def __enter__(self):
         return self
@@ -137,7 +138,15 @@ class GristDataProvider(DataProvider):
     @abc.abstractmethod
     def get_table(self, table_name: str) -> Table: ...
 
-    def get_anchor_tables(self) -> list[str]:
+    def get_table_df(self, table_name: str) -> pd.DataFrame:
+        """
+        Format table to dataframe
+        """
+        table: Table = self.get_table(table_name)
+        df = pd.DataFrame(table.rows, columns=table.columns)
+        return df
+
+    def get_anchor_types(self) -> list[str]:
         prefix_len = len(self.anchor_table_prefix)
         return [t[prefix_len:] for t in self.list_anchor_tables()]
 
@@ -169,7 +178,7 @@ class GristDataProvider(DataProvider):
             id_ = row_dict.pop(id_key, None)
             if id_ is None:
                 id_ = f"{type_}:{db_id}"
-            elif pd.isna(id_):
+            if pd.isna(id_):
                 # print(f"{type_}:{db_id} has {id_key}=nan, skipping")
                 continue
 
@@ -218,6 +227,10 @@ class GristDataProvider(DataProvider):
 
 
 class GristOfflineDataProvider(GristDataProvider):
+    """
+    Load from grist backup file (.grist)
+    """
+
     def __init__(self, sqlite_path: Path) -> None:
         super().__init__()
         self._conn = sqlite3.connect(sqlite_path)
@@ -295,14 +308,6 @@ class GristOnlineCsvDataProvider(GristDataProvider):
         rows = [tuple(row) for row in df.itertuples(index=False, name="Row")]
         return Table(columns, rows)
 
-    def get_table_df(self, table_name: str) -> pd.DataFrame:
-        """
-        Format table to dataframe
-        """
-        table: Table = self.get_table(table_name)
-        df = pd.DataFrame(table.rows, columns=table.columns)
-        return df
-
 
 class GristOnlineDataProvider(GristDataProvider):
     def __init__(self, doc_id: str, grist_server: str, api_key: str | None = None) -> None:
@@ -350,14 +355,6 @@ class GristOnlineDataProvider(GristDataProvider):
         columns = self._list_table_columns(table_name)
         rows = self._client.fetch_table(table_name)
         return Table(columns, rows)
-
-    def get_table_df(self, table_name: str) -> pd.DataFrame:
-        """
-        Format table to dataframe
-        """
-        table: Table = self.get_table(table_name)
-        df = pd.DataFrame(table.rows, columns=table.columns)
-        return df
 
 
 class GristSQLDataProvider(GristDataProvider):
@@ -583,11 +580,3 @@ class GristSQLDataProvider(GristDataProvider):
             rows_data.append(tuple(row.get(col) for col in columns))
 
         return Table(columns, rows_data)
-
-    def get_table_df(self, table_name: str) -> pd.DataFrame:
-        """
-        Format table to dataframe
-        """
-        table: Table = self.get_table(table_name)
-        df = pd.DataFrame(table.rows, columns=table.columns)
-        return df

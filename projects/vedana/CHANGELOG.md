@@ -1,5 +1,10 @@
 # WIP
 
+* (vedana-gradio) Remove obsolete UI components
+* (vedana-core) add tests for DataModel
+* (vedana-core) rm obsolete importers code
+* (vedana-core) update DataModel graph update method use
+* (vedana-etl) Filter edges against datamodel on import
 * (vedana-core) handle LLM temperature in LiteLLM 
 
 # 2025.08.13-dev.16
@@ -8,8 +13,8 @@
 * (vedana-etl) Add datamodel node to graph
 * (vedana-gradio) Add GPT-5 to model selection
 * (vedana-gradio) Fix chat completion for gpt-5
-* (vedana-gradio) Remove obsolette UI components
-* (jims-core) Use LiteLLM reponse_cost
+* (vedana-gradio) Remove obsolete UI components
+* (jims-core) Use LiteLLM response_cost
 * (vedana-gradio) Localized data model representation
 
 # 2025.08.07-dev.15

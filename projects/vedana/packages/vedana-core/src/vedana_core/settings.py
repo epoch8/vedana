@@ -17,7 +17,6 @@ def get_custom_settings(prefix: str = ""):
         model: str = "gpt-4.1-mini"
         embeddings_model: str = "text-embedding-3-large"
         embeddings_dim: int = 1024
-        embeddings_cache_path: str = "embeddings_cache.db"
         memgraph_uri: str
         memgraph_user: str
         memgraph_pwd: str
@@ -37,10 +36,6 @@ class Settings(BaseSettings):
     grist_api_key: str
     grist_data_model_doc_id: str
     grist_data_doc_id: str
-
-    # todo remove, keep embeds in datapipe only
-    embeddings_cache_path: str = "data/cache/embeddings_cache.db"
-    default_embeddings_cache_path: str = "data/cache/embeddings_cache.db"
 
     debug: bool = False
     model: str = "gpt-4.1"
