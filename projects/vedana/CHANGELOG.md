@@ -1,4 +1,4 @@
-# WIP
+# 2025.08.15-dev.17
 
 * (vedana-gradio) Remove obsolete UI components
 * (vedana-core) add tests for DataModel
