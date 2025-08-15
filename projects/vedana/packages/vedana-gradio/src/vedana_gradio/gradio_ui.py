@@ -11,7 +11,6 @@ from jims_core.util import uuid7
 from opentelemetry import trace
 from vedana_core.data_model import DataModel
 from vedana_core.graph import Graph
-from vedana_core.importers.fast import DataModelLoader
 from vedana_core.rag_pipeline import RagPipeline
 
 # todo
@@ -54,7 +53,7 @@ class GlobalState:
 _global_state = GlobalState()
 
 
-def reload_data_model(show_debug: bool = True) -> tuple[str, str]:
+async def reload_data_model(show_debug: bool = True) -> tuple[str, str]:
     """Reload data model and return updated UI components"""
     logger = MemLogger("reload_data_model", level=logging.DEBUG)
     data_model_text = ""
@@ -95,7 +94,7 @@ def reload_data_model(show_debug: bool = True) -> tuple[str, str]:
             result = f"{result}\n\nDebug Logs:\n{logger.get_logs()}"
 
     try:
-        DataModelLoader(_global_state.data_model, _global_state.graph).update_data_model_node()
+        await _global_state.data_model.update_data_model_node(_global_state.graph)
     except Exception as exc:
         logger.warning(f"Failed to store DataModel in graph: {exc}")
 
