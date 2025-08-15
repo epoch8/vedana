@@ -1,6 +1,9 @@
 # WIP
 
 * (vedana-gradio) Remove obsolete UI components
+* (vedana-core) add tests for DataModel
+* (vedana-core) rm obsolete importers code
+* (vedana-core) update DataModel graph update method use
 
 # 2025.08.13-dev.16
 
