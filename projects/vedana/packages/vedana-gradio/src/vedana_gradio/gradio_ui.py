@@ -108,11 +108,10 @@ async def process_query(
     show_debug: bool,
     thread_controller: ThreadController,
     pipeline: RagPipeline,
-) -> tuple[str, str, str, str, str, dict]:
+) -> tuple[str, str, str, str, dict]:
     text_query = text_query.strip()
     if not text_query.strip():
-        return "", "", "", "", "", {}
-    vts_res = ""
+        return "", "", "", "", {}
     tct_tech_res = ""
     tct_human_res = ""
     all_human_res = ""
@@ -143,7 +142,7 @@ async def process_query(
                 logger.info(f"Cypher queries:\n{';\n'.join(tech_info.get('cypher_queries', []))}")
                 logger.info(f"Model usage: {model_usage}")
 
-        return vts_res, tct_tech_res, tct_human_res, all_human_res, logger.get_logs() if show_debug else "", model_usage
+        return tct_tech_res, tct_human_res, all_human_res, logger.get_logs() if show_debug else "", model_usage
 
     except Exception as e:
         logger.exception(f"Error processing query: {e}")
@@ -151,7 +150,7 @@ async def process_query(
         debug_logs = logger.get_logs() if show_debug else ""
         if show_debug:
             debug_logs += f"\n\nTraceback:\n{traceback.format_exc()}"
-        return "", "", error_msg, error_msg, debug_logs, model_usage
+        return "", error_msg, error_msg, debug_logs, model_usage
 
 
 async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionmaker) -> gr.Blocks:
@@ -244,13 +243,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                     max_height=400,
                 )
 
-        with gr.Row():
-            vts_output = gr.Textbox(
-                lines=4,
-                label="Vector text search",
-                autoscroll=False,
-                show_copy_button=True,
-            )
         with gr.Row():
             technical_output = gr.Textbox(
                 lines=4,
@@ -353,7 +345,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                     return (
                         thread_controller,
                         "",
-                        "",
                         f"Error: {str(e)}",
                         f"Error: {str(e)}",
                         traceback.format_exc() if show_debug else "",
@@ -426,7 +417,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                 "",
                 "",
                 "",
-                "",
                 pd.DataFrame(),
             )
 
@@ -441,7 +431,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
             ],
             outputs=[
                 thread_controller_state,
-                vts_output,
                 technical_output,
                 human_output,
                 human_output_tools,
@@ -474,7 +463,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                 history_output,
                 session_info,
                 debug_output,
-                vts_output,
                 technical_output,
                 human_output,
                 human_output_tools,
