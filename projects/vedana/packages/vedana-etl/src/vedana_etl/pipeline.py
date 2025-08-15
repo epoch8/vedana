@@ -47,7 +47,7 @@ default_custom_steps = [
     ),
     BatchTransform(
         func=steps.prepare_edges,
-        inputs=["grist_edges"],
+        inputs=["grist_edges_filtered"],
         outputs=["edges"],
         labels=[("flow", "on-demand"), ("stage", "transform"), ("stage", "grist")],
         transform_keys=["from_node_id", "to_node_id", "edge_label"],
