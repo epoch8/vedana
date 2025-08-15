@@ -1,7 +1,3 @@
-# WIP
-
-* (vedana-core) More tool call iterations + add final prompt on tool call limit
-
 # 0.5.0
 
 * (vedana) Refactor Vedana into packages
