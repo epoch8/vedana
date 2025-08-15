@@ -7,6 +7,7 @@
 * (vedana-gradio) Remove obsolette UI components
 * (jims-core) Use LiteLLM reponse_cost
 * (vedana-gradio) Localized data model representation
+* (vedana-etl) Filter edges against datamodel on import
 
 # 2025.08.07-dev.15
 
