@@ -23,7 +23,7 @@ resource "yandex_mdb_postgresql_user" "etl" {
   cluster_id = var.yc_mdb_cluster_id
   name       = "${local.project_underscore}_${var.environment}_etl"
   password   = random_string.etl_db_password.result
-  conn_limit = 10
+  conn_limit = 5
 
   lifecycle {
     ignore_changes = [

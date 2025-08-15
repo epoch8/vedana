@@ -441,6 +441,16 @@ class DataModel:
     def from_json(cls, json_str: str) -> "DataModel":
         return cls.from_dict(json.loads(json_str))
 
+    async def update_data_model_node(self, graph: "Graph") -> None:
+        try:
+            await graph.run_cypher(
+                "MERGE (dm:DataModel {id: 'data_model'}) SET dm.content = $content, dm.updated_at = datetime()",
+                {"content": self.to_json()},
+            )
+            logger.info("DataModel node updated in graph")
+        except Exception as exc:
+            logger.exception("Failed to update DataModel node: %s", exc)
+
     @classmethod
     async def load_from_graph(cls, graph: "Graph") -> "DataModel | None":
         try:

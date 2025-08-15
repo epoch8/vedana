@@ -13,7 +13,6 @@ from sentry_sdk.integrations.opentelemetry import SentryPropagator, SentrySpanPr
 from vedana_core.data_model import DataModel
 from vedana_core.db import get_sessionmaker
 from vedana_core.graph import MemgraphGraph
-from vedana_core.importers.fast import DataModelLoader
 from vedana_core.settings import settings as s
 
 from vedana_gradio.gradio_ui import create_gradio_interface
@@ -38,7 +37,7 @@ async def make_jims_app() -> fastapi.FastAPI:
         )
 
         try:
-            DataModelLoader(data_model, graph).update_data_model_node()
+            await data_model.update_data_model_node(graph)
         except Exception as e:
             logger.warning(f"Unable to cache DataModel in graph: {e}")
 
