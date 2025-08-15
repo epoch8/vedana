@@ -1,6 +1,7 @@
 import datetime
 import io
 import logging
+import os
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 
@@ -17,6 +18,9 @@ from vedana_core.rag_pipeline import RagPipeline
 from vedana_core.settings import settings as s
 
 tracer = trace.get_tracer(__name__)
+
+
+VERSION = os.environ.get("VERSION")
 
 
 class MemLogger(logging.Logger):
@@ -185,6 +189,8 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
         with gr.Row(equal_height=True):
             with gr.Column(scale=5):
                 gr.Markdown("# Vedana Demo")
+                if VERSION:
+                    gr.Markdown(f"({VERSION})")
 
         # Create a state component to store the thread controller for this session
         thread_controller_state = gr.State(value=None)
