@@ -3,13 +3,12 @@ import io
 import logging
 import traceback
 from concurrent.futures import ThreadPoolExecutor
-from uuid import UUID
 
 import gradio as gr
 import pandas as pd
 from jims_core.thread.thread_controller import ThreadController
+from jims_core.util import uuid7
 from opentelemetry import trace
-from uuid_extensions import uuid7
 from vedana_core.data_model import DataModel
 from vedana_core.graph import Graph
 from vedana_core.importers.fast import DataModelLoader
@@ -122,7 +121,7 @@ async def process_query(
     pipeline.logger = logger  # pass this logger to pipeline, to retrieve logs for query
 
     try:
-        await thread_controller.store_user_message(uuid7(), text_query)  # type: ignore
+        await thread_controller.store_user_message(uuid7(), text_query)
 
         events = await thread_controller.run_pipeline_with_context(pipeline)
 
@@ -172,7 +171,7 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
     async def init_thread_controller() -> ThreadController:
         thread_controller = await ThreadController.new_thread(
             sessionmaker,
-            uuid7(),  # type: ignore
+            uuid7(),
             {
                 "interface": "gradio",
                 "created_at": str(datetime.datetime.now()),
@@ -366,7 +365,7 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
         # Function to clear conversation history
         async def clear_conversation_history(ctl: ThreadController) -> tuple[ThreadController, str]:
             # Create a new thread with a new ID
-            new_thr_id: UUID = uuid7()  # type: ignore
+            new_thr_id = uuid7()
             session_id = str(uuid7())
             new_controller = await ThreadController.new_thread(
                 ctl.sessionmaker,
