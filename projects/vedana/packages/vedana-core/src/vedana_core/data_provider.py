@@ -5,7 +5,7 @@ import time
 from ast import literal_eval
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple, Sequence
+from typing import Any, NamedTuple, Sequence, Union
 
 import grist_api
 import pandas as pd
@@ -18,7 +18,7 @@ from vedana_core.utils import cast_dtype
 @dataclass
 class Table:
     columns: list[str]
-    rows: Sequence[tuple | NamedTuple]
+    rows: Sequence[Union[tuple, NamedTuple]]
 
 
 @dataclass
