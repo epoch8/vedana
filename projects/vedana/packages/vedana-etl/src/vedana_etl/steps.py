@@ -1,14 +1,15 @@
 import logging
 import re
-from unicodedata import normalize
 from datetime import datetime
+from typing import Hashable
+from unicodedata import normalize
 from uuid import UUID
 
 import pandas as pd
 from jims_core.llms.llm_provider import LLMProvider
 from neo4j import GraphDatabase
-from vedana_core.data_provider import GristOnlineCsvDataProvider, GristSQLDataProvider
 from vedana_core.data_model import DataModel
+from vedana_core.data_provider import GristOnlineCsvDataProvider, GristSQLDataProvider
 from vedana_core.settings import settings as core_settings
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
@@ -158,7 +159,6 @@ def get_grist_data(batch_size: int = 500):
         node_records[anchor_type] = {}
 
         for a in anchors:
-
             for link in anchor_from_link_cols:
                 # get link other end id(s)
                 link_ids = a.data.get(link.anchor_from_link_attr_name, [])
@@ -246,8 +246,11 @@ def get_grist_data(batch_size: int = 500):
 
     for link_type in link_types:
         # check link's existence in data model (dm_link is used from anchor_from / to references only)
-        dm_link = [link for link in dm.links if link.sentence.lower() == link_type.lower()
-                   or link_type.lower() == f"{link.anchor_from}_{link.anchor_to}"]
+        dm_link = [
+            link
+            for link in dm.links
+            if link.sentence.lower() == link_type.lower() or link_type.lower() == f"{link.anchor_from}_{link.anchor_to}"
+        ]
         if not dm_link:
             logger.error(f"Link type {dm_link} not described in data model, skipping")
             continue
@@ -294,7 +297,7 @@ def get_grist_data(batch_size: int = 500):
 
     # add DataModel node
     dm_node = {"content": dm.to_json(), "id": "data_model", "updated_at": str(datetime.now())}
-    nodes_df.loc[nodes_df.shape[0]] = {"node_id": "data_model", "node_type": "DataModel", "attributes": dm_node}
+    nodes_df.loc[nodes_df.shape[0]] = {"node_id": "data_model", "node_type": "DataModel", "attributes": dm_node}  # type: ignore
 
     yield nodes_df, edges_df
 
@@ -359,12 +362,12 @@ def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, 
         # Indices
         for label in anchor_types:
             try:
-                session.run(f"CREATE INDEX ON :`{label}`(id)")
+                session.run(f"CREATE INDEX ON :`{label}`(id)")  # type: ignore
             except Exception as exc:
                 logger.debug(f"CREATE INDEX failed for label {label}: {exc}")  # probably index exists
 
             try:
-                session.run(f"CREATE CONSTRAINT ON (n:`{label}`) ASSERT n.id IS UNIQUE")
+                session.run(f"CREATE CONSTRAINT ON (n:`{label}`) ASSERT n.id IS UNIQUE")  # type: ignore
             except Exception as exc:
                 logger.debug(f"CREATE CONSTRAINT failed for label {label}: {exc}")  # probably index exists
 
@@ -388,7 +391,7 @@ def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, 
                 f'WITH CONFIG {{"dimension": {embeddings_dim}, "capacity": 1024, "metric": "cos"}}'
             )
             try:
-                session.run(cypher)
+                session.run(cypher)  # type: ignore
             except Exception as exc:
                 logger.debug(f"CREATE VECTOR INDEX failed for {idx_name}: {exc}")  # probably index exists
                 continue
@@ -420,7 +423,7 @@ def generate_embeddings(
             continue
         mapping.setdefault(record_type, []).append(row["attribute_name"])
 
-    tasks: list[tuple[int, str, str]] = []  # (row_idx, attr_name, text)
+    tasks: list[tuple[Hashable, str, str]] = []  # (row_idx, attr_name, text)
 
     for idx, row in df.iterrows():
         typ_val = row[type_col]

@@ -39,20 +39,21 @@ class LinkRecord:
     data: dict[str, Any]
 
 
-class DataProvider(abc.ABC):
-    @abc.abstractmethod
-    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[Link]) -> list[AnchorRecord]: ...
+class DataProvider:
+    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[Link]) -> list[AnchorRecord]:
+        raise NotImplementedError("get_anchors must be implemented in subclass")
 
-    @abc.abstractmethod
-    def get_links(self, table_name: str, link: Link) -> list[LinkRecord]: ...
+    def get_links(self, table_name: str, link: Link) -> list[LinkRecord]:
+        raise NotImplementedError("get_links must be implemented in subclass")
 
-    @abc.abstractmethod
-    def get_anchor_tables(self) -> list[str]: ...
+    def get_anchor_tables(self) -> list[str]:
+        raise NotImplementedError("get_anchor_tables must be implemented in subclass")
 
-    @abc.abstractmethod
-    def get_link_tables(self) -> list[str]: ...
+    def get_link_tables(self) -> list[str]:
+        raise NotImplementedError("get_link_tables must be implemented in subclass")
 
-    def close(self) -> None: ...
+    def close(self) -> None:
+        pass
 
     def __enter__(self):
         return self
@@ -77,10 +78,10 @@ class CsvDataProvider(DataProvider):
             fname = file.name.lower()
             if fname.startswith(self.anchor_file_prefix):
                 # anchor_type is after prefix and before .csv
-                anchor_type = fname[len(self.anchor_file_prefix): -4]
+                anchor_type = fname[len(self.anchor_file_prefix) : -4]
                 self._anchor_files[anchor_type] = file
             elif fname.startswith(self.link_file_prefix):
-                link_type = fname[len(self.link_file_prefix): -4]
+                link_type = fname[len(self.link_file_prefix) : -4]
                 self._link_files[link_type] = file
 
     def get_anchor_tables(self) -> list[str]:
@@ -229,6 +230,7 @@ class GristOfflineDataProvider(GristDataProvider):
     """
     Load from grist backup file (.grist)
     """
+
     def __init__(self, sqlite_path: Path) -> None:
         super().__init__()
         self._conn = sqlite3.connect(sqlite_path)
