@@ -91,7 +91,7 @@ class LLM:
             self.logger.info("Tool %s (%s) result: %s", tool_name, tool.description, tool_res)
             return tool_call.id, tool_res
 
-        max_iters = 6
+        max_iters = 5
         for i in range(max_iters):
             msg, tool_calls = await self.llm.chat_completion_with_tools(
                 messages=messages,
