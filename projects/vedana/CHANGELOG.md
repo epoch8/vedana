@@ -4,6 +4,7 @@
 * (vedana-core) add tests for DataModel
 * (vedana-core) rm obsolete importers code
 * (vedana-core) update DataModel graph update method use
+* (vedana-etl) Filter edges against datamodel on import
 
 # 2025.08.13-dev.16
 
@@ -14,7 +15,6 @@
 * (vedana-gradio) Remove obsolete UI components
 * (jims-core) Use LiteLLM response_cost
 * (vedana-gradio) Localized data model representation
-* (vedana-etl) Filter edges against datamodel on import
 
 # 2025.08.07-dev.15
 
