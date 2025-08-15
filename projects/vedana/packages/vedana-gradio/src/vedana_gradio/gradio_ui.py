@@ -3,16 +3,14 @@ import io
 import logging
 import traceback
 from concurrent.futures import ThreadPoolExecutor
-from uuid import UUID
 
 import gradio as gr
 import pandas as pd
 from jims_core.thread.thread_controller import ThreadController
+from jims_core.util import uuid7
 from opentelemetry import trace
-from uuid_extensions import uuid7
 from vedana_core.data_model import DataModel
 from vedana_core.graph import Graph
-from vedana_core.importers.fast import DataModelLoader
 from vedana_core.rag_pipeline import RagPipeline
 
 # todo
@@ -55,7 +53,7 @@ class GlobalState:
 _global_state = GlobalState()
 
 
-def reload_data_model(show_debug: bool = True) -> tuple[str, str]:
+async def reload_data_model(show_debug: bool = True) -> tuple[str, str]:
     """Reload data model and return updated UI components"""
     logger = MemLogger("reload_data_model", level=logging.DEBUG)
     data_model_text = ""
@@ -96,7 +94,7 @@ def reload_data_model(show_debug: bool = True) -> tuple[str, str]:
             result = f"{result}\n\nDebug Logs:\n{logger.get_logs()}"
 
     try:
-        DataModelLoader(_global_state.data_model, _global_state.graph).update_data_model_node()
+        await _global_state.data_model.update_data_model_node(_global_state.graph)
     except Exception as exc:
         logger.warning(f"Failed to store DataModel in graph: {exc}")
 
@@ -108,11 +106,10 @@ async def process_query(
     show_debug: bool,
     thread_controller: ThreadController,
     pipeline: RagPipeline,
-) -> tuple[str, str, str, str, str, dict]:
+) -> tuple[str, str, str, str, dict]:
     text_query = text_query.strip()
     if not text_query.strip():
-        return "", "", "", "", "", {}
-    vts_res = ""
+        return "", "", "", "", {}
     tct_tech_res = ""
     tct_human_res = ""
     all_human_res = ""
@@ -123,7 +120,7 @@ async def process_query(
     pipeline.logger = logger  # pass this logger to pipeline, to retrieve logs for query
 
     try:
-        await thread_controller.store_user_message(uuid7(), text_query)  # type: ignore
+        await thread_controller.store_user_message(uuid7(), text_query)
 
         events = await thread_controller.run_pipeline_with_context(pipeline)
 
@@ -143,7 +140,7 @@ async def process_query(
                 logger.info(f"Cypher queries:\n{';\n'.join(tech_info.get('cypher_queries', []))}")
                 logger.info(f"Model usage: {model_usage}")
 
-        return vts_res, tct_tech_res, tct_human_res, all_human_res, logger.get_logs() if show_debug else "", model_usage
+        return tct_tech_res, tct_human_res, all_human_res, logger.get_logs() if show_debug else "", model_usage
 
     except Exception as e:
         logger.exception(f"Error processing query: {e}")
@@ -151,7 +148,7 @@ async def process_query(
         debug_logs = logger.get_logs() if show_debug else ""
         if show_debug:
             debug_logs += f"\n\nTraceback:\n{traceback.format_exc()}"
-        return "", "", error_msg, error_msg, debug_logs, model_usage
+        return "", error_msg, error_msg, debug_logs, model_usage
 
 
 async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionmaker) -> gr.Blocks:
@@ -173,7 +170,7 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
     async def init_thread_controller() -> ThreadController:
         thread_controller = await ThreadController.new_thread(
             sessionmaker,
-            uuid7(),  # type: ignore
+            uuid7(),
             {
                 "interface": "gradio",
                 "created_at": str(datetime.datetime.now()),
@@ -244,13 +241,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                     max_height=400,
                 )
 
-        with gr.Row():
-            vts_output = gr.Textbox(
-                lines=4,
-                label="Vector text search",
-                autoscroll=False,
-                show_copy_button=True,
-            )
         with gr.Row():
             technical_output = gr.Textbox(
                 lines=4,
@@ -353,7 +343,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                     return (
                         thread_controller,
                         "",
-                        "",
                         f"Error: {str(e)}",
                         f"Error: {str(e)}",
                         traceback.format_exc() if show_debug else "",
@@ -375,7 +364,7 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
         # Function to clear conversation history
         async def clear_conversation_history(ctl: ThreadController) -> tuple[ThreadController, str]:
             # Create a new thread with a new ID
-            new_thr_id: UUID = uuid7()  # type: ignore
+            new_thr_id = uuid7()
             session_id = str(uuid7())
             new_controller = await ThreadController.new_thread(
                 ctl.sessionmaker,
@@ -426,7 +415,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                 "",
                 "",
                 "",
-                "",
                 pd.DataFrame(),
             )
 
@@ -441,7 +429,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
             ],
             outputs=[
                 thread_controller_state,
-                vts_output,
                 technical_output,
                 human_output,
                 human_output_tools,
@@ -474,7 +461,6 @@ async def create_gradio_interface(graph: Graph, data_model: DataModel, sessionma
                 history_output,
                 session_info,
                 debug_output,
-                vts_output,
                 technical_output,
                 human_output,
                 human_output_tools,
