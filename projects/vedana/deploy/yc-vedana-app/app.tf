@@ -25,12 +25,12 @@ locals {
       SENTRY_ENVIRONMENT = local.slug
       SENTRY_RELEASE     = local.image_tag
 
+      VERSION = local.image_tag
+
       GRIST_SERVER_URL        = var.grist.server_url
       GRIST_API_KEY           = var.grist.api_key
       GRIST_DATA_MODEL_DOC_ID = var.grist.data_model_doc_id
       GRIST_DATA_DOC_ID       = var.grist.data_doc_id
-
-      EMBEDDINGS_CACHE_PATH = "/tmp/embeddings_cache.db"
     },
     local.tg_enabled ? {
       TELEGRAM_BOT_TOKEN = var.telegram_bot_token

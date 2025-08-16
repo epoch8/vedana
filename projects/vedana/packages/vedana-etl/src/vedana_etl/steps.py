@@ -10,6 +10,7 @@ from jims_core.llms.llm_provider import LLMProvider
 from neo4j import GraphDatabase
 from vedana_core.data_model import DataModel
 from vedana_core.data_provider import GristOnlineCsvDataProvider, GristSQLDataProvider
+from vedana_core.settings import VedanaCoreSettings
 from vedana_core.settings import settings as core_settings
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
@@ -106,21 +107,21 @@ def parse_bool(bool_str: str) -> bool:
     return str(bool_str).lower() in ["1", "true", "да", "есть"]
 
 
-def get_grist_data(batch_size: int = 500):
+def get_grist_data(batch_size: int = 500, settings: VedanaCoreSettings = core_settings):
     """
     Fetch all anchors and links from Grist into node/edge tables
     """
 
     dm = DataModel.load_grist_online(
-        doc_id=core_settings.grist_data_model_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
+        doc_id=settings.grist_data_model_doc_id,
+        grist_server=settings.grist_server_url,
+        api_key=settings.grist_api_key,
     )
 
     dp = GristSQLDataProvider(
-        doc_id=core_settings.grist_data_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
+        doc_id=settings.grist_data_doc_id,
+        grist_server=settings.grist_server_url,
+        api_key=settings.grist_api_key,
         batch_size=batch_size,
     )
 
@@ -327,7 +328,7 @@ def filter_grist_edges(df: pd.DataFrame, dm_links: pd.DataFrame) -> pd.DataFrame
     rev_dm_links = rev_dm_links.rename(columns={"anchor1": "anchor2", "anchor2": "anchor1"})
 
     dm_links = pd.concat([dm_links, rev_dm_links])
-    dm_links["fr_to_code"] = dm_links["anchor1"] + "-" + dm_links["anchor1"] + "-" + dm_links["sentence"]
+    dm_links["fr_to_code"] = dm_links["anchor1"] + "-" + dm_links["anchor2"] + "-" + dm_links["sentence"]
 
     df["fr_to_code"] = df["from_node_type"] + "-" + df["to_node_type"] + "-" + df["edge_label"]
 

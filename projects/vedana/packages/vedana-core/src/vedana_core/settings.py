@@ -24,7 +24,7 @@ def get_custom_settings(prefix: str = ""):
     return CustomSettings
 
 
-class Settings(BaseSettings):
+class VedanaCoreSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="",
         env_file=".env",
@@ -47,4 +47,4 @@ class Settings(BaseSettings):
     memgraph_pwd: str
 
 
-settings = Settings()  # type: ignore
+settings = VedanaCoreSettings()  # type: ignore
