@@ -46,6 +46,9 @@ class DataProvider:
     def get_links(self, table_name: str, link: Link) -> list[LinkRecord]:
         raise NotImplementedError("get_links must be implemented in subclass")
 
+    def get_anchor_tables(self) -> list[str]:
+        raise NotImplementedError("get_anchor_tables must be implemented in subclass")
+
     def list_anchor_tables(self) -> list[str]:
         raise NotImplementedError("list_anchor_tables must be implemented in subclass")
 
@@ -128,6 +131,10 @@ class CsvDataProvider(DataProvider):
 class GristDataProvider(DataProvider):
     anchor_table_prefix = "Anchor_"
     link_table_prefix = "Link_"
+
+    def get_anchor_tables(self) -> list[str]:
+        prefix_len = len(self.anchor_table_prefix)
+        return [t[prefix_len:] for t in self.list_anchor_tables()]
 
     @abc.abstractmethod
     def list_anchor_tables(self) -> list[str]: ...
