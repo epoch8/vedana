@@ -3238,7 +3238,7 @@ wheels = [
 
 [[package]]
 name = "vedana"
-version = "2025.8.6.dev14"
+version = "2025.8.15.dev17"
 source = { virtual = "." }
 dependencies = [
     { name = "vedana-etl" },
@@ -3248,6 +3248,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "ipykernel" },
     { name = "mypy" },
     { name = "ruff" },
     { name = "types-requests" },
@@ -3262,6 +3263,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "ipykernel", specifier = ">=6.30.0" },
     { name = "mypy", specifier = ">=1.16.1" },
     { name = "ruff", specifier = ">=0.12.2" },
     { name = "types-requests", specifier = ">=2.32.4.20250611" },
@@ -3300,6 +3302,7 @@ dev = [
     { name = "mypy" },
     { name = "pandas-stubs" },
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "python-dotenv" },
     { name = "ruff" },
     { name = "types-requests" },
@@ -3335,6 +3338,7 @@ dev = [
     { name = "mypy", specifier = ">=1.15.0" },
     { name = "pandas-stubs", specifier = ">=2.3.0.250703" },
     { name = "pytest", specifier = ">=8.4.0" },
+    { name = "pytest-asyncio", specifier = ">=1.1.0" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "ruff", specifier = ">=0.11.1" },
     { name = "types-requests", specifier = ">=2.32.4.20250611" },
