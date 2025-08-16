@@ -25,6 +25,8 @@ locals {
       SENTRY_ENVIRONMENT = local.slug
       SENTRY_RELEASE     = local.image_tag
 
+      VERSION = local.image_tag
+
       GRIST_SERVER_URL        = var.grist.server_url
       GRIST_API_KEY           = var.grist.api_key
       GRIST_DATA_MODEL_DOC_ID = var.grist.data_model_doc_id
