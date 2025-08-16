@@ -5,7 +5,9 @@
 * (vedana-core) rm obsolete importers code
 * (vedana-core) update DataModel graph update method use
 * (vedana-etl) Filter edges against datamodel on import
-* (vedana-core) handle LLM temperature in LiteLLM 
+* (vedana-core) handle LLM temperature in LiteLLM
+* (vedana-etl) Fix links import from Grist
+* (vedana-gradio) Display version in demo UI
 
 # 2025.08.13-dev.16
 
