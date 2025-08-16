@@ -328,7 +328,7 @@ def filter_grist_edges(df: pd.DataFrame, dm_links: pd.DataFrame) -> pd.DataFrame
     rev_dm_links = rev_dm_links.rename(columns={"anchor1": "anchor2", "anchor2": "anchor1"})
 
     dm_links = pd.concat([dm_links, rev_dm_links])
-    dm_links["fr_to_code"] = dm_links["anchor1"] + "-" + dm_links["anchor1"] + "-" + dm_links["sentence"]
+    dm_links["fr_to_code"] = dm_links["anchor1"] + "-" + dm_links["anchor2"] + "-" + dm_links["sentence"]
 
     df["fr_to_code"] = df["from_node_type"] + "-" + df["to_node_type"] + "-" + df["edge_label"]
 
