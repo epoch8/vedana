@@ -130,7 +130,7 @@ def get_grist_data(batch_size: int = 500):
 
     # Nodes
     node_records = {}
-    anchor_types = dp.get_anchor_tables()  # does not check data model! only lists tables that are named anchor_...
+    anchor_types = dp.list_anchor_tables()  # does not check data model! only lists tables that are named anchor_...
     logger.info(f"Fetching {len(anchor_types)} anchor tables from Grist: {anchor_types}")
 
     for anchor_type in anchor_types:
