@@ -10,6 +10,7 @@ from jims_core.llms.llm_provider import LLMProvider
 from neo4j import GraphDatabase
 from vedana_core.data_model import DataModel
 from vedana_core.data_provider import GristOnlineCsvDataProvider, GristSQLDataProvider
+from vedana_core.settings import VedanaCoreSettings
 from vedana_core.settings import settings as core_settings
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
@@ -106,21 +107,21 @@ def parse_bool(bool_str: str) -> bool:
     return str(bool_str).lower() in ["1", "true", "да", "есть"]
 
 
-def get_grist_data(batch_size: int = 500):
+def get_grist_data(batch_size: int = 500, settings: VedanaCoreSettings = core_settings):
     """
     Fetch all anchors and links from Grist into node/edge tables
     """
 
     dm = DataModel.load_grist_online(
-        doc_id=core_settings.grist_data_model_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
+        doc_id=settings.grist_data_model_doc_id,
+        grist_server=settings.grist_server_url,
+        api_key=settings.grist_api_key,
     )
 
     dp = GristSQLDataProvider(
-        doc_id=core_settings.grist_data_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
+        doc_id=settings.grist_data_doc_id,
+        grist_server=settings.grist_server_url,
+        api_key=settings.grist_api_key,
         batch_size=batch_size,
     )
 
@@ -130,7 +131,7 @@ def get_grist_data(batch_size: int = 500):
 
     # Nodes
     node_records = {}
-    anchor_types = dp.list_anchor_tables()  # does not check data model! only lists tables that are named anchor_...
+    anchor_types = dp.get_anchor_tables()  # does not check data model! only lists tables that are named anchor_...
     logger.info(f"Fetching {len(anchor_types)} anchor tables from Grist: {anchor_types}")
 
     for anchor_type in anchor_types:
@@ -299,7 +300,7 @@ def get_grist_data(batch_size: int = 500):
     dm_node = {"content": dm.to_json(), "id": "data_model", "updated_at": str(datetime.now())}
     nodes_df.loc[nodes_df.shape[0]] = {"node_id": "data_model", "node_type": "DataModel", "attributes": dm_node}  # type: ignore
 
-    yield nodes_df, edges_df
+    return nodes_df, edges_df
 
 
 def filter_grist_nodes(df: pd.DataFrame, dm_nodes: pd.DataFrame, dm_attributes: pd.DataFrame) -> pd.DataFrame:
