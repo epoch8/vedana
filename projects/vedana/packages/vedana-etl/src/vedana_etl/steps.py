@@ -300,7 +300,7 @@ def get_grist_data(batch_size: int = 500, settings: VedanaCoreSettings = core_se
     dm_node = {"content": dm.to_json(), "id": "data_model", "updated_at": str(datetime.now())}
     nodes_df.loc[nodes_df.shape[0]] = {"node_id": "data_model", "node_type": "DataModel", "attributes": dm_node}  # type: ignore
 
-    return nodes_df, edges_df
+    yield nodes_df, edges_df
 
 
 def filter_grist_nodes(df: pd.DataFrame, dm_nodes: pd.DataFrame, dm_attributes: pd.DataFrame) -> pd.DataFrame:
