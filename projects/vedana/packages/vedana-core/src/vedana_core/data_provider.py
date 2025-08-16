@@ -46,8 +46,8 @@ class DataProvider:
     def get_links(self, table_name: str, link: Link) -> list[LinkRecord]:
         raise NotImplementedError("get_links must be implemented in subclass")
 
-    def get_anchor_tables(self) -> list[str]:
-        raise NotImplementedError("get_anchor_tables must be implemented in subclass")
+    def list_anchor_tables(self) -> list[str]:
+        raise NotImplementedError("list_anchor_tables must be implemented in subclass")
 
     def get_link_tables(self) -> list[str]:
         raise NotImplementedError("get_link_tables must be implemented in subclass")
@@ -84,7 +84,7 @@ class CsvDataProvider(DataProvider):
                 link_type = fname[len(self.link_file_prefix) : -4]
                 self._link_files[link_type] = file
 
-    def get_anchor_tables(self) -> list[str]:
+    def list_anchor_tables(self) -> list[str]:
         return list(self._anchor_files.keys())
 
     def get_link_tables(self) -> list[str]:
