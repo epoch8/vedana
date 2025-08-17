@@ -27,6 +27,9 @@ build:
 CURRENT_VERSION=$(shell yq -r .tag ./deploy/yc-vedana-app/current_version.json)
 CURRENT_IMAGE=$(REPO):$(CURRENT_VERSION)
 
+docker-run-it:
+	docker run --rm -it ${CURRENT_IMAGE} bash
+
 git-tag:
 	git tag -f "vedana-${CURRENT_VERSION}"
 	git push -f origin "vedana-${CURRENT_VERSION}"

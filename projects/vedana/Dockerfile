@@ -14,3 +14,5 @@ COPY projects/vedana/pyproject.toml projects/vedana/uv.lock ./
 RUN --mount=type=cache,target=/root/.cache uv sync
 
 ENV DATAPIPE_PIPELINE=vedana_etl.app
+
+COPY projects/vedana/ ./
