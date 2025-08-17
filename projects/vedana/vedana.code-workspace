@@ -1,12 +1,12 @@
 {
 	"folders": [
 		{
-			"name": "libs",
-			"path": "../../libs"
-		},
-		{
 			"name": "vedana",
 			"path": "."
+		},
+		{
+			"name": "libs",
+			"path": "../../libs"
 		}
 	],
 	"settings": {
