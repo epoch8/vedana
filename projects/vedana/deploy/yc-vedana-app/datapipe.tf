@@ -9,40 +9,9 @@ locals {
       ], [
         {
           name  = "DB_CONN_URI"
-          value = "postgresql://${yandex_mdb_postgresql_user.etl.name}:${random_string.etl_db_password.result}@${data.yandex_mdb_postgresql_cluster.db_cluster.host.0.fqdn}:6432/${yandex_mdb_postgresql_database.etl.name}"
+          value = local.db_conn_uri
         }
       ])
-}
-
-resource "random_string" "etl_db_password" {
-  length  = 16
-  special = false
-}
-
-resource "yandex_mdb_postgresql_user" "etl" {
-  cluster_id = var.yc_mdb_cluster_id
-  name       = "${local.project_underscore}_${var.environment}_etl"
-  password   = random_string.etl_db_password.result
-  conn_limit = 5
-
-  lifecycle {
-    ignore_changes = [
-      name,
-      password,
-    ]
-  }
-}
-
-resource "yandex_mdb_postgresql_database" "etl" {
-  cluster_id = var.yc_mdb_cluster_id
-  name       = "${local.project_underscore}_${var.environment}_etl"
-  owner      = yandex_mdb_postgresql_user.etl.name
-
-  lifecycle {
-    ignore_changes = [
-      name,
-    ]
-  }
 }
 
 module "authentik_datapipe_auth" {
@@ -95,13 +64,6 @@ resource "helm_release" "datapipe_api" {
 
     probe:
       path: "/"
-
-    initJob:
-      enabled: true
-      command:
-        - alembic
-        - upgrade
-        - head
 
     domain: "${local.datapipe_domain}"
     ingress:
