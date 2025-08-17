@@ -1,3 +1,6 @@
+from uuid import UUID
+
+from jims_core.app import JimsApp
 from jims_core.schema import Pipeline
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
@@ -24,14 +27,23 @@ class ChatApp(App):
     """
 
     def __init__(
-        self, ctl: ThreadController, pipeline: Pipeline, conversation_start_pipeline: Pipeline | None = None
+        self,
+        app: JimsApp,
+        thread_id: UUID,
+        ctl: ThreadController,
     ) -> None:
         super().__init__()
-        self.thread_id = uuid7()
+
+        self.jims_app = app
+        self.thread_id = thread_id
         self.ctl = ctl
 
-        self.conversation_start_pipeline = conversation_start_pipeline
-        self.pipeline = pipeline
+    @classmethod
+    async def create(cls, app: JimsApp) -> "ChatApp":
+        thread_id = uuid7()
+        ctl = await app.new_thread(thread_id, {})
+
+        return cls(app=app, thread_id=thread_id, ctl=ctl)
 
     def compose(self):
         yield Header(show_clock=True)
@@ -62,12 +74,12 @@ class ChatApp(App):
 
             self.query_one("#message-input").focus()
 
-            if self.conversation_start_pipeline is not None:
+            if self.jims_app.conversation_start_pipeline is not None:
                 await self._run_pipeline(
                     self.ctl,
                     span,
                     chat_log,
-                    self.conversation_start_pipeline,
+                    self.jims_app.conversation_start_pipeline,
                 )
 
     async def on_input_submitted(self, ui_event: Input.Submitted) -> None:
@@ -94,7 +106,7 @@ class ChatApp(App):
                 self.ctl,
                 span,
                 chat_log,
-                self.pipeline,
+                self.jims_app.pipeline,
             )
 
     def on_key(self, event: events.Key) -> None:

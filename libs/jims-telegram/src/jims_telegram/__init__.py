@@ -3,10 +3,10 @@ import uuid
 from contextlib import suppress
 from typing import Any
 
-import sqlalchemy.ext.asyncio as sa_aio
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
 from aiogram.types import Message
+from jims_core.app import JimsApp
 from jims_core.schema import Pipeline
 from jims_core.thread.thread_context import StatusUpdater
 from jims_core.thread.thread_controller import ThreadController
@@ -62,14 +62,9 @@ class TelegramStatusUpdater(StatusUpdater):
 class TelegramController:
     def __init__(
         self,
-        sessionmaker: sa_aio.async_sessionmaker,
-        pipeline: Pipeline,
-        conversation_start_pipeline: Pipeline | None = None,
+        app: JimsApp,
     ) -> None:
-        self.sessionmaker = sessionmaker
-        self.pipeline = pipeline
-        self.conversation_start_pipeline = conversation_start_pipeline
-
+        self.app = app
         self.bot = Bot(token=settings.bot_token)
 
         self.dispatcher = Dispatcher()
@@ -108,8 +103,8 @@ class TelegramController:
 
     async def command_start(self, message: Message) -> None:
         logger.debug(f"Received command start from {message.chat.id}")
-        ctl = await ThreadController.new_thread(
-            self.sessionmaker,
+
+        ctl = await self.app.new_thread(
             uuid_from_int(message.chat.id),
             {
                 "telegram_chat_id": message.chat.id,
@@ -123,21 +118,21 @@ class TelegramController:
                 content=message.text,
             )
 
-        if self.conversation_start_pipeline is not None:
-            await self._run_pipeline(ctl, message.chat.id, self.conversation_start_pipeline)
+        if self.app.conversation_start_pipeline is not None:
+            await self._run_pipeline(ctl, message.chat.id, self.app.conversation_start_pipeline)
 
     async def handle_message(self, message: Message) -> None:
         with tracer.start_as_current_span("jims_telegram.handle_message"):
             logger.debug(f"Received message {message.text=} from {message.chat.id=}")
             ctl = await ThreadController.from_thread_id(
-                self.sessionmaker,
+                self.app.sessionmaker,
                 uuid_from_int(message.chat.id),
             )
 
             if ctl is None:
                 logger.warning(f"Thread with id {message.chat.id} not found, recreating")
                 ctl = await ThreadController.new_thread(
-                    self.sessionmaker,
+                    self.app.sessionmaker,
                     uuid_from_int(message.chat.id),
                     {
                         "telegram_chat_id": message.chat.id,
@@ -151,7 +146,7 @@ class TelegramController:
                     content=message.text,
                 )
 
-            await self._run_pipeline(ctl, message.chat.id, self.pipeline)
+            await self._run_pipeline(ctl, message.chat.id, self.app.pipeline)
 
     async def run(self):
         logger.debug("Starting Telegram bot")
