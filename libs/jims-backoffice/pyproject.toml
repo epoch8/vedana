@@ -1,0 +1,24 @@
+[project]
+name = "jims-backoffice"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "fastui>=0.7.0",
+    "pydantic-settings>=2.10.1",
+    "sqlalchemy>=2.0.41",
+    "uvicorn>=0.29.0",
+    "pydantic==2.9.2",
+    "jims-core",
+    "python-multipart>=0.0.18",
+]
+
+[project.scripts]
+jims-backoffice = "jims_backoffice.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
