@@ -4,14 +4,13 @@ ENV UV_PROJECT_ENVIRONMENT=/usr/local
 ENV UV_LINK_MODE=copy
 RUN --mount=type=cache,target=/root/.cache pip install uv
 
-COPY jims/packages/ /app/jims/packages/
-COPY vedana/packages/ /app/vedana/packages/
+COPY pyproject.toml uv.lock /app/
+COPY libs/ /app/libs/
 
-WORKDIR /app/vedana
+WORKDIR /app/projects/vedana
 
 # Copy dependency files, startup and migration scripts
-COPY vedana/pyproject.toml vedana/uv.lock ./
-RUN --mount=type=cache,target=/root/.cache uv sync --all-packages --all-groups
+COPY projects/vedana/pyproject.toml projects/vedana/uv.lock ./
+RUN --mount=type=cache,target=/root/.cache uv sync
 
 ENV DATAPIPE_PIPELINE=vedana_etl.app
-WORKDIR /app/vedana/packages/vedana-etl

@@ -1,23 +1,10 @@
 [project]
 name = "vedana"
 version = "2025.08.15-dev.17"
-description = "Semantic Graph RAG App"
+description = "Vedana"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = ["vedana-tg", "vedana-gradio", "vedana-etl"]
-
-[tool.uv.sources]
-jims-core = { workspace = true }
-jims-tui = { workspace = true }
-jims-telegram = { workspace = true }
-jims-backoffice = { workspace = true }
-vedana-core = { workspace = true }
-vedana-etl = { workspace = true }
-vedana-gradio = { workspace = true }
-vedana-tg = { workspace = true }
-
-[tool.uv.workspace]
-members = ["packages/*", "../jims/packages/*"]
 
 [tool.mypy]
 ignore_missing_imports = true
@@ -31,7 +18,9 @@ line-length = 120
 [dependency-groups]
 dev = [
     "ipykernel>=6.30.0",
+    "memray>=1.18.0",
     "mypy>=1.16.1",
+    "py-spy>=0.4.1",
     "ruff>=0.12.2",
     "types-requests>=2.32.4.20250611",
 ]
