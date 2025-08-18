@@ -1,7 +1,7 @@
 import logging
 import re
 from datetime import datetime
-from typing import Any, Hashable, Iterator
+from typing import Any, Hashable, Iterator, cast
 from unicodedata import normalize
 from uuid import UUID
 
@@ -53,50 +53,59 @@ def get_data_model():
     )
 
     links_df = loader.get_table_df("Links")
-    links_df = links_df[
-        [
-            "anchor1",
-            "anchor2",
-            "sentence",
-            "description",
-            "query",
-            "anchor1_link_column_name",
-            "anchor2_link_column_name",
-            "has_direction",
-        ]
-    ]
+    links_df = cast(
+        pd.DataFrame,
+        links_df[
+            [
+                "anchor1",
+                "anchor2",
+                "sentence",
+                "description",
+                "query",
+                "anchor1_link_column_name",
+                "anchor2_link_column_name",
+                "has_direction",
+            ]
+        ],
+    )
     links_df = links_df.dropna(subset=["anchor1", "anchor2", "sentence"])
     links_df = links_df.astype(str)
     links_df["has_direction"] = links_df["has_direction"].astype(bool)
 
     attrs_df = loader.get_table_df("Attributes")
-    attrs_df = attrs_df[
-        [
-            "attribute_name",
-            "description",
-            "anchor",
-            "link",
-            "data_example",
-            "embeddable",
-            "query",
-            "dtype",
-            "embed_threshold",
-        ]
-    ]
+    attrs_df = cast(
+        pd.DataFrame,
+        attrs_df[
+            [
+                "attribute_name",
+                "description",
+                "anchor",
+                "link",
+                "data_example",
+                "embeddable",
+                "query",
+                "dtype",
+                "embed_threshold",
+            ]
+        ],
+    )
     # attrs_df = attrs_df.astype(str)
     attrs_df["embeddable"] = attrs_df["embeddable"].astype(bool)
     attrs_df["embed_threshold"] = attrs_df["embed_threshold"].astype(float)
     attrs_df = attrs_df.dropna(subset=["anchor", "attribute_name"])
 
     anchors_df = loader.get_table_df("Anchors")
-    anchors_df = anchors_df[
-        [
-            "noun",
-            "description",
-            "id_example",
-            "query",
-        ]
-    ]
+    anchors_df = cast(
+        pd.DataFrame,
+        anchors_df[
+            [
+                "noun",
+                "description",
+                "id_example",
+                "query",
+            ]
+        ],
+    )
     anchors_df = anchors_df.dropna(subset=["noun"])
     anchors_df = anchors_df.astype(str)
 
@@ -327,7 +336,7 @@ def filter_grist_edges(df: pd.DataFrame, dm_links: pd.DataFrame) -> pd.DataFrame
     """keep only those edges that are described in data model"""
 
     # add reverse links where applicable
-    rev_dm_links = dm_links.loc[~dm_links.has_direction].copy()
+    rev_dm_links = cast(pd.DataFrame, dm_links.loc[~dm_links.has_direction])
     rev_dm_links = rev_dm_links.rename(columns={"anchor1": "anchor2", "anchor2": "anchor1"})
 
     dm_links = pd.concat([dm_links, rev_dm_links])
