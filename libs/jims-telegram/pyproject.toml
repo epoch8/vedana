@@ -1,0 +1,20 @@
+[project]
+name = "jims-telegram"
+version = "0.1.1"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Andrey Tatarinov", email = "a@tatarinov.co" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "aiogram>=3.18",
+    "aiohttp>=3.11.16",
+    "loguru>=0.7.3",
+    "pydantic>=2.4.1",
+    "pydantic-settings>=2.8.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
