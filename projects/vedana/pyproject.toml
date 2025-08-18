@@ -5,11 +5,12 @@ description = "Vedana"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "alembic>=1.16.4",
+    "jims-core",
     "vedana-tg",
     "vedana-gradio",
     "vedana-etl",
-    "alembic>=1.16.4",
-    "jims-core",
+    "vedana-eval",
 ]
 
 [tool.mypy]
