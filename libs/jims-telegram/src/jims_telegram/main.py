@@ -3,7 +3,7 @@ import asyncio
 import click
 from jims_core.util import load_jims_app, setup_monitoring_and_tracing_with_sentry
 
-from jims_tui.chat_app import ChatApp
+from jims_telegram import TelegramController
 
 
 @click.command()
@@ -13,11 +13,11 @@ def cli(app: str) -> None:
 
     jims_app = load_jims_app(app)
 
-    async def run_chat_app():
-        chat_app = await ChatApp.create(jims_app)
-        await chat_app.run_async()
+    async def run_telegram_bot():
+        telegram_controller = TelegramController(jims_app)
+        await telegram_controller.run()
 
-    asyncio.run(run_chat_app())
+    asyncio.run(run_telegram_bot())
 
 
 def main():
