@@ -1,0 +1,56 @@
+import os
+
+import pytest
+import pytest_asyncio
+import sqlalchemy.ext.asyncio as sa_aio
+from jims_core.db import Base
+from jims_core.thread.thread_context import ThreadContext
+from jims_core.thread.thread_controller import ThreadController
+from jims_core.util import uuid7
+from pydantic import BaseModel
+
+os.environ["OPENAI_API_KEY"] = "test"
+
+
+@pytest_asyncio.fixture(scope="session")
+async def sessionmaker() -> sa_aio.async_sessionmaker[sa_aio.AsyncSession]:
+    engine = sa_aio.create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        echo=True,
+        future=True,
+    )
+
+    # Create all tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    return sa_aio.async_sessionmaker(
+        bind=engine,
+        expire_on_commit=False,
+        future=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_set_state(sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession]) -> None:
+    ctl = await ThreadController.new_thread(sessionmaker, uuid7(), {})
+
+    class State(BaseModel):
+        key: str
+
+    async def expect_no_state(ctx: ThreadContext) -> None:
+        state = ctx.get_state(State)
+        assert state is None, "Expected no state to be set"
+
+    await ctl.run_pipeline_with_context(expect_no_state)
+
+    async def set_state(ctx: ThreadContext) -> None:
+        ctx.set_state(State(key="value"))
+
+    await ctl.run_pipeline_with_context(set_state)
+
+    async def get_state(ctx: ThreadContext) -> None:
+        state = ctx.get_state(State)
+        assert state == State(key="value")
+
+    await ctl.run_pipeline_with_context(get_state)
