@@ -1,9 +1,9 @@
 from logging.config import fileConfig
 
 import jims_core.db
+import vedana_core.db
 from alembic import context
-
-from src.vedana_core import db
+import vedana_etl.app
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -18,7 +18,10 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-target_metadata = [jims_core.db.Base.metadata]
+target_metadata = [
+    jims_core.db.Base.metadata,
+    vedana_etl.app.app.ds.meta_dbconn.sqla_metadata,
+]
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -57,7 +60,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = db.get_db_engine()
+    connectable = vedana_core.db.get_db_engine()
 
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
