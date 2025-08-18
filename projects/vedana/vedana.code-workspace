@@ -1,0 +1,24 @@
+{
+	"folders": [
+		{
+			"name": "vedana",
+			"path": "."
+		},
+		{
+			"name": "libs",
+			"path": "../../libs"
+		},
+		{
+			"path": "../../.github"
+		}
+	],
+	"settings": {
+		"python-envs.pythonProjects": [
+			{
+				"path": "",
+				"envManager": "ms-python.python:venv",
+				"packageManager": "ms-python.python:pip"
+			}
+		]
+	}
+}

@@ -15,7 +15,8 @@ locals {
 
   vedana_env = merge(
     {
-      JIMS_DB_CONN_URI = "postgresql://${yandex_mdb_postgresql_user.jims.name}:${random_string.jims_db_password.result}@${data.yandex_mdb_postgresql_cluster.db_cluster.host.0.fqdn}:6432/${yandex_mdb_postgresql_database.jims.name}"
+      JIMS_DB_CONN_URI = local.db_conn_uri
+      DB_CONN_URI      = local.db_conn_uri
 
       MEMGRAPH_URI  = module.memgraph.config.local_uri
       MEMGRAPH_USER = module.memgraph.config.user
@@ -87,39 +88,6 @@ locals {
 
 ###
 
-resource "random_string" "jims_db_password" {
-  length  = 16
-  special = false
-}
-
-resource "yandex_mdb_postgresql_user" "jims" {
-  cluster_id = var.yc_mdb_cluster_id
-  name       = "${local.project_underscore}_vedana"
-  password   = random_string.jims_db_password.result
-  conn_limit = 10
-
-  lifecycle {
-    ignore_changes = [
-      name,
-      password,
-    ]
-  }
-}
-
-resource "yandex_mdb_postgresql_database" "jims" {
-  cluster_id = var.yc_mdb_cluster_id
-  name       = "${local.project_underscore}_vedana"
-  owner      = yandex_mdb_postgresql_user.jims.name
-
-  lifecycle {
-    ignore_changes = [
-      name,
-    ]
-  }
-}
-
-###
-
 module "authentik_demo_auth" {
   source = "../../../../../chatbot-terraform/modules/yc-k8s-authentik-app-auth/"
 
@@ -164,11 +132,10 @@ resource "helm_release" "demo" {
 
     initJob:
       enabled: true
-      workingDir: /app/vedana/packages/vedana-core
       command:
         - alembic
         - upgrade
-        - head
+        - heads
 
     domain: "${local.demo_domain}"
     ingress:

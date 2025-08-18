@@ -1,3 +1,8 @@
+# WIP
+
+* (src) Reshuffle folders in monorepo
+* (vedana) Consolidate databases (jims + datapipe), now it's one database
+
 # 2025.08.15-dev.17
 
 * (vedana-gradio) Remove obsolete UI components

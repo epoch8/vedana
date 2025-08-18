@@ -1,0 +1,226 @@
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Iterable, Type
+
+import backoff
+import litellm
+from prometheus_client import Counter
+from pydantic import BaseModel
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+litellm.callbacks = ["otel"]
+
+
+class LLMSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    model: str = "gpt-4.1-nano"
+    embeddings_model: str = "text-embedding-3-large"
+    embeddings_dim: int = 1024
+
+
+env_settings = LLMSettings()  # type: ignore
+
+llm_calls_total = Counter(
+    "llm_calls_total",
+    "Total number of LLM calls",
+    ["model"],
+)
+llm_usage_prompt_tokens_total = Counter(
+    "llm_usage_prompt_tokens_total",
+    "Total number of tokens used in the prompt for LLM",
+    ["model"],
+)
+llm_usage_completion_tokens_total = Counter(
+    "llm_usage_completion_tokens_total",
+    "Total number of tokens used in the completion for LLM",
+    ["model"],
+)
+
+
+@dataclass
+class ModelUsage:
+    requests_count: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cached_tokens: int = 0
+    requests_cost: float = 0
+
+    def observe(
+        self,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+        cached_tokens: int = 0,
+        request_cost: float = 0,
+    ) -> None:
+        self.requests_count += 1
+        self.prompt_tokens += prompt_tokens
+        self.completion_tokens += completion_tokens
+        self.cached_tokens += cached_tokens
+        self.requests_cost += request_cost
+
+
+class LLMProvider:
+    def __init__(self, settings: LLMSettings | None = None) -> None:
+        self._settings = settings or env_settings
+        self.model = self._settings.model
+        self.embeddings_model = self._settings.embeddings_model
+        self.embeddings_dim = self._settings.embeddings_dim
+
+        # counters for single ThreadContext (~single pipeline run) instance
+        self.usage: dict[str, ModelUsage] = defaultdict(ModelUsage)
+
+    def set_model(self, model: str) -> None:
+        self.model = model
+
+    def observe_completion(self, completion: litellm.ModelResponse) -> None:
+        usage = completion.get("usage")
+
+        if isinstance(usage, litellm.Usage):
+            prompt_tokens = usage.prompt_tokens
+            completion_tokens = usage.completion_tokens
+            if usage.prompt_tokens_details is not None:
+                cached_tokens = usage.prompt_tokens_details.cached_tokens or 0
+            else:
+                cached_tokens = 0
+        else:
+            prompt_tokens = 0
+            completion_tokens = 0
+            cached_tokens = 0
+
+        self.usage[completion.model or "-"].observe(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cached_tokens=cached_tokens,
+            request_cost=completion._hidden_params.get("response_cost", 0),  # or litellm.completion_cost(completion)
+        )
+
+        llm_calls_total.labels(completion.model).inc()
+        llm_usage_prompt_tokens_total.labels(completion.model).inc(prompt_tokens)
+        llm_usage_completion_tokens_total.labels(completion.model).inc(completion_tokens)
+
+    def observe_create_embedding(self, res: litellm.EmbeddingResponse) -> None:
+        usage = res.usage
+        model = res.model or "-"
+
+        llm_calls_total.labels(model).inc()
+
+        if usage is not None:
+            self.usage[model].observe(
+                prompt_tokens=usage.prompt_tokens,
+                request_cost=res._hidden_params.get("response_cost", 0),  # or litellm.completion_cost(res)
+            )
+            llm_usage_prompt_tokens_total.labels(model).inc(usage.prompt_tokens)
+
+    @backoff.on_exception(backoff.expo, Exception, max_tries=3)
+    async def create_embedding(self, text: str) -> list[float]:
+        response = await litellm.aembedding(model=self.embeddings_model, input=[text], dimensions=self.embeddings_dim)
+        self.observe_create_embedding(response)
+        return response.data[0]["embedding"]
+
+    @backoff.on_exception(backoff.expo, Exception, max_tries=3)
+    async def create_embeddings(self, texts: list[str]) -> list[list[float]]:
+        """batch method"""
+        response = await litellm.aembedding(
+            model=self.embeddings_model,
+            input=texts,
+            dimensions=self.embeddings_dim,
+        )
+        self.observe_create_embedding(response)
+        return [d["embedding"] for d in response.data]
+
+    def create_embedding_sync(self, text: str) -> list[float]:
+        response = litellm.embedding(
+            model=self.embeddings_model,
+            input=[text],
+            dimensions=self.embeddings_dim,
+        )
+        self.observe_create_embedding(response)
+        return response.data[0]["embedding"]
+
+    def create_embeddings_sync(self, texts: list[str]) -> list[list[float]]:
+        response = litellm.embedding(
+            model=self.embeddings_model,
+            input=texts,
+            dimensions=self.embeddings_dim,
+        )
+        self.observe_create_embedding(response)
+        return [d["embedding"] for d in response.data]
+
+    @backoff.on_exception(backoff.expo, Exception, max_tries=3)
+    async def chat_completion_structured[T: BaseModel](
+        self,
+        messages: Iterable,  # we do not type it because litellm does not type it
+        response_format: Type[T],
+    ) -> T | None:
+        completion = await litellm.acompletion(
+            model=self.model,
+            messages=list(messages),
+            response_format={"type": "json_object"},
+        )
+        assert isinstance(completion, litellm.ModelResponse)
+
+        self.observe_completion(completion)
+
+        if completion.choices:
+            choice = completion.choices[0]
+            assert isinstance(choice, litellm.Choices)
+            content = choice.message.content
+            if content:
+                return response_format.model_validate_json(content)
+        return None
+
+    @backoff.on_exception(backoff.expo, Exception, max_tries=3)
+    async def chat_completion_plain(
+        self,
+        messages: Iterable,  # we do not type it because litellm does not type it
+        temperature: float | None = None,
+        use_cache: bool = False,
+    ) -> litellm.Message:
+        completion = await litellm.acompletion(
+            model=self.model,
+            messages=list(messages),
+            caching=use_cache,
+            temperature=temperature,
+        )
+        assert isinstance(completion, litellm.ModelResponse)
+
+        self.observe_completion(completion)
+
+        choice = completion.choices[0]
+        assert isinstance(choice, litellm.Choices)
+
+        result = choice.message
+
+        return result
+
+    @backoff.on_exception(backoff.expo, Exception, max_tries=3)
+    async def chat_completion_with_tools(
+        self,
+        messages: Iterable,  # we do not type it because litellm does not type it
+        tools: list | None = None,  # we do not type it because litellm does not type it
+        temperature: float | None = None,
+    ) -> tuple[litellm.Message, list]:
+        # todo: validate tools?
+        completion = await litellm.acompletion(
+            model=self.model,
+            messages=list(messages),
+            tools=tools,
+            temperature=temperature,
+        )
+        assert isinstance(completion, litellm.ModelResponse)
+
+        self.observe_completion(completion)
+
+        choice = completion.choices[0]
+        assert isinstance(choice, litellm.Choices)
+
+        result = choice.message
+
+        tool_calls = result.tool_calls or []
+        return result, tool_calls
