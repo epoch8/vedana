@@ -2,6 +2,7 @@ import asyncio
 
 import click
 from jims_core.util import load_jims_app, setup_monitoring_and_tracing_with_sentry
+from loguru import logger
 
 from jims_telegram import TelegramController
 
@@ -14,10 +15,16 @@ def cli(app: str) -> None:
     jims_app = load_jims_app(app)
 
     async def run_telegram_bot():
-        telegram_controller = TelegramController(jims_app)
+        telegram_controller = await TelegramController.create(jims_app)
         await telegram_controller.run()
 
-    asyncio.run(run_telegram_bot())
+    try:
+        asyncio.run(run_telegram_bot())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.error(f"Bot crashed: {e}")
+        exit(1)
 
 
 def main():

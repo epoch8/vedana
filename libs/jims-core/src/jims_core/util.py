@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING
+import asyncio
+from typing import TYPE_CHECKING, Awaitable, Union
 from uuid import UUID
 
 from uuid_extensions import uuid7 as uuid7_impl
@@ -38,7 +39,7 @@ def setup_monitoring_and_tracing_with_sentry() -> None:
     start_http_server(8000)
 
 
-def load_jims_app(app_name: str) -> "JimsApp":
+def load_jims_app(app_name: str) -> Union["JimsApp", Awaitable["JimsApp"]]:
     from jims_core.app import JimsApp
 
     app_split = app_name.split(":")
@@ -58,6 +59,6 @@ def load_jims_app(app_name: str) -> "JimsApp":
     app_mod = import_module(module_name)
     app = getattr(app_mod, app_attr)
 
-    assert isinstance(app, JimsApp)
+    assert isinstance(app, JimsApp) or asyncio.iscoroutine(app)
 
     return app

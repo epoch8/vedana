@@ -1,7 +1,7 @@
 import asyncio
 import uuid
 from contextlib import suppress
-from typing import Any
+from typing import Any, Awaitable, overload
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
@@ -71,6 +71,20 @@ class TelegramController:
 
         self.dispatcher.message.register(self.command_start, CommandStart())
         self.dispatcher.message.register(self.handle_message)
+
+    @overload
+    @classmethod
+    async def create(cls, app: JimsApp) -> "TelegramController": ...
+
+    @overload
+    @classmethod
+    async def create(cls, app: Awaitable[JimsApp]) -> "TelegramController": ...
+
+    @classmethod
+    async def create(cls, app: JimsApp | Awaitable[JimsApp]) -> "TelegramController":
+        if isinstance(app, Awaitable):
+            app = await app
+        return cls(app)
 
     async def _run_pipeline(self, ctl: ThreadController, chat_id: Any, pipeline: Pipeline) -> None:
         ctx = await ctl.make_context()
