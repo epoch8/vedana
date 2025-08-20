@@ -8,8 +8,6 @@ from prometheus_client import Counter
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-litellm.callbacks = ["otel"]
-
 
 class LLMSettings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -161,7 +159,7 @@ class LLMProvider:
         completion = await litellm.acompletion(
             model=self.model,
             messages=list(messages),
-            response_format={"type": "json_object"},
+            response_format=response_format,
         )
         assert isinstance(completion, litellm.ModelResponse)
 
