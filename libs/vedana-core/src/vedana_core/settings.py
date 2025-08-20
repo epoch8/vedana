@@ -42,6 +42,8 @@ class VedanaCoreSettings(BaseSettings):
     embeddings_model: str = "text-embedding-3-large"
     embeddings_dim: int = 1024
 
+    pipeline_history_length: int = 20
+
     memgraph_uri: str
     memgraph_user: str
     memgraph_pwd: str
