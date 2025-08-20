@@ -81,13 +81,13 @@ class LLM:
 
             messages.append(msg.to_dict())  # type: ignore
 
-            self.logger.info(f"Tool call iter {i}")
+            self.logger.debug(f"Tool call iter {i}")
             if i == 3:
                 self.logger.warning("Too much iterations. Exiting tool call loop")
                 break
 
             if not tool_calls:
-                self.logger.info("No tool calls found. Exiting tool call loop")
+                self.logger.debug("No tool calls found. Exiting tool call loop")
                 break
 
             async def _execute_tool_call(tool_call):
@@ -97,14 +97,14 @@ class LLM:
                     self.logger.error(f"Tool {tool_name} not found!")
                     return tool_call.id, f"Tool {tool_name} not found!"
 
-                self.logger.info(f"Calling tool {tool_name}")
+                self.logger.debug(f"Calling tool {tool_name}")
                 try:
                     tool_res = await tool.call(tool_call.function.arguments)
                 except Exception as e:
-                    self.logger.exception("Error executing tool %s: %s", tool_name, e)
+                    self.logger.exception(f"Error executing tool {tool_name}: {e}")
                     tool_res = f"Error executing tool {tool_name}: {e}"
 
-                self.logger.info("Tool %s (%s) result: %s", tool_name, tool.description, tool_res)
+                self.logger.debug(f"Tool {tool_name} ({tool.description}) result: {tool_res}")
                 return tool_call.id, tool_res
 
             # Execute tool calls in parallel
@@ -141,7 +141,7 @@ class LLM:
         ]
         response = await self.llm.chat_completion_plain(messages)
         human_answer = "" if response.content is None else response.content.strip()
-        self.logger.info(f"Generated 'no answer' response: {human_answer}")
+        self.logger.debug(f"Generated 'no answer' response: {human_answer}")
         return human_answer
 
 
