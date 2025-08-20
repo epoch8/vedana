@@ -11,6 +11,7 @@ dependencies = [
     "vedana-gradio",
     "vedana-etl",
     "vedana-eval",
+    "jims-tui",
 ]
 
 [tool.mypy]
@@ -21,9 +22,6 @@ enable_incomplete_feature = ["NewGenericSyntax"]
 
 [tool.ruff]
 line-length = 120
-
-[tool.uv.sources]
-jims-core = { workspace = true }
 
 [dependency-groups]
 dev = [
