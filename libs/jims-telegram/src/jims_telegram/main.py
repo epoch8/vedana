@@ -9,8 +9,10 @@ from jims_telegram import TelegramController
 
 @click.command()
 @click.option("--app", type=click.STRING, default="app")
-def cli(app: str) -> None:
-    setup_monitoring_and_tracing_with_sentry()
+@click.option("--enable-sentry", is_flag=True, help="Enable tracing to Sentry", default=False)
+def cli(app: str, enable_sentry: bool) -> None:
+    if enable_sentry:
+        setup_monitoring_and_tracing_with_sentry()
 
     jims_app = load_jims_app(app)
 
