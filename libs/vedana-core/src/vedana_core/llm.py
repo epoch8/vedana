@@ -55,7 +55,7 @@ class LLM:
     async def generate_cypher_query_with_tools(
         self,
         data_descr: str,
-        messages: list[CommunicationEvent],
+        messages: Iterable,
         tools: list[Tool],
         temperature: float | None = None,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
@@ -183,7 +183,7 @@ generate_answer_with_tools_tmplt = """\
 def make_cypher_query_with_tools_dialog(
     graph_description: str,
     prompt_templates: dict[str, str],
-    messages: list[CommunicationEvent],
+    messages: Iterable,
     tool_names: list[str],
 ) -> list[ChatCompletionMessageParam]:
     prompt_template = prompt_templates.get("generate_answer_with_tools_tmplt", generate_answer_with_tools_tmplt)
