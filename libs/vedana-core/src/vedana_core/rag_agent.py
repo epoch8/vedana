@@ -164,14 +164,14 @@ class RagAgent:
             prop = args.property.value if isinstance(args.property, enum.Enum) else args.property
 
             th = self._data_model.embeddable_attributes().get(prop, {}).get("th") or threshold
-            self.logger.info(f"vts_fn(label={label}, property={prop}, th={th}, n={top_n})")
+            self.logger.debug(f"vts_fn(label={label}, property={prop}, th={th}, n={top_n})")
 
             vts_queries.append(VTSQuery(label, prop, args.text))
             vts_res = await self.search_vector_text(label, prop, args.text, threshold=th, top_n=top_n)
             return self.result_to_text(VTS_TOOL_NAME, vts_res)
 
         async def cypher_fn(args: CypherArgs) -> str:
-            self.logger.info(f"cypher_fn({args})")
+            self.logger.debug(f"cypher_fn({args})")
             cypher_queries.append(CypherQuery(args.query))
             res = await self.execute_cypher_query(args.query)
             return self.result_to_text(CYPHER_TOOL_NAME, res)
