@@ -249,7 +249,8 @@ def get_grist_data(
             {"node_id": rec.get("node_id"), "node_type": rec.get("node_type"), "attributes": rec.get("attributes", {})}
             for a in node_records.values()
             for rec in a.values()
-        ]
+        ],
+        columns=["node_id", "node_type", "attributes"],
     )
 
     # Edges
