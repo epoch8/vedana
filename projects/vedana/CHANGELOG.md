@@ -2,6 +2,7 @@
 
 * (src) Reshuffle folders in monorepo
 * (vedana) Consolidate databases (jims + datapipe), now it's one database
+* (vedana-core) Make conversation history always present instead of a tool call
 
 # 2025.08.15-dev.17
 
