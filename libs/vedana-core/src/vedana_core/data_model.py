@@ -447,7 +447,7 @@ class DataModel:
                 "MERGE (dm:DataModel {id: 'data_model'}) SET dm.content = $content, dm.updated_at = datetime()",
                 {"content": self.to_json()},
             )
-            logger.info("DataModel node updated in graph")
+            logger.debug("DataModel node updated in graph")
         except Exception as exc:
             logger.exception("Failed to update DataModel node: %s", exc)
 
