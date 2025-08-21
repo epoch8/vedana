@@ -57,10 +57,12 @@ variable "telegram_bot_token" {
 
 variable "grist" {
   type = object({
-    server_url        = string
+    server_url = string
+    api_key    = string
+
     data_model_doc_id = string
     data_doc_id       = string
-    api_key           = string
+    test_set_doc_id   = optional(string)
   })
 }
 
@@ -87,6 +89,6 @@ variable "llm_config" {
 ###
 
 variable "authentik_group_ids" {
-  type = list(string)
+  type    = list(string)
   default = []
 }
