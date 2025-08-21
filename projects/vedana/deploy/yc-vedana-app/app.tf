@@ -244,9 +244,10 @@ resource "helm_release" "tg" {
     local.common_values,
     <<EOF
     command:
-      - python
-      - -m
-      - vedana_tg.tg_app
+      - jims-telegram
+      - --enable-sentry
+      - --enable-healthcheck
+      - --verbose
 
     resources:
       requests:

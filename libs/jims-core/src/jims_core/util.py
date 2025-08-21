@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import TYPE_CHECKING, Awaitable, Union
 from uuid import UUID
 
@@ -12,6 +13,10 @@ if TYPE_CHECKING:
 
 def uuid7() -> UUID:
     return uuid7_impl(as_type="UUID")  # type: ignore
+
+
+def setup_verbose_logging() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
 def setup_monitoring_and_tracing_with_sentry() -> None:
