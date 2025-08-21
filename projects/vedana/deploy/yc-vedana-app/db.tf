@@ -4,39 +4,6 @@ data "yandex_mdb_postgresql_cluster" "db_cluster" {
 
 ###
 
-resource "random_string" "jims_db_password" {
-  length  = 16
-  special = false
-}
-
-resource "yandex_mdb_postgresql_user" "jims" {
-  cluster_id = var.yc_mdb_cluster_id
-  name       = "${local.project_underscore}_vedana"
-  password   = random_string.jims_db_password.result
-  conn_limit = 5
-
-  lifecycle {
-    ignore_changes = [
-      name,
-      password,
-    ]
-  }
-}
-
-resource "yandex_mdb_postgresql_database" "jims" {
-  cluster_id = var.yc_mdb_cluster_id
-  name       = "${local.project_underscore}_vedana"
-  owner      = yandex_mdb_postgresql_user.jims.name
-
-  lifecycle {
-    ignore_changes = [
-      name,
-    ]
-  }
-}
-
-###
-
 resource "random_string" "etl_db_password" {
   length  = 16
   special = false
@@ -44,7 +11,7 @@ resource "random_string" "etl_db_password" {
 
 resource "yandex_mdb_postgresql_user" "etl" {
   cluster_id = var.yc_mdb_cluster_id
-  name       = "${local.project_underscore}_${var.environment}_etl"
+  name       = "${local.project_underscore}_${var.environment}"
   password   = random_string.etl_db_password.result
   conn_limit = 10
 
@@ -58,7 +25,7 @@ resource "yandex_mdb_postgresql_user" "etl" {
 
 resource "yandex_mdb_postgresql_database" "etl" {
   cluster_id = var.yc_mdb_cluster_id
-  name       = "${local.project_underscore}_${var.environment}_etl"
+  name       = "${local.project_underscore}_${var.environment}"
   owner      = yandex_mdb_postgresql_user.etl.name
 
   lifecycle {
