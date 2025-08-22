@@ -1,6 +1,7 @@
 import reflex as rx
 
 from vedana_backoffice.pages import chat, etl, eval as eval_page, jims
+from vedana_backoffice.state import EtlState
 
 
 def index() -> rx.Component:
@@ -26,7 +27,7 @@ def index() -> rx.Component:
 
 app = rx.App()
 app.add_page(index, route="/", title="Vedana Backoffice")
-app.add_page(etl.page, route="/etl", title="ETL")
+app.add_page(etl.page, route="/etl", title="ETL", on_load=EtlState.load_pipeline_metadata)
 app.add_page(eval_page.page, route="/eval", title="Evaluation")
 app.add_page(jims.page, route="/jims", title="JIMS")
 app.add_page(chat.page, route="/chat", title="Chatbot")
