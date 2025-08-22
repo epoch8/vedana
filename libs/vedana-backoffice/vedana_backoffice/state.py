@@ -1,5 +1,8 @@
 import asyncio
+import logging
+import threading
 import time
+from queue import Queue, Empty
 from typing import Any, Iterable
 
 import pandas as pd
@@ -41,6 +44,46 @@ class EtlState(rx.State):
     preview_rows: list[dict[str, Any]] = []
     preview_columns: list[str] = []
     has_preview: bool = False
+
+    def _start_log_capture(self) -> tuple[Queue[str], logging.Handler, logging.Logger]:
+        q: Queue[str] = Queue()
+
+        class _QueueHandler(logging.Handler):
+            def __init__(self, queue: Queue[str]):
+                super().__init__()
+                self._q = queue
+
+            def emit(self, record: logging.LogRecord) -> None:  # type: ignore[override]
+                try:
+                    msg = self.format(record)
+                    self._q.put(msg)
+                except Exception:
+                    pass
+
+        handler = _QueueHandler(q)
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+
+        logger = logging.getLogger("datapipe")
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
+
+        return q, handler, logger
+
+    def _stop_log_capture(self, handler: logging.Handler, logger: logging.Logger) -> None:
+        try:
+            logger.removeHandler(handler)
+        except Exception:
+            pass
+
+    def _drain_queue_into_logs(self, q: Queue[str]) -> None:
+        while True:
+            try:
+                msg = q.get_nowait()
+            except Empty:
+                break
+            else:
+                self.logs.append(msg)
 
     def _append_log(self, msg: str) -> None:
         timestamp = time.strftime("%H:%M:%S")
@@ -153,10 +196,28 @@ class EtlState(rx.State):
                 self._append_log("No steps match selected filters")
                 return
 
-            # Run synchronously, yielding between steps
-            for step in steps_to_run:
-                self._run_steps_sync([step])
-                yield
+            # stream datapipe logs into UI while each step runs
+            q, handler, logger = self._start_log_capture()
+            try:
+                for step in steps_to_run:
+                    step_name = getattr(step, "name", type(step).__name__)
+                    self._append_log(f"Running step: {step_name}")
+
+                    def _runner(s=step):
+                        run_steps(etl_app.ds, [s])  # type: ignore[arg-type]
+
+                    t = threading.Thread(target=_runner, daemon=True)
+                    t.start()
+                    while t.is_alive():
+                        self._drain_queue_into_logs(q)
+                        yield
+                        time.sleep(0.1)
+                    t.join(timeout=0)
+                    self._drain_queue_into_logs(q)
+                    self._append_log(f"Completed step: {step_name}")
+                    yield
+            finally:
+                self._stop_log_capture(handler, logger)
         finally:
             self.is_running = False
             self.last_run_finished_at = time.time()
@@ -180,8 +241,21 @@ class EtlState(rx.State):
         yield
 
         try:
-            self._run_steps_sync([step])
-            yield
+            q, handler, logger = self._start_log_capture()
+            try:
+                def _runner():
+                    run_steps(etl_app.ds, [step])  # type: ignore[arg-type]
+
+                t = threading.Thread(target=_runner, daemon=True)
+                t.start()
+                while t.is_alive():
+                    self._drain_queue_into_logs(q)
+                    yield
+                    time.sleep(0.1)
+                t.join(timeout=0)
+                self._drain_queue_into_logs(q)
+            finally:
+                self._stop_log_capture(handler, logger)
         finally:
             self.is_running = False
             self.last_run_finished_at = time.time()
