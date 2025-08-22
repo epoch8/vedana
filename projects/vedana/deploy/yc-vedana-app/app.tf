@@ -33,6 +33,10 @@ locals {
       GRIST_DATA_MODEL_DOC_ID = var.grist.data_model_doc_id
       GRIST_DATA_DOC_ID       = var.grist.data_doc_id
     },
+    var.grist.test_set_doc_id != null ? {
+      TEST_ENVIRONMENT      = local.slug
+      GRIST_TEST_SET_DOC_ID = var.grist.test_set_doc_id
+    } : {},
     local.tg_enabled ? {
       TELEGRAM_BOT_TOKEN = var.telegram_bot_token
     } : {},

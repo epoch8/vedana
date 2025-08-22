@@ -1,1 +1,4 @@
-{"repository": "ghcr.io/epoch8/ai-assistants/vedana", "tag": "2025.8.15.dev17-jims-jims-app-d7ca892"}
+{
+    "repository": "ghcr.io/epoch8/ai-assistants/vedana",
+    "tag": "2025.8.21.dev18"
+}
