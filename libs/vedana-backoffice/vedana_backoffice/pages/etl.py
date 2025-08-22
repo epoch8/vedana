@@ -96,9 +96,7 @@ def _table_preview() -> rx.Component:
             EtlState.has_preview,
             rx.table.root(
                 rx.table.header(
-                    rx.table.row(
-                        rx.foreach(EtlState.preview_columns, lambda c: rx.table.column_header_cell(c))
-                    )
+                    rx.table.row(rx.foreach(EtlState.preview_columns, lambda c: rx.table.column_header_cell(c)))
                 ),
                 rx.table.body(
                     rx.foreach(
@@ -129,5 +127,3 @@ def page() -> rx.Component:
         align="start",
         padding="1em",
     )
-
-

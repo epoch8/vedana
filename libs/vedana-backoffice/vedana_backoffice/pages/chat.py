@@ -9,5 +9,3 @@ def page() -> rx.Component:
         spacing="3",
         padding="1em",
     )
-
-
