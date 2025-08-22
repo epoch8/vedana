@@ -31,5 +31,3 @@ app.add_page(etl.page, route="/etl", title="ETL", on_load=EtlState.load_pipeline
 app.add_page(eval_page.page, route="/eval", title="Evaluation")
 app.add_page(jims.page, route="/jims", title="JIMS")
 app.add_page(chat.page, route="/chat", title="Chatbot")
-
-

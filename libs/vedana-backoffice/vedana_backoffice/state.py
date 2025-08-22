@@ -171,7 +171,6 @@ class EtlState(rx.State):
             self.filtered_steps = [m for m in self.all_steps if matches_meta(m)]
 
     def _run_steps_sync(self, steps_to_run: list[Any]) -> None:
-
         # Run each step sequentially to provide granular logs
         for step in steps_to_run:
             step_name = getattr(step, "name", type(step).__name__)
@@ -243,6 +242,7 @@ class EtlState(rx.State):
         try:
             q, handler, logger = self._start_log_capture()
             try:
+
                 def _runner():
                     run_steps(etl_app.ds, [step])  # type: ignore[arg-type]
 
