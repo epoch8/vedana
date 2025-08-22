@@ -5,6 +5,9 @@ from typing import Any, Iterable
 import pandas as pd
 import reflex as rx
 
+from datapipe.compute import run_steps
+from vedana_etl.app import app as etl_app, pipeline, catalog
+
 
 class AppState(rx.State):
     """Shared application state placeholder."""
@@ -24,6 +27,7 @@ class EtlState(rx.State):
 
     # Derived from pipeline
     all_steps: list[dict[str, Any]] = []  # [{name, type, inputs, outputs, labels}]
+    filtered_steps: list[dict[str, Any]] = []
     available_tables: list[str] = []
 
     # Run status
@@ -44,7 +48,6 @@ class EtlState(rx.State):
 
     def load_pipeline_metadata(self) -> None:
         """Populate all_steps and available_tables by introspecting vedana_etl pipeline and catalog."""
-        from vedana_etl.app import catalog, pipeline  # lazy import
 
         steps_meta: list[dict[str, Any]] = []
         for idx, step in enumerate(pipeline.steps):  # type: ignore[attr-defined]
@@ -67,6 +70,7 @@ class EtlState(rx.State):
             )
 
         self.all_steps = steps_meta
+        self._update_filtered_steps()
 
         tables: list[str] = []
         for table_name in catalog.catalog.keys():  # type: ignore[attr-defined]
@@ -75,9 +79,11 @@ class EtlState(rx.State):
 
     def set_flow(self, flow: str) -> None:
         self.selected_flow = flow
+        self._update_filtered_steps()
 
     def set_stage(self, stage: str) -> None:
         self.selected_stage = stage
+        self._update_filtered_steps()
 
     def _filter_steps_by_labels(self, steps: Iterable[Any]) -> list[Any]:
         if not self.selected_flow and not self.selected_stage:
@@ -100,9 +106,28 @@ class EtlState(rx.State):
 
         return [s for s in steps if matches(s)]
 
+    def _update_filtered_steps(self) -> None:
+        """Update filtered_steps used for UI from all_steps based on current filters."""
+        flow_val = self.selected_flow
+        stage_val = self.selected_stage
+
+        def matches_meta(meta: dict[str, Any]) -> bool:
+            labels = meta.get("labels", []) or []
+            label_map: dict[str, set[str]] = {}
+            for key, value in labels:
+                label_map.setdefault(str(key), set()).add(str(value))
+            if flow_val and flow_val not in label_map.get("flow", set()):
+                return False
+            if stage_val and stage_val not in label_map.get("stage", set()):
+                return False
+            return True
+
+        if not flow_val and not stage_val:
+            self.filtered_steps = list(self.all_steps)
+        else:
+            self.filtered_steps = [m for m in self.all_steps if matches_meta(m)]
+
     def _run_steps_sync(self, steps_to_run: list[Any]) -> None:
-        from vedana_etl.app import app as etl_app  # DatapipeAPI with ds and steps
-        from datapipe.compute import run_steps
 
         # Run each step sequentially to provide granular logs
         for step in steps_to_run:
@@ -116,8 +141,6 @@ class EtlState(rx.State):
         if self.is_running:
             return None
 
-        from vedana_etl.app import pipeline  # type: ignore
-
         self.is_running = True
         self.last_run_started_at = time.time()
         self.logs = []
@@ -125,7 +148,7 @@ class EtlState(rx.State):
         yield
 
         try:
-            steps_to_run = self._filter_steps_by_labels(pipeline.steps)  # type: ignore[attr-defined]
+            steps_to_run = self._filter_steps_by_labels(etl_app.steps)
             if not steps_to_run:
                 self._append_log("No steps match selected filters")
                 return
@@ -145,14 +168,11 @@ class EtlState(rx.State):
         if self.is_running:
             return None
 
-        from vedana_etl.app import pipeline  # type: ignore
-
-        steps = list(pipeline.steps)  # type: ignore[attr-defined]
-        if index < 0 or index >= len(steps):
+        if index < 0 or index >= len(etl_app.steps):
             self._append_log(f"Invalid step index: {index}")
             return None
 
-        step = steps[index]
+        step = etl_app.steps[index]
         self.is_running = True
         self.logs = []
         self.last_run_started_at = time.time()

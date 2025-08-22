@@ -60,7 +60,7 @@ def _steps_table() -> rx.Component:
                     rx.table.column_header_cell("Actions"),
                 )
             ),
-            rx.table.body(rx.foreach(EtlState.all_steps, row)),
+            rx.table.body(rx.foreach(EtlState.filtered_steps, row)),
             variant="surface",
         ),
         padding="1em",
