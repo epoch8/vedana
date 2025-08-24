@@ -264,14 +264,13 @@ class GristOfflineDataProvider(GristDataProvider):
         return Table(columns, rows)
 
 
-class GristOnlineCsvDataProvider(GristDataProvider):
+class GristCsvDataProvider(GristDataProvider):
     def __init__(self, doc_id: str, grist_server: str, api_key: str | None = None) -> None:
         super().__init__()
         self.doc_id = doc_id
         self.grist_server = grist_server
         self.api_key = api_key
-        self._tables: dict[str, pd.DataFrame] = {}
-        self._load_csv_tables(self._fetch_table_list())
+        self._table_list: list[str] = self._fetch_table_list()
 
     def _fetch_table_list(self) -> list[str]:
         url = f"{self.grist_server}/api/docs/{self.doc_id}/tables"
@@ -281,19 +280,12 @@ class GristOnlineCsvDataProvider(GristDataProvider):
 
     def _download_table_csv(self, table_id: str) -> pd.DataFrame:
         url = f"{self.grist_server}/api/docs/{self.doc_id}/download/csv?tableId={table_id}"
-        resp = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
+        resp = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"}, timeout=600)
         resp.raise_for_status()
         return pd.read_csv(io.StringIO(resp.text)).reset_index(drop=False, names=["id"])
 
-    def _load_csv_tables(self, table_list: list):
-        for table_id in table_list:
-            try:
-                self._tables[table_id] = self._download_table_csv(table_id)
-            except Exception as e:
-                print(f"Failed to load table {table_id}: {e}")
-
     def _list_tables_with_prefix(self, prefix: str) -> list[str]:
-        return [t for t in self._tables if t.startswith(prefix)]
+        return [t for t in self._table_list if t.startswith(prefix)]
 
     def list_anchor_tables(self) -> list[str]:
         return self._list_tables_with_prefix(self.anchor_table_prefix)
@@ -301,22 +293,14 @@ class GristOnlineCsvDataProvider(GristDataProvider):
     def list_link_tables(self) -> list[str]:
         return self._list_tables_with_prefix(self.link_table_prefix)
 
-    def _list_table_columns(self, table_name: str) -> list[str]:
-        df = self._tables.get(table_name)
-        if df is not None:
-            return list(df.columns)
-        return []
-
     def get_table(self, table_name: str) -> Table:
-        df = self._tables.get(table_name)
-        if df is None:
-            return Table([], [])
+        df = self._download_table_csv(table_name)
         columns = list(df.columns)
         rows = [tuple(row) for row in df.itertuples(index=False, name="Row")]
         return Table(columns, rows)
 
 
-class GristOnlineDataProvider(GristDataProvider):
+class GristAPIDataProvider(GristDataProvider):
     def __init__(self, doc_id: str, grist_server: str, api_key: str | None = None) -> None:
         super().__init__()
         self.grist_server = grist_server
