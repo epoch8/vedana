@@ -13,7 +13,9 @@ dependencies = [
     "vedana-gradio",
     "vedana-etl",
     "vedana-eval",
+    "vedana-admin",
     "jims-tui",
+    "reflex>=0.7.5.post1",
 ]
 
 [tool.mypy]
