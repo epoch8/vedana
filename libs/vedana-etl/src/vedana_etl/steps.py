@@ -52,7 +52,7 @@ def get_data_model():
         api_key=core_settings.grist_api_key,
     )
 
-    links_df = loader.get_table_df("Links")
+    links_df = loader.get_table("Links")
     links_df = cast(
         pd.DataFrame,
         links_df[
@@ -72,7 +72,7 @@ def get_data_model():
     links_df = links_df.astype(str)
     links_df["has_direction"] = links_df["has_direction"].astype(bool)
 
-    attrs_df = loader.get_table_df("Attributes")
+    attrs_df = loader.get_table("Attributes")
     attrs_df = cast(
         pd.DataFrame,
         attrs_df[
@@ -94,7 +94,7 @@ def get_data_model():
     attrs_df["embed_threshold"] = attrs_df["embed_threshold"].astype(float)
     attrs_df = attrs_df.dropna(subset=["anchor", "attribute_name"])
 
-    anchors_df = loader.get_table_df("Anchors")
+    anchors_df = loader.get_table("Anchors")
     anchors_df = cast(
         pd.DataFrame,
         anchors_df[

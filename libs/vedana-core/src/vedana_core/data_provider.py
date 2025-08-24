@@ -199,7 +199,7 @@ class GristDataProvider(DataProvider):
         table_name = f"{self.link_table_prefix}{table_name}"
         table = self.get_table(table_name)
         if "id" not in table.columns:
-            table.columns.append("id")
+            table["id"] = [None] * table.shape[0]
         table = table.to_dict(orient="records")
 
         def flatten_list_cells(el):
