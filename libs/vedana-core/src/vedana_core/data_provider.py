@@ -278,11 +278,14 @@ class GristCsvDataProvider(GristDataProvider):
         resp.raise_for_status()
         return [t["id"] for t in resp.json()["tables"]]
 
-    def _download_table_csv(self, table_id: str) -> pd.DataFrame:
+    def get_table(self, table_id: str) -> Table:
         url = f"{self.grist_server}/api/docs/{self.doc_id}/download/csv?tableId={table_id}"
         resp = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"}, timeout=600)
         resp.raise_for_status()
-        return pd.read_csv(io.StringIO(resp.text)).reset_index(drop=False, names=["id"])
+        df = pd.read_csv(io.StringIO(resp.text)).reset_index(drop=False, names=["id"])
+        columns = list(df.columns)
+        rows = [tuple(row) for row in df.itertuples(index=False, name=table_id)]
+        return Table(columns, rows)
 
     def _list_tables_with_prefix(self, prefix: str) -> list[str]:
         return [t for t in self._table_list if t.startswith(prefix)]
@@ -292,12 +295,6 @@ class GristCsvDataProvider(GristDataProvider):
 
     def list_link_tables(self) -> list[str]:
         return self._list_tables_with_prefix(self.link_table_prefix)
-
-    def get_table(self, table_name: str) -> Table:
-        df = self._download_table_csv(table_name)
-        columns = list(df.columns)
-        rows = [tuple(row) for row in df.itertuples(index=False, name="Row")]
-        return Table(columns, rows)
 
 
 class GristAPIDataProvider(GristDataProvider):
