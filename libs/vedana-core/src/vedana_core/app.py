@@ -1,3 +1,4 @@
+from async_lru import alru_cache
 from jims_core.app import JimsApp
 from loguru import logger
 
@@ -8,6 +9,7 @@ from vedana_core.rag_pipeline import RagPipeline, StartPipeline
 from vedana_core.settings import settings as core_settings
 
 
+@alru_cache
 async def make_vedana_app() -> JimsApp:
     graph = MemgraphGraph(core_settings.memgraph_uri, core_settings.memgraph_user, core_settings.memgraph_pwd)
 
