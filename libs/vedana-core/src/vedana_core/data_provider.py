@@ -313,6 +313,7 @@ class GristAPIDataProvider(GristDataProvider):
         return self._list_tables_with_prefix(self.link_table_prefix)
 
     def _list_table_columns(self, table_name: str) -> dict[str, str]:
+        """returns mapping {internal_grist_id: id_in_UI}"""
         resp = self._client.columns(table_name)  # does not show hidden columns i.e. "id"
         # url = f"{self.grist_server}/api/docs/{self.doc_id}/tables/{table_name}/columns?hidden=True"
         # resp = requests.get(url, headers=self.headers)
@@ -322,7 +323,6 @@ class GristAPIDataProvider(GristDataProvider):
         return {column["id"]: column["fields"]["label"] for column in resp.json()["columns"]}
 
     def get_table(self, table_name: str) -> pd.DataFrame:
-        # currently will break on tables with non-literal types (links, formulas, etc.)
         columns = self._list_table_columns(table_name)
         if "id" not in columns:  # add internal id
             columns["id"] = "id"
