@@ -52,60 +52,49 @@ def get_data_model():
         api_key=core_settings.grist_api_key,
     )
 
-    links_df = loader.get_table("Links")
-    links_df = cast(
-        pd.DataFrame,
-        links_df[
-            [
-                "anchor1",
-                "anchor2",
-                "sentence",
-                "description",
-                "query",
-                "anchor1_link_column_name",
-                "anchor2_link_column_name",
-                "has_direction",
-            ]
-        ],
-    )
+    _links_df = loader.get_table("Links")
+    links_df = _links_df[
+        [
+            "anchor1",
+            "anchor2",
+            "sentence",
+            "description",
+            "query",
+            "anchor1_link_column_name",
+            "anchor2_link_column_name",
+            "has_direction"
+        ]
+    ]
+    links_df["has_direction"] = _links_df["has_direction"].astype(bool)
     links_df = links_df.dropna(subset=["anchor1", "anchor2", "sentence"])
-    links_df = links_df.astype(str)
-    links_df["has_direction"] = links_df["has_direction"].astype(bool)
 
     attrs_df = loader.get_table("Attributes")
-    attrs_df = cast(
-        pd.DataFrame,
-        attrs_df[
-            [
-                "attribute_name",
-                "description",
-                "anchor",
-                "link",
-                "data_example",
-                "embeddable",
-                "query",
-                "dtype",
-                "embed_threshold",
-            ]
-        ],
-    )
-    # attrs_df = attrs_df.astype(str)
+    attrs_df = attrs_df[
+        [
+            "attribute_name",
+            "description",
+            "anchor",
+            "link",
+            "data_example",
+            "embeddable",
+            "query",
+            "dtype",
+            "embed_threshold",
+        ]
+    ]
     attrs_df["embeddable"] = attrs_df["embeddable"].astype(bool)
     attrs_df["embed_threshold"] = attrs_df["embed_threshold"].astype(float)
     attrs_df = attrs_df.dropna(subset=["anchor", "attribute_name"])
 
     anchors_df = loader.get_table("Anchors")
-    anchors_df = cast(
-        pd.DataFrame,
-        anchors_df[
-            [
-                "noun",
-                "description",
-                "id_example",
-                "query",
-            ]
-        ],
-    )
+    anchors_df = anchors_df[
+        [
+            "noun",
+            "description",
+            "id_example",
+            "query",
+        ]
+    ]
     anchors_df = anchors_df.dropna(subset=["noun"])
     anchors_df = anchors_df.astype(str)
 
