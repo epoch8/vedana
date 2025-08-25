@@ -158,7 +158,7 @@ class GristDataProvider(DataProvider):
         table = self.get_table(table_name)
         if "id" not in table.columns:
             table["id"] = [None] * table.shape[0]
-        table = table.to_dict(orient="records")
+        table_records: list[dict] = table.to_dict(orient="records")
 
         id_key = f"{type_}_id"
         anchor_ids = set()
@@ -173,7 +173,7 @@ class GristDataProvider(DataProvider):
                 return None
             return el
 
-        for row_dict in table:
+        for row_dict in table_records:
             db_id = flatten_list_cells(row_dict.pop("id"))
             id_ = row_dict.pop(id_key, None)
             if id_ is None:
@@ -188,7 +188,7 @@ class GristDataProvider(DataProvider):
             if id_ not in anchor_ids:
                 anchor_ids.add(id_)
             else:
-                print(f"Duplicate anchor id {id_} in table {table_name}\nduplicate data: {row_dict}\n record skipped.")
+                print(f'Duplicate anchor id "{id_}" in "{table_name}"\nduplicate data: {row_dict}\nrecord skipped')
                 continue
 
             anchors.append(AnchorRecord(id_, type_, row_dict, dp_id=db_id))  # type: ignore
@@ -200,7 +200,7 @@ class GristDataProvider(DataProvider):
         table = self.get_table(table_name)
         if "id" not in table.columns:
             table["id"] = [None] * table.shape[0]
-        table = table.to_dict(orient="records")
+        table_records: list[dict] = table.to_dict(orient="records")
 
         def flatten_list_cells(el):
             if isinstance(el, list) and "L" in el and len(el) == 2:  # flatten List type fields
@@ -208,7 +208,7 @@ class GristDataProvider(DataProvider):
             return el
 
         links: list[LinkRecord] = []
-        for row_dict in table:
+        for row_dict in table_records:
             id_from = row_dict.pop("from_node_id")
             id_to = row_dict.pop("to_node_id")
             type_ = row_dict.pop("edge_label")

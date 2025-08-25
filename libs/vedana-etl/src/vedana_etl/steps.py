@@ -117,7 +117,6 @@ def parse_bool(bool_str: str) -> bool:
 
 
 def get_grist_data(
-    batch_size: int = 500,
     settings: VedanaCoreSettings = core_settings,
 ) -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
     """
@@ -149,7 +148,7 @@ def get_grist_data(
         # check anchor's existence in data model
         dm_anchor_list = [a for a in dm.anchors if a.noun == anchor_type]
         if not dm_anchor_list:
-            logger.error(f"Anchor {anchor_type} not described in data model, skipping")
+            logger.error(f'Anchor "{anchor_type}" not described in data model, skipping')
             continue
         dm_anchor = dm_anchor_list[0]
 
@@ -264,7 +263,7 @@ def get_grist_data(
             if link.sentence.lower() == link_type.lower() or link_type.lower() == f"{link.anchor_from}_{link.anchor_to}"
         ]
         if not dm_link_list:
-            logger.error(f"Link type {dm_link_list} not described in data model, skipping")
+            logger.error(f'Link type "{dm_link_list}" not described in data model, skipping')
             continue
         dm_link = dm_link_list[0]
 
