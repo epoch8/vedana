@@ -287,6 +287,23 @@ def get_grist_data(
 
     edges_df = pd.concat([edges_df, fk_links_df], ignore_index=True)
 
+    # add reverse links (if already provided in data, duplicates will be removed later)
+    for link in dm.links:
+        if not link.has_direction:
+            rev_edges = edges_df.loc[
+                (edges_df["from_node_type"] == link.anchor_from.noun) &
+                (edges_df["to_node_type"] == link.anchor_to.noun) &
+                (edges_df["edge_label"] == link.sentence)
+            ].copy()
+            if not rev_edges.empty:
+                rev_edges = rev_edges.rename(columns={
+                    "from_node_id": "to_node_id",
+                    "to_node_id": "from_node_id",
+                    "from_node_type": "to_node_type",
+                    "to_node_type": "from_node_type",
+                })
+                edges_df = pd.concat([edges_df, rev_edges], ignore_index=True)
+
     # preventive drop_duplicates / na records
     if not nodes_df.empty:
         nodes_df = nodes_df.dropna(subset=["node_id", "node_type"]).drop_duplicates(subset=["node_id"])
