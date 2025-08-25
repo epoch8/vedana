@@ -9,7 +9,7 @@ import pandas as pd
 from jims_core.llms.llm_provider import LLMProvider
 from neo4j import GraphDatabase
 from vedana_core.data_model import DataModel
-from vedana_core.data_provider import GristAPIDataProvider
+from vedana_core.data_provider import GristAPIDataProvider, GristCsvDataProvider
 from vedana_core.settings import VedanaCoreSettings
 from vedana_core.settings import settings as core_settings
 
@@ -46,7 +46,7 @@ def clean_str(text: str) -> str:
 
 
 def get_data_model():
-    loader = GristAPIDataProvider(
+    loader = GristCsvDataProvider(
         doc_id=core_settings.grist_data_model_doc_id,
         grist_server=core_settings.grist_server_url,
         api_key=core_settings.grist_api_key,
