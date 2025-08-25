@@ -296,6 +296,7 @@ class GristAPIDataProvider(GristDataProvider):
         self.grist_server = grist_server
         self.doc_id = doc_id
         self.api_key = api_key
+        self.headers = {"Authorization": f"Bearer {self.api_key}"}
         self._client = grist_api.GristDocAPI(doc_id, api_key=api_key, server=grist_server)
 
     def _list_tables_with_prefix(self, prefix: str) -> list[str]:
@@ -311,18 +312,23 @@ class GristAPIDataProvider(GristDataProvider):
     def list_link_tables(self) -> list[str]:
         return self._list_tables_with_prefix(self.link_table_prefix)
 
-    def _list_table_columns(self, table_name: str) -> list[str]:
-        resp = self._client.columns(table_name)
+    def _list_table_columns(self, table_name: str) -> dict[str, str]:
+        resp = self._client.columns(table_name)  # does not show hidden columns i.e. "id"
+        # url = f"{self.grist_server}/api/docs/{self.doc_id}/tables/{table_name}/columns?hidden=True"
+        # resp = requests.get(url, headers=self.headers)
         if not resp:
-            return []
-        return [column["id"] for column in resp.json()["columns"]]
+            return {}
+        # column["id"] returns hidden internal ID which is causing confusing processing errors. label is display value
+        return {column["id"]: column["fields"]["label"] for column in resp.json()["columns"]}
 
     def get_table(self, table_name: str) -> pd.DataFrame:
         # currently will break on tables with non-literal types (links, formulas, etc.)
         columns = self._list_table_columns(table_name)
+        if "id" not in columns:  # add internal id
+            columns["id"] = "id"
         rows = self._client.fetch_table(table_name)
-        rows = [{c: getattr(r, c) for c in columns} for r in rows]  # filter usage
-        return pd.DataFrame(rows, columns=columns)
+        rows = [{c_label: getattr(r, c_id) for c_id, c_label in columns.items()} for r in rows]  # filter usage
+        return pd.DataFrame(rows, columns=list(columns.values()))
 
 
 class GristSQLDataProvider(GristDataProvider):
