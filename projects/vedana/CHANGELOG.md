@@ -1,3 +1,8 @@
+# WIP
+
+* (vedana-etl) fixed loading bidirectional links in base pipeline
+* (vedana-etl) use Grist API, fixing parsing formulas and reference fields
+
 # 2025.08.21-dev.18
 
 * (src) Reshuffle folders in monorepo
