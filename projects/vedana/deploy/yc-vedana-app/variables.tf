@@ -88,6 +88,29 @@ variable "llm_config" {
 
 ###
 
+variable "enable_api" {
+  type    = bool
+  default = false
+}
+
+variable "api_command" {
+  type    = list(string)
+  default = null
+}
+
+variable "api_resources" {
+  type = object({
+    requests = map(string)
+    limits   = map(string)
+  })
+  default = {
+    requests = { cpu = "200m", memory = "256Mi" }
+    limits   = { cpu = "500m", memory = "512Mi" }
+  }
+}
+
+###
+
 variable "authentik_group_ids" {
   type    = list(string)
   default = []

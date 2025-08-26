@@ -234,6 +234,8 @@ resource "helm_release" "backoffice" {
   }
 }
 
+###
+
 resource "helm_release" "tg" {
   count = local.tg_enabled ? 1 : 0
 
@@ -274,6 +276,40 @@ resource "helm_release" "tg" {
     ]
   }
 }
+
+###
+
+resource "helm_release" "api" {
+  count = var.enable_api ? 1 : 0
+
+  name      = "${local.slug}-api"
+  namespace = var.k8s_namespace
+
+  repository = "https://epoch8.github.io/helm-charts/"
+  chart      = "simple-app"
+  version    = "0.17.1"
+
+  values = [
+    local.common_values,
+    jsonencode({
+      port      = 8000
+      command   = var.api_command
+      resources = var.api_resources
+      probe = {
+        path = "/healthz"
+      }
+    }),
+  ]
+
+  lifecycle {
+    ignore_changes = [
+      name,
+      namespace,
+    ]
+  }
+}
+
+###
 
 output "config" {
   value = {
