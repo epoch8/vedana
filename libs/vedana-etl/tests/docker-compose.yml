@@ -1,0 +1,26 @@
+services:
+  memgraph:
+    image: memgraph/memgraph-mage
+    ports:
+      - 7687:7687
+      - 7444:7444
+    volumes:
+      - mg_graph:/var/lib/memgraph
+    env_file: .env
+    restart: always
+    command:
+      [
+        '--telemetry-enabled=false',
+        '--storage-mode=IN_MEMORY_ANALYTICAL',
+      ]
+
+  memgraph-lab:
+    image: memgraph/lab
+    ports:
+      - 3000:3000
+    depends_on:
+      - memgraph
+
+
+volumes:
+  mg_graph:
