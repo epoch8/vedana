@@ -211,6 +211,9 @@ class GristDataProvider(DataProvider):
         for row_dict in table_records:
             id_from = row_dict.pop("from_node_id")
             id_to = row_dict.pop("to_node_id")
+            # node types - check node type in id's, else take link's definition
+            node_from = link.anchor_to.noun if id_from.split(":")[0] == (link.anchor_to.noun) else link.anchor_from.noun
+            node_to = link.anchor_to.noun if node_from != link.anchor_to.noun else link.anchor_from.noun
             type_ = row_dict.pop("edge_label")
             row_dict.pop("id")
 
@@ -221,7 +224,7 @@ class GristDataProvider(DataProvider):
                 k: v for k, v in row_dict.items() if not isinstance(v, (bytes, list, type(None))) and not pd.isna(v)
             }
 
-            links.append(LinkRecord(id_from, id_to, link.anchor_from.noun, link.anchor_to.noun, type_, row_dict))
+            links.append(LinkRecord(id_from, id_to, node_from, node_to, type_, row_dict))
 
         return links
 
