@@ -11,10 +11,10 @@ import neo4j.graph
 from jims_core.thread.thread_context import ThreadContext
 from pydantic import BaseModel, Field, create_model
 
-from vedana_core.settings import settings
 from vedana_core.data_model import DataModel
 from vedana_core.graph import Graph, Record
 from vedana_core.llm import LLM, Tool
+from vedana_core.settings import settings
 
 QueryResult = list[Record] | Exception
 
@@ -194,7 +194,7 @@ class RagAgent:
 
         msgs, answer = await self.llm.generate_cypher_query_with_tools(
             data_descr=self._graph_descr,
-            messages=self.ctx.history[-settings.pipeline_history_length:],
+            messages=self.ctx.history[-settings.pipeline_history_length :],
             tools=tools,
             temperature=temperature,
         )
