@@ -15,6 +15,8 @@ locals {
 
   vedana_env = merge(
     {
+      PYTHONUNBUFFERED = "1"
+
       JIMS_DB_CONN_URI = local.db_conn_uri
       DB_CONN_URI      = local.db_conn_uri
 
