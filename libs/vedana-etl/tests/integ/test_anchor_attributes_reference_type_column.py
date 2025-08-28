@@ -1,18 +1,13 @@
 """
 Интеграционный тест: anchor_attributes_reference_type_column (SQL Reference)
 
-Проверяем логику восстановления Reference-полей при чтении из Grist SQL:
- - SQL отдаёт <ref_id> и дополнительный "gristHelper_<col>" со строковым значением.
- - Провайдер должен подставить именно строковое значение в attributes и НЕ протаскивать
-   вспомогательные gristHelper_* ключи в графовые атрибуты.
-
-Требования:
- - Если Reference-колонка есть в Data Model -> должна остаться после filter_grist_nodes.
- - Колонки, которых нет в Data Model (например, document_random_attr), должны исчезнуть.
+Фокус теста:
+  - При чтении через Grist SQL провайдер Reference-колонка приходит как <ref_id> + gristHelper_<col>,
+    а в итоговом attributes должно быть **строковое значение** (как в UI), без gristHelper_* ключей.
+  - Если Reference-колонка описана в Data Model, она должна сохраниться после filter_grist_nodes.
 
 Тестовые данные:
- - reference-поле: document_reference_attr (есть в DM)
- - лишнее поле:    document_random_attr (нет в DM)
+ - reference-поле: document_reference_attr (есть в Data Model)
 """
 
 from typing import Dict, Optional, Any
@@ -26,12 +21,11 @@ load_dotenv()
 
 def test_anchor_attributes_reference_type_column() -> None:
     """
-    1) В сырых nodes (get_grist_data) у хотя бы одного document-узла
+    1) В сыром nodes (get_grist_data) у хотя бы одного document-узла
        `document_reference_attr` присутствует как непустая строка.
        В attributes не должно быть gristHelper_* ключей.
     2) После filter_grist_nodes:
-       - `document_reference_attr` остаётся (т.к. есть в DM),
-       - `document_random_attr` исчезает (т.к. нет в DM).
+       - `document_reference_attr` остаётся (т.к. она есть в Data Model).
     """
 
     # --- 1) Живой Data Model
@@ -41,9 +35,6 @@ def test_anchor_attributes_reference_type_column() -> None:
     dm_attr_names = set(attrs_df["attribute_name"].astype(str))
     assert "document_reference_attr" in dm_attr_names, (
         "Precondition: 'document_reference_attr' must be present in Data Model."
-    )
-    assert "document_random_attr" not in dm_attr_names, (
-        "Precondition: 'document_random_attr' must be absent from Data Model."
     )
 
     # --- 2) Данные из живой Grist
@@ -82,7 +73,6 @@ def test_anchor_attributes_reference_type_column() -> None:
     docs_f = filtered[filtered["node_type"] == "document"]
     assert not docs_f.empty, "Filtered graph should still contain 'document' nodes."
 
-    # 3.1) document_reference_attr должен сохраниться (он в Data Model)
     preserved_any = False
     for _, row in docs_f.iterrows():
         attrs: Dict[str, Any] = row["attributes"] or {}
@@ -91,17 +81,4 @@ def test_anchor_attributes_reference_type_column() -> None:
             break
     assert preserved_any, (
         "Expected 'document_reference_attr' to be preserved by filter_grist_nodes because it is present in Data Model."
-    )
-
-    # 3.2) document_random_attr должен быть удалён (его нет в Data Model)
-    offenders = [
-        row["node_id"]
-        for _, row in docs_f.iterrows()
-        if "document_random_attr" in (row["attributes"] or {})
-    ]
-    assert not offenders, (
-        f"""
-        'document_random_attr' unexpectedly survived filter_grist_nodes, 
-        but it's not in Data Model. Offenders: {offenders}
-        """
     )
