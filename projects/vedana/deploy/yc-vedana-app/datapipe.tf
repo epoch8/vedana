@@ -2,16 +2,16 @@ locals {
   datapipe_domain = "datapipe.${var.base_domain}"
 
   datapipe_env = concat([
-        for key, value in local.vedana_env : {
-          name  = key
-          value = value
-        }
-      ], [
-        {
-          name  = "DB_CONN_URI"
-          value = local.db_conn_uri
-        }
-      ])
+    for key, value in local.vedana_env : {
+      name  = key
+      value = value
+    }
+    ], [
+    {
+      name  = "DB_CONN_URI"
+      value = local.db_conn_uri
+    }
+  ])
 }
 
 module "authentik_datapipe_auth" {
@@ -36,7 +36,7 @@ resource "helm_release" "datapipe_api" {
 
   values = [
     jsonencode({
-      env=local.datapipe_env
+      env = local.datapipe_env
     }),
     <<EOF
     image:
@@ -96,12 +96,11 @@ resource "helm_release" "datapipe_all" {
 
 
   values = [
-    jsonencode({
+    jsonencode(merge({
       image = {
         repository = local.image_repository
         tag        = local.image_tag
       }
-      imagePullSecrets = [{ name = var.image_pull_secrets }]
 
       schedule = "0 0 * * *"
 
@@ -124,6 +123,10 @@ resource "helm_release" "datapipe_all" {
       }
 
       env = local.datapipe_env
-    }),
+      },
+      var.image_pull_secrets != null ? {
+        imagePullSecrets = [{ name = var.image_pull_secrets }]
+      } : {},
+    ))
   ]
 }

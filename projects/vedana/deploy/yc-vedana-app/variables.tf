@@ -57,10 +57,12 @@ variable "telegram_bot_token" {
 
 variable "grist" {
   type = object({
-    server_url        = string
+    server_url = string
+    api_key    = string
+
     data_model_doc_id = string
     data_doc_id       = string
-    api_key           = string
+    test_set_doc_id   = optional(string)
   })
 }
 
@@ -86,7 +88,30 @@ variable "llm_config" {
 
 ###
 
+variable "enable_api" {
+  type    = bool
+  default = false
+}
+
+variable "api_command" {
+  type    = list(string)
+  default = null
+}
+
+variable "api_resources" {
+  type = object({
+    requests = map(string)
+    limits   = map(string)
+  })
+  default = {
+    requests = { cpu = "200m", memory = "512Mi" }
+    limits   = { cpu = "500m", memory = "1Gi" }
+  }
+}
+
+###
+
 variable "authentik_group_ids" {
-  type = list(string)
+  type    = list(string)
   default = []
 }
