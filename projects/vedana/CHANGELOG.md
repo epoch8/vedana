@@ -1,8 +1,12 @@
 # WIP
 
+* (vedana-core) Make conversation history always present instead of a tool call
+
+# 2025.08.21-dev.18
+
 * (src) Reshuffle folders in monorepo
 * (vedana) Consolidate databases (jims + datapipe), now it's one database
-* (vedana-core) Make conversation history always present instead of a tool call
+* (vedana-eval) Implement eval functionality
 
 # 2025.08.15-dev.17
 
