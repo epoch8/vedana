@@ -104,8 +104,8 @@ variable "api_resources" {
     limits   = map(string)
   })
   default = {
-    requests = { cpu = "200m", memory = "256Mi" }
-    limits   = { cpu = "500m", memory = "512Mi" }
+    requests = { cpu = "200m", memory = "512Mi" }
+    limits   = { cpu = "500m", memory = "1Gi" }
   }
 }
 
