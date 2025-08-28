@@ -41,7 +41,7 @@ locals {
       TELEGRAM_BOT_TOKEN = var.telegram_bot_token
     } : {},
     var.enable_api ? {
-      API_KEY = random_string.api_key.result
+      API_KEY = random_string.api_key[0].result
     } : {},
     local.llm_env
   )
@@ -94,6 +94,8 @@ locals {
 }
 
 resource "random_string" "api_key" {
+  count = var.enable_api ? 1 : 0
+
   length  = 32
   special = false
 }
