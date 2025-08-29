@@ -1,4 +1,4 @@
-# WIP
+# 2025.08.29-dev.19
 
 * (vedana-etl) fixed loading bidirectional links in base pipeline
 * (vedana-etl) use Grist API, fixing parsing formulas and reference fields
