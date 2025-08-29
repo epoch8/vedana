@@ -45,7 +45,7 @@ def clean_str(text: str) -> str:
     return text.strip()
 
 
-def get_data_model():
+def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
     loader = GristCsvDataProvider(
         doc_id=core_settings.grist_data_model_doc_id,
         grist_server=core_settings.grist_server_url,
@@ -53,49 +53,60 @@ def get_data_model():
     )
 
     _links_df = loader.get_table("Links")
-    links_df = _links_df[
-        [
-            "anchor1",
-            "anchor2",
-            "sentence",
-            "description",
-            "query",
-            "anchor1_link_column_name",
-            "anchor2_link_column_name",
-            "has_direction",
-        ]
-    ]
+    links_df = cast(
+        pd.DataFrame,
+        _links_df[
+            [
+                "anchor1",
+                "anchor2",
+                "sentence",
+                "description",
+                "query",
+                "anchor1_link_column_name",
+                "anchor2_link_column_name",
+                "has_direction",
+            ]
+        ],
+    )
+    assert links_df is not None
+
     links_df["has_direction"] = _links_df["has_direction"].astype(bool)
-    links_df = links_df.dropna(subset=["anchor1", "anchor2", "sentence"])
+    links_df = links_df.dropna(subset=["anchor1", "anchor2", "sentence"], inplace=False)
 
     attrs_df = loader.get_table("Attributes")
-    attrs_df = attrs_df[
-        [
-            "attribute_name",
-            "description",
-            "anchor",
-            "link",
-            "data_example",
-            "embeddable",
-            "query",
-            "dtype",
-            "embed_threshold",
-        ]
-    ]
+    attrs_df = cast(
+        pd.DataFrame,
+        attrs_df[
+            [
+                "attribute_name",
+                "description",
+                "anchor",
+                "link",
+                "data_example",
+                "embeddable",
+                "query",
+                "dtype",
+                "embed_threshold",
+            ]
+        ],
+    )
     attrs_df["embeddable"] = attrs_df["embeddable"].astype(bool)
     attrs_df["embed_threshold"] = attrs_df["embed_threshold"].astype(float)
     attrs_df = attrs_df.dropna(subset=["anchor", "attribute_name"])
 
     anchors_df = loader.get_table("Anchors")
-    anchors_df = anchors_df[
-        [
-            "noun",
-            "description",
-            "id_example",
-            "query",
-        ]
-    ]
-    anchors_df = anchors_df.dropna(subset=["noun"])
+    anchors_df = cast(
+        pd.DataFrame,
+        anchors_df[
+            [
+                "noun",
+                "description",
+                "id_example",
+                "query",
+            ]
+        ],
+    )
+    anchors_df = anchors_df.dropna(subset=["noun"], inplace=False)
     anchors_df = anchors_df.astype(str)
 
     yield anchors_df, attrs_df, links_df
@@ -290,11 +301,14 @@ def get_grist_data(
     # add reverse links (if already provided in data, duplicates will be removed later)
     for link in dm.links:
         if not link.has_direction:
-            rev_edges = edges_df.loc[
-                (edges_df["from_node_type"] == link.anchor_from.noun)
-                & (edges_df["to_node_type"] == link.anchor_to.noun)
-                & (edges_df["edge_label"] == link.sentence)
-            ].copy()
+            rev_edges = cast(
+                pd.DataFrame,
+                edges_df.loc[
+                    (edges_df["from_node_type"] == link.anchor_from.noun)
+                    & (edges_df["to_node_type"] == link.anchor_to.noun)
+                    & (edges_df["edge_label"] == link.sentence)
+                ].copy(),
+            )
             if not rev_edges.empty:
                 rev_edges = rev_edges.rename(
                     columns={
