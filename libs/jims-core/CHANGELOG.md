@@ -1,3 +1,8 @@
+# 2025.08.29
+
+* Switch from litellm tracing to openinference
+* Add utility command `setup_monitoring_and_tracing_with_sentry`
+
 # 2025.08.06
 
 * Enable litellm otel tracing
