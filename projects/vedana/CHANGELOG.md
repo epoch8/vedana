@@ -1,3 +1,7 @@
+# WIP
+
+* (vedana-core) Make conversation history always present instead of a tool call
+
 # 2025.08.21-dev.18
 
 * (src) Reshuffle folders in monorepo
