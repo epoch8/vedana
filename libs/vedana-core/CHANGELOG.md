@@ -1,3 +1,7 @@
+# 2025.08.29
+
+* Make conversation history always present instead of a tool call
+
 # 0.5.0
 
 * (vedana) Refactor Vedana into packages
