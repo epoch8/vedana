@@ -72,7 +72,26 @@ class LLM:
         messages = messages.copy()
         tool_defs = [tool.openai_def for tool in tools]
         tools_map = {tool.name: tool for tool in tools}
-        for i in range(4):
+
+        async def _execute_tool_call(tool_call):
+            tool_name = tool_call.function.name
+            tool = tools_map.get(tool_name)
+            if not tool:
+                self.logger.error(f"Tool {tool_name} not found!")
+                return tool_call.id, f"Tool {tool_name} not found!"
+
+            self.logger.debug(f"Calling tool {tool_name}")
+            try:
+                tool_res = await tool.call(tool_call.function.arguments)
+            except Exception as e:
+                self.logger.exception("Error executing tool %s: %s", tool_name, e)
+                tool_res = f"Error executing tool {tool_name}: {e}"
+
+            self.logger.debug("Tool %s (%s) result: %s", tool_name, tool.description, tool_res)
+            return tool_call.id, tool_res
+
+        max_iters = 5
+        for i in range(max_iters):
             msg, tool_calls = await self.llm.chat_completion_with_tools(
                 messages=messages,
                 tools=tool_defs,
@@ -81,31 +100,11 @@ class LLM:
 
             messages.append(msg.to_dict())  # type: ignore
 
-            self.logger.debug(f"Tool call iter {i}")
-            if i == 3:
-                self.logger.warning("Too much iterations. Exiting tool call loop")
-                break
-
             if not tool_calls:
                 self.logger.debug("No tool calls found. Exiting tool call loop")
                 break
 
-            async def _execute_tool_call(tool_call):
-                tool_name = tool_call.function.name
-                tool = tools_map.get(tool_name)
-                if not tool:
-                    self.logger.error(f"Tool {tool_name} not found!")
-                    return tool_call.id, f"Tool {tool_name} not found!"
-
-                self.logger.debug(f"Calling tool {tool_name}")
-                try:
-                    tool_res = await tool.call(tool_call.function.arguments)
-                except Exception as e:
-                    self.logger.exception(f"Error executing tool {tool_name}: {e}")
-                    tool_res = f"Error executing tool {tool_name}: {e}"
-
-                self.logger.debug(f"Tool {tool_name} ({tool.description}) result: {tool_res}")
-                return tool_call.id, tool_res
+            self.logger.debug(f"Tool call iter {i + 1}/{max_iters}")
 
             # Execute tool calls in parallel
             results = await asyncio.gather(*[_execute_tool_call(t) for t in tool_calls])
@@ -114,6 +113,14 @@ class LLM:
                 messages.append(
                     ChatCompletionToolMessageParam(role="tool", tool_call_id=tool_call_id, content=tool_res)
                 )
+
+            if i == max_iters - 1:
+                self.logger.warning(f"Reached tool call iteration limit ({max_iters}). Exiting tool call loop")
+                finalize_prompt = self.prompt_templates.get("finalize_answer_tmplt", finalize_answer_tmplt)
+                finalize_msg = {"role": "system", "content": finalize_prompt}
+                final_msg = await self.llm.chat_completion_plain(messages + [finalize_msg])
+                messages.append(final_msg.to_dict())  # type: ignore
+                break
 
         for last_msg in reversed(messages):  # sometimes message with final answer is not the last one
             if last_msg.get("role", "") == "assistant" and last_msg.get("content"):
@@ -143,6 +150,13 @@ class LLM:
         human_answer = "" if response.content is None else response.content.strip()
         self.logger.debug(f"Generated 'no answer' response: {human_answer}")
         return human_answer
+
+
+finalize_answer_tmplt = """\
+Сформулируй ответ на запрос пользователя основе информации, полученной в результате вызова результатов инструментов. 
+Если информации недостаточно для точного ответа, ясно опиши ограничения и предложи 1–2 уточняющих вопроса. 
+Важно! Не упоминай инструменты в явном виде, ссылайся только на данные.
+"""
 
 
 generate_no_answer_tmplt = """\
