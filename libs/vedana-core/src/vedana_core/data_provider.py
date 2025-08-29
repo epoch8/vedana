@@ -274,8 +274,8 @@ class GristCsvDataProvider(GristDataProvider):
         resp.raise_for_status()
         return [t["id"] for t in resp.json()["tables"]]
 
-    def get_table(self, table_id: str) -> pd.DataFrame:
-        url = f"{self.grist_server}/api/docs/{self.doc_id}/download/csv?tableId={table_id}"
+    def get_table(self, table_name: str) -> pd.DataFrame:
+        url = f"{self.grist_server}/api/docs/{self.doc_id}/download/csv?tableId={table_name}"
         resp = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"}, timeout=600)
         resp.raise_for_status()
         df = pd.read_csv(io.StringIO(resp.text))
@@ -557,4 +557,3 @@ class GristSQLDataProvider(GristDataProvider):
             rows_data.append(tuple(row.get(col) for col in columns))
 
         return pd.DataFrame(rows_data, columns=columns)
-
