@@ -15,6 +15,8 @@ locals {
 
   vedana_env = merge(
     {
+      PYTHONUNBUFFERED = "1"
+
       JIMS_DB_CONN_URI = local.db_conn_uri
       DB_CONN_URI      = local.db_conn_uri
 
@@ -33,8 +35,15 @@ locals {
       GRIST_DATA_MODEL_DOC_ID = var.grist.data_model_doc_id
       GRIST_DATA_DOC_ID       = var.grist.data_doc_id
     },
+    var.grist.test_set_doc_id != null ? {
+      TEST_ENVIRONMENT      = local.slug
+      GRIST_TEST_SET_DOC_ID = var.grist.test_set_doc_id
+    } : {},
     local.tg_enabled ? {
       TELEGRAM_BOT_TOKEN = var.telegram_bot_token
+    } : {},
+    var.enable_api ? {
+      API_KEY = random_string.api_key[0].result
     } : {},
     local.llm_env
   )
@@ -84,6 +93,13 @@ locals {
     successThreshold: 1
     failureThreshold: 10
   EOF
+}
+
+resource "random_string" "api_key" {
+  count = var.enable_api ? 1 : 0
+
+  length  = 32
+  special = false
 }
 
 ###
@@ -230,6 +246,8 @@ resource "helm_release" "backoffice" {
   }
 }
 
+###
+
 resource "helm_release" "tg" {
   count = local.tg_enabled ? 1 : 0
 
@@ -270,6 +288,61 @@ resource "helm_release" "tg" {
     ]
   }
 }
+
+###
+
+resource "helm_release" "api" {
+  count = var.enable_api ? 1 : 0
+
+  name      = "${local.slug}-api"
+  namespace = var.k8s_namespace
+
+  repository = "https://epoch8.github.io/helm-charts/"
+  chart      = "simple-app"
+  version    = "0.17.1"
+
+  values = [
+    local.common_values,
+    jsonencode({
+      port      = 8080
+      command   = var.api_command
+      resources = var.api_resources
+      probe = {
+        path = "/healthz"
+      }
+
+      domain = "api.${var.base_domain}"
+
+      ingress = {
+        enabled = true
+        nginx   = true
+
+        annotations = {
+          "cert-manager.io/cluster-issuer"                 = "letsencrypt"
+          "nginx.ingress.kubernetes.io/proxy-body-size"    = "0"
+          "nginx.ingress.kubernetes.io/proxy-read-timeout" = "600"
+          "nginx.ingress.kubernetes.io/proxy-send-timeout" = "600"
+        }
+
+        tls = [
+          {
+            secretName = "api.${var.base_domain}-tls"
+            hosts      = ["api.${var.base_domain}"]
+          }
+        ]
+      }
+    }),
+  ]
+
+  lifecycle {
+    ignore_changes = [
+      name,
+      namespace,
+    ]
+  }
+}
+
+###
 
 output "config" {
   value = {
