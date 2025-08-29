@@ -6,11 +6,12 @@ import sys
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, cast
 
 import grist_api
 import pandas as pd
 import requests
+import requests.exceptions
 
 from vedana_core.graph import Graph
 
@@ -624,7 +625,7 @@ class GristOnlineDataModelLoader(DataModelLoader):
         columns = self._list_table_columns(table_name) + ["id"]
         rows = self._client.fetch_table(table_name)
         df = pd.DataFrame(data=rows)
-        df = df[columns]
+        df = cast(pd.DataFrame, df[columns])
         df.columns = pd.Index([col.lower() for col in df.columns])
         return df
 
