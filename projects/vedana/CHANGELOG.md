@@ -2,6 +2,7 @@
 
 * (vedana-etl) fixed loading bidirectional links in base pipeline
 * (vedana-etl) use Grist API, fixing parsing formulas and reference fields
+* (vedana-core) Make conversation history always present instead of a tool call
 
 # 2025.08.21-dev.18
 

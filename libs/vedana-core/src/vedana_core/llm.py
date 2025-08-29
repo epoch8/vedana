@@ -55,12 +55,12 @@ class LLM:
     async def generate_cypher_query_with_tools(
         self,
         data_descr: str,
-        text_query: str,
+        messages: Iterable,
         tools: list[Tool],
         temperature: float | None = None,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
         tool_names = [t.name for t in tools]
-        msgs = make_cypher_query_with_tools_dialog(data_descr, self.prompt_templates, text_query, tool_names=tool_names)
+        msgs = make_cypher_query_with_tools_dialog(data_descr, self.prompt_templates, messages, tool_names=tool_names)
         return await self.create_completion_with_tools(msgs, tools=tools, temperature=temperature)
 
     async def create_completion_with_tools(
@@ -159,7 +159,6 @@ generate_answer_with_tools_tmplt = """\
 Ты — помощник по работе с графовыми базами данных, в которых используется язык запросов Cypher
 
 Цель: постараться найти ответ на вопрос пользователя используя инструменты для работы с БД на основе текстового описания графовой базы данных.
-Для понимания контекста диалогов или уточняющих запросов, используй инструмент `get_conversation_history`.
 
 На вход ты получаешь graph_composition: – описание графа и примеры запросов по нему, и user_query – пользовательский запрос.
 
@@ -184,7 +183,7 @@ generate_answer_with_tools_tmplt = """\
 def make_cypher_query_with_tools_dialog(
     graph_description: str,
     prompt_templates: dict[str, str],
-    natural_language_query: str,
+    messages: Iterable,
     tool_names: list[str],
 ) -> list[ChatCompletionMessageParam]:
     prompt_template = prompt_templates.get("generate_answer_with_tools_tmplt", generate_answer_with_tools_tmplt)
@@ -194,8 +193,5 @@ def make_cypher_query_with_tools_dialog(
             "role": "system",
             "content": prompt,
         },
-        {
-            "role": "user",
-            "content": natural_language_query,
-        },
+        *messages,
     ]

@@ -16,7 +16,8 @@ dependencies = [
     "pydantic-settings>=2.8.1",
     "sqlalchemy[asyncio]>=2.0.40",
     "uuid7>=0.1.0",
-    "opentelemetry-exporter-otlp"
+    "opentelemetry-exporter-otlp",
+    "openinference-instrumentation-litellm>=0.1.25",
 ]
 
 [dependency-groups]
