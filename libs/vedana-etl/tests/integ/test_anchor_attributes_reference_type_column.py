@@ -10,7 +10,7 @@
  - reference-поле: document_reference_attr (есть в Data Model)
 """
 
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
@@ -53,20 +53,16 @@ def test_anchor_attributes_reference_type_column() -> None:
             ref_node_attrs = attrs
             break
 
-    assert ref_node_attrs is not None, (
-        """
+    assert ref_node_attrs is not None, """
         Reference column 'document_reference_attr' must appear as a non-empty string 
         in at least one 'document' node (raw data).
         """
-    )
 
     # --- 2.2) Проверить, что gristHelper_* ключи не протекли в attributes
-    assert not any(k.startswith("gristHelper_") for k in ref_node_attrs.keys()), (
-        """
+    assert not any(k.startswith("gristHelper_") for k in ref_node_attrs.keys()), """
         gristHelper_* keys leaked into attributes; the SQL provider should have 
         used them to reconstruct the final string value and NOT keep helper keys.
         """
-    )
 
     # --- 3) Фильтрация по Data Model
     filtered = steps.filter_grist_nodes(nodes_df, dm_nodes=anchors_df, dm_attributes=attrs_df)
@@ -75,7 +71,7 @@ def test_anchor_attributes_reference_type_column() -> None:
 
     preserved_any = False
     for _, row in docs_f.iterrows():
-        attrs: Dict[str, Any] = row["attributes"] or {}
+        attrs = row["attributes"] or {}
         if isinstance(attrs.get("document_reference_attr"), str) and attrs["document_reference_attr"].strip():
             preserved_any = True
             break
