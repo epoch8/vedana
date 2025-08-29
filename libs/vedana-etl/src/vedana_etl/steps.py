@@ -62,7 +62,7 @@ def get_data_model():
             "query",
             "anchor1_link_column_name",
             "anchor2_link_column_name",
-            "has_direction"
+            "has_direction",
         ]
     ]
     links_df["has_direction"] = _links_df["has_direction"].astype(bool)
@@ -291,17 +291,19 @@ def get_grist_data(
     for link in dm.links:
         if not link.has_direction:
             rev_edges = edges_df.loc[
-                (edges_df["from_node_type"] == link.anchor_from.noun) &
-                (edges_df["to_node_type"] == link.anchor_to.noun) &
-                (edges_df["edge_label"] == link.sentence)
+                (edges_df["from_node_type"] == link.anchor_from.noun)
+                & (edges_df["to_node_type"] == link.anchor_to.noun)
+                & (edges_df["edge_label"] == link.sentence)
             ].copy()
             if not rev_edges.empty:
-                rev_edges = rev_edges.rename(columns={
-                    "from_node_id": "to_node_id",
-                    "to_node_id": "from_node_id",
-                    "from_node_type": "to_node_type",
-                    "to_node_type": "from_node_type",
-                })
+                rev_edges = rev_edges.rename(
+                    columns={
+                        "from_node_id": "to_node_id",
+                        "to_node_id": "from_node_id",
+                        "from_node_type": "to_node_type",
+                        "to_node_type": "from_node_type",
+                    }
+                )
                 edges_df = pd.concat([edges_df, rev_edges], ignore_index=True)
 
     # preventive drop_duplicates / na records
