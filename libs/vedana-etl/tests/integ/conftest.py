@@ -24,7 +24,7 @@ def dm_dfs():
 @pytest.fixture(scope="session")
 def raw_graph_dfs():
     """Сырые nodes/edges из живой Grist."""
-    nodes, edges = next(steps.get_grist_data(batch_size=1000))
+    nodes, edges = next(steps.get_grist_data())
     return nodes, edges
 
 
