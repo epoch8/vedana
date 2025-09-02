@@ -112,8 +112,25 @@ def get_data_model():
     yield anchors_df, attrs_df, links_df
 
 
-def parse_bool(bool_str: str) -> bool:
-    return str(bool_str).lower() in ["1", "true", "да", "есть"]
+def get_data_model_snapshot() -> Generator[DataFrame, Any, None]:
+    """
+    DataModel.load_grist_online call repeats bc snapshot updates with delete_stale=False (to keep history)
+    """
+    dm = DataModel.load_grist_online(
+        doc_id=core_settings.grist_data_model_doc_id,
+        grist_server=core_settings.grist_server_url,
+        api_key=core_settings.grist_api_key,
+    )
+
+    dm_text = dm.to_text_descr()
+    dm_uuid = uuid7()
+
+    dm_version_snapshot = {
+        "dm_id": dm_uuid,
+        "dm_description": dm_text,
+    }
+
+    yield pd.DataFrame(dm_version_snapshot)
 
 
 def get_grist_data(
