@@ -1,0 +1,3 @@
+from_node_id,to_node_id,edge_label
+reg:001,document:1,REGULATION_is_described_in_DOCUMENT
+document:002,reg:002,REGULATION_is_described_in_DOCUMENT

@@ -1,0 +1,6 @@
+noun,description,id_example,query
+document,main data entity,document:1,
+document_chunk,contains part of document's content,document_chunk:001,
+regulation,is described by one or many documents / chunks,regulation:01.02,
+faq,questions and answers,faq:1,
+,,,

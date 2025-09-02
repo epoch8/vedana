@@ -1,0 +1,3 @@
+document_id,document_name,document_reference_field
+document:should_not_exist_in_graph_01,this doc should not pass to graph,reference_attr_01
+document:should_not_exist_in_graph_02,this doc should not pass to graph as well,reference_attr_02
