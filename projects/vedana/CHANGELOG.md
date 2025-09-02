@@ -1,3 +1,14 @@
+# WIP
+
+* (vedana-etl) Refactor to var-style Table declaration in pipeline
+
+# 2025.08.29-dev.19
+
+* (vedana-etl) fixed loading bidirectional links in base pipeline
+* (vedana-etl) use Grist API, fixing parsing formulas and reference fields
+* (vedana-core) Make conversation history always present instead of a tool call
+* (vedana-core) More tool call iterations + add final prompt on tool call limit
+
 # 2025.08.21-dev.18
 
 * (src) Reshuffle folders in monorepo
