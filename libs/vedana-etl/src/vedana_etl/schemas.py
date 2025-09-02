@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Float, String
+from sqlalchemy import Boolean, Column, Float, String, UUID
 from sqlalchemy.dialects.postgresql import JSONB
 
 # Grist data model
@@ -68,4 +68,10 @@ MEMGRAPH_VECTOR_INDEXES_SCHEMA: list[Column] = [
 DM_VERSIONING_TABLE_SCHEMA: list[Column] = [
     Column("dm_id", String, primary_key=True),
     Column("dm_description", String),
+]
+
+EVAL_GDS_SCHEMA: list[Column] = [
+    Column("gds_question", String, primary_key=True),
+    Column("gds_answer", String),
+    Column("question_context", String),
 ]
