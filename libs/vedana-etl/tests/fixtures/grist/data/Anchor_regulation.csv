@@ -1,3 +1,0 @@
-regulation_id,regulation_name,regulation_integer_attr,regulation_float_attr,regulation_bool_attr
-reg:001,reg 01 name,1,4.2,true
-reg:002,reg 02 name,2,0.42,false
