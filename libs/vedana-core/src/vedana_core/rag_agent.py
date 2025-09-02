@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, create_model
 from vedana_core.data_model import DataModel
 from vedana_core.graph import Graph, Record
 from vedana_core.llm import LLM, Tool
+from vedana_core.settings import settings
 
 QueryResult = list[Record] | Exception
 
@@ -58,7 +59,6 @@ class GetHistoryArgs(BaseModel):
 
 VTS_TOOL_NAME = "vector_text_search"
 CYPHER_TOOL_NAME = "cypher"
-HISTORY_TOOL_NAME = "get_conversation_history"
 
 
 class RagAgent:
@@ -153,38 +153,6 @@ class RagAgent:
             all_results.append(("Full text search", results.fts_res))
         return "\n\n".join(self.result_to_text(str(q), r) for q, r in all_results)
 
-    def _get_conversation_history_tool_func(self, args: GetHistoryArgs) -> str:
-        if not self.ctx or len(self.ctx.history) <= 1:
-            return "Conversation history is not available in the current context."
-
-        relevant_events = [
-            event for event in self.ctx.history if event.get("role") == "user" or event.get("role") == "assistant"
-        ][:-1]  # last message is current query
-
-        # Get the last N messages
-        history_len = 0
-        history_msgs = []
-
-        for event in reversed(relevant_events):
-            role = event.get("role")
-            content = event.get("content", "")
-            if content:  # Ensure there is content to add
-                message_text = f"{role}: {content}"
-                if len(message_text) + history_len > args.max_history and role != "user":  # break only on questions
-                    break
-                else:
-                    history_len += len(message_text)
-                    history_msgs.append(message_text)
-
-        history_text = "\n---\n".join(reversed(history_msgs))
-        if not history_text:
-            return f"No relevant conversation history found (out of {len(relevant_events)} total messages)."
-
-        self.logger.debug(
-            f"Retrieved conversation history (last {len(history_msgs)} messages with total length {len(history_text)})."
-        )
-        return history_text
-
     async def text_to_answer_with_vts_and_cypher(
         self, text_query: str, threshold: float, temperature: float | None = None, top_n: int = 5
     ) -> tuple[str, list[VTSQuery], list[CypherQuery]]:
@@ -224,19 +192,9 @@ class RagAgent:
 
         tools: list[Tool] = [vts_tool, cypher_tool]
 
-        if self.ctx.history:
-            tools.append(
-                Tool(
-                    name=HISTORY_TOOL_NAME,
-                    description="Retrieves past messages from the current conversation. Use to get context for the current user query.",
-                    args_cls=GetHistoryArgs,
-                    fn=self._get_conversation_history_tool_func,
-                )
-            )
-
         msgs, answer = await self.llm.generate_cypher_query_with_tools(
             data_descr=self._graph_descr,
-            text_query=text_query,
+            messages=self.ctx.history[-settings.pipeline_history_length :],
             tools=tools,
             temperature=temperature,
         )

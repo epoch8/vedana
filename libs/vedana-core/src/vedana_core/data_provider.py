@@ -143,15 +143,7 @@ class GristDataProvider(DataProvider):
     def list_link_tables(self) -> list[str]: ...
 
     @abc.abstractmethod
-    def get_table(self, table_name: str) -> Table: ...
-
-    def get_table_df(self, table_name: str) -> pd.DataFrame:
-        """
-        Format table to dataframe
-        """
-        table: Table = self.get_table(table_name)
-        df = pd.DataFrame(table.rows, columns=table.columns)
-        return df
+    def get_table(self, table_name: str) -> pd.DataFrame: ...
 
     def get_anchor_types(self) -> list[str]:
         prefix_len = len(self.anchor_table_prefix)
@@ -165,7 +157,9 @@ class GristDataProvider(DataProvider):
         table_name = f"{self.anchor_table_prefix}{type_}"
         table = self.get_table(table_name)
         if "id" not in table.columns:
-            table.columns.append("id")
+            table["id"] = [None] * table.shape[0]
+        table_records: list[dict] = table.to_dict(orient="records")
+
         id_key = f"{type_}_id"
         anchor_ids = set()
         anchors: list[AnchorRecord] = []
@@ -179,8 +173,7 @@ class GristDataProvider(DataProvider):
                 return None
             return el
 
-        for row in table.rows:
-            row_dict = {col: getattr(row, col) for col in table.columns}
+        for row_dict in table_records:
             db_id = flatten_list_cells(row_dict.pop("id"))
             id_ = row_dict.pop(id_key, None)
             if id_ is None:
@@ -195,7 +188,7 @@ class GristDataProvider(DataProvider):
             if id_ not in anchor_ids:
                 anchor_ids.add(id_)
             else:
-                print(f"Duplicate anchor id {id_} in table {table_name}\nduplicate data: {row_dict}\n record skipped.")
+                print(f'Duplicate anchor id "{id_}" in "{table_name}"\nduplicate data: {row_dict}\nrecord skipped')
                 continue
 
             anchors.append(AnchorRecord(id_, type_, row_dict, dp_id=db_id))  # type: ignore
@@ -206,7 +199,8 @@ class GristDataProvider(DataProvider):
         table_name = f"{self.link_table_prefix}{table_name}"
         table = self.get_table(table_name)
         if "id" not in table.columns:
-            table.columns.append("id")
+            table["id"] = [None] * table.shape[0]
+        table_records: list[dict] = table.to_dict(orient="records")
 
         def flatten_list_cells(el):
             if isinstance(el, list) and "L" in el and len(el) == 2:  # flatten List type fields
@@ -214,21 +208,23 @@ class GristDataProvider(DataProvider):
             return el
 
         links: list[LinkRecord] = []
-        for row in table.rows:
-            row_dict = {col: getattr(row, col) for col in table.columns}
+        for row_dict in table_records:
             id_from = row_dict.pop("from_node_id")
             id_to = row_dict.pop("to_node_id")
+            # node types - check node type in id's, else take link's definition
+            node_from = link.anchor_to.noun if id_from.split(":")[0] == (link.anchor_to.noun) else link.anchor_from.noun
+            node_to = link.anchor_to.noun if node_from != link.anchor_to.noun else link.anchor_from.noun
             type_ = row_dict.pop("edge_label")
             row_dict.pop("id")
 
             if not id_from or not id_to or not type_ or pd.isna(type_) or pd.isna(id_from) or pd.isna(id_to):
                 continue
-            row_dict = {k: flatten_list_cells(v) for k, v in row_dict.items()}
+            row_dict = {str(k): flatten_list_cells(v) for k, v in row_dict.items()}
             row_dict = {
                 k: v for k, v in row_dict.items() if not isinstance(v, (bytes, list, type(None))) and not pd.isna(v)
             }
 
-            links.append(LinkRecord(id_from, id_to, link.anchor_from.noun, link.anchor_to.noun, type_, row_dict))
+            links.append(LinkRecord(id_from, id_to, node_from, node_to, type_, row_dict))
 
         return links
 
@@ -257,21 +253,20 @@ class GristOfflineDataProvider(GristDataProvider):
         ).fetchall()
         return [row[0] for row in rows]
 
-    def get_table(self, table_name: str) -> Table:
+    def get_table(self, table_name: str) -> pd.DataFrame:
         cur = self._conn.execute(f"SELECT * FROM {table_name}")
         columns = [t[0] for t in cur.description]
         rows = cur.fetchall()
-        return Table(columns, rows)
+        return pd.DataFrame.from_records(rows, columns=columns)
 
 
-class GristOnlineCsvDataProvider(GristDataProvider):
+class GristCsvDataProvider(GristDataProvider):
     def __init__(self, doc_id: str, grist_server: str, api_key: str | None = None) -> None:
         super().__init__()
         self.doc_id = doc_id
         self.grist_server = grist_server
         self.api_key = api_key
-        self._tables: dict[str, pd.DataFrame] = {}
-        self._load_csv_tables(self._fetch_table_list())
+        self._table_list: list[str] = self._fetch_table_list()
 
     def _fetch_table_list(self) -> list[str]:
         url = f"{self.grist_server}/api/docs/{self.doc_id}/tables"
@@ -279,21 +274,17 @@ class GristOnlineCsvDataProvider(GristDataProvider):
         resp.raise_for_status()
         return [t["id"] for t in resp.json()["tables"]]
 
-    def _download_table_csv(self, table_id: str) -> pd.DataFrame:
-        url = f"{self.grist_server}/api/docs/{self.doc_id}/download/csv?tableId={table_id}"
-        resp = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
+    def get_table(self, table_name: str) -> pd.DataFrame:
+        url = f"{self.grist_server}/api/docs/{self.doc_id}/download/csv?tableId={table_name}"
+        resp = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"}, timeout=600)
         resp.raise_for_status()
-        return pd.read_csv(io.StringIO(resp.text)).reset_index(drop=False, names=["id"])
-
-    def _load_csv_tables(self, table_list: list):
-        for table_id in table_list:
-            try:
-                self._tables[table_id] = self._download_table_csv(table_id)
-            except Exception as e:
-                print(f"Failed to load table {table_id}: {e}")
+        df = pd.read_csv(io.StringIO(resp.text))
+        if "id" not in df.columns:
+            df = df.reset_index(drop=False, names=["id"])
+        return df
 
     def _list_tables_with_prefix(self, prefix: str) -> list[str]:
-        return [t for t in self._tables if t.startswith(prefix)]
+        return [t for t in self._table_list if t.startswith(prefix)]
 
     def list_anchor_tables(self) -> list[str]:
         return self._list_tables_with_prefix(self.anchor_table_prefix)
@@ -301,39 +292,15 @@ class GristOnlineCsvDataProvider(GristDataProvider):
     def list_link_tables(self) -> list[str]:
         return self._list_tables_with_prefix(self.link_table_prefix)
 
-    def _list_table_columns(self, table_name: str) -> list[str]:
-        df = self._tables.get(table_name)
-        if df is not None:
-            return list(df.columns)
-        return []
 
-    def get_table(self, table_name: str) -> Table:
-        df = self._tables.get(table_name)
-        if df is None:
-            return Table([], [])
-        columns = list(df.columns)
-        rows = [tuple(row) for row in df.itertuples(index=False, name="Row")]
-        return Table(columns, rows)
-
-
-class GristOnlineDataProvider(GristDataProvider):
+class GristAPIDataProvider(GristDataProvider):
     def __init__(self, doc_id: str, grist_server: str, api_key: str | None = None) -> None:
         super().__init__()
         self.grist_server = grist_server
         self.doc_id = doc_id
         self.api_key = api_key
+        self.headers = {"Authorization": f"Bearer {self.api_key}"}
         self._client = grist_api.GristDocAPI(doc_id, api_key=api_key, server=grist_server)
-
-    def get_table_csv(self, table_id: str) -> Table:
-        """table download via API as csv, used for Links"""
-        print(f"Downloading table {table_id} via CSV API for fixed references...")
-        url = f"{self.grist_server}/api/docs/{self.doc_id}/download/csv?tableId={table_id}"
-        resp = requests.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
-        resp.raise_for_status()
-        df = pd.read_csv(io.StringIO(resp.text)).reset_index(drop=False, names=["id"])
-        columns = list(df.columns)
-        rows = [tuple(row) for row in df.itertuples(index=False, name=table_id)]
-        return Table(columns, rows)
 
     def _list_tables_with_prefix(self, prefix: str) -> list[str]:
         resp = self._client.tables()
@@ -348,20 +315,23 @@ class GristOnlineDataProvider(GristDataProvider):
     def list_link_tables(self) -> list[str]:
         return self._list_tables_with_prefix(self.link_table_prefix)
 
-    def _list_table_columns(self, table_name: str) -> list[str]:
-        resp = self._client.columns(table_name)
+    def _list_table_columns(self, table_name: str) -> dict[str, str]:
+        """returns mapping {internal_grist_id: id_in_UI}"""
+        resp = self._client.columns(table_name)  # does not show hidden columns i.e. "id"
+        # url = f"{self.grist_server}/api/docs/{self.doc_id}/tables/{table_name}/columns?hidden=True"
+        # resp = requests.get(url, headers=self.headers)
         if not resp:
-            return []
-        return [column["id"] for column in resp.json()["columns"]]
+            return {}
+        # column["id"] returns hidden internal ID which is causing confusing processing errors. label is display value
+        return {column["id"]: column["fields"]["label"] for column in resp.json()["columns"]}
 
-    def get_table(self, table_name: str) -> Table:
-        # fix for tables with Foreign Key links - csv gets actual values
-        if table_name.startswith(self.link_table_prefix):
-            return self.get_table_csv(table_name)
-
+    def get_table(self, table_name: str) -> pd.DataFrame:
         columns = self._list_table_columns(table_name)
+        if "id" not in columns:  # add internal id
+            columns["id"] = "id"
         rows = self._client.fetch_table(table_name)
-        return Table(columns, rows)
+        rows = [{c_label: getattr(r, c_id) for c_id, c_label in columns.items()} for r in rows]  # filter usage
+        return pd.DataFrame(rows, columns=list(columns.values()))
 
 
 class GristSQLDataProvider(GristDataProvider):
@@ -569,7 +539,7 @@ class GristSQLDataProvider(GristDataProvider):
 
         return links
 
-    def get_table(self, table_name: str) -> Table:
+    def get_table(self, table_name: str) -> pd.DataFrame:
         """
         Table with 1st batch_size rows.
         To iterate over the remaining rows use _iter_table_rows
@@ -586,4 +556,4 @@ class GristSQLDataProvider(GristDataProvider):
             # row dict to tuple in deterministic column order
             rows_data.append(tuple(row.get(col) for col in columns))
 
-        return Table(columns, rows_data)
+        return pd.DataFrame(rows_data, columns=columns)
