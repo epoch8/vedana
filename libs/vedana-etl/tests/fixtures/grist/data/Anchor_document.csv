@@ -1,0 +1,5 @@
+document_id,document_name,document_filepath,document_random_attr,link_document_has_document_chunk,document_reference_attr
+document:1,doc_a,path/defined/by/formula/doc_a.txt,this column should not pass into graph (attr not in data model),"document_chunk:01, document_chunk:02, document_chunk:03, document_chunk:05",reference_attr_01
+document:1,doc_a_duplicate,path/defined/by/formula/doc_a_duplicate.txt,,document_chunk:04,reference_attr_01
+document:002,doc_b,path/defined/by/formula/doc_b.txt,,,
+document:03,doc_c,path/defined/by/formula/doc_c.txt,,,reference_attr_02

@@ -1,0 +1,8 @@
+anchor1,anchor2,sentence,description,query,anchor1_link_column_name,anchor2_link_column_name,has_direction
+document,document_chunk,DOCUMENT_has_DOCUMENT_CHUNK,bidirectional link,,link_document_has_document_chunk,,false
+regulation,document,REGULATION_is_described_in_DOCUMENT,,,,,false
+document,regulation,DOCUMENT_covers_REGULATION,one-way link,,,,true
+,,,,,,,false
+,,,,,,,false
+,,,,,,,false
+,,,,,,,false

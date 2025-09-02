@@ -1,18 +1,42 @@
 services:
-  memgraph:
-    image: memgraph/memgraph-mage
+  grist:
+    image: gristlabs/grist:latest
+    environment:
+      # (пример из grist-local-testing; подходит только для CI/локала)
+      GRIST_SINGLE_ORG: docs
+      GRIST_ORG_IN_PATH: "true"
+      GRIST_DEFAULT_EMAIL: ci@example.com
+      GRIST_SESSION_SECRET: dev-secret
     ports:
-      - 7687:7687
-      - 7444:7444
+      - "8484:8484"
+    volumes:
+      # CSV-фикстуры, читаем их скриптом
+      - ./fixtures/grist:/seed:ro
+    healthcheck:
+      test: [ "CMD", "bash", "-lc", "wget -qO- http://localhost:8484/api/status || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+
+  memgraph:
+    image: memgraph/memgraph-mage:latest
+    ports:
+      - "7687:7687"
+      - "7444:7444"
     volumes:
       - mg_graph:/var/lib/memgraph
     env_file: .env
     restart: always
     command:
       [
-        '--telemetry-enabled=false',
-        '--storage-mode=IN_MEMORY_ANALYTICAL',
+          "--telemetry-enabled=false",
+          "--storage-mode=IN_MEMORY_ANALYTICAL"
       ]
+    healthcheck:
+      test: [ "CMD", "bash", "-lc", "echo 'RETURN 1;' | mgconsole --host=127.0.0.1 --port=7687 || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
   memgraph-lab:
     image: memgraph/lab

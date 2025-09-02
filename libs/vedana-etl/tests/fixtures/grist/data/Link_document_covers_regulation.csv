@@ -1,0 +1,4 @@
+from_node_id,to_node_id,edge_label,edge_attribute,edge_attribute_embeddable,edge_attribute_integer,edge_attribute_float,edge_attribute_boolean,edge_attribute_extra
+document:1,reg:001,DOCUMENT_covers_REGULATION, link attribute,embeddable link attribute,42,4.2,true,this should not be in graph
+document:1,reg:001,DOCUMENT_covers_REGULATION,this is a duplicate link,,1,1.2,false,edge attribute not in data model
+document:1,reg:002,DOCUMENT_covers_REGULATION, doc:1-reg:2 link attribute,doc:1-reg:2 embeddable link attribute,84,8.4,false,
