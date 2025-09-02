@@ -32,7 +32,7 @@ def test_table_filtering() -> None:
 
     # 1) Загружаем Data Model (Anchors/Attributes/Links) и сырые узлы/рёбра из живой Grist.
     anchors_df, attrs_df, links_df = next(steps.get_data_model())
-    nodes_df, edges_df = next(steps.get_grist_data(batch_size=1000))
+    nodes_df, edges_df = next(steps.get_grist_data())
 
     # Проверяем наичие данных в Grist.
     assert not anchors_df.empty, "Anchors in Data Model must not be empty."

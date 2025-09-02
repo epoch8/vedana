@@ -30,7 +30,7 @@ def test_duplicate_anchor_ids_keep_first() -> None:
     """
 
     # 1) Грузим графовые таблицы из живой Grist через стандартный шаг пайплайна.
-    nodes_df, _ = next(steps.get_grist_data(batch_size=1000))
+    nodes_df, _ = next(steps.get_grist_data())
     assert not nodes_df.empty, "No nodes fetched from Grist; check test data and GRIST_* env."
 
     # 2) Фильтруем по проблемному идентификатору тестовых данных.

@@ -38,7 +38,7 @@ def test_anchor_attributes_formula_type_column() -> None:
     )
 
     # 2) Данные из живой Grist
-    nodes_df, _ = next(steps.get_grist_data(batch_size=1000))
+    nodes_df, _ = next(steps.get_grist_data())
     assert not nodes_df.empty, "No nodes fetched from Grist."
 
     documents = nodes_df[nodes_df["node_type"] == "document"]
