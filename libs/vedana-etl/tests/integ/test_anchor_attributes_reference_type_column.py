@@ -48,8 +48,9 @@ def test_anchor_attributes_reference_type_column() -> None:
     ref_node_attrs: Optional[Dict[str, Any]] = None
     for _, row in documents.iterrows():
         attrs: Dict[str, Any] = row["attributes"] or {}
+        print(attrs)
         val = attrs.get("document_reference_attr")
-        if isinstance(val, str) and val.strip():
+        if isinstance(val, int):
             ref_node_attrs = attrs
             break
 
@@ -72,7 +73,7 @@ def test_anchor_attributes_reference_type_column() -> None:
     preserved_any = False
     for _, row in docs_f.iterrows():
         attrs = row["attributes"] or {}
-        if isinstance(attrs.get("document_reference_attr"), str) and attrs["document_reference_attr"].strip():
+        if isinstance(attrs.get("document_reference_attr"), int):
             preserved_any = True
             break
     assert preserved_any, (
