@@ -1,9 +1,0 @@
-document_chunk_id,document_chunk_title,document_chunk_text,link_document_chunk_document_id
-document_chunk:01,doc_1_paragraph_1,sample text,document:1
-document_chunk:02,doc_1_paragraph_2,sample text,document:1
-document_chunk:03,doc_1_paragraph_3,sample text,document:1
-document_chunk:04,doc_1_paragraph_4,sample text,document:1
-document_chunk:05,doc_1_paragraph_5,sample text,document:1
-document_chunk:11,doc_2_paragraph_1,sample text,document:002
-document_chunk:12,doc_2_paragraph_2,sample text,document:1
-document_chunk:13,doc_2_paragraph_3,sample text,document:002
