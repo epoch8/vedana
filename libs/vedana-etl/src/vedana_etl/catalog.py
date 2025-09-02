@@ -1,4 +1,4 @@
-from datapipe.compute import Catalog, Table
+from datapipe.compute import Table
 from datapipe.store.database import TableStoreDB
 from datapipe.store.neo4j import Neo4JStore
 from sqlalchemy import Boolean, Column, Float, String
