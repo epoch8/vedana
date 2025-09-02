@@ -55,12 +55,12 @@ class LLM:
     async def generate_cypher_query_with_tools(
         self,
         data_descr: str,
-        text_query: str,
+        messages: Iterable,
         tools: list[Tool],
         temperature: float | None = None,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
         tool_names = [t.name for t in tools]
-        msgs = make_cypher_query_with_tools_dialog(data_descr, self.prompt_templates, text_query, tool_names=tool_names)
+        msgs = make_cypher_query_with_tools_dialog(data_descr, self.prompt_templates, messages, tool_names=tool_names)
         return await self.create_completion_with_tools(msgs, tools=tools, temperature=temperature)
 
     async def create_completion_with_tools(
@@ -72,7 +72,26 @@ class LLM:
         messages = messages.copy()
         tool_defs = [tool.openai_def for tool in tools]
         tools_map = {tool.name: tool for tool in tools}
-        for i in range(4):
+
+        async def _execute_tool_call(tool_call):
+            tool_name = tool_call.function.name
+            tool = tools_map.get(tool_name)
+            if not tool:
+                self.logger.error(f"Tool {tool_name} not found!")
+                return tool_call.id, f"Tool {tool_name} not found!"
+
+            self.logger.debug(f"Calling tool {tool_name}")
+            try:
+                tool_res = await tool.call(tool_call.function.arguments)
+            except Exception as e:
+                self.logger.exception("Error executing tool %s: %s", tool_name, e)
+                tool_res = f"Error executing tool {tool_name}: {e}"
+
+            self.logger.debug("Tool %s (%s) result: %s", tool_name, tool.description, tool_res)
+            return tool_call.id, tool_res
+
+        max_iters = 5
+        for i in range(max_iters):
             msg, tool_calls = await self.llm.chat_completion_with_tools(
                 messages=messages,
                 tools=tool_defs,
@@ -81,31 +100,11 @@ class LLM:
 
             messages.append(msg.to_dict())  # type: ignore
 
-            self.logger.debug(f"Tool call iter {i}")
-            if i == 3:
-                self.logger.warning("Too much iterations. Exiting tool call loop")
-                break
-
             if not tool_calls:
                 self.logger.debug("No tool calls found. Exiting tool call loop")
                 break
 
-            async def _execute_tool_call(tool_call):
-                tool_name = tool_call.function.name
-                tool = tools_map.get(tool_name)
-                if not tool:
-                    self.logger.error(f"Tool {tool_name} not found!")
-                    return tool_call.id, f"Tool {tool_name} not found!"
-
-                self.logger.debug(f"Calling tool {tool_name}")
-                try:
-                    tool_res = await tool.call(tool_call.function.arguments)
-                except Exception as e:
-                    self.logger.exception(f"Error executing tool {tool_name}: {e}")
-                    tool_res = f"Error executing tool {tool_name}: {e}"
-
-                self.logger.debug(f"Tool {tool_name} ({tool.description}) result: {tool_res}")
-                return tool_call.id, tool_res
+            self.logger.debug(f"Tool call iter {i + 1}/{max_iters}")
 
             # Execute tool calls in parallel
             results = await asyncio.gather(*[_execute_tool_call(t) for t in tool_calls])
@@ -114,6 +113,14 @@ class LLM:
                 messages.append(
                     ChatCompletionToolMessageParam(role="tool", tool_call_id=tool_call_id, content=tool_res)
                 )
+
+            if i == max_iters - 1:
+                self.logger.warning(f"Reached tool call iteration limit ({max_iters}). Exiting tool call loop")
+                finalize_prompt = self.prompt_templates.get("finalize_answer_tmplt", finalize_answer_tmplt)
+                finalize_msg = {"role": "system", "content": finalize_prompt}
+                final_msg = await self.llm.chat_completion_plain(messages + [finalize_msg])
+                messages.append(final_msg.to_dict())  # type: ignore
+                break
 
         for last_msg in reversed(messages):  # sometimes message with final answer is not the last one
             if last_msg.get("role", "") == "assistant" and last_msg.get("content"):
@@ -145,6 +152,13 @@ class LLM:
         return human_answer
 
 
+finalize_answer_tmplt = """\
+Сформулируй ответ на запрос пользователя основе информации, полученной в результате вызова результатов инструментов. 
+Если информации недостаточно для точного ответа, ясно опиши ограничения и предложи 1–2 уточняющих вопроса. 
+Важно! Не упоминай инструменты в явном виде, ссылайся только на данные.
+"""
+
+
 generate_no_answer_tmplt = """\
 Ты - помощник, который преобразует технические ответы в понятный человеку текст. 
 
@@ -159,7 +173,6 @@ generate_answer_with_tools_tmplt = """\
 Ты — помощник по работе с графовыми базами данных, в которых используется язык запросов Cypher
 
 Цель: постараться найти ответ на вопрос пользователя используя инструменты для работы с БД на основе текстового описания графовой базы данных.
-Для понимания контекста диалогов или уточняющих запросов, используй инструмент `get_conversation_history`.
 
 На вход ты получаешь graph_composition: – описание графа и примеры запросов по нему, и user_query – пользовательский запрос.
 
@@ -184,7 +197,7 @@ generate_answer_with_tools_tmplt = """\
 def make_cypher_query_with_tools_dialog(
     graph_description: str,
     prompt_templates: dict[str, str],
-    natural_language_query: str,
+    messages: Iterable,
     tool_names: list[str],
 ) -> list[ChatCompletionMessageParam]:
     prompt_template = prompt_templates.get("generate_answer_with_tools_tmplt", generate_answer_with_tools_tmplt)
@@ -194,8 +207,5 @@ def make_cypher_query_with_tools_dialog(
             "role": "system",
             "content": prompt,
         },
-        {
-            "role": "user",
-            "content": natural_language_query,
-        },
+        *messages,
     ]

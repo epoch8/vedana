@@ -3,7 +3,7 @@ BASE_VERSION=$(shell uv version --short | sed 's/[\+\/]/-/g')
 BRANCH=$(shell git rev-parse --abbrev-ref HEAD | sed 's/[\+\/]/-/g')
 GIT_HASH=$(shell git rev-parse --short HEAD)
 
-REPO=ghcr.io/epoch8/ai-assistants/vedana
+REPO=cr.yandex/crp0qk8lt84ipugi4pe0/vedana
 BASE_IMAGE=${REPO}:$(VERSION)
 
 ifeq ($(BRANCH),master)

@@ -9,7 +9,7 @@ import pandas as pd
 from jims_core.llms.llm_provider import LLMProvider
 from neo4j import GraphDatabase
 from vedana_core.data_model import DataModel
-from vedana_core.data_provider import GristOnlineCsvDataProvider, GristSQLDataProvider
+from vedana_core.data_provider import GristAPIDataProvider, GristCsvDataProvider
 from vedana_core.settings import VedanaCoreSettings
 from vedana_core.settings import settings as core_settings
 
@@ -45,17 +45,17 @@ def clean_str(text: str) -> str:
     return text.strip()
 
 
-def get_data_model():
-    loader = GristOnlineCsvDataProvider(
+def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
+    loader = GristCsvDataProvider(
         doc_id=core_settings.grist_data_model_doc_id,
         grist_server=core_settings.grist_server_url,
         api_key=core_settings.grist_api_key,
     )
 
-    links_df = loader.get_table_df("Links")
+    _links_df = loader.get_table("Links")
     links_df = cast(
         pd.DataFrame,
-        links_df[
+        _links_df[
             [
                 "anchor1",
                 "anchor2",
@@ -68,11 +68,12 @@ def get_data_model():
             ]
         ],
     )
-    links_df = links_df.dropna(subset=["anchor1", "anchor2", "sentence"])
-    links_df = links_df.astype(str)
-    links_df["has_direction"] = links_df["has_direction"].astype(bool)
+    assert links_df is not None
 
-    attrs_df = loader.get_table_df("Attributes")
+    links_df["has_direction"] = _links_df["has_direction"].astype(bool)
+    links_df = links_df.dropna(subset=["anchor1", "anchor2", "sentence"], inplace=False)
+
+    attrs_df = loader.get_table("Attributes")
     attrs_df = cast(
         pd.DataFrame,
         attrs_df[
@@ -89,12 +90,11 @@ def get_data_model():
             ]
         ],
     )
-    # attrs_df = attrs_df.astype(str)
     attrs_df["embeddable"] = attrs_df["embeddable"].astype(bool)
     attrs_df["embed_threshold"] = attrs_df["embed_threshold"].astype(float)
     attrs_df = attrs_df.dropna(subset=["anchor", "attribute_name"])
 
-    anchors_df = loader.get_table_df("Anchors")
+    anchors_df = loader.get_table("Anchors")
     anchors_df = cast(
         pd.DataFrame,
         anchors_df[
@@ -106,7 +106,7 @@ def get_data_model():
             ]
         ],
     )
-    anchors_df = anchors_df.dropna(subset=["noun"])
+    anchors_df = anchors_df.dropna(subset=["noun"], inplace=False)
     anchors_df = anchors_df.astype(str)
 
     yield anchors_df, attrs_df, links_df
@@ -134,7 +134,6 @@ def get_data_model_snapshot() -> Generator[DataFrame, Any, None]:
 
 
 def get_grist_data(
-    batch_size: int = 500,
     settings: VedanaCoreSettings = core_settings,
 ) -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
     """
@@ -147,11 +146,10 @@ def get_grist_data(
         api_key=settings.grist_api_key,
     )
 
-    dp = GristSQLDataProvider(
+    dp = GristAPIDataProvider(
         doc_id=settings.grist_data_doc_id,
         grist_server=settings.grist_server_url,
         api_key=settings.grist_api_key,
-        batch_size=batch_size,
     )
 
     # Foreign key type links
@@ -167,7 +165,7 @@ def get_grist_data(
         # check anchor's existence in data model
         dm_anchor_list = [a for a in dm.anchors if a.noun == anchor_type]
         if not dm_anchor_list:
-            logger.error(f"Anchor {anchor_type} not described in data model, skipping")
+            logger.error(f'Anchor "{anchor_type}" not described in data model, skipping')
             continue
         dm_anchor = dm_anchor_list[0]
 
@@ -282,7 +280,7 @@ def get_grist_data(
             if link.sentence.lower() == link_type.lower() or link_type.lower() == f"{link.anchor_from}_{link.anchor_to}"
         ]
         if not dm_link_list:
-            logger.error(f"Link type {dm_link_list} not described in data model, skipping")
+            logger.error(f'Link type "{dm_link_list}" not described in data model, skipping')
             continue
         dm_link = dm_link_list[0]
 
@@ -316,6 +314,28 @@ def get_grist_data(
     edges_df = pd.DataFrame(edge_records)
 
     edges_df = pd.concat([edges_df, fk_links_df], ignore_index=True)
+
+    # add reverse links (if already provided in data, duplicates will be removed later)
+    for link in dm.links:
+        if not link.has_direction:
+            rev_edges = cast(
+                pd.DataFrame,
+                edges_df.loc[
+                    (edges_df["from_node_type"] == link.anchor_from.noun)
+                    & (edges_df["to_node_type"] == link.anchor_to.noun)
+                    & (edges_df["edge_label"] == link.sentence)
+                ].copy(),
+            )
+            if not rev_edges.empty:
+                rev_edges = rev_edges.rename(
+                    columns={
+                        "from_node_id": "to_node_id",
+                        "to_node_id": "from_node_id",
+                        "from_node_type": "to_node_type",
+                        "to_node_type": "from_node_type",
+                    }
+                )
+                edges_df = pd.concat([edges_df, rev_edges], ignore_index=True)
 
     # preventive drop_duplicates / na records
     if not nodes_df.empty:
