@@ -1,11 +1,6 @@
 from sqlalchemy import Column, String
 from sqlalchemy.dialects.postgresql import JSONB
 
-# Grist data model
-
-
-# Memgraph input schema
-
 GENERIC_NODE_DATA_SCHEMA: list[Column] = [
     Column("node_id", String, primary_key=True),
     Column("node_type", String, primary_key=True),

@@ -153,17 +153,3 @@ memgraph_edges = Table(
         data_sql_schema=schemas.GENERIC_EDGE_DATA_SCHEMA,
     ),
 )
-
-
-def compile_catalog(catalog_extra_tables: dict):
-    catalog_dict = {
-        **catalog_extra_tables,
-    }
-    return catalog_dict
-
-
-def init_catalog(catalog: Catalog, catalog_tables: dict):
-    for subcatalog in [catalog_tables]:
-        for table_name, table_store in subcatalog.items():
-            catalog.add_datatable(table_name, table_store)
-    return catalog
