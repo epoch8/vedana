@@ -35,7 +35,7 @@ def test_anchor_attribute_filtering_removes_unknown() -> None:
     assert not anchors_df.empty and not attrs_df.empty, "Data Model must not be empty."
 
     # 2) Проверяем данные из Grist
-    nodes_df, _ = next(steps.get_grist_data(batch_size=1000))
+    nodes_df, _ = next(steps.get_grist_data())
     assert not nodes_df.empty, "No nodes fetched from Grist."
 
     # 3) Фильтрация атрибутов по Data Model
