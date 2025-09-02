@@ -86,6 +86,16 @@ memgraph_steps = [
 ]
 
 
+# Automated testing
+eval_steps = [
+    BatchGenerate(
+        func=steps.get_data_model_snapshot,
+        outputs=["dm_version"],
+        labels=[("flow", "eval"), ("stage", "extract")],
+    ),
+]
+
+
 def get_pipeline(custom_steps: list):
     pipeline = Pipeline(
         [

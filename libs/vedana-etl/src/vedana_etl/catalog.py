@@ -136,6 +136,24 @@ memgraph_tables = {
     ),
 }
 
+# ---
+# Evaluation pipeline
+
+eval_tables = {
+    "dm_version": (
+        Table(
+            store=TableStoreDB(
+                dbconn=DBCONN_DATAPIPE,
+                name="dm_version",
+                data_sql_schema=schemas.DM_VERSIONING_TABLE_SCHEMA,
+            )
+        )
+    ),
+            )
+        )
+    ),
+}
+
 
 def compile_catalog(catalog_extra_tables: dict):
     catalog_dict = {

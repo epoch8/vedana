@@ -61,3 +61,11 @@ MEMGRAPH_VECTOR_INDEXES_SCHEMA: list[Column] = [
     Column("anchor", String),
     Column("link", String),
 ]
+
+# ---
+# Evaluation pipeline schemas
+
+DM_VERSIONING_TABLE_SCHEMA: list[Column] = [
+    Column("dm_id", String, primary_key=True),
+    Column("dm_description", String),
+]
