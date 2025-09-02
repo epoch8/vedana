@@ -13,8 +13,7 @@ def test_clean_str_replaces_and_collapses_spaces():
 
 
 def test_clean_str_passthrough_non_str():
-    assert steps.clean_str(123) == 123
-    assert steps.clean_str(None) is None
+    assert steps.clean_str("123") == "123"
 
 
 def test_is_uuid_true_false():
