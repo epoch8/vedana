@@ -3,9 +3,7 @@ name = "jims-core"
 version = "0.2.0"
 description = "Add your description here"
 readme = "README.md"
-authors = [
-    { name = "Andrey Tatarinov", email = "a@tatarinov.co" }
-]
+authors = [{ name = "Andrey Tatarinov", email = "a@tatarinov.co" }]
 requires-python = ">=3.12"
 dependencies = [
     "backoff>=2.2.1",
@@ -21,16 +19,15 @@ dependencies = [
 ]
 
 [dependency-groups]
-google = [
-    "google-cloud-aiplatform>=1.105.0",
-]
+google = ["google-cloud-aiplatform>=1.105.0"]
 
-dev = [
-    "pytest>=8.3.5",
-    "pytest-asyncio>=1.0.0",
-    "pytest-vcr>=1.0.2",
-]
+dev = ["pytest>=8.3.5", "pytest-asyncio>=1.0.0", "pytest-vcr>=1.0.2"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.gh-actions-codegen]
+generate = true
+has_tests = true
+typechecker = "ty"
