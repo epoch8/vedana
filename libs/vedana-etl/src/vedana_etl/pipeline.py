@@ -93,6 +93,11 @@ eval_steps = [
         outputs=["dm_version"],
         labels=[("flow", "eval"), ("stage", "extract")],
     ),
+    BatchGenerate(
+        func=steps.get_eval_gds_from_grist,
+        outputs=["eval_gds"],
+        labels=[("flow", "eval"), ("stage", "extract")],
+    ),
 ]
 
 

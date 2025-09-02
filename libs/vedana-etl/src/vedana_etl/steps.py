@@ -537,6 +537,37 @@ def prepare_edges(
     return grist_edges_df.copy()
 
 
+# ---
+# Evaluation branch
+
+
+def get_eval_gds_from_grist() -> Generator[DataFrame, Any, None]:
+    """
+    Loads evaluation dataset and config rows
+
+    Output:
+      - eval_gds(gds_question, gds_answer, question_context)
+    """
+    dp = GristAPIDataProvider(
+        doc_id=eval_settings.grist_test_set_doc_id,
+        grist_server=core_settings.grist_server_url,
+        api_key=core_settings.grist_api_key,
+    )
+
+    try:
+        gds_df = dp.get_table(eval_settings.gds_table_name)
+    except Exception as e:
+        logger.exception(f"Failed to get golden dataset {eval_settings.gds_table_name}: {e}")
+        gds_df = pd.DataFrame(columns=["gds_question", "gds_answer", "question_context"])  # empty
+
+    gds_df = gds_df.dropna(subset=["gds_question", "gds_answer"]).copy()
+    gds_df = gds_df.loc[(gds_df["gds_question"] != "") & (gds_df["gds_answer"] != "")]
+    gds_df = gds_df[["gds_question", "gds_answer", "question_context"]].astype({"gds_question": str, "gds_answer": str})
+    yield gds_df
+
+
+
+
 if __name__ == "__main__":
     # import os
     # import dotenv

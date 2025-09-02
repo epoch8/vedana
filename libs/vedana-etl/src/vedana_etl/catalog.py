@@ -149,6 +149,12 @@ eval_tables = {
             )
         )
     ),
+    "eval_gds": (
+        Table(
+            store=TableStoreDB(
+                dbconn=DBCONN_DATAPIPE,
+                name="eval_gds",
+                data_sql_schema=schemas.EVAL_GDS_SCHEMA,
             )
         )
     ),
