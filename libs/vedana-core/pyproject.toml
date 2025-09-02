@@ -48,3 +48,8 @@ dev = [
 
 [tool.ruff]
 line-length = 120
+
+[tool.gh-actions-codegen]
+generate = true
+has_tests = true
+typechecker = "ty"
