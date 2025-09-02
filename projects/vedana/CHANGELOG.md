@@ -1,3 +1,7 @@
+# WIP
+
+* (vedana-etl) Refactor to var-style Table declaration in pipeline
+
 # 2025.08.29-dev.19
 
 * (vedana-etl) fixed loading bidirectional links in base pipeline
