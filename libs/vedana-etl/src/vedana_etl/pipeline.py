@@ -33,20 +33,6 @@ grist_steps = [
         outputs=[grist_nodes, grist_edges],
         labels=[("flow", "on-demand"), ("stage", "extract"), ("stage", "grist")],
     ),
-    BatchTransform(
-        func=steps.filter_grist_nodes,
-        inputs=[grist_nodes, dm_anchors, dm_attributes],
-        outputs=[grist_nodes_filtered],
-        labels=[("flow", "on-demand"), ("stage", "transform"), ("stage", "grist")],
-        transform_keys=["node_id"],
-    ),
-    BatchTransform(
-        func=steps.filter_grist_edges,
-        inputs=[grist_edges, dm_links],
-        outputs=[grist_edges_filtered],
-        labels=[("flow", "on-demand"), ("stage", "transform"), ("stage", "grist")],
-        transform_keys=["from_node_id", "to_node_id", "edge_label"],
-    ),
 ]
 
 # ---

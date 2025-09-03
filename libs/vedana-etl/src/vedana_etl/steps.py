@@ -151,6 +151,7 @@ def get_grist_data(
             logger.error(f'Anchor "{anchor_type}" not described in data model, skipping')
             continue
         dm_anchor = dm_anchor_list[0]
+        dm_anchor_attrs = [attr.name for attr in dm_anchor.attributes]
 
         # get anchor's links
         # todo check link column directions
@@ -217,7 +218,7 @@ def get_grist_data(
             node_records[anchor_type][a.dp_id] = {
                 "node_id": a.id,
                 "node_type": a.type,
-                "attributes": a.data or {},
+                "attributes": {k: v for k, v in a.data.items() if k in dm_anchor_attrs} or {},
             }
 
     # Resolve links (database id <-> our id), if necessary
@@ -274,6 +275,7 @@ def get_grist_data(
             logger.error(f'Link type "{link_type}" not described in data model, skipping')
             continue
         dm_link = dm_link_list[0]
+        dm_link_attrs = [a.name for a in dm_link.attributes]
 
         try:
             links = dp.get_links(link_type, dm_link)
@@ -298,7 +300,7 @@ def get_grist_data(
                     "from_node_type": link_record.anchor_from,
                     "to_node_type": link_record.anchor_to,
                     "edge_label": link_record.type,
-                    "attributes": link_record.data or {},
+                    "attributes": {k: v for k, v in link_record.data.items() if k in dm_link_attrs} or {},
                 }
             )
 
@@ -352,29 +354,14 @@ def get_grist_data(
 
 def filter_grist_nodes(df: pd.DataFrame, dm_nodes: pd.DataFrame, dm_attributes: pd.DataFrame) -> pd.DataFrame:
     """keep only those nodes that are described in data model + datamodel node itself"""
-
-    dm_node = df.loc[df["node_type"] == "DataModel"].copy()
-
-    # filter nodes
-    filtered_nodes = df.loc[df.node_type.isin(dm_nodes["noun"])].copy()
-
-    # filter attribute keys
-    filtered_nodes["attributes"] = filtered_nodes["attributes"].apply(
-        lambda x: {k: v for k, v in x.items() if k in dm_attributes["attribute_name"].values}
-    )
-
-    filtered_nodes = pd.concat([filtered_nodes, dm_node], ignore_index=True)
-    return filtered_nodes
+    # todo remove step, merge with get_grist_data()
+    return df
 
 
 def filter_grist_edges(df: pd.DataFrame, dm_links: pd.DataFrame) -> pd.DataFrame:
     """keep only those edges that are described in data model"""
+    # todo remove step, merge with get_grist_data()
 
-    # add reverse links where applicable
-    rev_dm_links = cast(pd.DataFrame, dm_links.loc[~dm_links.has_direction])
-    rev_dm_links = rev_dm_links.rename(columns={"anchor1": "anchor2", "anchor2": "anchor1"})
-
-    dm_links = pd.concat([dm_links, rev_dm_links])
     dm_links["fr_to_code"] = dm_links["anchor1"] + "-" + dm_links["anchor2"] + "-" + dm_links["sentence"]
 
     df["fr_to_code"] = df["from_node_type"] + "-" + df["to_node_type"] + "-" + df["edge_label"]
