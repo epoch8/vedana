@@ -220,11 +220,17 @@ def get_grist_data(
                 "attributes": a.data or {},
             }
 
-    # Resolve links (database id <-> our id)
+    # Resolve links (database id <-> our id), if necessary
     for lk in fk_link_records_to:
-        lk["from_node_id"] = node_records[lk["from_node_type"]].get(lk["from_node_dp_id"], {}).get("node_id")
+        if isinstance(lk["from_node_dp_id"], int):
+            lk["from_node_id"] = node_records[lk["from_node_type"]].get(lk["from_node_dp_id"], {}).get("node_id")
+        else:
+            lk["from_node_id"] = lk["from_node_dp_id"]  # <-- str dp_id is an already correct id
     for lk in fk_link_records_from:
-        lk["to_node_id"] = node_records[lk["to_node_type"]].get(lk["to_node_dp_id"], {}).get("node_id")
+        if isinstance(lk["to_node_dp_id"], int):
+            lk["to_node_id"] = node_records[lk["to_node_type"]].get(lk["to_node_dp_id"], {}).get("node_id")
+        else:
+            lk["to_node_id"] = lk["to_node_dp_id"]
 
     if fk_link_records_to:
         fk_links_to_df = pd.DataFrame(fk_link_records_to).dropna(subset=["from_node_id", "to_node_id"])
@@ -265,7 +271,7 @@ def get_grist_data(
             if link.sentence.lower() == link_type.lower() or link_type.lower() == f"{link.anchor_from}_{link.anchor_to}"
         ]
         if not dm_link_list:
-            logger.error(f'Link type "{dm_link_list}" not described in data model, skipping')
+            logger.error(f'Link type "{link_type}" not described in data model, skipping')
             continue
         dm_link = dm_link_list[0]
 
