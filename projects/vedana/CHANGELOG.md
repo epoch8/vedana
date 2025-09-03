@@ -1,5 +1,6 @@
 # WIP
 
+* (vedana-etl) Refactor to var-style Table declaration in pipeline
 * (vedana-etl) covered get_grist_data / filter_grist_data with tests
 * (vedana-etl) more fixes in processing "reference" type columns for both links and attrs
 
