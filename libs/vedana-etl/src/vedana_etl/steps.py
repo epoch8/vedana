@@ -226,21 +226,23 @@ def get_grist_data(
     for lk in fk_link_records_from:
         lk["to_node_id"] = node_records[lk["to_node_type"]].get(lk["to_node_dp_id"], {}).get("node_id")
 
-    if fk_link_records_to and fk_link_records_from:
-        fk_links_from_df = pd.DataFrame(fk_link_records_from).dropna(subset=["from_node_id", "to_node_id"])
+    if fk_link_records_to:
         fk_links_to_df = pd.DataFrame(fk_link_records_to).dropna(subset=["from_node_id", "to_node_id"])
-
-        fk_links_df = pd.concat([fk_links_from_df, fk_links_to_df], axis=0, ignore_index=True)
-        fk_links_df["attributes"] = [dict()] * fk_links_df.shape[0]
-
-        fk_links_df = fk_links_df[
-            ["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label", "attributes"]
-        ]
-
     else:
-        fk_links_df = pd.DataFrame(
-            columns=["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label", "attributes"]
+        fk_links_to_df = pd.DataFrame(
+            columns=["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label"]
         )
+
+    if fk_link_records_from:
+        fk_links_from_df = pd.DataFrame(fk_link_records_from).dropna(subset=["from_node_id", "to_node_id"])
+    else:
+        fk_links_from_df = pd.DataFrame(
+            columns=["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label"]
+        )
+
+    fk_df = pd.concat([fk_links_from_df, fk_links_to_df], axis=0, ignore_index=True)
+    fk_df["attributes"] = [dict()] * fk_df.shape[0]
+    fk_df = fk_df[["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label", "attributes"]]
 
     nodes_df = pd.DataFrame(
         [
@@ -296,7 +298,7 @@ def get_grist_data(
 
     edges_df = pd.DataFrame(edge_records)
 
-    edges_df = pd.concat([edges_df, fk_links_df], ignore_index=True)
+    edges_df = pd.concat([edges_df, fk_df], ignore_index=True)
 
     # add reverse links (if already provided in data, duplicates will be removed later)
     for link in dm.links:
@@ -304,8 +306,15 @@ def get_grist_data(
             rev_edges = cast(
                 pd.DataFrame,
                 edges_df.loc[
-                    (edges_df["from_node_type"] == link.anchor_from.noun)
-                    & (edges_df["to_node_type"] == link.anchor_to.noun)
+                    (
+                        (
+                            (edges_df["from_node_type"] == link.anchor_from.noun)
+                            & (edges_df["to_node_type"] == link.anchor_to.noun)
+                        ) | (  # edges with anchors written in reverse are also valid
+                            (edges_df["from_node_type"] == link.anchor_to.noun)
+                            & (edges_df["to_node_type"] == link.anchor_from.noun)
+                        )
+                    )
                     & (edges_df["edge_label"] == link.sentence)
                 ].copy(),
             )
