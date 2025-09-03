@@ -352,28 +352,6 @@ def get_grist_data(
     yield nodes_df, edges_df
 
 
-def filter_grist_nodes(df: pd.DataFrame, dm_nodes: pd.DataFrame, dm_attributes: pd.DataFrame) -> pd.DataFrame:
-    """keep only those nodes that are described in data model + datamodel node itself"""
-    # todo remove step, merge with get_grist_data()
-    return df
-
-
-def filter_grist_edges(df: pd.DataFrame, dm_links: pd.DataFrame) -> pd.DataFrame:
-    """keep only those edges that are described in data model"""
-    # todo remove step, merge with get_grist_data()
-
-    dm_links["fr_to_code"] = dm_links["anchor1"] + "-" + dm_links["anchor2"] + "-" + dm_links["sentence"]
-
-    df["fr_to_code"] = df["from_node_type"] + "-" + df["to_node_type"] + "-" + df["edge_label"]
-
-    # filter edges by node types
-    filtered_edges = df.loc[df.fr_to_code.isin(dm_links["fr_to_code"])].copy()
-
-    # rm temp column
-    filtered_edges = filtered_edges.drop(columns=["fr_to_code"])
-    return filtered_edges
-
-
 def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Create label / vector indices
