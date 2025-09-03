@@ -92,7 +92,8 @@ def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
     )
     attrs_df["embeddable"] = attrs_df["embeddable"].astype(bool)
     attrs_df["embed_threshold"] = attrs_df["embed_threshold"].astype(float)
-    attrs_df = attrs_df.dropna(subset=["anchor", "attribute_name"])
+    attrs_df = attrs_df.dropna(subset=["attribute_name"])
+    attrs_df = attrs_df.dropna(subset=["anchor", "link"], how="all")
 
     anchors_df = loader.get_table("Anchors")
     anchors_df = cast(
