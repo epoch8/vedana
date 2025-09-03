@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+
+import sqlalchemy.ext.asyncio as sa_aio
 from jims_core.app import JimsApp
 from loguru import logger
 
@@ -8,7 +11,17 @@ from vedana_core.rag_pipeline import RagPipeline, StartPipeline
 from vedana_core.settings import settings as core_settings
 
 
-async def make_vedana_app() -> JimsApp:
+@dataclass
+class VedanaApp:
+    sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession]
+
+    graph: MemgraphGraph
+    data_model: DataModel
+    pipeline: RagPipeline
+    start_pipeline: StartPipeline
+
+
+async def make_vedana_app() -> VedanaApp:
     graph = MemgraphGraph(core_settings.memgraph_uri, core_settings.memgraph_user, core_settings.memgraph_pwd)
 
     data_model = await DataModel.load_from_graph(graph)
@@ -38,14 +51,26 @@ async def make_vedana_app() -> JimsApp:
     # Jims setup
     sessionmaker = get_sessionmaker()
 
-    app = JimsApp(
+    return VedanaApp(
         sessionmaker=sessionmaker,
+        graph=graph,
+        data_model=data_model,
         pipeline=pipeline,
-        conversation_start_pipeline=start_pipeline,
+        start_pipeline=start_pipeline,
+    )
+
+
+async def make_jims_app() -> JimsApp:
+    vedana_app = await make_vedana_app()
+
+    app = JimsApp(
+        sessionmaker=vedana_app.sessionmaker,
+        pipeline=vedana_app.pipeline,
+        conversation_start_pipeline=vedana_app.start_pipeline,
     )
 
     return app
 
 
 # This creates a async coroutine which will be evaluated in the event loop
-app = make_vedana_app()
+app = make_jims_app()
