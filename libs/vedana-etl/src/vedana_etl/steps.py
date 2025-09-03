@@ -219,7 +219,7 @@ def get_grist_data(
             node_records[anchor_type][a.dp_id] = {
                 "node_id": a.id,
                 "node_type": a.type,
-                "attributes": a.data.items() or {},
+                "attributes": a.data or {},
             }
 
     # Resolve links (database id <-> our id), if necessary
