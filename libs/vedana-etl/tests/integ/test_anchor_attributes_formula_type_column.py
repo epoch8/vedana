@@ -4,7 +4,7 @@
 Цель:
   - Колонки Grist с типом данных "Formula" в сырых данных (get_grist_data)
     попадают как вычисленные значения (строки/числа и т.п., а не выражения).
-  - Если такая колонка описана в Data Model, она должна сохраняться после filter_grist_nodes.
+  - Если такая колонка описана в Data Model, она должна сохраняться
 
 Test data:
   - Формульный атрибут: `document_filepath` (для узлов типа "document").
@@ -23,7 +23,7 @@ def test_anchor_attributes_formula_type_column() -> None:
     """
     Проверяем поведение формульной колонки `document_filepath`:
     - в сырых nodes присутствует как результат вычисления (не пустое значение);
-    - описана в Data Model и не отфильтровывается filter_grist_nodes.
+    - описана в Data Model и не отфильтровывается
     """
 
     # 1) Живой Data Model
@@ -60,8 +60,7 @@ def test_anchor_attributes_formula_type_column() -> None:
         """
 
     # 4) После фильтрации по Data Model атрибут должен сохраниться
-    filtered = steps.filter_grist_nodes(nodes_df, dm_nodes=anchors_df, dm_attributes=attrs_df)
-    docs_f = filtered[filtered["node_type"] == "document"]
+    docs_f = nodes_df[nodes_df["node_type"] == "document"]
     assert not docs_f.empty, "Filtered graph should still contain 'document' nodes."
 
     # Проверим, что у того же узла (если он остался) поле всё ещё есть и непустое
@@ -69,7 +68,7 @@ def test_anchor_attributes_formula_type_column() -> None:
         row = docs_f.loc[docs_f["node_id"] == raw_node_id].iloc[0]
         attrs_f: Dict[str, Any] = row["attributes"] or {}
         assert "document_filepath" in attrs_f and str(attrs_f["document_filepath"]).strip(), (
-            "Expected 'document_filepath' to be preserved by filter_grist_nodes because it is present in Data Model."
+            "Expected 'document_filepath' to be preserved by filtering logic because it is present in Data Model."
         )
     else:
         # Иначе просто убедимся, что у какого-то document-узла поле присутствует
@@ -81,5 +80,5 @@ def test_anchor_attributes_formula_type_column() -> None:
                 break
         assert found_any, """
             Expected 'document_filepath' to be present on at least one 'document' node 
-            after filter_grist_nodes (it's in Data Model).
+            after filtering logic (it's in Data Model).
             """

@@ -2,15 +2,14 @@
 Интеграционный тест: anchor_attribute_filtering
 
 Что проверяем:
-  - В граф (после filter_grist_nodes) попадают ТОЛЬКО атрибуты, описанные в дата-модели.
+  - В граф попадают ТОЛЬКО атрибуты, описанные в дата-модели.
   - Специально проверяем, что "document_random_attr" (присутствует в тестовых данных)
     полностью удаляется у типа "document".
 
 Шаги:
   1) Загружаем Data Model (Anchors/Attributes/Links) из живой Grist.
   2) Загружаем сырые данные из живой Grist.
-  3) Применяем steps.filter_grist_nodes(nodes, dm_nodes=Anchors, dm_attributes=Attributes).
-  4) Проверяем:
+  3) Проверяем:
      - атрибуты (кроме служебного DataModel) — подмножество Data Model атрибутов,
        допускаем только *_embedding (могут появиться позднее).
      - для типа "document" ключ "document_random_attr" отсутствует.
