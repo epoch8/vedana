@@ -83,7 +83,7 @@ def test_duplicate_edges() -> None:
     offenders = _group_offenders_by_ordered_pair(er)
     assert not offenders, (
         "Обнаружены дубликаты связей (ожидалась 1 запись на упорядоченную пару from->to с данным label): "
-        + ", ".join([f"{f} -> {t} [{l}]" for f, t, l in offenders])
+        + ", ".join([f"{from_id} -> {to_id} [{label}]" for from_id, to_id, label in offenders])
     )
 
     # 5) Точно для пары document:1 ↔ reg:001 — должна существовать ровно одна связь (в любом направлении)
