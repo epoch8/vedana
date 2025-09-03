@@ -9,9 +9,7 @@ from vedana_etl.catalog import (
     dm_links,
     edges,
     grist_edges,
-    grist_edges_filtered,
     grist_nodes,
-    grist_nodes_filtered,
     memgraph_edges,
     memgraph_indexes,
     memgraph_nodes,
@@ -41,14 +39,14 @@ grist_steps = [
 default_custom_steps = [
     BatchTransform(
         func=steps.prepare_nodes,
-        inputs=[grist_nodes_filtered],
+        inputs=[grist_nodes],
         outputs=[nodes],
         labels=[("flow", "on-demand"), ("stage", "transform"), ("stage", "grist")],
         transform_keys=["node_id"],
     ),
     BatchTransform(
         func=steps.prepare_edges,
-        inputs=[grist_edges_filtered],
+        inputs=[grist_edges],
         outputs=[edges],
         labels=[("flow", "on-demand"), ("stage", "transform"), ("stage", "grist")],
         transform_keys=["from_node_id", "to_node_id", "edge_label"],
