@@ -152,6 +152,7 @@ def get_grist_data(
             logger.error(f'Anchor "{anchor_type}" not described in data model, skipping')
             continue
         dm_anchor = dm_anchor_list[0]
+        dm_anchor_attrs = [attr.name for attr in dm_anchor.attributes]
 
         # get anchor's links
         # todo check link column directions
@@ -218,7 +219,7 @@ def get_grist_data(
             node_records[anchor_type][a.dp_id] = {
                 "node_id": a.id,
                 "node_type": a.type,
-                "attributes": a.data or {},
+                "attributes": {k: v for k, v in a.data.items() if k in dm_anchor_attrs} or {},
             }
 
     # Resolve links (database id <-> our id), if necessary
@@ -360,11 +361,6 @@ def filter_grist_nodes(df: pd.DataFrame, dm_nodes: pd.DataFrame, dm_attributes: 
     # filter nodes
     filtered_nodes = df.loc[df.node_type.isin(dm_nodes["noun"])].copy()
 
-    # filter attribute keys
-    filtered_nodes["attributes"] = filtered_nodes["attributes"].apply(
-        lambda x: {k: v for k, v in x.items() if k in dm_attributes["attribute_name"].values}
-    )
-
     filtered_nodes = pd.concat([filtered_nodes, dm_node], ignore_index=True)
     return filtered_nodes
 
@@ -395,6 +391,7 @@ def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, 
     """
 
     # anchors for indices
+    dm_attributes = dm_attributes.dropna(subset="anchor")  # todo remove - temp until embeddable edge attrs are checked
     anchor_types: set[str] = set(dm_attributes["anchor"].dropna().unique())
 
     # embeddable attrs for vector indices
