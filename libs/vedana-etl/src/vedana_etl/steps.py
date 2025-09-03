@@ -152,7 +152,7 @@ def get_grist_data(
             logger.error(f'Anchor "{anchor_type}" not described in data model, skipping')
             continue
         dm_anchor = dm_anchor_list[0]
-        dm_anchor_attrs = [attr.name for attr in dm_anchor.attributes]
+        # dm_anchor_attrs = [attr.name for attr in dm_anchor.attributes]
 
         # get anchor's links
         # todo check link column directions
@@ -219,7 +219,7 @@ def get_grist_data(
             node_records[anchor_type][a.dp_id] = {
                 "node_id": a.id,
                 "node_type": a.type,
-                "attributes": {k: v for k, v in a.data.items() if k in dm_anchor_attrs} or {},
+                "attributes": a.data.items() or {},
             }
 
     # Resolve links (database id <-> our id), if necessary
@@ -276,7 +276,7 @@ def get_grist_data(
             logger.error(f'Link type "{link_type}" not described in data model, skipping')
             continue
         dm_link = dm_link_list[0]
-        # dm_link_attrs = [a.name for a in dm_link.attributes]
+        dm_link_attrs = [a.name for a in dm_link.attributes]
 
         try:
             links = dp.get_links(link_type, dm_link)
@@ -301,7 +301,7 @@ def get_grist_data(
                     "from_node_type": link_record.anchor_from,
                     "to_node_type": link_record.anchor_to,
                     "edge_label": link_record.type,
-                    "attributes": link_record.data or {},
+                    "attributes": {k: v for k, v in link_record.data.items() if k in dm_link_attrs} or {},
                 }
             )
 
