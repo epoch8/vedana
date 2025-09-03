@@ -361,6 +361,11 @@ def filter_grist_nodes(df: pd.DataFrame, dm_nodes: pd.DataFrame, dm_attributes: 
     # filter nodes
     filtered_nodes = df.loc[df.node_type.isin(dm_nodes["noun"])].copy()
 
+    # filter attribute keys
+    filtered_nodes["attributes"] = filtered_nodes["attributes"].apply(
+        lambda x: {k: v for k, v in x.items() if k in dm_attributes["attribute_name"].values}
+    )
+
     filtered_nodes = pd.concat([filtered_nodes, dm_node], ignore_index=True)
     return filtered_nodes
 
