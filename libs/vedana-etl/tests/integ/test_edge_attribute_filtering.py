@@ -16,8 +16,7 @@
      как метку ребра (edge_label).
   2) Собираем допустимые ключи атрибутов для этой связи из DM Attributes
      (все `attribute_name`, где `link == sentence`).
-  3) Строим граф через steps.get_grist_data(), прогоняем steps.filter_grist_edges() и отбираем рёбра между
-     document и regulation с нужной меткой.
+  3) Строим граф через steps.get_grist_data() и отбираем рёбра между document и regulation с нужной меткой.
   4) Объединение ключей attributes по этим рёбрам:
      - не содержит 'edge_attribute_extra';
      - является подмножеством допустимого набора. Если в DM для связи нет
