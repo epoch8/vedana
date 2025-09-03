@@ -1,3 +1,8 @@
+# WIP
+
+* (vedana-etl) covered get_grist_data / filter_grist_data with tests
+* (vedana-etl) more fixes in processing "reference" type columns for both links and attrs
+
 # 2025.08.29-dev.19
 
 * (vedana-etl) fixed loading bidirectional links in base pipeline
