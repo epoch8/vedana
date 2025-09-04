@@ -262,17 +262,18 @@ resource "helm_release" "tg" {
     local.common_values,
     <<EOF
     command:
-      - python
-      - -m
-      - vedana_tg.tg_app
+      - jims-telegram
+      - --enable-sentry
+      - --enable-healthcheck
+      - --verbose
 
     resources:
       requests:
         cpu: "200m"
-        memory: "256Mi"
+        memory: "512Mi"
       limits:
         cpu: "500m"
-        memory: "512Mi"
+        memory: "1Gi"
 
     port: 8000
 

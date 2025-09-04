@@ -20,3 +20,31 @@ dependencies = [
 
 [tool.ruff]
 line-length = 120
+
+[tool.gh-actions-codegen]
+generate = true
+generate_standard_pytest_step = false
+typechecker = "ty"
+custom_steps = """
+- name: Start infra (Grist + Memgraph)
+  run: |
+    docker compose -f libs/vedana-etl/tests/infra/docker-compose.ci.yml up -d
+    echo "Waiting containers..."
+    docker ps
+
+- name: Run unit + integration tests
+  env:
+    GRIST_SERVER_URL: "http://0.0.0.0:8484"
+    GRIST_API_KEY: "e30d2f274a538c05fecd14510887f8a3b7eab718"
+    GRIST_DATA_MODEL_DOC_ID: "wEEmPY3UiwMD"
+    GRIST_DATA_DOC_ID: "qAxQ1gcBKcW7"
+    GRIST_ORG_IN_PATH: "true"
+    GRIST_DEFAULT_EMAIL: "ci@example.com"
+    GRIST_SESSION_SECRET: "dev-secret"
+    MEMGRAPH_URI: "bolt://localhost:7687"
+    MEMGRAPH_USER: ""
+    MEMGRAPH_PWD: ""
+    EMBEDDINGS_DIM: "1536"
+  run: |
+    uv run pytest libs/vedana-etl/
+"""

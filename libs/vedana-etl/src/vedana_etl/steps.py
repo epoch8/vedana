@@ -257,7 +257,8 @@ def get_grist_data(
             {"node_id": rec.get("node_id"), "node_type": rec.get("node_type"), "attributes": rec.get("attributes", {})}
             for a in node_records.values()
             for rec in a.values()
-        ]
+        ],
+        columns=["node_id", "node_type", "attributes"],
     )
 
     # Edges
@@ -319,7 +320,8 @@ def get_grist_data(
                         (
                             (edges_df["from_node_type"] == link.anchor_from.noun)
                             & (edges_df["to_node_type"] == link.anchor_to.noun)
-                        ) | (  # edges with anchors written in reverse are also valid
+                        )
+                        | (  # edges with anchors written in reverse are also valid
                             (edges_df["from_node_type"] == link.anchor_to.noun)
                             & (edges_df["to_node_type"] == link.anchor_from.noun)
                         )
