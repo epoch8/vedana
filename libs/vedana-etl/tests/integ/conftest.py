@@ -28,16 +28,6 @@ def raw_graph_dfs():
     return nodes, edges
 
 
-@pytest.fixture(scope="session")
-def filtered_graph_dfs(dm_dfs, raw_graph_dfs):
-    """После filter_* — то, что реально идёт в граф."""
-    anchors, attrs, links = dm_dfs
-    nodes, edges = raw_graph_dfs
-    nodes_f = steps.filter_grist_nodes(nodes, dm_nodes=anchors, dm_attributes=attrs)
-    edges_f = steps.filter_grist_edges(edges, dm_links=links)
-    return nodes_f, edges_f
-
-
 # -------- optional live Memgraph ----------
 def _ping_memgraph():
     try:

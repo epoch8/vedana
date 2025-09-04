@@ -35,37 +35,6 @@ def test_merge_attr_dicts():
     assert out == {"a": 3, "b": 2}
 
 
-def test_filter_grist_nodes(dm_anchors_df, dm_attributes_df):
-    df = pd.DataFrame([
-        {"node_id": "a1", "node_type": "Article",
-         "attributes": {"title": "Hello", "year": 2020, "junk": "x"}},
-        {"node_id": "u1", "node_type": "Author",
-         "attributes": {"name": "Bob"}},  # свойство 'name' отрежется, его нет в DM attrs
-        {"node_id": "x1", "node_type": "Unknown",
-         "attributes": {"foo": "bar"}},
-        {"node_id": "data_model", "node_type": "DataModel",
-         "attributes": {"content": "..."}},
-    ])
-    out = steps.filter_grist_nodes(df, dm_nodes=dm_anchors_df, dm_attributes=dm_attributes_df)
-    types = set(out["node_type"])
-    assert types == {"Article", "Author", "DataModel"}
-    art_attrs = out[out["node_type"] == "Article"].iloc[0]["attributes"]
-    assert set(art_attrs.keys()) == {"title", "year"}
-
-
-def test_filter_grist_edges(dm_links_df):
-    df = pd.DataFrame([
-        {"from_node_id":"u1","to_node_id":"a1","from_node_type":"Author",
-         "to_node_type":"Article","edge_label":"WROTE","attributes":{}},
-        {"from_node_id":"x","to_node_id":"y","from_node_type":"X",
-         "to_node_type":"Y","edge_label":"ZZZ","attributes":{}},
-    ])
-    out = steps.filter_grist_edges(df.copy(), dm_links_df.copy())
-    assert len(out) == 1
-    row = out.iloc[0]
-    assert (row["from_node_type"], row["to_node_type"], row["edge_label"]) == ("Author","Article","WROTE")
-
-
 def test_generate_embeddings_for_nodes(monkeypatch):
     df = pd.DataFrame([
         {"node_id":"a1","node_type":"Article","attributes":{"title":"hello","year":2020}},

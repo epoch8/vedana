@@ -78,24 +78,6 @@ grist_edges = Table(
     ),
 )
 
-grist_nodes_filtered = Table(
-    name="grist_nodes_filtered",
-    store=TableStoreDB(
-        dbconn=DBCONN_DATAPIPE,
-        name="grist_nodes_filtered",
-        data_sql_schema=schemas.GENERIC_NODE_DATA_SCHEMA,
-    ),
-)
-
-grist_edges_filtered = Table(
-    name="grist_edges_filtered",
-    store=TableStoreDB(
-        dbconn=DBCONN_DATAPIPE,
-        name="grist_edges_filtered",
-        data_sql_schema=schemas.GENERIC_EDGE_DATA_SCHEMA,
-    ),
-)
-
 nodes = Table(
     name="nodes",
     store=TableStoreDB(
