@@ -8,8 +8,8 @@ Create Date: 2025-09-04 17:42:24.144359
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -65,7 +65,11 @@ def downgrade() -> None:
         sa.Column("edge_label", sa.VARCHAR(), autoincrement=False, nullable=False),
         sa.Column("attributes", postgresql.JSONB(astext_type=sa.Text()), autoincrement=False, nullable=True),
         sa.PrimaryKeyConstraint(
-            "from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label",
+            "from_node_id",
+            "to_node_id",
+            "from_node_type",
+            "to_node_type",
+            "edge_label",
             name=op.f("grist_edges_filtered_pkey"),
         ),
     )
@@ -117,7 +121,11 @@ def downgrade() -> None:
         sa.Column("process_ts", sa.DOUBLE_PRECISION(precision=53), autoincrement=False, nullable=True),
         sa.Column("delete_ts", sa.DOUBLE_PRECISION(precision=53), autoincrement=False, nullable=True),
         sa.PrimaryKeyConstraint(
-            "from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label",
+            "from_node_id",
+            "to_node_id",
+            "from_node_type",
+            "to_node_type",
+            "edge_label",
             name=op.f("grist_edges_filtered_meta_pkey"),
         ),
     )
