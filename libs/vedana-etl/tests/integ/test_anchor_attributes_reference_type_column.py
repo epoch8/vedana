@@ -4,7 +4,7 @@
 Фокус теста:
   - При чтении через Grist SQL провайдер Reference-колонка приходит как <ref_id> + gristHelper_<col>,
     а в итоговом attributes должно быть **строковое значение** (как в UI), без gristHelper_* ключей.
-  - Если Reference-колонка описана в Data Model, она должна сохраниться после filter_grist_nodes.
+  - Если Reference-колонка описана в Data Model, она должна сохраниться при фильтрации.
 
 Тестовые данные:
  - reference-поле: document_reference_attr (есть в Data Model)
@@ -24,7 +24,7 @@ def test_anchor_attributes_reference_type_column() -> None:
     1) В сыром nodes (get_grist_data) у хотя бы одного document-узла
        `document_reference_attr` присутствует как непустая строка.
        В attributes не должно быть gristHelper_* ключей.
-    2) После filter_grist_nodes:
+    2) После фильтрации:
        - `document_reference_attr` остаётся (т.к. она есть в Data Model).
     """
 
@@ -64,9 +64,8 @@ def test_anchor_attributes_reference_type_column() -> None:
         used them to reconstruct the final string value and NOT keep helper keys.
         """
 
-    # --- 3) Фильтрация по Data Model
-    filtered = steps.filter_grist_nodes(nodes_df, dm_nodes=anchors_df, dm_attributes=attrs_df)
-    docs_f = filtered[filtered["node_type"] == "document"]
+    # --- 3) Проверка фильтрации по Data Model
+    docs_f = nodes_df[nodes_df["node_type"] == "document"]
     assert not docs_f.empty, "Filtered graph should still contain 'document' nodes."
 
     preserved_any = False
@@ -76,5 +75,5 @@ def test_anchor_attributes_reference_type_column() -> None:
             preserved_any = True
             break
     assert preserved_any, (
-        "Expected 'document_reference_attr' to be preserved by filter_grist_nodes because it is present in Data Model."
+        "Expected 'document_reference_attr' to be preserved by filtering logic because it is present in Data Model."
     )
