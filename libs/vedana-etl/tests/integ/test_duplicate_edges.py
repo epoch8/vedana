@@ -43,7 +43,7 @@ def _group_offenders_by_ordered_pair(edges: pd.Series) -> List[Tuple[str, str, s
         )[["f", "t", "l"]]
         .value_counts()
     )
-    return [(f, t, l) for (f, t, l), cnt in grouped.items() if cnt > 1]
+    return [(fr, to, label) for (fr, to, label), cnt in grouped.items() if cnt > 1]
 
 
 def test_duplicate_edges() -> None:
