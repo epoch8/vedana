@@ -92,7 +92,8 @@ def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
     )
     attrs_df["embeddable"] = attrs_df["embeddable"].astype(bool)
     attrs_df["embed_threshold"] = attrs_df["embed_threshold"].astype(float)
-    attrs_df = attrs_df.dropna(subset=["anchor", "attribute_name"])
+    attrs_df = attrs_df.dropna(subset=["attribute_name"])
+    attrs_df = attrs_df.dropna(subset=["anchor", "link"], how="all")
 
     anchors_df = loader.get_table("Anchors")
     anchors_df = cast(
@@ -358,6 +359,7 @@ def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, 
     """
 
     # anchors for indices
+    dm_attributes = dm_attributes.dropna(subset="anchor")  # todo remove - temp until embeddable edge attrs are checked
     anchor_types: set[str] = set(dm_attributes["anchor"].dropna().unique())
 
     # embeddable attrs for vector indices
