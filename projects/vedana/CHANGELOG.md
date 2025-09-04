@@ -1,3 +1,8 @@
+# WIP
+
+* (jims/vedana) Introduce and use `JimsApp`/`VedanaApp`, switch from `vedana-tg`
+  to `jims-telegram`
+
 # 2025.09.04-dev.20
 
 * (vedana-etl) Refactor to var-style Table declaration in pipeline
