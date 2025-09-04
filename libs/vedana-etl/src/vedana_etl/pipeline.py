@@ -7,16 +7,23 @@ from vedana_etl.catalog import (
     dm_anchors,
     dm_attributes,
     dm_links,
+    dm_version,
     edges,
     grist_edges,
     grist_edges_filtered,
     grist_nodes,
     grist_nodes_filtered,
+    llm_embeddings_config,
+    llm_pipeline_config,
     memgraph_edges,
     memgraph_indexes,
     memgraph_nodes,
     memgraph_vector_indexes,
     nodes,
+    judge_config,
+    eval_gds,
+    eval_llm_answers,
+    eval_llm_judge,
 )
 
 data_model_steps = [
@@ -24,6 +31,12 @@ data_model_steps = [
         func=steps.get_data_model,  # Generator with main graph data
         outputs=[dm_anchors, dm_attributes, dm_links],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "extract"), ("stage", "data-model")],
+    ),
+    BatchGenerate(
+        func=steps.get_data_model_snapshot,
+        delete_stale=False,
+        outputs=[dm_version],
+        labels=[("flow", "eval"), ("flow", "regular"), ("flow", "on-demand"), ("stage", "data-model")],
     ),
 ]
 
@@ -80,6 +93,7 @@ memgraph_steps = [
         transform_keys=["attribute_name"],
     ),
     # TODO move embeddings to pgvector, store embeddings persistently
+    # TODO add llm_embeddings_config as input
     # Add embeddings and upload result to memgraph.
     # generate_embeddings is a last processing step, making DataFrame ready for upload
     BatchTransform(
@@ -97,21 +111,6 @@ memgraph_steps = [
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["from_node_id", "to_node_id", "edge_label"],
         chunk_size=300,
-    ),
-]
-
-
-# Automated testing
-eval_steps = [
-    BatchGenerate(
-        func=steps.get_data_model_snapshot,
-        outputs=["dm_version"],
-        labels=[("flow", "eval"), ("stage", "extract")],
-    ),
-    BatchGenerate(
-        func=steps.get_eval_gds_from_grist,
-        outputs=["eval_gds"],
-        labels=[("flow", "eval"), ("stage", "extract")],
     ),
 ]
 

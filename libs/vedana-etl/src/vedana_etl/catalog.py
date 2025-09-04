@@ -1,7 +1,7 @@
 from datapipe.compute import Table
 from datapipe.store.database import TableStoreDB
 from datapipe.store.neo4j import Neo4JStore
-from sqlalchemy import Boolean, Column, Float, String
+from sqlalchemy import Boolean, Column, Float, String, Integer
 
 import vedana_etl.schemas as schemas
 from vedana_etl.config import DBCONN_DATAPIPE, MEMGRAPH_CONN_ARGS
@@ -23,31 +23,6 @@ dm_links = Table(
         ],
     ),
 )
-
-# ---
-# Evaluation pipeline
-
-eval_tables = {
-    "dm_version": (
-        Table(
-            store=TableStoreDB(
-                dbconn=DBCONN_DATAPIPE,
-                name="dm_version",
-                data_sql_schema=schemas.DM_VERSIONING_TABLE_SCHEMA,
-            )
-        )
-    ),
-    "eval_gds": (
-        Table(
-            store=TableStoreDB(
-                dbconn=DBCONN_DATAPIPE,
-                name="eval_gds",
-                data_sql_schema=schemas.EVAL_GDS_SCHEMA,
-            )
-        )
-    ),
-}
-
 
 dm_attributes = Table(
     name="dm_attributes_v2",
@@ -82,7 +57,6 @@ dm_anchors = Table(
         ],
     ),
 )
-
 
 grist_nodes = Table(
     name="grist_nodes",
@@ -177,3 +151,4 @@ memgraph_edges = Table(
         data_sql_schema=schemas.GENERIC_EDGE_DATA_SCHEMA,
     ),
 )
+

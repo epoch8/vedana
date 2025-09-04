@@ -113,27 +113,6 @@ def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
     yield anchors_df, attrs_df, links_df
 
 
-def get_data_model_snapshot() -> Generator[DataFrame, Any, None]:
-    """
-    DataModel.load_grist_online call repeats bc snapshot updates with delete_stale=False (to keep history)
-    """
-    dm = DataModel.load_grist_online(
-        doc_id=core_settings.grist_data_model_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
-    )
-
-    dm_text = dm.to_text_descr()
-    dm_uuid = uuid7()
-
-    dm_version_snapshot = {
-        "dm_id": dm_uuid,
-        "dm_description": dm_text,
-    }
-
-    yield pd.DataFrame(dm_version_snapshot)
-
-
 def get_grist_data(
     settings: VedanaCoreSettings = core_settings,
 ) -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
@@ -554,37 +533,6 @@ def prepare_edges(
     grist_edges_df: pd.DataFrame,
 ) -> pd.DataFrame:
     return grist_edges_df.copy()
-
-
-# ---
-# Evaluation branch
-
-
-def get_eval_gds_from_grist() -> Generator[DataFrame, Any, None]:
-    """
-    Loads evaluation dataset and config rows
-
-    Output:
-      - eval_gds(gds_question, gds_answer, question_context)
-    """
-    dp = GristAPIDataProvider(
-        doc_id=eval_settings.grist_test_set_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
-    )
-
-    try:
-        gds_df = dp.get_table(eval_settings.gds_table_name)
-    except Exception as e:
-        logger.exception(f"Failed to get golden dataset {eval_settings.gds_table_name}: {e}")
-        gds_df = pd.DataFrame(columns=["gds_question", "gds_answer", "question_context"])  # empty
-
-    gds_df = gds_df.dropna(subset=["gds_question", "gds_answer"]).copy()
-    gds_df = gds_df.loc[(gds_df["gds_question"] != "") & (gds_df["gds_answer"] != "")]
-    gds_df = gds_df[["gds_question", "gds_answer", "question_context"]].astype({"gds_question": str, "gds_answer": str})
-    yield gds_df
-
-
 
 
 if __name__ == "__main__":
