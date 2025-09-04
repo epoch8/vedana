@@ -1,0 +1,25 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../../libs"
+		}
+	],
+	"settings": {
+		"[jsonc]": {
+			"editor.defaultFormatter": "vscode.json-language-features"
+		},
+		"python.analysis.diagnosticSeverityOverrides": {
+			"reportPrivateImportUsage": "none"
+		},
+		"python.analysis.diagnosticMode": "workspace",
+		"[python]": {
+			"editor.formatOnSave": true,
+			"editor.codeActionsOnSave": {
+				"source.organizeImports": "explicit"
+			}
+		}
+	}
+}
