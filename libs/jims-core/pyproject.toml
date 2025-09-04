@@ -29,5 +29,5 @@ build-backend = "hatchling.build"
 
 [tool.gh-actions-codegen]
 generate = true
-has_tests = true
+generate_standard_pytest_step = true
 typechecker = "ty"
