@@ -317,21 +317,35 @@ class GristAPIDataProvider(GristDataProvider):
 
     def _list_table_columns(self, table_name: str) -> dict[str, str]:
         """returns mapping {internal_grist_id: id_in_UI}"""
-        resp = self._client.columns(table_name)  # does not show hidden columns i.e. "id"
-        # url = f"{self.grist_server}/api/docs/{self.doc_id}/tables/{table_name}/columns?hidden=True"
-        # resp = requests.get(url, headers=self.headers)
-        if not resp:
+        # There is no label (hidden=True/False) on columns so we have to do 2 api calls
+        view_cols = self._client.columns(table_name)  # does not show hidden columns i.e. "id"
+        all_cols = requests.get(  # shows all columns, including internal IDs and helper columns
+            f"{self.grist_server}/api/docs/{self.doc_id}/tables/{table_name}/columns?hidden=True",
+            headers=self.headers
+        )
+        if not view_cols or not all_cols:
             return {}
-        # column["id"] returns hidden internal ID which is causing confusing processing errors. label is display value
-        return {column["id"]: column["fields"]["label"] for column in resp.json()["columns"]}
+
+        view_cols = view_cols.json()["columns"]
+        all_cols = all_cols.json()["columns"]
+
+        # get display columns
+        col_ref_label_map = {c["fields"]["colRef"]: c["fields"]["label"] for c in all_cols}
+
+        parsed_cols = {
+            c["id"]: c["fields"]["label"] if not c["fields"]["displayCol"]
+            else col_ref_label_map.get(c["fields"]["displayCol"], c["fields"]["label"])
+            for c in view_cols
+        }
+        return parsed_cols
 
     def get_table(self, table_name: str) -> pd.DataFrame:
         columns = self._list_table_columns(table_name)
         if "id" not in columns:  # add internal id
             columns["id"] = "id"
         rows = self._client.fetch_table(table_name)
-        rows = [{c_label: getattr(r, c_id) for c_id, c_label in columns.items()} for r in rows]  # filter usage
-        return pd.DataFrame(rows, columns=list(columns.values()))
+        rows = [{c_id: getattr(r, c_label) for c_id, c_label in columns.items()} for r in rows]  # filter usage
+        return pd.DataFrame(rows, columns=list(columns.keys()))
 
 
 class GristSQLDataProvider(GristDataProvider):
