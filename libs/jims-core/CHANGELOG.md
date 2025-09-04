@@ -1,3 +1,7 @@
+# 2025.09.05
+
+* Add `jims_core.JimsApp` abstraction
+
 # 2025.08.29
 
 * Switch from litellm tracing to openinference

@@ -320,7 +320,8 @@ def get_grist_data(
                         (
                             (edges_df["from_node_type"] == link.anchor_from.noun)
                             & (edges_df["to_node_type"] == link.anchor_to.noun)
-                        ) | (  # edges with anchors written in reverse are also valid
+                        )
+                        | (  # edges with anchors written in reverse are also valid
                             (edges_df["from_node_type"] == link.anchor_to.noun)
                             & (edges_df["to_node_type"] == link.anchor_from.noun)
                         )
