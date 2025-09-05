@@ -3,9 +3,7 @@ name = "jims-telegram"
 version = "0.1.1"
 description = "Add your description here"
 readme = "README.md"
-authors = [
-    { name = "Andrey Tatarinov", email = "a@tatarinov.co" }
-]
+authors = [{ name = "Andrey Tatarinov", email = "a@tatarinov.co" }]
 requires-python = ">=3.12"
 dependencies = [
     "aiogram>=3.18",
@@ -13,8 +11,18 @@ dependencies = [
     "loguru>=0.7.3",
     "pydantic>=2.4.1",
     "pydantic-settings>=2.8.1",
+    "click>=8.0",
+    "jims-core",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.gh-actions-codegen]
+generate = true
+generate_standard_pytest_step = false
+typechecker = "mypy"
+
+[project.scripts]
+jims-telegram = "jims_telegram.main:main"

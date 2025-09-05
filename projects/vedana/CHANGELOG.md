@@ -1,9 +1,15 @@
 # WIP
 
+* (jims/vedana) Introduce and use `JimsApp`/`VedanaApp`, switch from `vedana-tg`
+  to `jims-telegram`
+
+# 2025.09.04-dev.20
+
 * (vedana-etl) Refactor to var-style Table declaration in pipeline
 * (vedana-etl) covered get_grist_data / filter_grist_data with tests
 * (vedana-etl) more fixes in processing "reference" type columns for both links
   and attrs
+* (vedana-etl) mv data filtering logic into get_grist_data, rm separate filter steps
 
 # 2025.08.29-dev.19
 

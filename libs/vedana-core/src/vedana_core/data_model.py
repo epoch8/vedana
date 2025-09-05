@@ -543,7 +543,7 @@ class GristOnlineDataModelLoader(DataModelLoader):
 
     def iter_links(self) -> Iterable[tuple]:
         anchors_df = self.get_table("Anchors")
-        anchors_ser = anchors_df.set_index("id")["noun"].squeeze()  # get id <--> noun mapping for resolving links
+        anchors_ser = anchors_df.set_index("id")["noun"]  # get id <--> noun mapping for resolving links
         assert isinstance(anchors_ser, pd.Series)
 
         df = self.get_table("Links")
@@ -568,7 +568,7 @@ class GristOnlineDataModelLoader(DataModelLoader):
 
     def iter_attrs(self) -> Iterable[tuple]:
         anchors_df = self.get_table("Anchors")
-        anchors_ser = anchors_df.set_index("id")["noun"].squeeze()  # get id <--> noun mapping for resolving links
+        anchors_ser = anchors_df.set_index("id")["noun"]  # get id <--> noun mapping for resolving links
         assert isinstance(anchors_ser, pd.Series)
 
         df = self.get_table("Attributes")
@@ -624,6 +624,10 @@ class GristOnlineDataModelLoader(DataModelLoader):
     def get_table(self, table_name: str) -> pd.DataFrame:
         columns = self._list_table_columns(table_name) + ["id"]
         rows = self._client.fetch_table(table_name)
+
+        if len(rows) == 0:
+            return pd.DataFrame(columns=columns)
+
         df = pd.DataFrame(data=rows)
         df = cast(pd.DataFrame, df[columns])
         df.columns = pd.Index([col.lower() for col in df.columns])

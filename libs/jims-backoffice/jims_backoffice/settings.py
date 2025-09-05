@@ -12,4 +12,8 @@ class DatabaseSettings(BaseSettings):
 
     @property
     def async_dsn(self) -> str:
-        return self.dsn.replace("postgresql://", "postgresql+asyncpg://")
+        if self.dsn.startswith("postgresql://"):
+            return self.dsn.replace("postgresql://", "postgresql+asyncpg://")
+        elif self.dsn.startswith("sqlite://"):
+            return self.dsn.replace("sqlite://", "sqlite+aiosqlite://")
+        return self.dsn

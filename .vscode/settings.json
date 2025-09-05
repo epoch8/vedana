@@ -1,4 +1,9 @@
 {
+    "python.testing.pytestArgs": [
+        "."
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff",
         "editor.formatOnSave": true,
@@ -6,11 +11,5 @@
             "source.organizeImports": "explicit"
         }
     },
-    "python.testing.pytestArgs": [
-        "."
-    ],
-    "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true,
-    "notebook.formatOnSave.enabled": true,
-    "makefile.configureOnOpen": false
+    "editor.formatOnSave": true
 }

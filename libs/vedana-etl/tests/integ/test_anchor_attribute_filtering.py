@@ -2,15 +2,14 @@
 Интеграционный тест: anchor_attribute_filtering
 
 Что проверяем:
-  - В граф (после filter_grist_nodes) попадают ТОЛЬКО атрибуты, описанные в дата-модели.
+  - В граф попадают ТОЛЬКО атрибуты, описанные в дата-модели.
   - Специально проверяем, что "document_random_attr" (присутствует в тестовых данных)
     полностью удаляется у типа "document".
 
 Шаги:
   1) Загружаем Data Model (Anchors/Attributes/Links) из живой Grist.
   2) Загружаем сырые данные из живой Grist.
-  3) Применяем steps.filter_grist_nodes(nodes, dm_nodes=Anchors, dm_attributes=Attributes).
-  4) Проверяем:
+  3) Проверяем:
      - атрибуты (кроме служебного DataModel) — подмножество Data Model атрибутов,
        допускаем только *_embedding (могут появиться позднее).
      - для типа "document" ключ "document_random_attr" отсутствует.
@@ -38,14 +37,11 @@ def test_anchor_attribute_filtering_removes_unknown() -> None:
     nodes_df, _ = next(steps.get_grist_data())
     assert not nodes_df.empty, "No nodes fetched from Grist."
 
-    # 3) Фильтрация атрибутов по Data Model
-    filtered = steps.filter_grist_nodes(nodes_df, dm_nodes=anchors_df, dm_attributes=attrs_df)
-
-    # 4) Допустимые атрибуты по Data Model
+    # 3) Допустимые атрибуты по Data Model
     allowed_attrs: Set[str] = set(attrs_df["attribute_name"].astype(str))
 
-    # 4.1) У каждого узла (кроме DataModel) ключи атрибутов ⊆ Data Model атрибутов (плюс *_embedding)
-    for _, row in filtered[filtered["node_type"] != "DataModel"].iterrows():
+    # 3.1) У каждого узла (кроме DataModel) ключи атрибутов ⊆ Data Model атрибутов (плюс *_embedding)
+    for _, row in nodes_df[nodes_df["node_type"] != "DataModel"].iterrows():
         attr_dict: Dict[str, object] = row["attributes"] or {}
         keys = set(map(str, attr_dict.keys()))
         # разрешаем сгенерированные позже эмбеддинги
@@ -58,8 +54,8 @@ def test_anchor_attribute_filtering_removes_unknown() -> None:
             """
         )
 
-    # 4.2) Специальный кейс: document_random_attr должен исчезнуть у document-узлов
-    docs = filtered[filtered["node_type"] == "document"]
+    # 3.2) Специальный кейс: document_random_attr должен исчезнуть у document-узлов
+    docs = nodes_df[nodes_df["node_type"] == "document"]
     assert not docs.empty, "Expected at least one 'document' node in test data."
     still_has_random = [
         row["node_id"]
