@@ -1,7 +1,7 @@
 from datapipe.compute import Table
 from datapipe.store.database import TableStoreDB
 from datapipe.store.neo4j import Neo4JStore
-from sqlalchemy import Boolean, Column, Float, String, Integer
+from sqlalchemy import Boolean, Column, Float, String
 
 import vedana_etl.schemas as schemas
 from vedana_etl.config import DBCONN_DATAPIPE, MEMGRAPH_CONN_ARGS
