@@ -3,14 +3,18 @@ name = "jims-tui"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-authors = [
-    { name = "Andrey Tatarinov", email = "a@tatarinov.co" }
-]
+authors = [{ name = "Andrey Tatarinov", email = "a@tatarinov.co" }]
 requires-python = ">=3.12"
-dependencies = [
-    "textual>=3.1.0",
-]
+dependencies = ["textual>=3.1.0"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.gh-actions-codegen]
+generate = true
+generate_standard_pytest_step = false
+typechecker = "mypy"
+
+[project.scripts]
+jims-tui = "jims_tui.main:main"

@@ -22,3 +22,8 @@ jims-backoffice = "jims_backoffice.app:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.gh-actions-codegen]
+generate = true
+generate_standard_pytest_step = false
+typechecker = "mypy"

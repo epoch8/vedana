@@ -16,8 +16,7 @@
      как метку ребра (edge_label).
   2) Собираем допустимые ключи атрибутов для этой связи из DM Attributes
      (все `attribute_name`, где `link == sentence`).
-  3) Строим граф через steps.get_grist_data(), прогоняем steps.filter_grist_edges() и отбираем рёбра между
-     document и regulation с нужной меткой.
+  3) Строим граф через steps.get_grist_data() и отбираем рёбра между document и regulation с нужной меткой.
   4) Объединение ключей attributes по этим рёбрам:
      - не содержит 'edge_attribute_extra';
      - является подмножеством допустимого набора. Если в DM для связи нет
@@ -59,11 +58,8 @@ def test_edge_attribute_filtering() -> None:
     )
 
     # 3) Данные → фильтрация рёбер по DM
-    nodes_df, edges_df_before_filter = next(steps.get_grist_data())
-    assert not nodes_df.empty and not edges_df_before_filter.empty
-
-    # ВАЖНО: фильтруем рёбра по DM links
-    edges_df = steps.filter_grist_edges(edges_df_before_filter, dm_links=links_df)
+    nodes_df, edges_df = next(steps.get_grist_data())
+    assert not nodes_df.empty and not edges_df.empty
 
     # 4) Оставляем только document <-> regulation с нужной меткой
     ft = edges_df["from_node_type"].astype(str).str.lower().str.strip()

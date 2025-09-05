@@ -148,7 +148,7 @@ def get_grist_data(
             logger.error(f'Anchor "{anchor_type}" not described in data model, skipping')
             continue
         dm_anchor = dm_anchor_list[0]
-        # dm_anchor_attrs = [attr.name for attr in dm_anchor.attributes]
+        dm_anchor_attrs = [attr.name for attr in dm_anchor.attributes]
 
         # get anchor's links
         # todo check link column directions
@@ -215,7 +215,7 @@ def get_grist_data(
             node_records[anchor_type][a.dp_id] = {
                 "node_id": a.id,
                 "node_type": a.type,
-                "attributes": a.data or {},
+                "attributes": {k: v for k, v in a.data.items() if k in dm_anchor_attrs} or {},
             }
 
     # Resolve links (database id <-> our id), if necessary
@@ -253,7 +253,8 @@ def get_grist_data(
             {"node_id": rec.get("node_id"), "node_type": rec.get("node_type"), "attributes": rec.get("attributes", {})}
             for a in node_records.values()
             for rec in a.values()
-        ]
+        ],
+        columns=["node_id", "node_type", "attributes"],
     )
 
     # Edges
@@ -315,7 +316,8 @@ def get_grist_data(
                         (
                             (edges_df["from_node_type"] == link.anchor_from.noun)
                             & (edges_df["to_node_type"] == link.anchor_to.noun)
-                        ) | (  # edges with anchors written in reverse are also valid
+                        )
+                        | (  # edges with anchors written in reverse are also valid
                             (edges_df["from_node_type"] == link.anchor_to.noun)
                             & (edges_df["to_node_type"] == link.anchor_from.noun)
                         )
@@ -347,43 +349,6 @@ def get_grist_data(
     nodes_df.loc[nodes_df.shape[0]] = {"node_id": "data_model", "node_type": "DataModel", "attributes": dm_node}  # type: ignore
 
     yield nodes_df, edges_df
-
-
-def filter_grist_nodes(df: pd.DataFrame, dm_nodes: pd.DataFrame, dm_attributes: pd.DataFrame) -> pd.DataFrame:
-    """keep only those nodes that are described in data model + datamodel node itself"""
-
-    dm_node = df.loc[df["node_type"] == "DataModel"].copy()
-
-    # filter nodes
-    filtered_nodes = df.loc[df.node_type.isin(dm_nodes["noun"])].copy()
-
-    # filter attribute keys
-    filtered_nodes["attributes"] = filtered_nodes["attributes"].apply(
-        lambda x: {k: v for k, v in x.items() if k in dm_attributes["attribute_name"].values}
-    )
-
-    filtered_nodes = pd.concat([filtered_nodes, dm_node], ignore_index=True)
-    return filtered_nodes
-
-
-def filter_grist_edges(df: pd.DataFrame, dm_links: pd.DataFrame) -> pd.DataFrame:
-    """keep only those edges that are described in data model"""
-
-    # add reverse links where applicable
-    rev_dm_links = cast(pd.DataFrame, dm_links.loc[~dm_links.has_direction])
-    rev_dm_links = rev_dm_links.rename(columns={"anchor1": "anchor2", "anchor2": "anchor1"})
-
-    dm_links = pd.concat([dm_links, rev_dm_links])
-    dm_links["fr_to_code"] = dm_links["anchor1"] + "-" + dm_links["anchor2"] + "-" + dm_links["sentence"]
-
-    df["fr_to_code"] = df["from_node_type"] + "-" + df["to_node_type"] + "-" + df["edge_label"]
-
-    # filter edges by node types
-    filtered_edges = df.loc[df.fr_to_code.isin(dm_links["fr_to_code"])].copy()
-
-    # rm temp column
-    filtered_edges = filtered_edges.drop(columns=["fr_to_code"])
-    return filtered_edges
 
 
 def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
