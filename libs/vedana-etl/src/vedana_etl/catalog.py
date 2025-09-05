@@ -133,4 +133,3 @@ memgraph_edges = Table(
         data_sql_schema=schemas.GENERIC_EDGE_DATA_SCHEMA,
     ),
 )
-
