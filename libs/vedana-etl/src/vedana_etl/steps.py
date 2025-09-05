@@ -501,25 +501,7 @@ def prepare_edges(
 
 
 if __name__ == "__main__":
-    # import os
     # import dotenv
-    #
     # dotenv.load_dotenv()
-    # df = pd.read_sql_table("catalog_raw", con=os.environ["DB_CONN_URI"])
-    # # oc, c = parse_offer_categories(df)
-    # oc = pd.read_sql_table("offer_categories", con=os.environ["DB_CONN_URI"])
-    # tech = pd.read_sql_table("tech_specs_names", con=os.environ["DB_CONN_URI"])
-    # text = pd.read_sql_table("text_specs_names", con=os.environ["DB_CONN_URI"])
-    # rels = pd.read_sql_table("related_products", con=os.environ["DB_CONN_URI"])
-    # dma = next(get_anchor_attribute_map())
-    # dmanchor, dmattr, dml = next(get_data_model())
-    # # dml = pd.read_sql_table("dm_links", con=os.environ["DB_CONN_URI"])
-    #
-    # def chunk_dataframe(df: pd.DataFrame, chunk_size: int):
-    #     for start in range(0, len(df), chunk_size):
-    #         yield df.iloc[start : start + chunk_size]
-    #
-    # for i, df_chunk in enumerate(chunk_dataframe(df, chunk_size=256)):
-    #     print(i)
-    #     a, l = parse_catalog(df_chunk, oc, dma, dml, tech, text)
+    # n, _l = next(get_grist_data())
     ...
