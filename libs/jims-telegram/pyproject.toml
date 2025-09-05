@@ -21,6 +21,7 @@ build-backend = "hatchling.build"
 
 [tool.gh-actions-codegen]
 generate = true
+template_type = "lib"
 generate_standard_pytest_step = false
 typechecker = "mypy"
 
