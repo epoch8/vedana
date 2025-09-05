@@ -53,4 +53,4 @@ line-length = 120
 generate = true
 template_type = "lib"
 generate_standard_pytest_step = true
-typechecker = "ty"
+typechecker = "mypy"
