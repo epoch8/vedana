@@ -5,17 +5,55 @@ description = "Pipeline template for Vedana"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "alembic>=1.16.1",
-    "datapipe-core>=0.14.3",
-    "datapipe-app>=0.5.4",
-    "pandas>=1.2.0   ",
-    "requests>=2.32.4",
-    "sqlalchemy>=2.0.41",
-    "grist-api>=0.1.1",
-    "neo4j>=5.28.1",
-    "openai>=1.96.0",
-    "vedana-core>=0.5.0",
+  "alembic>=1.16.1",
+  "datapipe-core>=0.14.3",
+  "datapipe-app>=0.5.4",
+  "pandas>=1.2.0   ",
+  "requests>=2.32.4",
+  "sqlalchemy>=2.0.41",
+  "grist-api>=0.1.1",
+  "neo4j>=5.28.1",
+  "openai>=1.96.0",
+  "vedana-core>=0.5.0",
+  "pytest>=8.4.1",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.17.1",
+    "pytest>=8.4.1",
+    "ruff>=0.12.9",
+    "types-pyyaml>=6.0.12.20250822",
 ]
 
 [tool.ruff]
 line-length = 120
+
+[tool.gh-actions-codegen]
+generate = true
+template_type = "lib"
+generate_standard_pytest_step = false
+typechecker = "mypy"
+custom_steps = """
+- name: Start infra (Grist + Memgraph)
+  run: |
+    docker compose -f libs/vedana-etl/tests/infra/docker-compose.ci.yml up -d
+    echo "Waiting containers..."
+    docker ps
+
+- name: Run unit + integration tests
+  env:
+    GRIST_SERVER_URL: "http://0.0.0.0:8484"
+    GRIST_API_KEY: "e30d2f274a538c05fecd14510887f8a3b7eab718"
+    GRIST_DATA_MODEL_DOC_ID: "wEEmPY3UiwMD"
+    GRIST_DATA_DOC_ID: "qAxQ1gcBKcW7"
+    GRIST_ORG_IN_PATH: "true"
+    GRIST_DEFAULT_EMAIL: "ci@example.com"
+    GRIST_SESSION_SECRET: "dev-secret"
+    MEMGRAPH_URI: "bolt://localhost:7687"
+    MEMGRAPH_USER: ""
+    MEMGRAPH_PWD: ""
+    EMBEDDINGS_DIM: "1536"
+  run: |
+    uv run pytest libs/vedana-etl/
+"""

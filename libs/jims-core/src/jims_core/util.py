@@ -3,12 +3,11 @@ import logging
 from typing import TYPE_CHECKING, Awaitable, Union
 from uuid import UUID
 
+from openinference.instrumentation.litellm import LiteLLMInstrumentor
 from uuid_extensions import uuid7 as uuid7_impl
 
 if TYPE_CHECKING:
     from jims_core.app import JimsApp
-
-# litellm.callbacks = ["otel"]
 
 
 def uuid7() -> UUID:
@@ -16,7 +15,10 @@ def uuid7() -> UUID:
 
 
 def setup_verbose_logging() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
 
 
 def setup_monitoring_and_tracing_with_sentry() -> None:
@@ -26,7 +28,10 @@ def setup_monitoring_and_tracing_with_sentry() -> None:
 
     try:
         import sentry_sdk
-        from sentry_sdk.integrations.opentelemetry import SentryPropagator, SentrySpanProcessor
+        from sentry_sdk.integrations.opentelemetry import (
+            SentryPropagator,
+            SentrySpanProcessor,
+        )
     except ImportError:
         raise ImportError("install sentry sdk")
 
@@ -41,6 +46,8 @@ def setup_monitoring_and_tracing_with_sentry() -> None:
     provider = TracerProvider()
     provider.add_span_processor(SentrySpanProcessor())
     trace.set_tracer_provider(provider)
+    LiteLLMInstrumentor().instrument(tracer_provider=provider)
+
     set_global_textmap(SentryPropagator())
 
     start_http_server(8000)

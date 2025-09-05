@@ -1,3 +1,12 @@
+# 2025.09.05
+
+* Add `JimsApp` and `VedanaApp` construction to `vedana_core`, now we can run
+  Vedana with standard `jims-tui` and `jims-telegram` runners
+
+# 2025.08.29
+
+* Make conversation history always present instead of a tool call
+
 # 0.5.0
 
 * (vedana) Refactor Vedana into packages
