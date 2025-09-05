@@ -39,14 +39,6 @@ class ChatApp(App):
         self.thread_id = thread_id
         self.ctl = ctl
 
-    @overload
-    @classmethod
-    async def create(cls, app: JimsApp) -> "ChatApp": ...
-
-    @overload
-    @classmethod
-    async def create(cls, app: Awaitable[JimsApp]) -> "ChatApp": ...
-
     @classmethod
     async def create(cls, app: JimsApp | Awaitable[JimsApp]) -> "ChatApp":
         if isinstance(app, Awaitable):
