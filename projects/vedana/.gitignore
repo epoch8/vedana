@@ -15,4 +15,5 @@ wheels/
 # Virtual environments
 .venv
 
-/.env
+.env
+.env.k8s.*

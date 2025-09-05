@@ -49,3 +49,9 @@ dev = [
 
 [tool.ruff]
 line-length = 120
+
+[tool.gh-actions-codegen]
+generate = true
+template_type = "lib"
+generate_standard_pytest_step = true
+typechecker = "mypy"

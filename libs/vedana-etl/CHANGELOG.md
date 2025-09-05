@@ -1,4 +1,13 @@
-## 0.2.0
+# 2025-09-04
 
-Initial pipeline - extracted common pipeline from `Maytoni-ETL`
+* Covered get_grist_data / filter_grist_data with tests
+* More fixes in processing "reference" type columns for both links and attrs
+
+# 2025-09-02
+
+* Refactor to var-style Table declaration in pipeline
+
+# 0.2.0
+
+* Initial pipeline - extracted common pipeline from `Maytoni-ETL`
 

@@ -1,4 +1,4 @@
-from typing import Awaitable, overload
+from typing import Awaitable
 from uuid import UUID
 
 from jims_core.app import JimsApp
@@ -38,14 +38,6 @@ class ChatApp(App):
         self.jims_app = app
         self.thread_id = thread_id
         self.ctl = ctl
-
-    @overload
-    @classmethod
-    async def create(cls, app: JimsApp) -> "ChatApp": ...
-
-    @overload
-    @classmethod
-    async def create(cls, app: Awaitable[JimsApp]) -> "ChatApp": ...
 
     @classmethod
     async def create(cls, app: JimsApp | Awaitable[JimsApp]) -> "ChatApp":
