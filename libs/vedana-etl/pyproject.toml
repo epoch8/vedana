@@ -33,7 +33,7 @@ line-length = 120
 generate = true
 template_type = "lib"
 generate_standard_pytest_step = false
-typechecker = "ty"
+typechecker = "mypy"
 custom_steps = """
 - name: Start infra (Grist + Memgraph)
   run: |
