@@ -17,10 +17,10 @@ dependencies = [
 ]
 
 [tool.gh-actions-codegen]
-generate = true                       # Enable workflow generation
-template_type = "project"             # Use project template
-generate_standard_pytest_step = true  # Generate standard pytest step
-typechecker = "mypy"                  # Use MyPy type checker
+generate = true
+template_type = "project"
+generate_standard_pytest_step = false
+typechecker = "mypy"
 
 [tool.mypy]
 ignore_missing_imports = true
