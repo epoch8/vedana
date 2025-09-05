@@ -1,4 +1,4 @@
-from typing import Awaitable, overload
+from typing import Awaitable
 from uuid import UUID
 
 from jims_core.app import JimsApp
