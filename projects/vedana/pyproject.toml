@@ -20,13 +20,16 @@ dependencies = [
 generate = true
 template_type = "project"
 generate_standard_pytest_step = false
-typechecker = "mypy"
+generate_typechecking_step = false
 
 [tool.mypy]
 ignore_missing_imports = true
 follow_imports = "silent"
 namespace_packages = true
 enable_incomplete_feature = ["NewGenericSyntax"]
+exclude = [
+    "migrations/",
+]
 
 [tool.ruff]
 line-length = 120
