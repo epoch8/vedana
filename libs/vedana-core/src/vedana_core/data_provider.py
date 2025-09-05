@@ -102,7 +102,7 @@ class CsvDataProvider(DataProvider):
         anchors = []
         attrs_dtypes = {a.name: a.dtype for a in self.data_model.attrs}
         grouped = df.groupby(["node_id", "node_type"])
-        for (node_id, node_type), group in grouped:
+        for (node_id, node_type), group in grouped:  # type: ignore
             data = {
                 k: cast_dtype(v, k, dtype=attrs_dtypes.get(k))
                 for k, v in zip(group["attribute_key"], group["attribute_value"])
@@ -117,7 +117,7 @@ class CsvDataProvider(DataProvider):
         df = pd.read_csv(file)
         links = []
         grouped = df.groupby(["from_node_id", "to_node_id", "edge_label"])
-        for (id_from, id_to, edge_label), group in grouped:
+        for (id_from, id_to, edge_label), group in grouped:  # type: ignore
             data = {k: v for k, v in zip(group["attribute_key"], group["attribute_value"]) if not pd.isna(k)}
             links.append(
                 LinkRecord(str(id_from), str(id_to), link.anchor_from.noun, link.anchor_to.noun, str(edge_label), data)
@@ -320,8 +320,7 @@ class GristAPIDataProvider(GristDataProvider):
         # There is no label (hidden=True/False) on columns so we have to do 2 api calls
         view_cols = self._client.columns(table_name)  # does not show hidden columns i.e. "id"
         all_cols = requests.get(  # shows all columns, including internal IDs and helper columns
-            f"{self.grist_server}/api/docs/{self.doc_id}/tables/{table_name}/columns?hidden=True",
-            headers=self.headers
+            f"{self.grist_server}/api/docs/{self.doc_id}/tables/{table_name}/columns?hidden=True", headers=self.headers
         )
         if not view_cols or not all_cols:
             return {}
@@ -333,7 +332,8 @@ class GristAPIDataProvider(GristDataProvider):
         col_ref_label_map = {c["fields"]["colRef"]: c["fields"]["label"] for c in all_cols}
 
         parsed_cols = {
-            c["id"]: c["fields"]["label"] if not c["fields"]["displayCol"]
+            c["id"]: c["fields"]["label"]
+            if not c["fields"]["displayCol"]
             else col_ref_label_map.get(c["fields"]["displayCol"], c["fields"]["label"])
             for c in view_cols
         }
