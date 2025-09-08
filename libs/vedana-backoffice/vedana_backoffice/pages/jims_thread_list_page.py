@@ -36,16 +36,19 @@ class ThreadVis:
     thread_id: str
     created_at: str
     thread_age: str
-    thread_config_list: list[tuple[str, str]]
+    interface: str
 
     @classmethod
     def create(cls, thread_id: str, created_at: datetime, thread_config: dict) -> "ThreadVis":
-        cfg_list = [(str(k), str(v)) for k, v in (thread_config or {}).items()]
+        cfg = thread_config or {}
+        iface_val = cfg.get("interface") or cfg.get("channel") or cfg.get("source")
+        if isinstance(iface_val, dict):
+            iface_val = iface_val.get("name") or iface_val.get("type") or str(iface_val)
         return cls(
             thread_id=str(thread_id),
             created_at=str(created_at),
             thread_age=_datetime_to_age(created_at),
-            thread_config_list=cfg_list,
+            interface=str(iface_val or ""),
         )
 
 
@@ -87,7 +90,7 @@ def jims_thread_list_page() -> rx.Component:
                         rx.table.row(
                             rx.table.column_header_cell("Thread ID"),
                             rx.table.column_header_cell("Created"),
-                            rx.table.column_header_cell("Config"),
+                            rx.table.column_header_cell("Interface"),
                         ),
                     ),
                     rx.table.body(
@@ -101,18 +104,7 @@ def jims_thread_list_page() -> rx.Component:
                                     ),
                                 ),
                                 rx.table.cell(thread.thread_age),
-                                rx.table.cell(
-                                    rx.data_list.root(
-                                        rx.foreach(
-                                            thread.thread_config_list,
-                                            lambda item: rx.data_list.item(
-                                                rx.data_list.label(item[0]),
-                                                rx.data_list.value(rx.code(item[1], font_size="11px")),
-                                            ),
-                                        ),
-                                        size="1",
-                                    )
-                                ),
+                                rx.table.cell(thread.interface),
                             ),
                         ),
                     ),
