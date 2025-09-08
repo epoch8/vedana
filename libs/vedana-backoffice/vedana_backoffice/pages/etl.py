@@ -9,14 +9,14 @@ def _filters() -> rx.Component:
         rx.heading("Filters", size="4"),
         rx.text("Flow"),
         rx.select(
-            items=["regular", "on-demand"],
+            items=["all", "regular", "on-demand"],
             value=EtlState.selected_flow,
             on_change=EtlState.set_flow,
             width="16em",
         ),
         rx.text("Stage"),
         rx.select(
-            items=["extract", "transform", "data-model", "grist", "load"],
+            items=["all", "extract", "transform", "data-model", "grist", "load"],
             value=EtlState.selected_stage,
             on_change=EtlState.set_stage,
             width="16em",
@@ -33,9 +33,8 @@ def _filters() -> rx.Component:
 def _steps_table() -> rx.Component:
     def row(step: dict) -> rx.Component:
         return rx.table.row(
-            rx.table.cell(rx.text(step.get("index", ""))),
             rx.table.cell(rx.text(step.get("name", ""))),
-            rx.table.cell(rx.text(step.get("type", ""))),
+            # rx.table.cell(rx.text(step.get("type", ""))),
             rx.table.cell(rx.text(step.get("inputs_str", ""))),
             rx.table.cell(rx.text(step.get("outputs_str", ""))),
             rx.table.cell(rx.text(step.get("labels_str", ""))),
@@ -52,9 +51,8 @@ def _steps_table() -> rx.Component:
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    rx.table.column_header_cell("#"),
                     rx.table.column_header_cell("Name"),
-                    rx.table.column_header_cell("Type"),
+                    # rx.table.column_header_cell("Type"),
                     rx.table.column_header_cell("Inputs"),
                     rx.table.column_header_cell("Outputs"),
                     rx.table.column_header_cell("Labels"),

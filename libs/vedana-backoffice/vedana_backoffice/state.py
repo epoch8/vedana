@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import threading
 import time
@@ -7,9 +6,9 @@ from typing import Any, Iterable
 
 import pandas as pd
 import reflex as rx
-
 from datapipe.compute import run_steps
-from vedana_etl.app import app as etl_app, pipeline
+from vedana_etl.app import app as etl_app
+from vedana_etl.app import pipeline
 
 
 class AppState(rx.State):
@@ -94,15 +93,13 @@ class EtlState(rx.State):
 
         steps_meta: list[dict[str, Any]] = []
         for idx, step in enumerate(pipeline.steps):  # type: ignore[attr-defined]
-            step_type = type(step).__name__
-            inputs = getattr(step, "inputs", []) or []
-            outputs = getattr(step, "outputs", []) or []
+            inputs = [el.name for el in getattr(step, "inputs", [])]
+            outputs = [el.name for el in getattr(step, "outputs", [])]
             labels = getattr(step, "labels", []) or []
             steps_meta.append(
                 {
-                    "index": idx,
-                    "name": getattr(step, "name", f"{step_type}_{idx}"),
-                    "type": step_type,
+                    "name": step.func.__name__,
+                    # "type": type(step).__name__,
                     "inputs": list(inputs),
                     "outputs": list(outputs),
                     "labels": list(labels),
@@ -230,8 +227,11 @@ class EtlState(rx.State):
 
     # removed async runner; running synchronously with yields
 
-    def run_one_step(self, index: int) -> rx.event.EventSpec | None:  # type: ignore[override]
+    def run_one_step(self, index: int | None = None) -> rx.event.EventSpec | None:  # type: ignore[override]
         if self.is_running:
+            return None
+
+        if index is None:
             return None
 
         if index < 0 or index >= len(etl_app.steps):
