@@ -5,25 +5,29 @@ from vedana_backoffice.pages import eval as eval_page
 from vedana_backoffice.pages.jims_thread_list_page import jims_thread_list_page
 from vedana_backoffice.pages.jims_thread_page import jims_thread_page
 from vedana_backoffice.state import EtlState
+from vedana_backoffice.ui import app_header
 
 
 def index() -> rx.Component:
-    return rx.center(
-        rx.vstack(
-            rx.heading("Vedana Backoffice", font_size="1.5em"),
-            rx.text("Admin console for ETL, Evaluation, JIMS, and Chatbot"),
-            rx.hstack(
-                rx.link("ETL", href="/etl"),
-                rx.link("Evaluation", href="/eval"),
-                rx.link("JIMS", href="/jims"),
-                rx.link("Chatbot", href="/chat"),
+    return rx.vstack(
+        app_header(),
+        rx.center(
+            rx.vstack(
+                rx.heading("Welcome", font_size="1.25em"),
+                rx.text("Admin console for ETL, Evaluation, JIMS, and Chatbot"),
+                rx.hstack(
+                    rx.link("ETL", href="/etl"),
+                    rx.link("Evaluation", href="/eval"),
+                    rx.link("JIMS", href="/jims"),
+                    spacing="4",
+                ),
+                align="start",
                 spacing="4",
+                width="100%",
             ),
-            align="start",
-            spacing="4",
+            padding="2em",
             width="100%",
         ),
-        padding="2em",
         width="100%",
     )
 
@@ -35,4 +39,3 @@ app.add_page(eval_page.page, route="/eval", title="Evaluation")
 app.add_page(jims_thread_list_page, route="/jims", title="JIMS")
 app.add_page(jims_thread_page)
 # app.add_page(chat.page, route="/chat", title="Chatbot")
-

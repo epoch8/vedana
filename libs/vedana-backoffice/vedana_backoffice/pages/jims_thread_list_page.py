@@ -6,6 +6,8 @@ import sqlalchemy as sa
 from jims_core.db import ThreadDB
 from vedana_core.app import make_vedana_app
 
+from vedana_backoffice.ui import app_header, breadcrumbs
+
 
 def _datetime_to_age(created_at: datetime) -> str:
     from datetime import datetime as dt
@@ -74,6 +76,8 @@ class ThreadListState(rx.State):
 def jims_thread_list_page() -> rx.Component:
     return rx.container(
         rx.vstack(
+            app_header(),
+            breadcrumbs([("Main", "/"), ("JIMS threads", "/jims")]),
             rx.heading("JIMS Threads"),
             rx.cond(
                 ThreadListState.threads_refreshing,

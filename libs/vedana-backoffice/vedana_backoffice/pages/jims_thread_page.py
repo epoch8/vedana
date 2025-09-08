@@ -7,6 +7,8 @@ import sqlalchemy as sa
 from jims_core.db import ThreadEventDB
 from vedana_core.app import make_vedana_app
 
+from vedana_backoffice.ui import app_header, breadcrumbs
+
 
 def _datetime_to_age(created_at: datetime) -> str:
     from datetime import datetime as dt
@@ -178,6 +180,8 @@ def _event_row(event: ThreadEventVis) -> rx.Component:
 def jims_thread_page() -> rx.Component:
     return rx.container(
         rx.vstack(
+            app_header(),
+            breadcrumbs([("Main", "/"), ("JIMS threads", "/jims"), ("Thread", f"/jims/thread/{rx.State.thread_id}")]),  # type: ignore
             rx.heading(f"Thread Page {rx.State.thread_id}"),  # type: ignore
             rx.cond(
                 ThreadViewState.loading,

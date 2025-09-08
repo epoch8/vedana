@@ -1,6 +1,7 @@
 import reflex as rx
 
 from vedana_backoffice.state import EtlState
+from vedana_backoffice.ui import app_header, breadcrumbs
 
 
 def _filters() -> rx.Component:
@@ -41,7 +42,7 @@ def _steps_table() -> rx.Component:
             rx.table.cell(
                 rx.button(
                     "Run",
-                    on_click=lambda idx=step.get("index", 0): EtlState.run_one_step(idx),
+                    on_click=EtlState.run_one_step(step["index"]),
                 )
             ),
         )
@@ -116,6 +117,8 @@ def _table_preview() -> rx.Component:
 
 def page() -> rx.Component:
     return rx.vstack(
+        app_header(),
+        breadcrumbs([("Main", "/"), ("ETL", "/etl")]),
         rx.heading("ETL Pipeline"),
         rx.grid(
             _filters(),
