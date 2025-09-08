@@ -9,7 +9,7 @@ import pandas as pd
 import reflex as rx
 
 from datapipe.compute import run_steps
-from vedana_etl.app import app as etl_app, pipeline, catalog
+from vedana_etl.app import app as etl_app, pipeline
 
 
 class AppState(rx.State):
@@ -115,9 +115,15 @@ class EtlState(rx.State):
         self.all_steps = steps_meta
         self._update_filtered_steps()
 
-        tables: list[str] = []
-        for table_name in catalog.catalog.keys():  # type: ignore[attr-defined]
-            tables.append(str(table_name))
+        tables: set[str] = set()
+        for step in pipeline.steps:  # get tables from pipeline
+            if hasattr(step, "inputs"):
+                for input in step.inputs:
+                    tables.add(input.name)
+            if hasattr(step, "outputs"):
+                for output in step.outputs:
+                    tables.add(output.name)
+
         self.available_tables = sorted(tables)
 
     def set_flow(self, flow: str) -> None:
