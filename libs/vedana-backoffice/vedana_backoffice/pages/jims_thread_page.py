@@ -40,16 +40,28 @@ class ThreadEventVis:
     technical_vts_queries: list[str]
     technical_cypher_queries: list[str]
     technical_models: list[tuple[str, str]]
+    has_technical_info: bool
+    has_vts: bool
+    has_cypher: bool
+    has_models: bool
 
     @classmethod
     def create(cls, event_id: Any, created_at: datetime, event_type: str, event_data: dict) -> "ThreadEventVis":
         import json
 
-        # Generic key-value list for display
-        event_data_list = [(str(k), str(v)) for k, v in (event_data or {}).items()]
-
         # Parse technical_info if present
-        tech = event_data.get("technical_info", {}) if isinstance(event_data, dict) else {}
+        base_data = dict(event_data or {}) if isinstance(event_data, dict) else {}
+        tech = base_data.get("technical_info", {}) if isinstance(base_data, dict) else {}
+        has_technical_info = bool(tech)
+
+        # Generic key-value list for display (exclude raw technical_info if present)
+        if has_technical_info and "technical_info" in base_data:
+            try:
+                del base_data["technical_info"]
+            except Exception:
+                pass
+        event_data_list = [(str(k), str(v)) for k, v in base_data.items()]
+
         vts_queries: list[str] = list(tech.get("vts_queries", []) or [])
         cypher_queries: list[str] = list(tech.get("cypher_queries", []) or [])
 
@@ -74,6 +86,10 @@ class ThreadEventVis:
             technical_vts_queries=vts_queries,
             technical_cypher_queries=cypher_queries,
             technical_models=models_list,
+            has_technical_info=has_technical_info,
+            has_vts=bool(vts_queries),
+            has_cypher=bool(cypher_queries),
+            has_models=bool(models_list),
         )
 
 
@@ -102,10 +118,10 @@ class ThreadViewState(rx.State):
 
 
 def _event_row(event: ThreadEventVis) -> rx.Component:
-    tech_section = rx.vstack(
-        rx.heading("Technical Info", size="3"),
+    tech_content = rx.vstack(
+        rx.heading("Technical Info", size="2"),
         rx.cond(
-            event.technical_models,
+            event.has_models,
             rx.data_list.root(
                 rx.data_list.item(rx.data_list.label("Models"), rx.data_list.value("")),
                 rx.foreach(
@@ -118,14 +134,14 @@ def _event_row(event: ThreadEventVis) -> rx.Component:
             ),
         ),
         rx.cond(
-            event.technical_vts_queries,
+            event.has_vts,
             rx.vstack(
                 rx.text("VTS Queries"),
                 rx.foreach(event.technical_vts_queries, lambda q: rx.code(q, font_size="11px")),
             ),
         ),
         rx.cond(
-            event.technical_cypher_queries,
+            event.has_cypher,
             rx.vstack(
                 rx.text("Cypher Queries"),
                 rx.foreach(event.technical_cypher_queries, lambda q: rx.code(q, font_size="11px")),
@@ -148,7 +164,13 @@ def _event_row(event: ThreadEventVis) -> rx.Component:
 
     return rx.table.row(
         rx.table.cell(event.event_age),
-        rx.table.cell(rx.vstack(generic_section, tech_section, spacing="3")),
+        rx.table.cell(
+            rx.vstack(
+                generic_section,
+                rx.cond(event.has_technical_info, tech_content),
+                spacing="3",
+            )
+        ),
     )
 
 
