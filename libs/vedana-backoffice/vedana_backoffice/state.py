@@ -289,6 +289,3 @@ class EtlState(rx.State):
         self.preview_columns = [str(c) for c in df.columns]
         self.preview_rows = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
         self.has_preview = len(self.preview_rows) > 0
-
-
-
