@@ -13,7 +13,7 @@ def app_header() -> rx.Component:
         border_bottom="1px solid #e5e7eb",
         position="sticky",
         top="0",
-        # bg="white",
+        style={"backgroundColor": "inherit"},
         z_index="10",
     )
 
