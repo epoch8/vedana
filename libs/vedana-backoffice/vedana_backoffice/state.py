@@ -1,7 +1,7 @@
 import logging
 import threading
 import time
-from queue import Queue, Empty
+from queue import Empty, Queue
 from typing import Any, Iterable
 
 import pandas as pd
@@ -124,11 +124,11 @@ class EtlState(rx.State):
         self.available_tables = sorted(tables)
 
     def set_flow(self, flow: str) -> None:
-        self.selected_flow = flow
+        self.selected_flow = "" if str(flow).lower() == "all" else flow
         self._update_filtered_steps()
 
     def set_stage(self, stage: str) -> None:
-        self.selected_stage = stage
+        self.selected_stage = "" if str(stage).lower() == "all" else stage
         self._update_filtered_steps()
 
     def _filter_steps_by_labels(self, steps: Iterable[Any]) -> list[Any]:
@@ -181,7 +181,7 @@ class EtlState(rx.State):
             run_steps(etl_app.ds, [step])  # type: ignore[arg-type]
             self._append_log(f"Completed step: {step_name}")
 
-    def run_selected(self) -> rx.event.EventSpec | None:  # type: ignore[override]
+    def run_selected(self):  # type: ignore[override]
         """Run the ETL for selected labels in background, streaming logs."""
         if self.is_running:
             return None
@@ -227,7 +227,7 @@ class EtlState(rx.State):
 
     # removed async runner; running synchronously with yields
 
-    def run_one_step(self, index: int | None = None) -> rx.event.EventSpec | None:  # type: ignore[override]
+    def run_one_step(self, index: int | None = None):  # type: ignore[override]
         if self.is_running:
             return None
 
@@ -287,5 +287,136 @@ class EtlState(rx.State):
             return
 
         self.preview_columns = [str(c) for c in df.columns]
-        self.preview_rows = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
+        records_any: list[dict[Any, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")  # type: ignore[assignment]
+        coerced: list[dict[str, Any]] = []
+        for r in records_any:
+            try:
+                coerced.append({str(k): v for k, v in dict(r).items()})
+            except Exception:
+                coerced.append({})
+        self.preview_rows = coerced
         self.has_preview = len(self.preview_rows) > 0
+
+
+class ChatState(rx.State):
+    """Minimal chatbot with per-answer technical details."""
+
+    input_text: str = ""
+    is_running: bool = False
+    messages: list[dict[str, Any]] = []  # {id, role, content, created_at, is_assistant, has_tech?, show_details?, ...}
+
+    def set_input(self, value: str) -> None:
+        self.input_text = value
+
+    def clear(self) -> None:
+        self.input_text = ""
+        self.messages = []
+
+    def toggle_details_by_id(self, message_id: str) -> None:
+        for idx, m in enumerate(self.messages):
+            if str(m.get("id")) == str(message_id):
+                msg = dict(m)
+                msg["show_details"] = not bool(msg.get("show_details"))
+                self.messages[idx] = msg
+                break
+
+    def _append_message(self, role: str, content: str, technical_info: dict[str, Any] | None = None) -> None:
+        from datetime import datetime
+        from uuid import uuid4
+
+        message: dict[str, Any] = {
+            "id": str(uuid4()),
+            "role": role,
+            "content": content,
+            "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "is_assistant": role == "assistant",
+            "has_tech": False,
+            "show_details": False,
+        }
+        if technical_info:
+            import json as _json
+
+            try:
+                vts_list = [str(x) for x in (technical_info.get("vts_queries") or [])]
+            except Exception:
+                vts_list = []
+            try:
+                cypher_list = [str(x) for x in (technical_info.get("cypher_queries") or [])]
+            except Exception:
+                cypher_list = []
+            models_raw = technical_info.get("model_stats", {}) or technical_info.get("model_used", {}) or {}
+            model_pairs: list[tuple[str, str]] = []
+            if isinstance(models_raw, dict):
+                for mk, mv in models_raw.items():
+                    try:
+                        model_pairs.append((str(mk), _json.dumps(mv)))
+                    except Exception:
+                        model_pairs.append((str(mk), str(mv)))
+            models_list = [f"{k}: {v}" for k, v in model_pairs]
+
+            message["vts_str"] = "\n".join(vts_list)
+            message["cypher_str"] = "\n".join(cypher_list)
+            message["models_str"] = "\n".join(models_list)
+            message["has_vts"] = bool(vts_list)
+            message["has_cypher"] = bool(cypher_list)
+            message["has_models"] = bool(models_list)
+            message["has_tech"] = bool(vts_list or cypher_list or models_list)
+
+        self.messages.append(message)
+
+    def send(self):  # type: ignore[override]
+        if self.is_running:
+            return None
+
+        user_text = (self.input_text or "").strip()
+        if not user_text:
+            return None
+
+        self._append_message("user", user_text)
+        self.input_text = ""
+        self.is_running = True
+        yield
+
+        result: dict[str, Any] = {"answer": "", "tech": {}}
+
+        def _runner():
+            try:
+                import asyncio as _aio
+
+                from jims_core.llms.llm_provider import LLMProvider
+                from jims_core.thread.schema import CommunicationEvent
+                from jims_core.thread.thread_context import ThreadContext
+                from jims_core.util import uuid7
+                from vedana_core.app import make_vedana_app
+
+                async def _do():
+                    vedana_app = await make_vedana_app()
+                    history = [CommunicationEvent(role="user", content=user_text)]
+                    ctx = ThreadContext(thread_id=uuid7(), history=history, events=[], llm=LLMProvider())
+                    await vedana_app.pipeline(ctx)
+
+                    answer = ""
+                    tech: dict[str, Any] = {}
+                    for ev in ctx.outgoing_events:
+                        if ev.event_type == "comm.assistant_message":
+                            answer = str(ev.event_data.get("content", ""))
+                        elif ev.event_type == "rag.query_processed":
+                            tech = dict(ev.event_data.get("technical_info", {}))
+                    result["answer"] = answer
+                    result["tech"] = tech
+
+                _aio.run(_do())
+            except Exception as e:
+                result["answer"] = f"Error: {e}"
+                result["tech"] = {}
+
+        t = threading.Thread(target=_runner, daemon=True)
+        t.start()
+        while t.is_alive():
+            yield
+            time.sleep(0.1)
+        t.join(timeout=0)
+
+        self._append_message("assistant", str(result.get("answer", "")), technical_info=result.get("tech", {}))
+        self.is_running = False
+        yield
