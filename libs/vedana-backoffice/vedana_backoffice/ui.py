@@ -5,7 +5,8 @@ def app_header() -> rx.Component:
     return rx.box(
         rx.hstack(
             rx.link("Vedana Backoffice", href="/", font_weight="bold", font_size="1.25em"),
-            justify="start",
+            rx.color_mode.button(),
+            justify="between",
             width="100%",
         ),
         width="100%",
