@@ -7,28 +7,7 @@ from jims_core.db import ThreadDB
 from vedana_core.app import make_vedana_app
 
 from vedana_backoffice.ui import app_header, breadcrumbs
-
-
-def _datetime_to_age(created_at: datetime) -> str:
-    from datetime import datetime as dt
-    from datetime import timezone
-
-    now = dt.now(timezone.utc)
-    created_at_dt = created_at
-    if created_at_dt.tzinfo is None:
-        created_at_dt = created_at_dt.replace(tzinfo=timezone.utc)
-
-    diff = now - created_at_dt
-    if diff.days < 7:
-        if diff.days > 0:
-            hours = diff.seconds // 3600
-            return f"{diff.days}d{hours}h" if hours > 0 else f"{diff.days}d"
-        if diff.seconds >= 3600:
-            return f"{diff.seconds // 3600}h"
-        if diff.seconds >= 60:
-            return f"{diff.seconds // 60}m"
-        return "1m"
-    return created_at_dt.strftime("%Y %b %d %H:%M")
+from vedana_backoffice.util import _datetime_to_age
 
 
 @dataclass
