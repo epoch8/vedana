@@ -41,7 +41,8 @@ def _steps_table() -> rx.Component:
             rx.table.cell(
                 rx.button(
                     "Run",
-                    on_click=EtlState.run_one_step(step["index"]),
+                    on_click=EtlState.run_one_step(index=step["index"]),
+                    loading=EtlState.is_running,
                 )
             ),
         )
