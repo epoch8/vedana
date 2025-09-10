@@ -133,8 +133,8 @@ class LLM:
     ) -> str:
         prompt = self.prompt_templates.get("generate_no_answer_tmplt", generate_no_answer_tmplt)
         messages = [
-            *(dialog or []),
             {"role": "system", "content": prompt},
+            *(dialog or []),
         ]
         response = await self.llm.chat_completion_plain(messages)
         human_answer = "" if response.content is None else response.content.strip()
