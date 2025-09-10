@@ -98,8 +98,8 @@ class EtlState(rx.State):
             labels = getattr(step, "labels", []) or []
             steps_meta.append(
                 {
+                    "index": idx,
                     "name": step.func.__name__,
-                    # "type": type(step).__name__,
                     "inputs": list(inputs),
                     "outputs": list(outputs),
                     "labels": list(labels),
