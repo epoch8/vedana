@@ -2,22 +2,21 @@ import logging
 import threading
 import time
 from queue import Empty, Queue
-from typing import Any, Iterable
+from typing import Any, Iterable, Tuple, Dict
+from uuid import UUID, uuid4
+from datetime import datetime
+import json
 
 import pandas as pd
 import reflex as rx
+
 from datapipe.compute import run_steps
+from vedana_core.app import make_vedana_app, VedanaApp
 from vedana_etl.app import app as etl_app
 from vedana_etl.app import pipeline
-
-
-class AppState(rx.State):
-    """Shared application state placeholder."""
-
-    toast: str | None = None
-
-    def notify(self, message: str) -> None:
-        self.toast = message
+from vedana_etl.config import DBCONN_DATAPIPE
+from jims_core.thread.thread_controller import ThreadController
+from jims_core.util import uuid7
 
 
 class EtlState(rx.State):
@@ -270,7 +269,6 @@ class EtlState(rx.State):
 
     def preview_table(self, table_name: str) -> None:
         """Load a small preview from the datapipe DB for a selected table."""
-        from vedana_etl.config import DBCONN_DATAPIPE
 
         self.preview_table_name = table_name
         self.has_preview = False
@@ -287,7 +285,7 @@ class EtlState(rx.State):
             return
 
         self.preview_columns = [str(c) for c in df.columns]
-        records_any: list[dict[Any, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")  # type: ignore[assignment]
+        records_any: list[dict[Any, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
         coerced: list[dict[str, Any]] = []
         for r in records_any:
             try:
@@ -303,15 +301,11 @@ class ChatState(rx.State):
 
     input_text: str = ""
     is_running: bool = False
-    messages: list[dict[str, Any]] = []  # {id, role, content, created_at, is_assistant, has_tech?, show_details?, ...}
+    messages: list[dict[str, Any]] = []
     chat_thread_id: str = ""
 
     def set_input(self, value: str) -> None:
         self.input_text = value
-
-    def clear(self) -> None:
-        self.input_text = ""
-        self.messages = []
 
     def toggle_details_by_id(self, message_id: str) -> None:
         for idx, m in enumerate(self.messages):
@@ -322,14 +316,17 @@ class ChatState(rx.State):
                 break
 
     def reset_session(self) -> None:
+        """Clear current chat history and start a fresh session (new thread on next send)."""
         self.messages = []
         self.input_text = ""
         self.chat_thread_id = ""
 
-    def _append_message(self, role: str, content: str, technical_info: dict[str, Any] | None = None) -> None:
-        from datetime import datetime
-        from uuid import uuid4
-
+    def _append_message(
+        self,
+        role: str,
+        content: str,
+        technical_info: dict[str, Any] | None = None,
+    ) -> None:
         message: dict[str, Any] = {
             "id": str(uuid4()),
             "role": role,
@@ -339,23 +336,16 @@ class ChatState(rx.State):
             "has_tech": False,
             "show_details": False,
         }
-        if technical_info:
-            import json as _json
 
-            try:
-                vts_list = [str(x) for x in (technical_info.get("vts_queries") or [])]
-            except Exception:
-                vts_list = []
-            try:
-                cypher_list = [str(x) for x in (technical_info.get("cypher_queries") or [])]
-            except Exception:
-                cypher_list = []
-            models_raw = technical_info.get("model_stats", {}) or technical_info.get("model_used", {}) or {}
+        if technical_info:
+            vts_list = [str(x) for x in technical_info.get("vts_queries") or []]
+            cypher_list = [str(x) for x in technical_info.get("cypher_queries") or []]
+            models_raw = technical_info.get("model_stats", {})
             model_pairs: list[tuple[str, str]] = []
             if isinstance(models_raw, dict):
                 for mk, mv in models_raw.items():
                     try:
-                        model_pairs.append((str(mk), _json.dumps(mv)))
+                        model_pairs.append((str(mk), json.dumps(mv)))
                     except Exception:
                         model_pairs.append((str(mk), str(mv)))
             models_list = [f"{k}: {v}" for k, v in model_pairs]
@@ -370,59 +360,78 @@ class ChatState(rx.State):
 
         self.messages.append(message)
 
-    def send(self):  # type: ignore[override]
+    async def _ensure_thread(self) -> str:
+        vedana_app = await make_vedana_app()  # todo init outside
+
+        try:
+            existing = await ThreadController.from_thread_id(vedana_app.sessionmaker, UUID(self.chat_thread_id))
+        except Exception:
+            existing = None
+
+        if existing is None:
+            ctl = await ThreadController.new_thread(
+                vedana_app.sessionmaker,
+                uuid7(),
+                {"interface": "reflex-chat", "created_at": time.time()},
+            )
+            return str(ctl.thread.thread_id)
+
+        return self.chat_thread_id
+
+    async def _run_message(self, thread_id: str, user_text: str) -> Tuple[str, Dict[str, Any]]:
+        vedana_app = await make_vedana_app()  # todo init outside
+        try:
+            tid = UUID(thread_id)
+        except Exception:
+            tid = uuid7()
+
+        ctl = await ThreadController.from_thread_id(vedana_app.sessionmaker, tid)
+        if ctl is None:
+            ctl = await ThreadController.new_thread(
+                vedana_app.sessionmaker, uuid7(), {"interface": "reflex"}
+            )
+
+        await ctl.store_user_message(uuid7(), user_text)
+        events = await ctl.run_pipeline_with_context(vedana_app.pipeline)
+
+        answer: str = ""
+        tech: dict[str, Any] = {}
+        for ev in events:
+            if ev.event_type == "comm.assistant_message":
+                answer = str(ev.event_data.get("content", ""))
+            elif ev.event_type == "rag.query_processed":
+                tech = dict(ev.event_data.get("technical_info", {}))
+
+        return answer, tech
+
+    @rx.event(background=True)
+    async def send_background(self, user_text: str):
+        """This runs in background (non-blocking), after send() submission."""
+        # Need context to modify state safely
+        async with self:
+            try:
+                thread_id = await self._ensure_thread()
+                answer, tech = await self._run_message(thread_id, user_text)
+                # update shared session thread id
+                self.chat_thread_id = thread_id
+            except Exception as e:
+                answer, tech = (f"Error: {e}", {})
+
+            self._append_message("assistant", answer, technical_info=tech)
+            self.is_running = False
+
+    def send(self):
+        """form submit / button click"""
         if self.is_running:
-            return None
+            return
 
         user_text = (self.input_text or "").strip()
         if not user_text:
-            return None
+            return
 
         self._append_message("user", user_text)
         self.input_text = ""
         self.is_running = True
-        yield
+        yield  # trigger UI update
 
-        result: dict[str, Any] = {"answer": "", "tech": {}}
-
-        def _runner():
-            try:
-                import asyncio as _aio
-
-                from jims_core.llms.llm_provider import LLMProvider
-                from jims_core.thread.schema import CommunicationEvent
-                from jims_core.thread.thread_context import ThreadContext
-                from jims_core.util import uuid7
-                from vedana_core.app import make_vedana_app
-
-                async def _do():
-                    vedana_app = await make_vedana_app()
-                    history = [CommunicationEvent(role="user", content=user_text)]
-                    ctx = ThreadContext(thread_id=uuid7(), history=history, events=[], llm=LLMProvider())
-                    await vedana_app.pipeline(ctx)
-
-                    answer = ""
-                    tech: dict[str, Any] = {}
-                    for ev in ctx.outgoing_events:
-                        if ev.event_type == "comm.assistant_message":
-                            answer = str(ev.event_data.get("content", ""))
-                        elif ev.event_type == "rag.query_processed":
-                            tech = dict(ev.event_data.get("technical_info", {}))
-                    result["answer"] = answer
-                    result["tech"] = tech
-
-                _aio.run(_do())
-            except Exception as e:
-                result["answer"] = f"Error: {e}"
-                result["tech"] = {}
-
-        t = threading.Thread(target=_runner, daemon=True)
-        t.start()
-        while t.is_alive():
-            yield
-            time.sleep(0.1)
-        t.join(timeout=0)
-
-        self._append_message("assistant", str(result.get("answer", "")), technical_info=result.get("tech", {}))
-        self.is_running = False
-        yield
+        yield ChatState.send_background(user_text)
