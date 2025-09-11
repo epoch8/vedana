@@ -78,6 +78,17 @@ def page() -> rx.Component:
                     spacing="2",
                 ),
             ),
+            rx.hstack(
+                rx.button(
+                    "Clear history",
+                    variant="soft",
+                    color_scheme="gray",
+                    size="1",
+                    on_click=ChatState.reset_session,
+                ),
+                align="end",
+                width="100%",
+            ),
             rx.form.root(
                 rx.hstack(
                     rx.input(
