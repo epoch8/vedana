@@ -242,7 +242,7 @@ class EtlState(rx.State):
         self.is_running = True
         self.logs = []
         self.last_run_started_at = time.time()
-        self._append_log(f"Starting single step #{index}")
+        self._append_log(f"Starting single step {step.name}")
         yield
 
         try:
@@ -304,6 +304,7 @@ class ChatState(rx.State):
     input_text: str = ""
     is_running: bool = False
     messages: list[dict[str, Any]] = []  # {id, role, content, created_at, is_assistant, has_tech?, show_details?, ...}
+    chat_thread_id: str = ""
 
     def set_input(self, value: str) -> None:
         self.input_text = value
@@ -319,6 +320,11 @@ class ChatState(rx.State):
                 msg["show_details"] = not bool(msg.get("show_details"))
                 self.messages[idx] = msg
                 break
+
+    def reset_session(self) -> None:
+        self.messages = []
+        self.input_text = ""
+        self.chat_thread_id = ""
 
     def _append_message(self, role: str, content: str, technical_info: dict[str, Any] | None = None) -> None:
         from datetime import datetime
