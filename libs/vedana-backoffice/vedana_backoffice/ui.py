@@ -1,7 +1,7 @@
 import reflex as rx
 import os
 
-VERSION = str(f"`{os.environ.get('VERSION')}`")
+VERSION = str(f"`{os.environ.get('VERSION', 'unspecified_version')}`")
 
 
 def app_header() -> rx.Component:

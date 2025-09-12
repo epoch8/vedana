@@ -4,7 +4,7 @@ import threading
 import time
 from datetime import datetime
 from queue import Empty, Queue
-from typing import Any, Iterable, Tuple, Dict
+from typing import Any, Dict, Iterable, Tuple
 from uuid import UUID, uuid4
 
 import pandas as pd
@@ -12,7 +12,7 @@ import reflex as rx
 from datapipe.compute import run_steps
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
-from vedana_core.app import make_vedana_app, VedanaApp
+from vedana_core.app import VedanaApp, make_vedana_app
 from vedana_etl.app import app as etl_app
 from vedana_etl.app import pipeline
 from vedana_etl.config import DBCONN_DATAPIPE
@@ -344,7 +344,7 @@ class ChatState(rx.State):
             "id": str(uuid4()),
             "role": role,
             "content": content,
-            "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "is_assistant": role == "assistant",
             "has_tech": False,
             "show_details": False,
