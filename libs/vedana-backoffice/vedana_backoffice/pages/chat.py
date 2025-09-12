@@ -109,4 +109,5 @@ def page() -> rx.Component:
         align="start",
         spacing="3",
         padding="1em",
+        on_mount=ChatState.mount,
     )

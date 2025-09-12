@@ -1,22 +1,30 @@
+import json
 import logging
 import threading
 import time
+from datetime import datetime
 from queue import Empty, Queue
 from typing import Any, Iterable, Tuple, Dict
 from uuid import UUID, uuid4
-from datetime import datetime
-import json
 
 import pandas as pd
 import reflex as rx
-
 from datapipe.compute import run_steps
+from jims_core.thread.thread_controller import ThreadController
+from jims_core.util import uuid7
 from vedana_core.app import make_vedana_app, VedanaApp
 from vedana_etl.app import app as etl_app
 from vedana_etl.app import pipeline
 from vedana_etl.config import DBCONN_DATAPIPE
-from jims_core.thread.thread_controller import ThreadController
-from jims_core.util import uuid7
+
+vedana_app: VedanaApp | None = None
+
+
+async def get_vedana_app():
+    global vedana_app
+    if vedana_app is None:
+        vedana_app = await make_vedana_app()
+    return vedana_app
 
 
 class EtlState(rx.State):
@@ -304,6 +312,11 @@ class ChatState(rx.State):
     messages: list[dict[str, Any]] = []
     chat_thread_id: str = ""
 
+    async def mount(self) -> None:
+        global vedana_app
+        if vedana_app is None:
+            vedana_app = await make_vedana_app()
+
     def set_input(self, value: str) -> None:
         self.input_text = value
 
@@ -361,8 +374,7 @@ class ChatState(rx.State):
         self.messages.append(message)
 
     async def _ensure_thread(self) -> str:
-        vedana_app = await make_vedana_app()  # todo init outside
-
+        vedana_app = await get_vedana_app()
         try:
             existing = await ThreadController.from_thread_id(vedana_app.sessionmaker, UUID(self.chat_thread_id))
         except Exception:
@@ -379,7 +391,7 @@ class ChatState(rx.State):
         return self.chat_thread_id
 
     async def _run_message(self, thread_id: str, user_text: str) -> Tuple[str, Dict[str, Any]]:
-        vedana_app = await make_vedana_app()  # todo init outside
+        vedana_app = await get_vedana_app()
         try:
             tid = UUID(thread_id)
         except Exception:
@@ -387,9 +399,7 @@ class ChatState(rx.State):
 
         ctl = await ThreadController.from_thread_id(vedana_app.sessionmaker, tid)
         if ctl is None:
-            ctl = await ThreadController.new_thread(
-                vedana_app.sessionmaker, uuid7(), {"interface": "reflex"}
-            )
+            ctl = await ThreadController.new_thread(vedana_app.sessionmaker, uuid7(), {"interface": "reflex"})
 
         await ctl.store_user_message(uuid7(), user_text)
         events = await ctl.run_pipeline_with_context(vedana_app.pipeline)
