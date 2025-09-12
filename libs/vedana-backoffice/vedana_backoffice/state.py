@@ -321,6 +321,7 @@ class ChatState(rx.State):
         global vedana_app
         if vedana_app is None:
             vedana_app = await make_vedana_app()
+        self.data_model_last_sync: str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     def set_input(self, value: str) -> None:
         self.input_text = value
@@ -457,7 +458,6 @@ class ChatState(rx.State):
             va = await get_vedana_app()
             try:
                 self.data_model_text = va.data_model.to_text_descr()
-                self.data_model_last_sync = datetime.now().strftime("%Y-%m-%d %H:%M")
             except Exception:
                 self.data_model_text = "(failed to load data model text)"
 
