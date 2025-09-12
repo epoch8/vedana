@@ -1,10 +1,17 @@
 import reflex as rx
+import os
+
+VERSION = str(f"`{os.environ.get('VERSION')}`")
 
 
 def app_header() -> rx.Component:
     return rx.box(
         rx.hstack(
-            rx.link("Vedana Backoffice", href="/", font_weight="bold", font_size="1.25em"),
+            rx.hstack(
+                rx.link("Vedana Backoffice", href="/", font_weight="bold", font_size="1.25em"),
+                rx.markdown(VERSION),
+                align="center",
+            ),
             rx.color_mode.button(),
             justify="between",
             width="100%",
