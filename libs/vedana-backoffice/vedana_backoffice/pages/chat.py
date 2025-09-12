@@ -11,47 +11,102 @@ def _message_row(msg: dict) -> rx.Component:
             rx.vstack(
                 rx.cond(
                     msg.get("has_models"),
-                    rx.vstack(rx.text("Models"), rx.code(msg.get("models_str", ""), font_size="11px")),
+                    rx.vstack(
+                        rx.text("Models", weight="medium"),
+                        rx.code(msg.get("models_str", ""), font_size="11px"),
+                        spacing="1",
+                        width="100%",
+                    ),
                 ),
                 rx.cond(
                     msg.get("has_vts"),
-                    rx.vstack(rx.text("VTS Queries"), rx.code(msg.get("vts_str", ""), font_size="11px")),
+                    rx.vstack(
+                        rx.text("VTS Queries", weight="medium"),
+                        rx.code(msg.get("vts_str", ""), font_size="11px"),
+                        spacing="1",
+                        width="100%",
+                    ),
                 ),
                 rx.cond(
                     msg.get("has_cypher"),
-                    rx.vstack(rx.text("Cypher Queries"), rx.code(msg.get("cypher_str", ""), font_size="11px")),
+                    rx.vstack(
+                        rx.text("Cypher Queries", weight="medium"),
+                        rx.code(msg.get("cypher_str", ""), font_size="11px"),
+                        spacing="1",
+                        width="100%",
+                    ),
                 ),
                 spacing="2",
+                width="100%",
             ),
             padding="0.75em",
+            variant="surface",
         ),
         rx.box(),
     )
 
-    bubble = rx.card(
-        rx.vstack(
-            rx.text(msg["content"]),
+    # Common bubble content
+    bubble_content = rx.vstack(
+        rx.text(msg["content"]),
+        rx.hstack(
             rx.cond(
                 msg["has_tech"],
                 rx.button(
                     "Details",
-                    variant="soft",
+                    variant="ghost",
                     color_scheme="gray",
                     size="1",
                     on_click=ChatState.toggle_details_by_id(msg["id"]),
                 ),
             ),
-            tech_block,
-            spacing="2",
+            rx.text(msg["created_at"], size="1", color="gray"),
+            justify="between",
+            width="100%",
         ),
+        tech_block,
+        spacing="2",
+        width="100%",
+    )
+
+    assistant_bubble = rx.card(
+        bubble_content,
         padding="0.75em",
-        style={"maxWidth": "60%"},
+        style={
+            "maxWidth": "70%",
+            "backgroundColor": "#11182714",
+            "border": "1px solid #e5e7eb",
+            "borderRadius": "12px",
+        },
+    )
+    user_bubble = rx.card(
+        bubble_content,
+        padding="0.75em",
+        style={
+            "maxWidth": "70%",
+            "backgroundColor": "#3b82f614",
+            "border": "1px solid #e5e7eb",
+            "borderRadius": "12px",
+        },
     )
 
     return rx.cond(
         msg["is_assistant"],
-        rx.hstack(rx.box(), bubble, width="100%"),
-        rx.hstack(bubble, rx.box(), width="100%"),
+        rx.hstack(
+            rx.avatar(fallback="A", size="2", radius="full"),
+            assistant_bubble,
+            spacing="2",
+            width="100%",
+            justify="start",
+            align="start",
+        ),
+        rx.hstack(
+            user_bubble,
+            rx.avatar(fallback="U", size="2", radius="full"),
+            spacing="2",
+            width="100%",
+            justify="end",
+            align="start",
+        ),
     )
 
 
@@ -59,55 +114,82 @@ def page() -> rx.Component:
     return rx.vstack(
         app_header(),
         breadcrumbs([("Main", "/"), ("Chatbot", "/chat")]),
-        rx.vstack(
-            rx.scroll_area(
-                rx.vstack(
-                    rx.foreach(ChatState.messages, _message_row),
-                    spacing="3",
-                    width="100%",
+        # Main content area fills available viewport height
+        rx.flex(
+            # Messages scroll region
+            rx.box(
+                rx.scroll_area(
+                    rx.vstack(
+                        rx.foreach(ChatState.messages, _message_row),
+                        spacing="3",
+                        width="100%",
+                    ),
+                    type="always",
+                    scrollbars="vertical",
+                    style={"height": "100%"},
                 ),
-                type="always",
-                scrollbars="vertical",
-                style={"height": "60vh"},
+                flex="1",
+                min_height="0",
+                width="100%",
             ),
+            # Typing indicator
             rx.cond(
                 ChatState.is_running,
                 rx.hstack(
                     rx.spinner(),
                     rx.text("Generating response..."),
                     spacing="2",
+                    padding_y="0.5em",
+                    width="100%",
                 ),
             ),
-            rx.hstack(
-                rx.button(
-                    "Clear history",
-                    variant="soft",
-                    color_scheme="gray",
-                    size="1",
-                    on_click=ChatState.reset_session,
-                ),
-                align="end",
-                width="100%",
-            ),
-            rx.form.root(
-                rx.hstack(
-                    rx.input(
-                        placeholder="Type your message...",
-                        value=ChatState.input_text,
-                        on_change=ChatState.set_input,
+            # Sticky action + input bar
+            rx.box(
+                rx.vstack(
+                    rx.hstack(
+                        rx.button(
+                            "Clear history",
+                            variant="ghost",
+                            color_scheme="gray",
+                            size="1",
+                            on_click=ChatState.reset_session,
+                        ),
+                        align="end",
                         width="100%",
                     ),
-                    rx.button("Send", type="submit", loading=ChatState.is_running),
+                    rx.form.root(
+                        rx.hstack(
+                            rx.input(
+                                placeholder="Type your message…",
+                                value=ChatState.input_text,
+                                on_change=ChatState.set_input,
+                                width="100%",
+                            ),
+                            rx.button("Send", type="submit", loading=ChatState.is_running),
+                            spacing="2",
+                            width="100%",
+                        ),
+                        on_submit=ChatState.send,
+                        width="100%",
+                    ),
                     spacing="2",
                     width="100%",
                 ),
-                on_submit=ChatState.send,
+                position="sticky",
+                bottom="0",
+                padding_top="0.5em",
+                padding_bottom="0.5em",
+                style={"backgroundColor": "inherit"},
+                width="100%",
             ),
-            spacing="3",
+            direction="column",
+            gap="0.75em",
+            height="calc(100vh - 4.5em)",
             width="100%",
         ),
         align="start",
-        spacing="3",
+        spacing="2",
         padding="1em",
         on_mount=ChatState.mount,
+        width="100%",
     )
