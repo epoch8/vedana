@@ -153,6 +153,64 @@ def page() -> rx.Component:
                             size="1",
                             on_click=ChatState.reset_session,
                         ),
+                        rx.dialog.root(
+                            rx.dialog.trigger(
+                                rx.button(
+                                    "Data model",
+                                    variant="ghost",
+                                    color_scheme="gray",
+                                    size="1",
+                                    on_click=ChatState.load_data_model_text,
+                                ),
+                            ),
+                            rx.dialog.content(
+                                rx.vstack(
+                                    rx.hstack(
+                                        rx.dialog.title("Current Data Model"),
+                                        rx.spacer(),
+                                        rx.dialog.close(
+                                            rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
+                                        ),
+                                        align="center",
+                                        width="100%",
+                                    ),
+                                    rx.scroll_area(
+                                        rx.markdown(ChatState.data_model_text),
+                                        type="always",
+                                        scrollbars="vertical",
+                                        style={"height": "50vh"},
+                                    ),
+                                    rx.hstack(
+                                        rx.box(
+                                            rx.text(
+                                                rx.cond(
+                                                    ChatState.data_model_last_sync != "",
+                                                    "Last sync: " + ChatState.data_model_last_sync,
+                                                    "Last sync: —",
+                                                ),
+                                                size="1",
+                                                color="gray",
+                                            ),
+                                            width="100%",
+                                        ),
+                                        rx.button(
+                                            "Reload from Grist",
+                                            variant="classic",
+                                            color_scheme="gray",
+                                            size="2",
+                                            loading=ChatState.is_refreshing_dm,
+                                            on_click=ChatState.refresh_data_model,
+                                        ),
+                                        justify="end",
+                                        align="center",
+                                        width="100%",
+                                    ),
+                                    spacing="3",
+                                    width="100%",
+                                ),
+                                max_width="900px",
+                            ),
+                        ),
                         align="end",
                         width="100%",
                     ),
