@@ -59,7 +59,7 @@ def _message_row(msg: dict) -> rx.Component:
                     on_click=ChatState.toggle_details_by_id(msg["id"]),
                 ),
             ),
-            rx.text(msg["created_at"], size="1", color="gray"),
+            rx.text(msg.get("created_at_fmt", msg["created_at"]), size="1", color="gray"),
             justify="between",
             width="100%",
         ),
@@ -114,7 +114,6 @@ def page() -> rx.Component:
     return rx.vstack(
         app_header(),
         breadcrumbs([("Main", "/"), ("Chatbot", "/chat")]),
-        # Main content area fills available viewport height
         rx.flex(
             # Messages scroll region
             rx.box(
@@ -184,12 +183,15 @@ def page() -> rx.Component:
             ),
             direction="column",
             gap="0.75em",
-            height="calc(100vh - 4.5em)",
+            flex="1",
+            min_height="0",
             width="100%",
         ),
         align="start",
         spacing="2",
         padding="1em",
+        height="100vh",
+        overflow="hidden",
         on_mount=ChatState.mount,
         width="100%",
     )
