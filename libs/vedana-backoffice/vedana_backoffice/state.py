@@ -316,6 +316,7 @@ class ChatState(rx.State):
     data_model_text: str = ""
     data_model_last_sync: str = ""
     is_refreshing_dm: bool = True
+    model = core_settings.model
 
     async def mount(self) -> None:
         global vedana_app

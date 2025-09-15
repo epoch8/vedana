@@ -211,6 +211,8 @@ def page() -> rx.Component:
                                 max_width="900px",
                             ),
                         ),
+                        rx.spacer(),
+                        rx.text(f"model: {ChatState.model}", size="1", color="gray"),
                         align="end",
                         width="100%",
                     ),
