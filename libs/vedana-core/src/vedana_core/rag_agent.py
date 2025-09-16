@@ -201,7 +201,7 @@ class RagAgent:
 
         if not answer:
             self.logger.warning(f"No answer found for {text_query}. Generating empty answer...")
-            answer = await self.llm.generate_no_answer(text_query, self.ctx.history)
+            answer = await self.llm.generate_no_answer(self.ctx.history[-settings.pipeline_history_length :])
 
         return answer, vts_queries, cypher_queries
 

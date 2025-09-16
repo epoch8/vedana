@@ -129,22 +129,12 @@ class LLM:
 
     async def generate_no_answer(
         self,
-        question: str,
         dialog: list[CommunicationEvent] | None = None,
     ) -> str:
-        """
-        Generate a human-readable answer based on the question, Cypher query, and its results.
-        """
-        prompt_template = self.prompt_templates.get("generate_no_answer_tmplt", generate_no_answer_tmplt)
-        prompt = prompt_template.format(question=question)
-
+        prompt = self.prompt_templates.get("generate_no_answer_tmplt", generate_no_answer_tmplt)
         messages = [
-            {
-                "role": "system",
-                "content": "Ты помощник, который преобразует технические ответы в понятный человеку текст.",
-            },
+            {"role": "system", "content": prompt},
             *(dialog or []),
-            {"role": "user", "content": prompt},
         ]
         response = await self.llm.chat_completion_plain(messages)
         human_answer = "" if response.content is None else response.content.strip()
@@ -158,14 +148,10 @@ finalize_answer_tmplt = """\
 Важно! Не упоминай инструменты в явном виде, ссылайся только на данные.
 """
 
-
 generate_no_answer_tmplt = """\
 Ты - помощник, который преобразует технические ответы в понятный человеку текст. 
-
-Мы не смогли найти ответ на вопрос пользователя в базе знаний.
-
+Мы не смогли найти ответ на вопрос пользователя в базе знаний. 
 Сформулируй ответ, сообщающий кратко и информативно, что ответа не найдено.
-
 Предложи пару вариантов уточняющих вопросов на основе информации в контексте. Предложи в casual стиле.
 """
 
