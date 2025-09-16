@@ -212,7 +212,23 @@ def page() -> rx.Component:
                             ),
                         ),
                         rx.spacer(),
-                        rx.text(f"model: {ChatState.model}", size="1", color="gray"),
+                        rx.hstack(
+                            rx.cond(
+                                ChatState.chat_thread_id != "",
+                                rx.hstack(
+                                    rx.text("thread id: ", size="1", color="gray"),
+                                    rx.link(
+                                        ChatState.chat_thread_id,
+                                        href=f"/jims/thread/{ChatState.chat_thread_id}",
+                                        target="_blank",
+                                        size="1",
+                                    ),
+                                    spacing="0",
+                                )
+                            ),
+                            rx.text(f"model: {ChatState.model}", size="1", color="gray"),
+                            spacing="2",
+                        ),
                         align="end",
                         width="100%",
                     ),
