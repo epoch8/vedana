@@ -3,18 +3,26 @@ from datapipe.step.batch_generate import BatchGenerate
 from datapipe.step.batch_transform import BatchTransform
 
 import vedana_etl.steps as steps
+from vedana_etl.settings import settings
 from vedana_etl.catalog import (
     dm_anchors,
     dm_attributes,
     dm_links,
+    dm_version,
     edges,
     grist_edges,
     grist_nodes,
+    llm_pipeline_config,
+    llm_embeddings_config,
     memgraph_edges,
     memgraph_indexes,
     memgraph_nodes,
     memgraph_vector_indexes,
     nodes,
+    judge_config,
+    eval_gds,
+    eval_llm_answers,
+    tests,
 )
 
 data_model_steps = [
@@ -22,6 +30,24 @@ data_model_steps = [
         func=steps.get_data_model,  # Generator with main graph data
         outputs=[dm_anchors, dm_attributes, dm_links],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "extract"), ("stage", "data-model")],
+    ),
+    BatchGenerate(
+        func=steps.get_data_model_snapshot,
+        outputs=[dm_version],
+        labels=[("flow", "on-demand"), ("flow", "eval"), ("stage", "extract"), ("stage", "data-model")],
+    ),
+]
+
+llm_config_steps = [
+    BatchGenerate(
+        func=steps.get_llm_pipeline_config,
+        outputs=[llm_pipeline_config],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("flow", "eval")],
+    ),
+    BatchGenerate(
+        func=steps.get_llm_embeddings_config,
+        outputs=[llm_embeddings_config],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("flow", "eval")],
     ),
 ]
 
@@ -85,15 +111,44 @@ memgraph_steps = [
     ),
 ]
 
+eval_steps = [
+    BatchGenerate(
+        func=steps.get_eval_judge_config,
+        outputs=[judge_config],
+        delete_stale=False,
+        labels=[("flow", "eval"), ("stage", "extract")],
+    ),
+    BatchGenerate(
+        func=steps.get_eval_gds_from_grist,
+        outputs=[eval_gds],
+        labels=[("flow", "eval"), ("stage", "extract")],
+    ),
+    BatchTransform(
+        func=steps.run_tests,
+        inputs=[eval_gds, dm_version, llm_pipeline_config, llm_embeddings_config],
+        outputs=[eval_llm_answers],
+        labels=[("flow", "eval"), ("stage", "process")],
+        transform_keys=["gds_question"],
+    ),
+    BatchTransform(
+        func=steps.judge_tests,
+        inputs=[eval_llm_answers, judge_config],
+        outputs=[tests],
+        labels=[("flow", "eval"), ("stage", "process")],
+        transform_keys=["gds_question"],
+    ),
+]
+
 
 def get_pipeline(custom_steps: list):
     pipeline = Pipeline(
         [
             *data_model_steps,
+            *llm_config_steps,
             *grist_steps,
             *custom_steps,
             *memgraph_steps,
-        ]
+        ] + (eval_steps if settings.grist_test_set_doc_id else [])
     )
 
     return pipeline
