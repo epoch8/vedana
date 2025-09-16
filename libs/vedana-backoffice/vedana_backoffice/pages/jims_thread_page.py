@@ -8,7 +8,7 @@ from jims_core.db import ThreadEventDB
 from vedana_core.app import make_vedana_app
 
 from vedana_backoffice.ui import app_header, breadcrumbs
-from vedana_backoffice.util import _datetime_to_age
+from vedana_backoffice.util import datetime_to_age
 
 
 @dataclass
@@ -60,9 +60,9 @@ class ThreadEventVis:
 
         return cls(
             event_id=str(event_id),
-            created_at=created_at,
+            created_at=created_at.replace(microsecond=0),
             event_type=event_type,
-            event_age=_datetime_to_age(created_at),
+            event_age=datetime_to_age(created_at),
             event_data_list=event_data_list,
             technical_vts_queries=vts_queries,
             technical_cypher_queries=cypher_queries,
@@ -144,7 +144,7 @@ def _event_row(event: ThreadEventVis) -> rx.Component:
     )
 
     return rx.table.row(
-        rx.table.cell(event.event_age),
+        rx.table.cell(event.created_at),
         rx.table.cell(
             rx.vstack(
                 generic_section,

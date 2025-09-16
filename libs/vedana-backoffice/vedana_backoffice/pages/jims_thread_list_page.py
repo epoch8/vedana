@@ -7,7 +7,7 @@ from jims_core.db import ThreadDB
 from vedana_core.app import make_vedana_app
 
 from vedana_backoffice.ui import app_header, breadcrumbs
-from vedana_backoffice.util import _datetime_to_age
+from vedana_backoffice.util import datetime_to_age
 
 
 @dataclass
@@ -25,8 +25,8 @@ class ThreadVis:
             iface_val = iface_val.get("name") or iface_val.get("type") or str(iface_val)
         return cls(
             thread_id=str(thread_id),
-            created_at=str(created_at),
-            thread_age=_datetime_to_age(created_at),
+            created_at=datetime.strftime(created_at, "%Y-%m-%d %H:%M:%S"),
+            thread_age=datetime_to_age(created_at),
             interface=str(iface_val or ""),
         )
 
@@ -69,6 +69,7 @@ def jims_thread_list_page() -> rx.Component:
                         rx.table.row(
                             rx.table.column_header_cell("Thread ID"),
                             rx.table.column_header_cell("Created"),
+                            rx.table.column_header_cell("Age"),
                             rx.table.column_header_cell("Interface"),
                         ),
                     ),
@@ -82,6 +83,7 @@ def jims_thread_list_page() -> rx.Component:
                                         href=f"/jims/thread/{thread.thread_id}",
                                     ),
                                 ),
+                                rx.table.cell(thread.created_at),
                                 rx.table.cell(thread.thread_age),
                                 rx.table.cell(thread.interface),
                             ),
