@@ -40,6 +40,8 @@ class EtlState(rx.State):
     all_steps: list[dict[str, Any]] = []  # [{name, type, inputs, outputs, labels}]
     filtered_steps: list[dict[str, Any]] = []
     available_tables: list[str] = []
+    available_flows: list[str] = []
+    available_stages: list[str] = []
 
     # Run status
     is_running: bool = False
@@ -122,6 +124,8 @@ class EtlState(rx.State):
         self._update_filtered_steps()
 
         tables: set[str] = set()
+        flows: set[str] = set()
+        stages: set[str] = set()
         for step in pipeline.steps:  # get tables from pipeline
             if hasattr(step, "inputs"):
                 for input in step.inputs:
@@ -129,8 +133,19 @@ class EtlState(rx.State):
             if hasattr(step, "outputs"):
                 for output in step.outputs:
                     tables.add(output.name)
+            if hasattr(step, "labels"):
+                for key, value in step.labels:
+                    print(f"step {step} has label {key}: {value}")
+                    k = str(key)
+                    v = str(value)
+                    if k == "flow" and v:
+                        flows.add(v)
+                    if k == "stage" and v:
+                        stages.add(v)
 
         self.available_tables = sorted(tables)
+        self.available_flows = ["all", *sorted(flows)]  # add "all"
+        self.available_stages = ["all", *sorted(stages)]
 
     def set_flow(self, flow: str) -> None:
         self.selected_flow = "" if str(flow).lower() == "all" else flow

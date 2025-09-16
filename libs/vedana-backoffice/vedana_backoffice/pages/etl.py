@@ -9,14 +9,14 @@ def _filters() -> rx.Component:
         rx.heading("Filters", size="4"),
         rx.text("Flow"),
         rx.select(
-            items=["all", "regular", "on-demand"],
+            items=EtlState.available_flows,
             value=EtlState.selected_flow,
             on_change=EtlState.set_flow,
             width="16em",
         ),
         rx.text("Stage"),
         rx.select(
-            items=["all", "extract", "transform", "data-model", "grist", "load"],
+            items=EtlState.available_stages,
             value=EtlState.selected_stage,
             on_change=EtlState.set_stage,
             width="16em",
