@@ -19,9 +19,19 @@ dependencies = [
 ]
 
 [dependency-groups]
-google = ["google-cloud-aiplatform>=1.105.0"]
-
-dev = ["pytest>=8.3.5", "pytest-asyncio>=1.0.0", "pytest-vcr>=1.0.2"]
+google = [
+    "google-cloud-aiplatform>=1.105.0",
+]
+dev = [
+    "aiosqlite>=0.21.0",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=1.0.0",
+    "pytest-vcr>=1.0.2",
+    "ruff>=0.12.9",
+]
+sentry = [
+    "sentry-sdk>=2.35.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -29,5 +39,6 @@ build-backend = "hatchling.build"
 
 [tool.gh-actions-codegen]
 generate = true
+template_type = "lib"
 generate_standard_pytest_step = true
 typechecker = "ty"
