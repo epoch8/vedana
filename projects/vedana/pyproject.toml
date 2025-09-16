@@ -22,15 +22,14 @@ generate = true
 template_type = "project"
 generate_standard_pytest_step = false
 generate_typechecking_step = false
+generate_alembic_migration_check_step = true
 
 [tool.mypy]
 ignore_missing_imports = true
 follow_imports = "silent"
 namespace_packages = true
 enable_incomplete_feature = ["NewGenericSyntax"]
-exclude = [
-    "migrations/",
-]
+exclude = ["migrations/"]
 
 [tool.ruff]
 line-length = 120
