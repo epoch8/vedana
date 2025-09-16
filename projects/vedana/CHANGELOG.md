@@ -1,5 +1,6 @@
 # WIP
 
+* (vedana) Add backoffice app 
 * (jims/vedana) Introduce and use `JimsApp`/`VedanaApp`, switch from `vedana-tg`
   to `jims-telegram`
 
