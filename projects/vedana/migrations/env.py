@@ -4,6 +4,7 @@ import jims_core.db
 import vedana_core.db
 from alembic import context
 import vedana_etl.app
+import vedana_eval.app
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -21,6 +22,7 @@ if config.config_file_name is not None:
 target_metadata = [
     jims_core.db.Base.metadata,
     vedana_etl.app.app.ds.meta_dbconn.sqla_metadata,
+    vedana_eval.app.app.ds.meta_dbconn.sqla_metadata,
 ]
 
 # other values from the config, defined by the needs of env.py,
