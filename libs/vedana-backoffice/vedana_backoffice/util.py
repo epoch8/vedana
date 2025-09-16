@@ -1,26 +1,4 @@
-from datetime import datetime, timezone
-
-
-def _datetime_to_age(created_at: datetime) -> str:
-    from datetime import datetime as dt
-    from datetime import timezone
-
-    now = dt.now(timezone.utc)
-    created_at_dt = created_at
-    if created_at_dt.tzinfo is None:
-        created_at_dt = created_at_dt.replace(tzinfo=timezone.utc)
-
-    diff = now - created_at_dt
-    if diff.days < 7:
-        if diff.days > 0:
-            hours = diff.seconds // 3600
-            return f"{diff.days}d{hours}h" if hours > 0 else f"{diff.days}d"
-        if diff.seconds >= 3600:
-            return f"{diff.seconds // 3600}h"
-        if diff.seconds >= 60:
-            return f"{diff.seconds // 60}m"
-        return "1m"
-    return created_at_dt.strftime("%Y %b %d %H:%M")
+from datetime import datetime  #, timezone
 
 
 def datetime_to_age(created_at: datetime, compact: bool = True) -> str:
@@ -34,12 +12,14 @@ def datetime_to_age(created_at: datetime, compact: bool = True) -> str:
         compact: If True, uses compact format (e.g., "2h", "3d14h").
                 If False, uses verbose format (e.g., "2 hours", "3 days 14 hours").
     """
-    now = datetime.now(timezone.utc)
-    created_at_dt = created_at
-    if created_at_dt.tzinfo is None:
-        created_at_dt = created_at_dt.replace(tzinfo=timezone.utc)
+    now = datetime.now()
 
-    time_diff = now - created_at_dt
+    # created_at_dt = created_at
+    # if created_at_dt.tzinfo is None:
+    #     created_at_dt = created_at_dt.replace(tzinfo=timezone.utc)
+    # time_diff = now - created_at_dt
+
+    time_diff = now - created_at
 
     if time_diff.days < 7:
         # Human readable relative time
@@ -74,4 +54,4 @@ def datetime_to_age(created_at: datetime, compact: bool = True) -> str:
                 return "1 minute"
     else:
         # Absolute date format
-        return created_at_dt.strftime("%Y %b %d %H:%M")
+        return created_at.strftime("%Y %b %d %H:%M")
