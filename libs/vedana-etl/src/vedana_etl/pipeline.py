@@ -33,7 +33,7 @@ data_model_steps = [
     BatchGenerate(
         func=steps.get_data_model_snapshot,
         outputs=[dm_version],
-        labels=[("flow", "on-demand"), ("flow", "eval"), ("stage", "extract"), ("stage", "data-model")],
+        labels=[("flow", "eval"), ("stage", "extract"), ("stage", "data-model")],
     ),
 ]
 
@@ -41,12 +41,12 @@ llm_config_steps = [
     BatchGenerate(
         func=steps.get_llm_pipeline_config,
         outputs=[llm_pipeline_config],
-        labels=[("flow", "regular"), ("flow", "on-demand"), ("flow", "eval")],
+        labels=[("flow", "eval")],
     ),
     BatchGenerate(
         func=steps.get_llm_embeddings_config,
         outputs=[llm_embeddings_config],
-        labels=[("flow", "regular"), ("flow", "on-demand"), ("flow", "eval")],
+        labels=[("flow", "eval")],
     ),
 ]
 
