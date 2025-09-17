@@ -3,7 +3,6 @@ from datapipe.step.batch_generate import BatchGenerate
 from datapipe.step.batch_transform import BatchTransform
 
 import vedana_etl.steps as steps
-from vedana_etl.settings import settings
 from vedana_etl.catalog import (
     dm_anchors,
     dm_attributes,
