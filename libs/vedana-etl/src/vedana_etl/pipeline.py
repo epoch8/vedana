@@ -148,7 +148,8 @@ def get_pipeline(custom_steps: list):
             *grist_steps,
             *custom_steps,
             *memgraph_steps,
-        ] + (eval_steps if settings.grist_test_set_doc_id else [])
+            *eval_steps,
+        ]
     )
 
     return pipeline
