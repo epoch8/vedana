@@ -426,6 +426,7 @@ class EtlState(rx.State):
                     nodes.append(
                         {
                             "index": sid,
+                            "index_value": str(sid),
                             "name": step_name,
                             "labels_str": labels_str_by.get(sid, ""),
                             # numeric position/size (might be useful elsewhere)
@@ -622,11 +623,16 @@ class EtlState(rx.State):
         if index is None:
             return None
 
-        if index < 0 or index >= len(etl_app.steps):
+        try:
+            idx = int(index)
+        except Exception:
+            return None
+
+        if idx < 0 or idx >= len(etl_app.steps):
             self._append_log(f"Invalid step index: {index}")
             return None
 
-        step = etl_app.steps[index]
+        step = etl_app.steps[idx]
         self.is_running = True
         self.logs = []
         self.last_run_started_at = time.time()
