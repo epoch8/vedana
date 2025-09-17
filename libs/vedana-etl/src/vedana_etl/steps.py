@@ -21,6 +21,7 @@ from vedana_core.graph import MemgraphGraph
 from vedana_core.rag_pipeline import RagPipeline
 from vedana_core.settings import VedanaCoreSettings
 from vedana_core.settings import settings as core_settings
+from vedana_etl.settings import settings as etl_settings
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
 # https://github.com/pandas-dev/pandas/issues/57734
@@ -561,7 +562,7 @@ def get_eval_judge_config() -> Iterator[pd.DataFrame]:
     judge_prompt_id = sha256(text_b).hexdigest()
 
     judge_prompt_version = {
-        "judge_model": settings.judge_model,
+        "judge_model": etl_settings.judge_model,
         "judge_prompt_id": judge_prompt_id,
         "judge_prompt": judge_prompt,
     }
@@ -577,15 +578,15 @@ def get_eval_gds_from_grist() -> Iterator[pd.DataFrame]:
       - eval_gds(gds_question, gds_answer, question_context)
     """
     dp = GristAPIDataProvider(
-        doc_id=settings.grist_test_set_doc_id,
+        doc_id=etl_settings.grist_test_set_doc_id,
         grist_server=core_settings.grist_server_url,
         api_key=core_settings.grist_api_key,
     )
 
     try:
-        gds_df = dp.get_table(settings.gds_table_name)
+        gds_df = dp.get_table(etl_settings.gds_table_name)
     except Exception as e:
-        logger.exception(f"Failed to get golden dataset {settings.gds_table_name}: {e}")
+        logger.exception(f"Failed to get golden dataset {etl_settings.gds_table_name}: {e}")
         raise e
 
     gds_df = gds_df.dropna(subset=["gds_question", "gds_answer"]).copy()
@@ -614,7 +615,7 @@ def run_tests(
     # Generate run id
     today = date.today().isoformat()
     slug = secrets.token_hex(3)
-    test_run_name = f"{today}-{settings.test_environment}-{slug}"
+    test_run_name = f"{today}-{etl_settings.test_environment}-{slug}"
 
     # Build pipeline from graph + data model
     graph = MemgraphGraph(core_settings.memgraph_uri, core_settings.memgraph_user, core_settings.memgraph_pwd)
@@ -737,12 +738,12 @@ def judge_tests(
 
     # Build GDS lookup (golden answers)
     dp = GristAPIDataProvider(
-        doc_id=settings.grist_test_set_doc_id,
+        doc_id=etl_settings.grist_test_set_doc_id,
         grist_server=core_settings.grist_server_url,
         api_key=core_settings.grist_api_key,
     )
 
-    gds_df = dp.get_table(settings.gds_table_name)
+    gds_df = dp.get_table(etl_settings.gds_table_name)
 
     gds_df = gds_df.dropna(subset=["gds_question"]).copy()
     gds_map = {str(r["gds_question"]): r for _, r in gds_df.iterrows()}
