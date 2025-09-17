@@ -36,7 +36,35 @@ def _graph_card() -> rx.Component:
         rx.hstack(
             rx.heading("Pipeline", size="4"),
             rx.spacer(),
-            rx.text("steps", size="1", color="gray"),
+            rx.hstack(
+                rx.text("Flow", size="1", color="gray"),
+                rx.select(
+                    items=EtlState.available_flows,
+                    value=EtlState.selected_flow,
+                    on_change=EtlState.set_flow,
+                    width="12em",
+                ),
+                rx.text("Stage", size="1", color="gray"),
+                rx.select(
+                    items=EtlState.available_stages,
+                    value=EtlState.selected_stage,
+                    on_change=EtlState.set_stage,
+                    width="12em",
+                ),
+                rx.button("Run Selected", on_click=EtlState.run_selected, loading=EtlState.is_running),
+                rx.tooltip(
+                    rx.button(
+                        "↻",
+                        variant="ghost",
+                        color_scheme="gray",
+                        size="1",
+                        on_click=EtlState.load_pipeline_metadata,
+                    ),
+                    content="Reload metadata",
+                ),
+                spacing="2",
+                align="center",
+            ),
             align="center",
             width="100%",
         ),
