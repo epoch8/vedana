@@ -52,7 +52,7 @@ def _graph_card() -> rx.Component:
                     width="12em",
                 ),
                 rx.button("Reset", variant="soft", size="1", on_click=EtlState.reset_filters),
-                rx.button("Run Selected", size="1", on_click=EtlState.run_selected, loading=EtlState.is_running,),
+                rx.button("Run Selected", size="1", on_click=EtlState.run_selected, loading=EtlState.is_running),
                 rx.tooltip(
                     rx.button(
                         "↻",
