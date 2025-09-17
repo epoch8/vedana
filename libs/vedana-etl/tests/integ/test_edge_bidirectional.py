@@ -59,10 +59,7 @@ def test_edge_bidirectional() -> None:
     ft = edges_df["from_node_type"].astype(str).str.lower().str.strip()
     tt = edges_df["to_node_type"].astype(str).str.lower().str.strip()
 
-    is_our_type = (
-        ((ft == "document") & (tt == "document_chunk"))
-        | ((ft == "document_chunk") & (tt == "document"))
-    )
+    is_our_type = ((ft == "document") & (tt == "document_chunk")) | ((ft == "document_chunk") & (tt == "document"))
     er = edges_df[(lbl == sentence.lower()) & is_our_type].copy()
     assert not er.empty, f"Не найдено ни одного ребра для связи '{sentence}'."
 
@@ -83,9 +80,7 @@ def test_edge_bidirectional() -> None:
         sub = er[er["pair_key"] == pair]
 
         # Должно быть ровно 2 ребра: A->B и B->A
-        assert sub.shape[0] == 2, (
-            f"Для пары {pair} ожидаются 2 ребра (в обе стороны), найдено {sub.shape[0]}.\n{sub}"
-        )
+        assert sub.shape[0] == 2, f"Для пары {pair} ожидаются 2 ребра (в обе стороны), найдено {sub.shape[0]}.\n{sub}"
 
         a_to_b = sub.iloc[0]
         b_to_a = sub.iloc[1]
@@ -106,6 +101,4 @@ def test_edge_bidirectional() -> None:
         # но сравним строго.
         attrs1 = _as_attr_dict(a_to_b.get("attributes"))
         attrs2 = _as_attr_dict(b_to_a.get("attributes"))
-        assert attrs1 == attrs2, (
-            f"Атрибуты противоположных рёбер различаются для пары {pair}: {attrs1} vs {attrs2}"
-        )
+        assert attrs1 == attrs2, f"Атрибуты противоположных рёбер различаются для пары {pair}: {attrs1} vs {attrs2}"
