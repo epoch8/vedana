@@ -1,12 +1,13 @@
 import reflex as rx
 
+from vedana_backoffice.components.etl_graph import etl_graph
 from vedana_backoffice.state import EtlState
 from vedana_backoffice.ui import app_header, breadcrumbs
 
 
 def _filters() -> rx.Component:
     return rx.vstack(
-        rx.heading("Filters", size="4"),
+        rx.heading("Filters", size="3"),
         rx.text("Flow"),
         rx.select(
             items=EtlState.available_flows,
@@ -30,59 +31,43 @@ def _filters() -> rx.Component:
     )
 
 
-def _steps_table() -> rx.Component:
-    def row(step: dict) -> rx.Component:
-        return rx.table.row(
-            rx.table.cell(rx.text(step.get("name", ""))),
-            # rx.table.cell(rx.text(step.get("type", ""))),
-            rx.table.cell(rx.text(step.get("inputs_str", ""))),
-            rx.table.cell(rx.text(step.get("outputs_str", ""))),
-            rx.table.cell(rx.text(step.get("labels_str", ""))),
-            rx.table.cell(
-                rx.button(
-                    "Run",
-                    on_click=EtlState.run_one_step(index=step["index"]),
-                    loading=EtlState.is_running,
-                )
-            ),
-        )
-
+def _graph_card() -> rx.Component:
     return rx.card(
-        rx.heading("Steps", size="4"),
-        rx.table.root(
-            rx.table.header(
-                rx.table.row(
-                    rx.table.column_header_cell("Name"),
-                    # rx.table.column_header_cell("Type"),
-                    rx.table.column_header_cell("Inputs"),
-                    rx.table.column_header_cell("Outputs"),
-                    rx.table.column_header_cell("Labels"),
-                    rx.table.column_header_cell("Actions"),
-                )
-            ),
-            rx.table.body(rx.foreach(EtlState.filtered_steps, row)),
-            variant="surface",
+        rx.hstack(
+            rx.heading("Pipeline", size="4"),
+            rx.spacer(),
+            rx.text("steps", size="1", color="gray"),
+            align="center",
+            width="100%",
         ),
+        rx.box(etl_graph(), style={"height": "65vh", "width": "100%"}),
         padding="1em",
     )
 
 
-def _logs() -> rx.Component:
+def _logs_bottom() -> rx.Component:
     return rx.card(
-        rx.heading("Logs", size="4"),
+        rx.hstack(
+            rx.heading("Logs", size="3"),
+            rx.spacer(),
+            rx.button("Hide", variant="ghost", color_scheme="gray", size="1", on_click=EtlState.toggle_logs),
+            align="center",
+            width="100%",
+        ),
         rx.scroll_area(
             rx.vstack(rx.foreach(EtlState.logs, lambda m: rx.text(m))),
             type="always",
             scrollbars="vertical",
-            style={"height": "240px"},
+            style={"height": "22vh"},
         ),
         padding="1em",
+        width="100%",
     )
 
 
 def _table_preview() -> rx.Component:
     return rx.card(
-        rx.heading("Tables", size="4"),
+        rx.heading("Tables", size="3"),
         rx.hstack(
             rx.select(
                 items=EtlState.available_tables,
@@ -114,18 +99,86 @@ def _table_preview() -> rx.Component:
     )
 
 
+def _sidebar() -> rx.Component:
+    return rx.card(
+        rx.vstack(
+            rx.hstack(
+                rx.heading("Controls", size="4"),
+                rx.spacer(),
+                rx.button(
+                    "Hide",
+                    variant="ghost",
+                    color_scheme="gray",
+                    size="1",
+                    on_click=EtlState.toggle_sidebar,
+                ),
+                align="center",
+                width="100%",
+            ),
+            _filters(),
+            _table_preview(),
+            rx.card(
+                rx.vstack(
+                    rx.heading("Run History", size="3"),
+                    rx.text("Coming soon"),
+                    spacing="2",
+                ),
+                variant="surface",
+            ),
+            spacing="4",
+            width="100%",
+        ),
+        padding="1em",
+        width="340px",
+        height="100%",
+    )
+
+
+def _topbar() -> rx.Component:
+    return rx.hstack(
+        rx.heading("ETL Pipeline"),
+        rx.spacer(),
+        rx.hstack(
+            rx.button("Sidebar", variant="soft", size="1", on_click=EtlState.toggle_sidebar),
+            rx.button("Logs", variant="soft", size="1", on_click=EtlState.toggle_logs),
+            spacing="2",
+        ),
+        align="center",
+        width="100%",
+    )
+
+
 def page() -> rx.Component:
+    main_row = rx.flex(
+        rx.box(
+            _graph_card(),
+            flex="1",
+            min_width="0",
+        ),
+        rx.cond(
+            EtlState.sidebar_open,
+            rx.box(_sidebar(), width="340px"),
+            rx.box(
+                rx.card(
+                    rx.button("Show Controls", size="1", on_click=EtlState.toggle_sidebar),
+                    padding="0.5em",
+                ),
+                width="160px",
+            ),
+        ),
+        gap="1em",
+        width="100%",
+        align="start",
+    )
+
     return rx.vstack(
         app_header(),
         breadcrumbs([("Main", "/"), ("ETL", "/etl")]),
-        rx.heading("ETL Pipeline"),
-        rx.grid(
-            _filters(),
-            _logs(),
-            _steps_table(),
-            _table_preview(),
-            columns="2",
-        ),
+        _topbar(),
+        main_row,
+        rx.cond(EtlState.logs_open, _logs_bottom(), rx.box()),
         align="start",
+        spacing="1",
         padding="1em",
+        width="100%",
     )
