@@ -43,11 +43,27 @@ class EtlState(rx.State):
     available_flows: list[str] = []
     available_stages: list[str] = []
 
+    # Graph view state
+    graph_nodes: list[dict[str, Any]] = []  # [{index, name, x, y, w, h, labels_str}]
+    graph_edges: list[dict[str, Any]] = []  # [{source, target, label, path, label_x, label_y}]
+    graph_width_px: int = 1200
+    graph_height_px: int = 600
+    graph_svg: str = ""
+    graph_width_css: str = "1200px"
+    graph_height_css: str = "600px"
+
     # Run status
     is_running: bool = False
     last_run_started_at: float | None = None
     last_run_finished_at: float | None = None
     logs: list[str] = []
+
+    # UI toggles
+    sidebar_open: bool = True
+    logs_open: bool = True
+
+    # Step last-run timestamps (loaded from meta table)
+    steps_last_run: dict[str, str] = {}
 
     # Table preview
     preview_table_name: str | None = None
@@ -146,13 +162,28 @@ class EtlState(rx.State):
         self.available_flows = ["all", *sorted(flows)]  # add "all"
         self.available_stages = ["all", *sorted(stages)]
 
+        # Build initial graph
+        try:
+            self._load_last_run_timestamps()
+        except Exception:
+            self.steps_last_run = {}
+        self._rebuild_graph()
+
+    def toggle_sidebar(self) -> None:
+        self.sidebar_open = not self.sidebar_open
+
+    def toggle_logs(self) -> None:
+        self.logs_open = not self.logs_open
+
     def set_flow(self, flow: str) -> None:
         self.selected_flow = "" if str(flow).lower() == "all" else flow
         self._update_filtered_steps()
+        self._rebuild_graph()
 
     def set_stage(self, stage: str) -> None:
         self.selected_stage = "" if str(stage).lower() == "all" else stage
         self._update_filtered_steps()
+        self._rebuild_graph()
 
     def _filter_steps_by_labels(self, steps: Iterable[Any]) -> list[Any]:
         if not self.selected_flow and not self.selected_stage:
@@ -195,6 +226,279 @@ class EtlState(rx.State):
             self.filtered_steps = list(self.all_steps)
         else:
             self.filtered_steps = [m for m in self.all_steps if matches_meta(m)]
+        # Keep graph in sync with filter changes
+        self._rebuild_graph()
+
+    # --- Graph building and layout ---
+
+    def _rebuild_graph(self) -> None:
+        """Build graph nodes/edges and compute a simple layered layout.
+
+        Nodes are steps; edges are derived when an output table of one step
+        appears as an input table of another step. A basic DAG layering is
+        computed using indegrees (Kahn) and used to place nodes left-to-right.
+        """
+        try:
+            metas = self.filtered_steps if self.filtered_steps else self.all_steps
+            # Basic node size and spacing constants (px)
+            MIN_NODE_W = 220
+            MAX_NODE_W = 420
+            NODE_H = 90
+            H_SPACING = 120
+            V_SPACING = 40
+            MARGIN = 24
+
+            # Build quick lookup for inputs/outputs by step index
+            step_ids: list[int] = []
+            inputs_by: dict[int, set[str]] = {}
+            outputs_by: dict[int, set[str]] = {}
+            labels_str_by: dict[int, str] = {}
+            name_by: dict[int, str] = {}
+            for m in metas:
+                idx = int(m.get("index", -1))
+                if idx < 0:
+                    continue
+                step_ids.append(idx)
+                inps = set([str(x) for x in (m.get("inputs") or [])])
+                outs = set([str(x) for x in (m.get("outputs") or [])])
+                inputs_by[idx] = inps
+                outputs_by[idx] = outs
+                labels_str_by[idx] = str(m.get("labels_str", ""))
+                name_by[idx] = str(m.get("name", f"step_{idx}"))
+
+            unique_ids = sorted(step_ids)
+            id_index_map = {sid: i for i, sid in enumerate(unique_ids)}
+
+            # Derive edges by shared tables
+            edges: list[tuple[int, int, list[str]]] = []
+            for a in unique_ids:
+                for b in unique_ids:
+                    if a == b:
+                        continue
+                    shared = sorted(list(outputs_by.get(a, set()) & inputs_by.get(b, set())))
+                    if shared:
+                        edges.append((a, b, shared))
+
+            # Compute indegrees for Kahn layering
+            indeg: dict[int, int] = {sid: 0 for sid in unique_ids}
+            children: dict[int, list[int]] = {sid: [] for sid in unique_ids}
+            for s, t, _ in edges:
+                indeg[t] = indeg.get(t, 0) + 1
+                children.setdefault(s, []).append(t)
+
+            # Initialize layers
+            layer_by: dict[int, int] = {sid: 0 for sid in unique_ids}
+            from collections import deque
+
+            q: deque[int] = deque([sid for sid in unique_ids if indeg.get(sid, 0) == 0])
+            visited: set[int] = set()
+            while q:
+                sid = q.popleft()
+                visited.add(sid)
+                for ch in children.get(sid, []):
+                    # longest path layering
+                    layer_by[ch] = max(layer_by.get(ch, 0), layer_by.get(sid, 0) + 1)
+                    indeg[ch] -= 1
+                    if indeg[ch] == 0:
+                        q.append(ch)
+
+            # Any nodes not visited (cycle/isolated) keep default layer 0
+            # Group nodes by layer
+            layers: dict[int, list[int]] = {}
+            max_layer = 0
+            for sid in unique_ids:
+                l = layer_by.get(sid, 0)
+                max_layer = max(max_layer, l)
+                layers.setdefault(l, []).append(sid)
+
+            # Stable order in each layer by name
+            for l, arr in list(layers.items()):
+                layers[l] = sorted(arr, key=lambda i: name_by.get(i, ""))
+
+            # Pre-compute content-based widths/heights per node
+            w_by: dict[int, int] = {}
+            h_by: dict[int, int] = {}
+            for sid in unique_ids:
+                nlen = len(name_by.get(sid, ""))
+                llen = len(labels_str_by.get(sid, ""))
+                # rough pixel estimate + padding for badge/button
+                est = max(nlen * 8 + 60, llen * 6 + 40, MIN_NODE_W)
+                w = min(max(int(est), MIN_NODE_W), MAX_NODE_W)
+                w_by[sid] = w
+                # estimate label lines based on width (approx char 7px)
+                chars_per_line = max(10, int((w - 40) / 7))
+                lines = 1
+                try:
+                    lines = max(1, -(-llen // chars_per_line))  # ceil div
+                except Exception:
+                    lines = 1
+                base_h = NODE_H  # fits header, 1 label line, last_run line, button
+                extra_lines = max(0, lines - 2)
+                h_by[sid] = base_h + extra_lines * 14
+
+            # Column widths (max of nodes in that layer)
+            col_w: dict[int, int] = {
+                l: (max([w_by[sid] for sid in layers.get(l, [])]) if layers.get(l) else MIN_NODE_W) for l in layers
+            }
+
+            # Prefix sums for x offsets per layer
+            def layer_x(layer: int) -> int:
+                x = MARGIN
+                for i in range(0, layer):
+                    x += col_w.get(i, MIN_NODE_W) + H_SPACING
+                return x
+
+            # Compute positions
+            nodes: list[dict[str, Any]] = []
+            pos_by: dict[int, tuple[int, int]] = {}
+            max_rows = max([len(layers.get(l, [])) for l in range(0, max_layer + 1)] or [1])
+            # compute row heights as max node height across layers for each row index
+            row_heights: list[int] = [NODE_H for _ in range(max_rows)]
+            for l in range(0, max_layer + 1):
+                cols = layers.get(l, [])
+                for r_idx, sid in enumerate(cols):
+                    row_heights[r_idx] = max(row_heights[r_idx], h_by.get(sid, NODE_H))
+
+            # precompute y offsets
+            y_offsets: list[int] = []
+            acc = MARGIN
+            for r in range(max_rows):
+                y_offsets.append(acc)
+                acc += row_heights[r] + V_SPACING
+
+            for l in range(0, max_layer + 1):
+                cols = layers.get(l, [])
+                for r_idx, sid in enumerate(cols):
+                    x = layer_x(l)
+                    y = y_offsets[r_idx]
+                    pos_by[sid] = (x, y)
+                    step_name = name_by.get(sid, f"step_{sid}")
+                    last_run_str = self.steps_last_run.get(step_name, "—")
+                    nodes.append(
+                        {
+                            "index": sid,
+                            "name": step_name,
+                            "labels_str": labels_str_by.get(sid, ""),
+                            # numeric position/size (might be useful elsewhere)
+                            "x": x,
+                            "y": y,
+                            "w": w_by.get(sid, MIN_NODE_W),
+                            "h": h_by.get(sid, NODE_H),
+                            # css strings for Reflex styles (avoid Python ops on Vars)
+                            "left": f"{x}px",
+                            "top": f"{y}px",
+                            "width": f"{w_by.get(sid, MIN_NODE_W)}px",
+                            "height": f"{h_by.get(sid, NODE_H)}px",
+                            "index_str": f"#{sid}",
+                            "last_run": last_run_str,
+                        }
+                    )
+
+            # Compute canvas size
+            layers_count = max_layer + 1 if unique_ids else 1
+            width_px = (
+                MARGIN * 2
+                + sum([col_w.get(i, MIN_NODE_W) for i in range(0, layers_count)])
+                + max(0, layers_count - 1) * H_SPACING
+            )
+            height_px = MARGIN * 2 + sum(row_heights) + max(0, max_rows - 1) * V_SPACING
+
+            # Build edges visuals
+            edge_objs: list[dict[str, Any]] = []
+            for s, t, shared in edges:
+                sx, sy = pos_by.get(s, (MARGIN, MARGIN))
+                tx, ty = pos_by.get(t, (MARGIN, MARGIN))
+                x1 = sx + w_by.get(s, MIN_NODE_W)
+                y1 = sy + h_by.get(s, NODE_H) // 2
+                x2 = tx
+                y2 = ty + h_by.get(t, NODE_H) // 2
+                cx1 = x1 + 40
+                cx2 = x2 - 40
+                path = f"M{x1},{y1} C{cx1},{y1} {cx2},{y2} {x2},{y2}"
+                label = ", ".join(shared)
+                label_x = (x1 + x2) / 2
+                label_y = (y1 + y2) / 2 - 6
+                edge_objs.append(
+                    {
+                        "source": s,
+                        "target": t,
+                        "label": label,
+                        "path": path,
+                        "label_x": label_x,
+                        "label_y": label_y,
+                    }
+                )
+
+            # Build SVG string for edges
+            svg_parts: list[str] = []
+            svg_parts.append(
+                f'<svg width="{width_px}" height="{height_px}" viewBox="0 0 {width_px} {height_px}" preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg">'
+            )
+            svg_parts.append(
+                '<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af" /></marker></defs>'
+            )
+            for e in edge_objs:
+                svg_parts.append(
+                    f'<path d="{e["path"]}" stroke="#9ca3af" stroke-width="2" fill="none" marker-end="url(#arrow)" />'
+                )
+                if e.get("label"):
+                    svg_parts.append(
+                        f'<text x="{e["label_x"]}" y="{e["label_y"]}" font-size="10" fill="#6b7280" text-anchor="middle">{e["label"]}</text>'
+                    )
+            svg_parts.append("</svg>")
+
+            self.graph_nodes = nodes
+            self.graph_edges = edge_objs
+            self.graph_width_px = int(width_px)
+            self.graph_height_px = int(height_px)
+            self.graph_svg = "".join(svg_parts)
+            self.graph_width_css = f"{int(width_px)}px"
+            self.graph_height_css = f"{int(height_px)}px"
+        except Exception:
+            # On any error, fall back to empty visuals
+            self.graph_nodes = []
+            self.graph_edges = []
+            self.graph_width_px = 800
+            self.graph_height_px = 400
+            self.graph_svg = ""
+            self.graph_width_css = "800px"
+            self.graph_height_css = "400px"
+
+    # --- Meta: last-run timestamps ---
+
+    def _load_last_run_timestamps(self) -> None:
+        """Load last run timestamps per step from the meta table.
+
+        Tries to query a table named "meta" with columns (step_name, process_ts).
+        If unavailable, silently falls back to empty mapping.
+        """
+        try:
+            engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        except Exception:
+            self.steps_last_run = {}
+            return
+
+        try:
+            # Attempt a generic query; adjust in future if schema differs
+            import pandas as pd  # local import to keep typing hints clean
+
+            df = pd.read_sql(
+                "SELECT step_name, MAX(process_ts) AS last_ts FROM meta GROUP BY step_name",
+                con=engine,
+            )
+            mapping: dict[str, str] = {}
+            for _, row in df.iterrows():
+                name = str(row.get("step_name", ""))
+                ts = row.get("last_ts")
+                try:
+                    if ts is not None:
+                        # Format compact timestamp
+                        mapping[name] = str(pd.to_datetime(ts)).replace("T", " ")[:19]
+                except Exception:
+                    mapping[name] = str(ts)
+            self.steps_last_run = mapping
+        except Exception:
+            self.steps_last_run = {}
 
     def _run_steps_sync(self, steps_to_run: list[Any]) -> None:
         # Run each step sequentially to provide granular logs
