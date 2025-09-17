@@ -557,17 +557,20 @@ def get_eval_judge_config() -> Iterator[pd.DataFrame]:
         api_key=core_settings.grist_api_key,
     )
 
-    judge_prompt = dm.prompt_templates().get("eval_judge_prompt")
-    text_b = bytearray(judge_prompt, "utf-8")
-    judge_prompt_id = sha256(text_b).hexdigest()
+    judge_prompt = dm.prompt_templates().get("eval_judge_prompt", "")
 
-    judge_prompt_version = {
-        "judge_model": etl_settings.judge_model,
-        "judge_prompt_id": judge_prompt_id,
-        "judge_prompt": judge_prompt,
-    }
+    if judge_prompt:
+        text_b = bytearray(judge_prompt, "utf-8")
+        judge_prompt_id = sha256(text_b).hexdigest()
 
-    yield pd.DataFrame([judge_prompt_version])
+        judge_prompt_version = {
+            "judge_model": etl_settings.judge_model,
+            "judge_prompt_id": judge_prompt_id,
+            "judge_prompt": judge_prompt,
+        }
+        yield pd.DataFrame([judge_prompt_version])
+    else:
+        yield pd.DataFrame(columns=["judge_model", "judge_prompt_id", "judge_prompt"])
 
 
 def get_eval_gds_from_grist() -> Iterator[pd.DataFrame]:
