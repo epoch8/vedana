@@ -31,8 +31,9 @@ def raw_graph_dfs():
 # -------- optional live Memgraph ----------
 def _ping_memgraph():
     try:
-        drv = GraphDatabase.driver(core_settings.memgraph_uri,
-                                   auth=(core_settings.memgraph_user, core_settings.memgraph_pwd))
+        drv = GraphDatabase.driver(
+            core_settings.memgraph_uri, auth=(core_settings.memgraph_user, core_settings.memgraph_pwd)
+        )
         with drv.session() as s:
             s.run("RETURN 1").consume()
         drv.close()
@@ -52,7 +53,8 @@ def dummy_llm(monkeypatch):
     class DummyProv:
         def create_embeddings_sync(self, texts):
             # фикс-вектор длины 8 (или сколько у тебя EMBEDDINGS_DIM — можно и динамически достать)
-            return [[1.0] + [0.0]* (getattr(core_settings, "embeddings_dim", 8) - 1) for _ in texts]
+            return [[1.0] + [0.0] * (getattr(core_settings, "embeddings_dim", 8) - 1) for _ in texts]
+
     orig = steps.LLMProvider
     steps.LLMProvider = DummyProv  # type: ignore
     yield

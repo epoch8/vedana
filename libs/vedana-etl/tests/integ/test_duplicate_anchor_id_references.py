@@ -74,10 +74,8 @@ def test_duplicate_anchor_id_references() -> None:
     # 3) Межузловые связи: document:1 ↔ document_chunk:{02,03,05}
     required_chunks: Set[str] = {"document_chunk:02", "document_chunk:03", "document_chunk:05"}
     missing = [
-        ch for ch in required_chunks
-        if not _has_edge_between(edges_df, "document:1", "document", ch, "document_chunk")
+        ch for ch in required_chunks if not _has_edge_between(edges_df, "document:1", "document", ch, "document_chunk")
     ]
-    assert not missing, (
-        "Ожидались связи между 'document:1' и указанными чанками, но не найдены: "
-        + ", ".join(sorted(missing))
+    assert not missing, "Ожидались связи между 'document:1' и указанными чанками, но не найдены: " + ", ".join(
+        sorted(missing)
     )
