@@ -51,7 +51,8 @@ def _graph_card() -> rx.Component:
                     on_change=EtlState.set_stage,
                     width="12em",
                 ),
-                rx.button("Run Selected", on_click=EtlState.run_selected, loading=EtlState.is_running),
+                rx.button("Reset", variant="soft", size="1", on_click=EtlState.reset_filters),
+                rx.button("Run Selected", size="1", on_click=EtlState.run_selected, loading=EtlState.is_running,),
                 rx.tooltip(
                     rx.button(
                         "↻",
@@ -143,7 +144,6 @@ def _sidebar() -> rx.Component:
                 align="center",
                 width="100%",
             ),
-            _filters(),
             _table_preview(),
             rx.card(
                 rx.vstack(

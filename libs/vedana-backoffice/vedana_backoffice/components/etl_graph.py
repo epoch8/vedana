@@ -4,6 +4,7 @@ from vedana_backoffice.state import EtlState
 
 
 def _node_card(node: dict) -> rx.Component:
+    node_index = node.get("index", -1)
     return rx.card(
         rx.vstack(
             rx.hstack(
@@ -23,7 +24,7 @@ def _node_card(node: dict) -> rx.Component:
                     "Run",
                     size="1",
                     variant="surface",
-                    on_click=EtlState.run_one_step(index=node.get("index")),  # type: ignore[arg-type]
+                    on_click=EtlState.run_one_step(index=node_index),
                     loading=EtlState.is_running,
                 ),
                 spacing="2",
@@ -38,9 +39,12 @@ def _node_card(node: dict) -> rx.Component:
             "top": node.get("top", "0px"),
             "width": node.get("width", "220px"),
             "height": node.get("height", "90px"),
+            "border": node.get("border_css", "1px solid #e5e7eb"),
             "overflow": "hidden",
+            "cursor": "pointer",
         },
         variant="surface",
+        on_click=EtlState.toggle_node_selection(index=node_index),
     )
 
 
