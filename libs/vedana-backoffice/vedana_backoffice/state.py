@@ -62,6 +62,11 @@ class EtlState(rx.State):
     sidebar_open: bool = True
     logs_open: bool = True
 
+    # Multi-select of nodes (by step index)
+    selected_node_ids: list[int] = []
+    # Track if user has made any explicit selections (to distinguish from filter-based)
+    has_explicit_selections: bool = False
+
     # Step last-run timestamps (loaded from meta table)
     steps_last_run: dict[str, str] = {}
 
@@ -119,7 +124,7 @@ class EtlState(rx.State):
         """Populate all_steps and available_tables by introspecting vedana_etl pipeline and catalog."""
 
         steps_meta: list[dict[str, Any]] = []
-        for idx, step in enumerate(pipeline.steps):  # type: ignore[attr-defined]
+        for idx, step in enumerate(pipeline.steps):
             inputs = [el.name for el in getattr(step, "inputs", [])]
             outputs = [el.name for el in getattr(step, "outputs", [])]
             labels = getattr(step, "labels", []) or []
@@ -185,6 +190,34 @@ class EtlState(rx.State):
         self._update_filtered_steps()
         self._rebuild_graph()
 
+    def reset_filters(self) -> None:
+        """Reset flow and stage selections and rebuild the graph."""
+        self.selected_flow = ""
+        self.selected_stage = ""
+        self.selected_node_ids = []  # Also clear explicit selections
+        self.has_explicit_selections = False  # Reset explicit selection flag
+        self._update_filtered_steps()
+        self._rebuild_graph()
+
+    def toggle_node_selection(self, index: int) -> None:
+        """Toggle a node's selection state by step index."""
+        try:
+            sid = int(index)
+        except Exception:
+            return
+        current: set[int] = set(self.selected_node_ids or [])
+        if sid in current:
+            current.remove(sid)
+        else:
+            current.add(sid)
+        self.selected_node_ids = sorted(list(current))
+        self.has_explicit_selections = True
+        self._rebuild_graph()
+
+    def clear_node_selection(self) -> None:
+        self.selected_node_ids = []
+        self._rebuild_graph()
+
     def _filter_steps_by_labels(self, steps: Iterable[Any]) -> list[Any]:
         if not self.selected_flow and not self.selected_stage:
             return list(steps)
@@ -216,11 +249,10 @@ class EtlState(rx.State):
             label_map: dict[str, set[str]] = {}
             for key, value in labels:
                 label_map.setdefault(str(key), set()).add(str(value))
-            if flow_val and flow_val not in label_map.get("flow", set()):
-                return False
-            if stage_val and stage_val not in label_map.get("stage", set()):
-                return False
-            return True
+            # Both conditions must match (additive filtering)
+            flow_match = not flow_val or flow_val in label_map.get("flow", set())
+            stage_match = not stage_val or stage_val in label_map.get("stage", set())
+            return flow_match and stage_match
 
         if not flow_val and not stage_val:
             self.filtered_steps = list(self.all_steps)
@@ -239,7 +271,8 @@ class EtlState(rx.State):
         computed using indegrees (Kahn) and used to place nodes left-to-right.
         """
         try:
-            metas = self.filtered_steps if self.filtered_steps else self.all_steps
+            # Show full pipeline and highlight selected branches derived from filters
+            metas = self.all_steps
             # Basic node size and spacing constants (px)
             MIN_NODE_W = 220
             MAX_NODE_W = 420
@@ -336,6 +369,22 @@ class EtlState(rx.State):
                 extra_lines = max(0, lines - 2)
                 h_by[sid] = base_h + extra_lines * 14
 
+            # Selected node ids: explicit user selections override filter-based selections
+            selected_ids: set[int] = set()
+            try:
+                # If user has made explicit selections, use only those (even if empty)
+                if self.has_explicit_selections:
+                    for midx in self.selected_node_ids:
+                        selected_ids.add(int(midx))
+                else:
+                    # Otherwise, use filter-based selections
+                    for m in self.filtered_steps or []:
+                        midx = int(m.get("index", -1))
+                        if midx >= 0:
+                            selected_ids.add(midx)
+            except Exception:
+                selected_ids = set()
+
             # Column widths (max of nodes in that layer)
             col_w: dict[int, int] = {
                 l: (max([w_by[sid] for sid in layers.get(l, [])]) if layers.get(l) else MIN_NODE_W) for l in layers
@@ -391,6 +440,8 @@ class EtlState(rx.State):
                             "height": f"{h_by.get(sid, NODE_H)}px",
                             "index_str": f"#{sid}",
                             "last_run": last_run_str,
+                            "selected": sid in selected_ids,
+                            "border_css": "2px solid #3b82f6" if sid in selected_ids else "1px solid #e5e7eb",
                         }
                     )
 
@@ -426,6 +477,7 @@ class EtlState(rx.State):
                         "path": path,
                         "label_x": label_x,
                         "label_y": label_y,
+                        "selected": (s in selected_ids) or (t in selected_ids),
                     }
                 )
 
@@ -438,8 +490,11 @@ class EtlState(rx.State):
                 '<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af" /></marker></defs>'
             )
             for e in edge_objs:
+                stroke = "#3b82f6" if e.get("selected") else "#9ca3af"
+                width = "2.5" if e.get("selected") else "2"
+                opacity = "1.0" if e.get("selected") else "0.6"
                 svg_parts.append(
-                    f'<path d="{e["path"]}" stroke="#9ca3af" stroke-width="2" fill="none" marker-end="url(#arrow)" />'
+                    f'<path d="{e["path"]}" stroke="{stroke}" stroke-width="{width}" opacity="{opacity}" fill="none" marker-end="url(#arrow)" />'
                 )
                 if e.get("label"):
                     svg_parts.append(
@@ -520,7 +575,13 @@ class EtlState(rx.State):
         yield
 
         try:
-            steps_to_run = self._filter_steps_by_labels(etl_app.steps)
+            # If explicit nodes are selected, run those; otherwise use filters
+            # Use explicit selections if user has made any, otherwise use filter-based
+            if self.has_explicit_selections:
+                selected = [i for i in self.selected_node_ids or [] if isinstance(i, int)]
+                steps_to_run = [etl_app.steps[i] for i in sorted(selected) if 0 <= i < len(etl_app.steps)]
+            else:
+                steps_to_run = self._filter_steps_by_labels(etl_app.steps)
             if not steps_to_run:
                 self._append_log("No steps match selected filters")
                 return
