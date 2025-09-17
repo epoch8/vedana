@@ -135,7 +135,6 @@ class EtlState(rx.State):
                     tables.add(output.name)
             if hasattr(step, "labels"):
                 for key, value in step.labels:
-                    print(f"step {step} has label {key}: {value}")
                     k = str(key)
                     v = str(value)
                     if k == "flow" and v:
