@@ -978,7 +978,7 @@ class EtlState(rx.State):
             # if v is None:
             #     return "—"
             try:
-                s = json.dumps(v) if isinstance(v, (dict, list)) else str(s)
+                s = json.dumps(v).decode() if isinstance(v, (dict, list)) else str(v)
             except Exception:
                 try:
                     s = repr(v)
@@ -1106,7 +1106,7 @@ class ChatState(rx.State):
             if isinstance(models_raw, dict):
                 for mk, mv in models_raw.items():
                     try:
-                        model_pairs.append((str(mk), json.dumps(mv)))
+                        model_pairs.append((str(mk), json.dumps(mv).decode()))
                     except Exception:
                         model_pairs.append((str(mk), str(mv)))
             models_list = [f"{k}: {v}" for k, v in model_pairs]
