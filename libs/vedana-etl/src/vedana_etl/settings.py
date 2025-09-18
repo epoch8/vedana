@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     # Tests pipeline (vedana-eval) settings.
     grist_test_set_doc_id: str = ""
     gds_table_name: str = "Gds"  # Table names in the test set doc
-    tests_table_name: str = "Tests_auto"
+    tests_table_name: str = "Tests"
     judge_model: str = "gpt-5-mini"
     test_environment: str = ""
 

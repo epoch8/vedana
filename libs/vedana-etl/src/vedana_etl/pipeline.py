@@ -128,6 +128,7 @@ eval_steps = [
         outputs=[eval_llm_answers],
         labels=[("flow", "eval"), ("stage", "process")],
         transform_keys=["gds_question"],
+        chunk_size=5,
     ),
     BatchTransform(
         func=steps.judge_tests,
@@ -135,6 +136,7 @@ eval_steps = [
         outputs=[tests],
         labels=[("flow", "eval"), ("stage", "process")],
         transform_keys=["gds_question"],
+        chunk_size=5,
     ),
 ]
 
