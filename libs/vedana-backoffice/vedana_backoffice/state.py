@@ -1,4 +1,3 @@
-import orjson as json
 import logging
 import threading
 import time
@@ -7,6 +6,7 @@ from queue import Empty, Queue
 from typing import Any, Dict, Iterable, Tuple
 from uuid import UUID, uuid4
 
+import orjson as json
 import pandas as pd
 import reflex as rx
 from datapipe.compute import run_steps
@@ -144,6 +144,7 @@ class EtlState(rx.State):
                 {
                     "index": idx,
                     "name": step.func.__name__,
+                    "step_type": type(step).__name__,
                     "inputs": list(inputs),
                     "outputs": list(outputs),
                     "labels": list(labels),
@@ -312,6 +313,7 @@ class EtlState(rx.State):
                 outputs_by: dict[int, set[str]] = {}
                 labels_str_by: dict[int, str] = {}
                 name_by: dict[int, str] = {}
+                step_type_by: dict[int, str] = {}
                 for m in metas:
                     idx = int(m.get("index", -1))
                     if idx < 0:
@@ -323,6 +325,7 @@ class EtlState(rx.State):
                     outputs_by[idx] = outs
                     labels_str_by[idx] = str(m.get("labels_str", ""))
                     name_by[idx] = str(m.get("name", f"step_{idx}"))
+                    step_type_by[idx] = str(m.get("step_type", ""))
 
                 unique_ids = sorted(step_ids)
                 id_index_map = {sid: i for i, sid in enumerate(unique_ids)}
@@ -550,6 +553,7 @@ class EtlState(rx.State):
                                 "index_value": str(sid),
                                 "name": step_name,
                                 "labels_str": labels_str_by.get(sid, ""),
+                                "step_type": step_type_by.get(sid, ""),
                                 "node_type": "step",
                                 # numeric position/size (might be useful elsewhere)
                                 "x": x,
@@ -561,7 +565,6 @@ class EtlState(rx.State):
                                 "top": f"{y}px",
                                 "width": f"{w_by.get(sid, MIN_NODE_W)}px",
                                 "height": f"{h_by.get(sid, NODE_H)}px",
-                                "index_str": f"#{sid}",
                                 "last_run": last_run_str,
                                 "selected": sid in selected_ids,
                                 "border_css": "2px solid #3b82f6" if sid in selected_ids else "1px solid #e5e7eb",
@@ -588,7 +591,6 @@ class EtlState(rx.State):
                                 "top": f"{y}px",
                                 "width": f"{w_by.get(sid, MIN_NODE_W)}px",
                                 "height": f"{h_by.get(sid, NODE_H)}px",
-                                "index_str": f"#{sid}",
                                 "last_run": rc_text,
                                 "selected": (self.preview_table_name == table_name),
                                 "border_css": (
@@ -632,7 +634,8 @@ class EtlState(rx.State):
                             "path": path,
                             "label_x": label_x,
                             "label_y": label_y,
-                            "selected": (s in selected_ids) or (t in selected_ids),
+                            # highlight only if both endpoints are selected
+                            "selected": (s in selected_ids) and (t in selected_ids),
                         }
                     )
             else:
@@ -691,9 +694,10 @@ class EtlState(rx.State):
                     # Highlight edges incident to the previewed table
                     sel = False
                     try:
-                        sel = (self.preview_table_name == name_by.get(t, "")) or (
-                            s is not None and self.preview_table_name == name_by.get(s, "")
-                        )
+                        if s is None:  # For generator edges, highlight when the target table is highlighted
+                            sel = self.preview_table_name == name_by.get(t, "")
+                        else:  # For regular edges, require both endpoints highlighted (not applicable for now)
+                            sel = False
                     except Exception:
                         sel = False
                     edge_objs.append(

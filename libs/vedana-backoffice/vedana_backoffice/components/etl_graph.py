@@ -8,7 +8,14 @@ def _node_card(node: dict) -> rx.Component:
     return rx.card(
         rx.vstack(
             rx.hstack(
-                rx.badge(node.get("index_str", "#"), color_scheme="gray", variant="soft"),
+                rx.hstack(
+                    rx.cond(
+                        is_table,
+                        rx.box(),
+                        rx.badge(node.get("step_type", ""), color_scheme="indigo", variant="soft"),
+                    ),
+                    spacing="2",
+                ),
                 rx.text(node.get("name", ""), weight="medium"),
                 justify="between",
                 width="100%",
