@@ -75,12 +75,15 @@ class EtlState(rx.State):
 
     # Table preview panel state
     preview_open: bool = False
+    preview_anchor_left: str = "0px"
+    preview_anchor_top: str = "0px"
 
     # Step last-run timestamps (loaded from meta table)
     steps_last_run: dict[str, str] = {}
 
     # Table preview
     preview_table_name: str | None = None
+    preview_display_name: str = ""
     preview_rows: list[dict[str, Any]] = []
     preview_columns: list[str] = []
     has_preview: bool = False
@@ -733,6 +736,31 @@ class EtlState(rx.State):
             self.graph_svg = "".join(svg_parts)
             self.graph_width_css = f"{int(width_px)}px"
             self.graph_height_css = f"{int(height_px)}px"
+
+            # Update preview anchor position (place trigger near the selected table in data view)
+            try:
+                if self.data_view and self.preview_table_name:
+                    anchor_left = "0px"
+                    anchor_top = "0px"
+                    for n in nodes:
+                        try:
+                            if n.get("node_type") == "table" and str(n.get("name")) == str(self.preview_table_name):
+                                ax = int(n.get("x", 0)) + int(n.get("w", 0)) + 12
+                                ay = int(n.get("y", 0)) + int(int(n.get("h", 0)) / 2)
+                                anchor_left = f"{ax}px"
+                                anchor_top = f"{ay}px"
+                                break
+                        except Exception:
+                            pass
+                    self.preview_anchor_left = anchor_left
+                    self.preview_anchor_top = anchor_top
+                else:
+                    # Default somewhere inside the card; not used if preview is closed
+                    self.preview_anchor_left = "24px"
+                    self.preview_anchor_top = "24px"
+            except Exception:
+                self.preview_anchor_left = "24px"
+                self.preview_anchor_top = "24px"
         except Exception:
             # On any error, fall back to empty visuals
             self.graph_nodes = []
@@ -911,6 +939,11 @@ class EtlState(rx.State):
     def preview_table(self, table_name: str) -> None:
         """Load a small preview from the datapipe DB for a selected table."""
 
+        # Toggle preview: if same table clicked, close; otherwise open new table
+        if self.preview_table_name == table_name and self.preview_open:
+            self.close_preview()
+            return
+
         self.preview_table_name = table_name
         self.preview_open = True
         self.has_preview = False
@@ -925,10 +958,17 @@ class EtlState(rx.State):
             self._append_log("DB engine not available")
             return
 
+        # Resolve actual SQL table to preview (fallback to meta for non-SQL stores)
+        actual_table = self._resolve_preview_table_name(table_name)
         try:
-            df = pd.read_sql(f'SELECT * FROM "{table_name}" LIMIT 50', con=engine)
+            self.preview_display_name = str(actual_table)
+        except Exception:
+            self.preview_display_name = str(table_name)
+
+        try:
+            df = pd.read_sql(f'SELECT * FROM "{actual_table}" LIMIT 50', con=engine)
         except Exception as e:
-            self._append_log(f"Failed to load table {table_name}: {e}")
+            self._append_log(f"Failed to load table {actual_table}: {e}")
             return
 
         self.preview_columns = [str(c) for c in df.columns]
@@ -950,10 +990,47 @@ class EtlState(rx.State):
     def close_preview(self) -> None:
         self.preview_open = False
         self.preview_table_name = None
+        self.preview_display_name = ""
         try:
             self._rebuild_graph()
         except Exception:
             pass
+
+    def _resolve_preview_table_name(self, table_name: str) -> str:
+        """Return SQL table to use for preview. If the catalog table is backed by
+        a non-SQL store, return '<name>_meta'. If resolution fails, return the
+        original name.
+        """
+        try:
+            import vedana_etl.catalog as catalog  # local import to avoid cycles
+            from datapipe.store.database import TableStoreDB  # type: ignore
+
+            def _iter_tables():
+                for attr in dir(catalog):
+                    try:
+                        obj = getattr(catalog, attr)
+                        if hasattr(obj, "name") and hasattr(obj, "store"):
+                            yield obj
+                    except Exception:
+                        continue
+
+            for tbl in _iter_tables():
+                try:
+                    if str(getattr(tbl, "name", "")) == str(table_name):
+                        store = getattr(tbl, "store", None)
+                        if not isinstance(store, TableStoreDB):
+                            return f"{table_name}_meta"
+                        break
+                except Exception:
+                    continue
+            return str(table_name)
+        except Exception:
+            return str(table_name)
+
+    def set_preview_open(self, open: bool) -> None:
+        """Handle popover open/close state changes."""
+        if not open:
+            self.close_preview()
 
 
 class ChatState(rx.State):
