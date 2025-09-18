@@ -4,7 +4,6 @@ import re
 import secrets
 from datetime import date, datetime
 from hashlib import sha256
-from pydantic import BaseModel, Field
 from typing import Any, Hashable, Iterator, cast
 from unicodedata import normalize
 from uuid import UUID
@@ -14,14 +13,15 @@ from jims_core.llms.llm_provider import LLMProvider
 from jims_core.thread.schema import CommunicationEvent
 from jims_core.thread.thread_context import ThreadContext
 from jims_core.util import uuid7
-
 from neo4j import GraphDatabase
+from pydantic import BaseModel, Field
 from vedana_core.data_model import DataModel
 from vedana_core.data_provider import GristAPIDataProvider, GristCsvDataProvider
 from vedana_core.graph import MemgraphGraph
 from vedana_core.rag_pipeline import RagPipeline
 from vedana_core.settings import VedanaCoreSettings
 from vedana_core.settings import settings as core_settings
+
 from vedana_etl.settings import settings as etl_settings
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
@@ -694,14 +694,13 @@ def run_tests(
 ) -> pd.DataFrame:
     dm_version = dm_version.tail(1).squeeze()  # last row - last version
     llm_embeddings_config = llm_embeddings_config.tail(1).squeeze()
-    pipeline_model_row = llm_pipeline_config.tail(1).squeeze()
+    pipeline_model = llm_pipeline_config.tail(1).squeeze()
 
     # configs
     dm_id = str(dm_version.get("dm_id"))
     dm = DataModel.from_json(dm_version.get("dm_description"))
     embeddings_model = str(llm_embeddings_config.get("embeddings_model"))
     embeddings_dim = int(llm_embeddings_config.get("embeddings_dim"))
-    pipeline_model = str(pipeline_model_row.get("pipeline_model"))
 
     # Generate run id
     today = date.today().isoformat()
