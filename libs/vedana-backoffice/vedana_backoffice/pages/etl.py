@@ -2,7 +2,7 @@ import reflex as rx
 
 from vedana_backoffice.components.etl_graph import etl_graph
 from vedana_backoffice.state import EtlState
-from vedana_backoffice.ui import app_header, breadcrumbs
+from vedana_backoffice.ui import app_header
 
 
 def _filters() -> rx.Component:
@@ -213,7 +213,6 @@ def _topbar() -> rx.Component:
 def page() -> rx.Component:
     return rx.vstack(
         app_header(),
-        breadcrumbs([("Main", "/"), ("ETL", "/etl")]),
         _topbar(),
         _graph_card(),
         rx.cond(EtlState.logs_open, _logs_bottom(), rx.box()),

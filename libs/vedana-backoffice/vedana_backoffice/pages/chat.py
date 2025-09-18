@@ -1,7 +1,7 @@
 import reflex as rx
 
 from vedana_backoffice.state import ChatState
-from vedana_backoffice.ui import app_header, breadcrumbs
+from vedana_backoffice.ui import app_header
 
 
 def _message_row(msg: dict) -> rx.Component:
@@ -113,7 +113,6 @@ def _message_row(msg: dict) -> rx.Component:
 def page() -> rx.Component:
     return rx.vstack(
         app_header(),
-        breadcrumbs([("Main", "/"), ("Chatbot", "/chat")]),
         rx.flex(
             # Messages scroll region
             rx.box(
