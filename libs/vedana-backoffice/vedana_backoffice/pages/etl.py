@@ -75,8 +75,21 @@ def _graph_card() -> rx.Component:
             align="center",
             width="100%",
         ),
-        rx.box(etl_graph(), style={"height": "65vh", "width": "100%"}),
+        rx.scroll_area(
+            rx.box(
+                etl_graph(),
+                style={
+                    "position": "relative",
+                    "minWidth": EtlState.graph_width_css,
+                    "minHeight": EtlState.graph_height_css,
+                },
+            ),
+            type="always",
+            scrollbars="both",
+            style={"height": "65vh", "width": "100%"},
+        ),
         padding="1em",
+        width="100%",
     )
 
 
@@ -130,7 +143,7 @@ def _table_preview() -> rx.Component:
                 rx.box(rx.text("No data")),
             ),
             padding="1em",
-            width="400px",
+            width="50vw",
             height="100%",
         ),
         rx.box(),
@@ -154,7 +167,7 @@ def page() -> rx.Component:
             flex="1",
             min_width="0",
         ),
-        rx.cond(EtlState.preview_open, rx.box(_table_preview(), width="420px"), rx.box()),
+        rx.cond(EtlState.preview_open, rx.box(_table_preview(), width="50vw"), rx.box()),
         gap="1em",
         width="100%",
         align="start",
