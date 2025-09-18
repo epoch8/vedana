@@ -194,6 +194,10 @@ def _table_preview_popover() -> rx.Component:
             size="3",
             avoid_collisions=True,
             collision_padding=20,
+            style={
+                "width": "fit-content",
+                "maxWidth": "60vw",
+            },
         ),
         open=EtlState.preview_open,
         on_open_change=EtlState.set_preview_open,
