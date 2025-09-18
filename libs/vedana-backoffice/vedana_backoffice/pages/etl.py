@@ -113,40 +113,79 @@ def _logs_bottom() -> rx.Component:
     )
 
 
-def _table_preview() -> rx.Component:
-    return rx.cond(
-        EtlState.preview_open,
-        rx.card(
-            rx.hstack(
-                rx.heading(rx.cond(EtlState.preview_table_name, EtlState.preview_table_name, "Table"), size="3"),
-                rx.spacer(),
-                rx.button("Close", variant="ghost", color_scheme="gray", size="1", on_click=EtlState.close_preview),
-                align="center",
-                width="100%",
-            ),
-            rx.cond(
-                EtlState.has_preview,
-                rx.table.root(
-                    rx.table.header(
-                        rx.table.row(rx.foreach(EtlState.preview_columns, lambda c: rx.table.column_header_cell(c)))
-                    ),
-                    rx.table.body(
-                        rx.foreach(
-                            EtlState.preview_rows,
-                            lambda r: rx.table.row(
-                                rx.foreach(EtlState.preview_columns, lambda c: rx.table.cell(rx.text(r.get(c, ""))))
-                            ),
-                        )
-                    ),
-                    variant="surface",
-                ),
-                rx.box(rx.text("No data")),
-            ),
-            padding="1em",
-            width="50vw",
-            height="100%",
+def _table_preview_popover() -> rx.Component:
+    return rx.popover.root(
+        rx.popover.trigger(
+            rx.box(
+                style={
+                    "position": "absolute",
+                    "left": EtlState.preview_anchor_left,
+                    "top": EtlState.preview_anchor_top,
+                    "width": "1px",
+                    "height": "1px",
+                    "pointerEvents": "none",
+                }
+            ),  # Invisible trigger anchored near the selected node
         ),
-        rx.box(),
+        rx.popover.content(
+            rx.vstack(
+                rx.hstack(
+                    rx.heading(
+                        rx.cond(
+                            EtlState.preview_display_name,
+                            EtlState.preview_display_name,
+                            rx.cond(EtlState.preview_table_name, EtlState.preview_table_name, "Table"),
+                        ),
+                        size="3",
+                    ),
+                    rx.spacer(),
+                    rx.popover.close(
+                        rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
+                    ),
+                    align="center",
+                    width="100%",
+                ),
+                rx.cond(
+                    EtlState.has_preview,
+                    rx.scroll_area(
+                        rx.table.root(
+                            rx.table.header(
+                                rx.table.row(
+                                    rx.foreach(EtlState.preview_columns, lambda c: rx.table.column_header_cell(c))
+                                )
+                            ),
+                            rx.table.body(
+                                rx.foreach(
+                                    EtlState.preview_rows,
+                                    lambda r: rx.table.row(
+                                        rx.foreach(
+                                            EtlState.preview_columns, lambda c: rx.table.cell(rx.text(r.get(c, "")))
+                                        )
+                                    ),
+                                )
+                            ),
+                            variant="surface",
+                        ),
+                        type="always",
+                        scrollbars="both",
+                        style={"height": "50vh", "width": "100%"},
+                    ),
+                    rx.box(rx.text("No data")),
+                ),
+                spacing="2",
+                padding="1em",
+                width="fit-content",
+                min_width="400px",
+                max_width="80vw",
+            ),
+            side="right",
+            align="center",
+            size="3",
+            avoid_collisions=True,
+            collision_padding=20,
+        ),
+        open=EtlState.preview_open,
+        on_open_change=EtlState.set_preview_open,
     )
 
 
@@ -161,24 +200,13 @@ def _topbar() -> rx.Component:
 
 
 def page() -> rx.Component:
-    main_row = rx.flex(
-        rx.box(
-            _graph_card(),
-            flex="1",
-            min_width="0",
-        ),
-        rx.cond(EtlState.preview_open, rx.box(_table_preview(), width="50vw"), rx.box()),
-        gap="1em",
-        width="100%",
-        align="start",
-    )
-
     return rx.vstack(
         app_header(),
         breadcrumbs([("Main", "/"), ("ETL", "/etl")]),
         _topbar(),
-        main_row,
+        _graph_card(),
         rx.cond(EtlState.logs_open, _logs_bottom(), rx.box()),
+        _table_preview_popover(),
         align="start",
         spacing="1",
         padding="1em",
