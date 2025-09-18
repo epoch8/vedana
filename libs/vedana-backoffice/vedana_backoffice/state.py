@@ -67,6 +67,15 @@ class EtlState(rx.State):
     # Track if user has made any explicit selections (to distinguish from filter-based)
     has_explicit_selections: bool = False
 
+    # View mode: False = step-centric, True = data(table)-centric
+    data_view: bool = False
+
+    # Table metadata for data-centric view
+    table_row_counts: dict[str, int] = {}
+
+    # Table preview panel state
+    preview_open: bool = False
+
     # Step last-run timestamps (loaded from meta table)
     steps_last_run: dict[str, str] = {}
 
@@ -172,6 +181,10 @@ class EtlState(rx.State):
             self._load_last_run_timestamps()
         except Exception:
             self.steps_last_run = {}
+        try:
+            self._load_table_row_counts()
+        except Exception:
+            self.table_row_counts = {}
         self._rebuild_graph()
 
     def toggle_sidebar(self) -> None:
@@ -197,6 +210,15 @@ class EtlState(rx.State):
         self.selected_node_ids = []  # Also clear explicit selections
         self.has_explicit_selections = False  # Reset explicit selection flag
         self._update_filtered_steps()
+        self._rebuild_graph()
+
+    def set_data_view(self, checked: bool) -> None:
+        """Toggle between step-centric and data-centric graph."""
+        try:
+            self.data_view = bool(checked)
+        except Exception:
+            self.data_view = False
+        # Do not alter filters or explicit selections automatically
         self._rebuild_graph()
 
     def toggle_node_selection(self, index: int) -> None:
@@ -271,7 +293,7 @@ class EtlState(rx.State):
         computed using indegrees (Kahn) and used to place nodes left-to-right.
         """
         try:
-            # Show full pipeline and highlight selected branches derived from filters
+            # Build graph based on current view mode
             metas = self.all_steps
             # Basic node size and spacing constants (px)
             MIN_NODE_W = 220
@@ -280,108 +302,188 @@ class EtlState(rx.State):
             H_SPACING = 120
             V_SPACING = 40
             MARGIN = 24
-
-            # Build quick lookup for inputs/outputs by step index
-            step_ids: list[int] = []
-            inputs_by: dict[int, set[str]] = {}
-            outputs_by: dict[int, set[str]] = {}
-            labels_str_by: dict[int, str] = {}
-            name_by: dict[int, str] = {}
-            for m in metas:
-                idx = int(m.get("index", -1))
-                if idx < 0:
-                    continue
-                step_ids.append(idx)
-                inps = set([str(x) for x in (m.get("inputs") or [])])
-                outs = set([str(x) for x in (m.get("outputs") or [])])
-                inputs_by[idx] = inps
-                outputs_by[idx] = outs
-                labels_str_by[idx] = str(m.get("labels_str", ""))
-                name_by[idx] = str(m.get("name", f"step_{idx}"))
-
-            unique_ids = sorted(step_ids)
-            id_index_map = {sid: i for i, sid in enumerate(unique_ids)}
-
-            # Derive edges by shared tables
-            edges: list[tuple[int, int, list[str]]] = []
-            for a in unique_ids:
-                for b in unique_ids:
-                    if a == b:
+            if not self.data_view:
+                # -------- STEP-CENTRIC VIEW --------
+                step_ids: list[int] = []
+                inputs_by: dict[int, set[str]] = {}
+                outputs_by: dict[int, set[str]] = {}
+                labels_str_by: dict[int, str] = {}
+                name_by: dict[int, str] = {}
+                for m in metas:
+                    idx = int(m.get("index", -1))
+                    if idx < 0:
                         continue
-                    shared = sorted(list(outputs_by.get(a, set()) & inputs_by.get(b, set())))
-                    if shared:
-                        edges.append((a, b, shared))
+                    step_ids.append(idx)
+                    inps = set([str(x) for x in (m.get("inputs") or [])])
+                    outs = set([str(x) for x in (m.get("outputs") or [])])
+                    inputs_by[idx] = inps
+                    outputs_by[idx] = outs
+                    labels_str_by[idx] = str(m.get("labels_str", ""))
+                    name_by[idx] = str(m.get("name", f"step_{idx}"))
 
-            # Compute indegrees for Kahn layering
-            indeg: dict[int, int] = {sid: 0 for sid in unique_ids}
-            children: dict[int, list[int]] = {sid: [] for sid in unique_ids}
-            for s, t, _ in edges:
-                indeg[t] = indeg.get(t, 0) + 1
-                children.setdefault(s, []).append(t)
+                unique_ids = sorted(step_ids)
+                id_index_map = {sid: i for i, sid in enumerate(unique_ids)}
 
-            # Initialize layers
-            layer_by: dict[int, int] = {sid: 0 for sid in unique_ids}
-            from collections import deque
+                # Derive edges by shared tables
+                edges: list[tuple[int, int, list[str]]] = []
+                for a in unique_ids:
+                    for b in unique_ids:
+                        if a == b:
+                            continue
+                        shared = sorted(list(outputs_by.get(a, set()) & inputs_by.get(b, set())))
+                        if shared:
+                            edges.append((a, b, shared))
 
-            q: deque[int] = deque([sid for sid in unique_ids if indeg.get(sid, 0) == 0])
-            visited: set[int] = set()
-            while q:
-                sid = q.popleft()
-                visited.add(sid)
-                for ch in children.get(sid, []):
-                    # longest path layering
-                    layer_by[ch] = max(layer_by.get(ch, 0), layer_by.get(sid, 0) + 1)
-                    indeg[ch] -= 1
-                    if indeg[ch] == 0:
-                        q.append(ch)
+                # Compute indegrees for Kahn layering
+                indeg: dict[int, int] = {sid: 0 for sid in unique_ids}
+                children: dict[int, list[int]] = {sid: [] for sid in unique_ids}
+                for s, t, _ in edges:
+                    indeg[t] = indeg.get(t, 0) + 1
+                    children.setdefault(s, []).append(t)
 
-            # Any nodes not visited (cycle/isolated) keep default layer 0
-            # Group nodes by layer
-            layers: dict[int, list[int]] = {}
-            max_layer = 0
-            for sid in unique_ids:
-                l = layer_by.get(sid, 0)
-                max_layer = max(max_layer, l)
-                layers.setdefault(l, []).append(sid)
+                # Initialize layers
+                layer_by: dict[int, int] = {sid: 0 for sid in unique_ids}
+                from collections import deque
 
-            # Stable order in each layer by name
-            for l, arr in list(layers.items()):
-                layers[l] = sorted(arr, key=lambda i: name_by.get(i, ""))
+                q: deque[int] = deque([sid for sid in unique_ids if indeg.get(sid, 0) == 0])
+                visited: set[int] = set()
+                while q:
+                    sid = q.popleft()
+                    visited.add(sid)
+                    for ch in children.get(sid, []):
+                        # longest path layering
+                        layer_by[ch] = max(layer_by.get(ch, 0), layer_by.get(sid, 0) + 1)
+                        indeg[ch] -= 1
+                        if indeg[ch] == 0:
+                            q.append(ch)
 
-            # Pre-compute content-based widths/heights per node
-            w_by: dict[int, int] = {}
-            h_by: dict[int, int] = {}
-            for sid in unique_ids:
-                nlen = len(name_by.get(sid, ""))
-                llen = len(labels_str_by.get(sid, ""))
-                # rough pixel estimate + padding for badge/button
-                est = max(nlen * 8 + 60, llen * 6 + 40, MIN_NODE_W)
-                w = min(max(int(est), MIN_NODE_W), MAX_NODE_W)
-                w_by[sid] = w
-                # estimate label lines based on width (approx char 7px)
-                chars_per_line = max(10, int((w - 40) / 7))
-                lines = 1
-                try:
-                    lines = max(1, -(-llen // chars_per_line))  # ceil div
-                except Exception:
+                # Any nodes not visited (cycle/isolated) keep default layer 0
+                # Group nodes by layer
+                layers: dict[int, list[int]] = {}
+                max_layer = 0
+                for sid in unique_ids:
+                    l = layer_by.get(sid, 0)
+                    max_layer = max(max_layer, l)
+                    layers.setdefault(l, []).append(sid)
+
+                # Stable order in each layer by name
+                for l, arr in list(layers.items()):
+                    layers[l] = sorted(arr, key=lambda i: name_by.get(i, ""))
+
+                # Pre-compute content-based widths/heights per node
+                w_by: dict[int, int] = {}
+                h_by: dict[int, int] = {}
+                for sid in unique_ids:
+                    nlen = len(name_by.get(sid, ""))
+                    llen = len(labels_str_by.get(sid, ""))
+                    est = max(nlen * 8 + 60, llen * 6 + 40, MIN_NODE_W)
+                    w = min(max(int(est), MIN_NODE_W), MAX_NODE_W)
+                    w_by[sid] = w
+                    chars_per_line = max(10, int((w - 40) / 7))
                     lines = 1
-                base_h = NODE_H  # fits header, 1 label line, last_run line, button
-                extra_lines = max(0, lines - 2)
-                h_by[sid] = base_h + extra_lines * 14
+                    try:
+                        lines = max(1, -(-llen // chars_per_line))
+                    except Exception:
+                        lines = 1
+                    base_h = NODE_H
+                    extra_lines = max(0, lines - 2)
+                    h_by[sid] = base_h + extra_lines * 14
+            else:
+                # -------- DATA-CENTRIC VIEW --------
+                # Build table-centric graph inputs
+                # Map each unique table to an id
+                table_names: set[str] = set()
+                for m in metas:
+                    for t in m.get("inputs") or []:
+                        try:
+                            table_names.add(str(t))
+                        except Exception:
+                            pass
+                    for t in m.get("outputs") or []:
+                        try:
+                            table_names.add(str(t))
+                        except Exception:
+                            pass
+                table_list = sorted(list(table_names))
+                table_id_by_name: dict[str, int] = {name: i for i, name in enumerate(table_list)}
+                # Create pseudo ids for layout
+                unique_ids = list(range(len(table_list)))
+                name_by = {i: n for i, n in enumerate(table_list)}
+                labels_str_by = {i: "" for i in unique_ids}
+                # Edges: for each step, connect each input table (or None) to each output table with step label
+                table_edges: list[tuple[int | None, int, str]] = []
+                for m in metas:
+                    step_name = str(m.get("name", "step"))
+                    in_tables = [
+                        table_id_by_name.get(str(t)) for t in (m.get("inputs") or []) if str(t) in table_id_by_name
+                    ]
+                    out_tables = [
+                        table_id_by_name.get(str(t)) for t in (m.get("outputs") or []) if str(t) in table_id_by_name
+                    ]
+                    if not in_tables:
+                        # Source-less generates into each output
+                        for ot in out_tables:
+                            table_edges.append((None, int(ot), step_name))
+                    else:
+                        for it in in_tables:
+                            for ot in out_tables:
+                                table_edges.append((int(it), int(ot), step_name))
+                # Build adjacency for layering based on table graph
+                edges = []  # reuse structure later
+                for s, t, _ in table_edges:
+                    if s is None:
+                        continue
+                    edges.append((int(s), int(t), []))
+                indeg: dict[int, int] = {sid: 0 for sid in unique_ids}
+                children: dict[int, list[int]] = {sid: [] for sid in unique_ids}
+                for s, t, _ in edges:
+                    indeg[t] = indeg.get(t, 0) + 1
+                    children.setdefault(s, []).append(t)
+                layer_by: dict[int, int] = {sid: 0 for sid in unique_ids}
+                from collections import deque
+
+                q: deque[int] = deque([sid for sid in unique_ids if indeg.get(sid, 0) == 0])
+                visited: set[int] = set()
+                while q:
+                    sid = q.popleft()
+                    visited.add(sid)
+                    for ch in children.get(sid, []):
+                        layer_by[ch] = max(layer_by.get(ch, 0), layer_by.get(sid, 0) + 1)
+                        indeg[ch] -= 1
+                        if indeg[ch] == 0:
+                            q.append(ch)
+                layers: dict[int, list[int]] = {}
+                max_layer = 0
+                for sid in unique_ids:
+                    l = layer_by.get(sid, 0)
+                    max_layer = max(max_layer, l)
+                    layers.setdefault(l, []).append(sid)
+                for l, arr in list(layers.items()):
+                    layers[l] = sorted(arr, key=lambda i: name_by.get(i, ""))
+                # Sizes for tables
+                w_by = {}
+                h_by = {}
+                for sid in unique_ids:
+                    nlen = len(name_by.get(sid, ""))
+                    est = max(nlen * 8 + 60, MIN_NODE_W)
+                    w = min(max(int(est), MIN_NODE_W), MAX_NODE_W)
+                    w_by[sid] = w
+                    h_by[sid] = NODE_H
 
             # Selected node ids: explicit user selections override filter-based selections
             selected_ids: set[int] = set()
             try:
-                # If user has made explicit selections, use only those (even if empty)
-                if self.has_explicit_selections:
-                    for midx in self.selected_node_ids:
-                        selected_ids.add(int(midx))
-                else:
-                    # Otherwise, use filter-based selections
-                    for m in self.filtered_steps or []:
-                        midx = int(m.get("index", -1))
-                        if midx >= 0:
-                            selected_ids.add(midx)
+                if not self.data_view:
+                    # If user has made explicit selections, use only those (even if empty)
+                    if self.has_explicit_selections:
+                        for midx in self.selected_node_ids:
+                            selected_ids.add(int(midx))
+                    else:
+                        # Otherwise, use filter-based selections
+                        for m in self.filtered_steps or []:
+                            midx = int(m.get("index", -1))
+                            if midx >= 0:
+                                selected_ids.add(midx)
             except Exception:
                 selected_ids = set()
 
@@ -421,30 +523,58 @@ class EtlState(rx.State):
                     x = layer_x(l)
                     y = y_offsets[r_idx]
                     pos_by[sid] = (x, y)
-                    step_name = name_by.get(sid, f"step_{sid}")
-                    last_run_str = self.steps_last_run.get(step_name, "—")
-                    nodes.append(
-                        {
-                            "index": sid,
-                            "index_value": str(sid),
-                            "name": step_name,
-                            "labels_str": labels_str_by.get(sid, ""),
-                            # numeric position/size (might be useful elsewhere)
-                            "x": x,
-                            "y": y,
-                            "w": w_by.get(sid, MIN_NODE_W),
-                            "h": h_by.get(sid, NODE_H),
-                            # css strings for Reflex styles (avoid Python ops on Vars)
-                            "left": f"{x}px",
-                            "top": f"{y}px",
-                            "width": f"{w_by.get(sid, MIN_NODE_W)}px",
-                            "height": f"{h_by.get(sid, NODE_H)}px",
-                            "index_str": f"#{sid}",
-                            "last_run": last_run_str,
-                            "selected": sid in selected_ids,
-                            "border_css": "2px solid #3b82f6" if sid in selected_ids else "1px solid #e5e7eb",
-                        }
-                    )
+                    if not self.data_view:
+                        step_name = name_by.get(sid, f"step_{sid}")
+                        last_run_str = self.steps_last_run.get(step_name, "—")
+                        nodes.append(
+                            {
+                                "index": sid,
+                                "index_value": str(sid),
+                                "name": step_name,
+                                "labels_str": labels_str_by.get(sid, ""),
+                                "node_type": "step",
+                                # numeric position/size (might be useful elsewhere)
+                                "x": x,
+                                "y": y,
+                                "w": w_by.get(sid, MIN_NODE_W),
+                                "h": h_by.get(sid, NODE_H),
+                                # css strings for Reflex styles (avoid Python ops on Vars)
+                                "left": f"{x}px",
+                                "top": f"{y}px",
+                                "width": f"{w_by.get(sid, MIN_NODE_W)}px",
+                                "height": f"{h_by.get(sid, NODE_H)}px",
+                                "index_str": f"#{sid}",
+                                "last_run": last_run_str,
+                                "selected": sid in selected_ids,
+                                "border_css": "2px solid #3b82f6" if sid in selected_ids else "1px solid #e5e7eb",
+                            }
+                        )
+                    else:
+                        # data view: nodes are tables
+                        table_name = name_by.get(sid, f"table_{sid}")
+                        rc = self.table_row_counts.get(table_name, None)
+                        rc_text = f"rows: {rc}" if rc is not None else "rows: —"
+                        nodes.append(
+                            {
+                                "index": sid,
+                                "index_value": str(sid),
+                                "name": table_name,
+                                "labels_str": "",
+                                "node_type": "table",
+                                "x": x,
+                                "y": y,
+                                "w": w_by.get(sid, MIN_NODE_W),
+                                "h": h_by.get(sid, NODE_H),
+                                "left": f"{x}px",
+                                "top": f"{y}px",
+                                "width": f"{w_by.get(sid, MIN_NODE_W)}px",
+                                "height": f"{h_by.get(sid, NODE_H)}px",
+                                "index_str": f"#{sid}",
+                                "last_run": rc_text,
+                                "selected": sid in selected_ids,
+                                "border_css": "1px solid #e5e7eb",
+                            }
+                        )
 
             # Compute canvas size
             layers_count = max_layer + 1 if unique_ids else 1
@@ -457,30 +587,96 @@ class EtlState(rx.State):
 
             # Build edges visuals
             edge_objs: list[dict[str, Any]] = []
-            for s, t, shared in edges:
-                sx, sy = pos_by.get(s, (MARGIN, MARGIN))
-                tx, ty = pos_by.get(t, (MARGIN, MARGIN))
-                x1 = sx + w_by.get(s, MIN_NODE_W)
-                y1 = sy + h_by.get(s, NODE_H) // 2
-                x2 = tx
-                y2 = ty + h_by.get(t, NODE_H) // 2
-                cx1 = x1 + 40
-                cx2 = x2 - 40
-                path = f"M{x1},{y1} C{cx1},{y1} {cx2},{y2} {x2},{y2}"
-                label = ", ".join(shared)
-                label_x = (x1 + x2) / 2
-                label_y = (y1 + y2) / 2 - 6
-                edge_objs.append(
-                    {
-                        "source": s,
-                        "target": t,
-                        "label": label,
-                        "path": path,
-                        "label_x": label_x,
-                        "label_y": label_y,
-                        "selected": (s in selected_ids) or (t in selected_ids),
-                    }
-                )
+            if not self.data_view:
+                for s, t, shared in edges:
+                    sx, sy = pos_by.get(s, (MARGIN, MARGIN))
+                    tx, ty = pos_by.get(t, (MARGIN, MARGIN))
+                    x1 = sx + w_by.get(s, MIN_NODE_W)
+                    y1 = sy + h_by.get(s, NODE_H) // 2
+                    x2 = tx
+                    y2 = ty + h_by.get(t, NODE_H) // 2
+                    cx1 = x1 + 40
+                    cx2 = x2 - 40
+                    path = f"M{x1},{y1} C{cx1},{y1} {cx2},{y2} {x2},{y2}"
+                    label = ", ".join(shared)
+                    label_x = (x1 + x2) / 2
+                    label_y = (y1 + y2) / 2 - 6
+                    edge_objs.append(
+                        {
+                            "source": s,
+                            "target": t,
+                            "label": label,
+                            "path": path,
+                            "label_x": label_x,
+                            "label_y": label_y,
+                            "selected": (s in selected_ids) or (t in selected_ids),
+                        }
+                    )
+            else:
+                # Data-centric edges: need to rebuild table_edges here since it's not in scope
+                table_names: set[str] = set()
+                for m in metas:
+                    for t in m.get("inputs") or []:
+                        try:
+                            table_names.add(str(t))
+                        except Exception:
+                            pass
+                    for t in m.get("outputs") or []:
+                        try:
+                            table_names.add(str(t))
+                        except Exception:
+                            pass
+                table_list = sorted(list(table_names))
+                table_id_by_name: dict[str, int] = {name: i for i, name in enumerate(table_list)}
+
+                table_edges: list[tuple[int | None, int, str]] = []
+                for m in metas:
+                    step_name = str(m.get("name", "step"))
+                    in_tables = [
+                        table_id_by_name.get(str(t)) for t in (m.get("inputs") or []) if str(t) in table_id_by_name
+                    ]
+                    out_tables = [
+                        table_id_by_name.get(str(t)) for t in (m.get("outputs") or []) if str(t) in table_id_by_name
+                    ]
+                    if not in_tables:
+                        # Source-less generates into each output
+                        for ot in out_tables:
+                            table_edges.append((None, int(ot), step_name))
+                    else:
+                        for it in in_tables:
+                            for ot in out_tables:
+                                table_edges.append((int(it), int(ot), step_name))
+
+                # Data-centric edges already computed as (src_table|None, tgt_table, step_name)
+                for s, t, step_label in table_edges:
+                    tx, ty = pos_by.get(t, (MARGIN, MARGIN))
+                    if s is None:
+                        x1 = max(0, MARGIN - 40)
+                        y1 = ty + h_by.get(t, NODE_H) // 2
+                    else:
+                        sx, sy = pos_by.get(s, (MARGIN, MARGIN))
+                        x1 = sx + w_by.get(s, MIN_NODE_W)
+                        y1 = sy + h_by.get(s, NODE_H) // 2
+                    x2 = tx
+                    y2 = ty + h_by.get(t, NODE_H) // 2
+                    cx1 = x1 + 40
+                    cx2 = x2 - 40
+                    path = f"M{x1},{y1} C{cx1},{y1} {cx2},{y2} {x2},{y2}"
+                    label = step_label
+                    label_x = (x1 + x2) / 2
+                    label_y = (y1 + y2) / 2 - 6
+                    sel = (t in selected_ids) or (s in selected_ids) if s is not None else (t in selected_ids)
+                    edge_objs.append(
+                        {
+                            "source": s if s is not None else -1,
+                            "target": t,
+                            "label": label,
+                            "path": path,
+                            "label_x": label_x,
+                            "label_y": label_y,
+                            "selected": sel,
+                        }
+                    )
 
             # Build SVG string for edges
             svg_parts: list[str] = []
@@ -535,7 +731,6 @@ class EtlState(rx.State):
             return
 
         try:
-            # Attempt a generic query; adjust in future if schema differs
             import pandas as pd  # local import to keep typing hints clean
 
             df = pd.read_sql(
@@ -548,13 +743,37 @@ class EtlState(rx.State):
                 ts = row.get("last_ts")
                 try:
                     if ts is not None:
-                        # Format compact timestamp
                         mapping[name] = str(pd.to_datetime(ts)).replace("T", " ")[:19]
                 except Exception:
                     mapping[name] = str(ts)
             self.steps_last_run = mapping
         except Exception:
             self.steps_last_run = {}
+
+    def _load_table_row_counts(self) -> None:
+        """Load row counts for available tables for data view."""
+        counts: dict[str, int] = {}
+        try:
+            engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        except Exception:
+            self.table_row_counts = {}
+            return
+
+        for name in list(self.available_tables or []):
+            tname = str(name)
+            try:
+                import pandas as pd  # local import
+
+                df = pd.read_sql(f'SELECT COUNT(*) AS cnt FROM "{tname}"', con=engine)
+                try:
+                    cnt_val = int(df.iloc[0]["cnt"]) if not df.empty else 0
+                except Exception:
+                    cnt_val = 0
+                counts[tname] = cnt_val
+            except Exception:
+                counts[tname] = 0
+        self.table_row_counts = counts
+        return
 
     def _run_steps_sync(self, steps_to_run: list[Any]) -> None:
         # Run each step sequentially to provide granular logs
@@ -666,6 +885,7 @@ class EtlState(rx.State):
         """Load a small preview from the datapipe DB for a selected table."""
 
         self.preview_table_name = table_name
+        self.preview_open = True
         self.has_preview = False
         try:
             engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
@@ -689,6 +909,9 @@ class EtlState(rx.State):
                 coerced.append({})
         self.preview_rows = coerced
         self.has_preview = len(self.preview_rows) > 0
+
+    def close_preview(self) -> None:
+        self.preview_open = False
 
 
 class ChatState(rx.State):

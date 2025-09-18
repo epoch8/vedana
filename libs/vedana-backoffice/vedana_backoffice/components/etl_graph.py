@@ -4,6 +4,7 @@ from vedana_backoffice.state import EtlState
 
 
 def _node_card(node: dict) -> rx.Component:
+    is_table = node.get("node_type") == "table"
     return rx.card(
         rx.vstack(
             rx.hstack(
@@ -17,16 +18,8 @@ def _node_card(node: dict) -> rx.Component:
                 rx.text("last:", size="1", color="gray"),
                 rx.text(node.get("last_run", "—"), size="1", color="gray"),
                 spacing="1",
-            ),
-            rx.hstack(
-                rx.button(
-                    "Run",
-                    size="1",
-                    variant="surface",
-                    on_click=EtlState.run_one_step(index=node.get("index_value")),  # type: ignore[arg-type]
-                    loading=EtlState.is_running,
-                ),
-                spacing="2",
+                width="100%",
+                align="start",
             ),
             spacing="2",
             width="100%",
@@ -36,13 +29,18 @@ def _node_card(node: dict) -> rx.Component:
             "position": "absolute",
             "left": node.get("left", "0px"),
             "top": node.get("top", "0px"),
-            "width": node.get("width", "220px"),
-            "height": node.get("height", "90px"),
+            "minWidth": "200px",
+            "maxWidth": node.get("width", "420px"),
+            "height": "auto",
             "border": node.get("border_css", "1px solid #e5e7eb"),
-            "overflow": "hidden",
+            "overflow": "visible",
         },
         variant="surface",
-        on_click=EtlState.toggle_node_selection(index=node.get("index_value")),
+        on_click=rx.cond(
+            is_table,
+            EtlState.preview_table(node.get("name", "")),  # type: ignore[misc,arg-type]
+            EtlState.toggle_node_selection(index=node.get("index_value")),  # type: ignore[misc,arg-type]
+        ),
     )
 
 

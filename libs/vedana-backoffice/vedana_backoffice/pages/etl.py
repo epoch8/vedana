@@ -37,6 +37,12 @@ def _graph_card() -> rx.Component:
             rx.heading("Pipeline", size="4"),
             rx.spacer(),
             rx.hstack(
+                rx.hstack(
+                    rx.text("Data view", size="1", color="gray"),
+                    rx.switch(checked=EtlState.data_view, on_change=EtlState.set_data_view),
+                    spacing="2",
+                    align="center",
+                ),
                 rx.text("Flow", size="1", color="gray"),
                 rx.select(
                     items=EtlState.available_flows,
@@ -95,70 +101,39 @@ def _logs_bottom() -> rx.Component:
 
 
 def _table_preview() -> rx.Component:
-    return rx.card(
-        rx.heading("Tables", size="3"),
-        rx.hstack(
-            rx.select(
-                items=EtlState.available_tables,
-                placeholder="Select table",
-                on_change=EtlState.preview_table,
-                value=EtlState.preview_table_name,
-                width="20em",
-            ),
-        ),
-        rx.cond(
-            EtlState.has_preview,
-            rx.table.root(
-                rx.table.header(
-                    rx.table.row(rx.foreach(EtlState.preview_columns, lambda c: rx.table.column_header_cell(c)))
-                ),
-                rx.table.body(
-                    rx.foreach(
-                        EtlState.preview_rows,
-                        lambda r: rx.table.row(
-                            rx.foreach(EtlState.preview_columns, lambda c: rx.table.cell(rx.text(r.get(c, ""))))
-                        ),
-                    )
-                ),
-                variant="surface",
-            ),
-            rx.box(),
-        ),
-        padding="1em",
-    )
-
-
-def _sidebar() -> rx.Component:
-    return rx.card(
-        rx.vstack(
+    return rx.cond(
+        EtlState.preview_open,
+        rx.card(
             rx.hstack(
-                rx.heading("Controls", size="4"),
+                rx.heading(rx.cond(EtlState.preview_table_name, EtlState.preview_table_name, "Table"), size="3"),
                 rx.spacer(),
-                rx.button(
-                    "Hide",
-                    variant="ghost",
-                    color_scheme="gray",
-                    size="1",
-                    on_click=EtlState.toggle_sidebar,
-                ),
+                rx.button("Close", variant="ghost", color_scheme="gray", size="1", on_click=EtlState.close_preview),
                 align="center",
                 width="100%",
             ),
-            _table_preview(),
-            rx.card(
-                rx.vstack(
-                    rx.heading("Run History", size="3"),
-                    rx.text("Coming soon"),
-                    spacing="2",
+            rx.cond(
+                EtlState.has_preview,
+                rx.table.root(
+                    rx.table.header(
+                        rx.table.row(rx.foreach(EtlState.preview_columns, lambda c: rx.table.column_header_cell(c)))
+                    ),
+                    rx.table.body(
+                        rx.foreach(
+                            EtlState.preview_rows,
+                            lambda r: rx.table.row(
+                                rx.foreach(EtlState.preview_columns, lambda c: rx.table.cell(rx.text(r.get(c, ""))))
+                            ),
+                        )
+                    ),
+                    variant="surface",
                 ),
-                variant="surface",
+                rx.box(rx.text("No data")),
             ),
-            spacing="4",
-            width="100%",
+            padding="1em",
+            width="400px",
+            height="100%",
         ),
-        padding="1em",
-        width="340px",
-        height="100%",
+        rx.box(),
     )
 
 
@@ -166,11 +141,7 @@ def _topbar() -> rx.Component:
     return rx.hstack(
         rx.heading("ETL Pipeline"),
         rx.spacer(),
-        rx.hstack(
-            rx.button("Sidebar", variant="soft", size="1", on_click=EtlState.toggle_sidebar),
-            rx.button("Logs", variant="soft", size="1", on_click=EtlState.toggle_logs),
-            spacing="2",
-        ),
+        rx.hstack(rx.button("Logs", variant="soft", size="1", on_click=EtlState.toggle_logs), spacing="2"),
         align="center",
         width="100%",
     )
@@ -183,17 +154,7 @@ def page() -> rx.Component:
             flex="1",
             min_width="0",
         ),
-        rx.cond(
-            EtlState.sidebar_open,
-            rx.box(_sidebar(), width="340px"),
-            rx.box(
-                rx.card(
-                    rx.button("Show Controls", size="1", on_click=EtlState.toggle_sidebar),
-                    padding="0.5em",
-                ),
-                width="160px",
-            ),
-        ),
+        rx.cond(EtlState.preview_open, rx.box(_table_preview(), width="420px"), rx.box()),
         gap="1em",
         width="100%",
         align="start",
