@@ -366,9 +366,16 @@ class EtlState(rx.State):
                     max_layer = max(max_layer, l)
                     layers.setdefault(l, []).append(sid)
 
-                # Stable order in each layer by name
+                # Stable order in each layer by barycenter of incoming neighbors (reduces edge length)
                 for l, arr in list(layers.items()):
-                    layers[l] = sorted(arr, key=lambda i: name_by.get(i, ""))
+
+                    def _barycenter(node_id: int) -> float:
+                        parents = [s for s, t, _ in edges if t == node_id]
+                        if not parents:
+                            return float(l)
+                        return sum([layer_by.get(p, 0) for p in parents]) / float(len(parents))
+
+                    layers[l] = sorted(arr, key=lambda i: (_barycenter(i), name_by.get(i, "")))
 
                 # Pre-compute content-based widths/heights per node
                 w_by: dict[int, int] = {}
@@ -458,8 +465,16 @@ class EtlState(rx.State):
                     l = layer_by.get(sid, 0)
                     max_layer = max(max_layer, l)
                     layers.setdefault(l, []).append(sid)
+                # Data view: order by barycenter of incoming neighbors to reduce crossings/length
                 for l, arr in list(layers.items()):
-                    layers[l] = sorted(arr, key=lambda i: name_by.get(i, ""))
+
+                    def _barycenter(node_id: int) -> float:
+                        parents = [s for s, t, _ in edges if t == node_id]
+                        if not parents:
+                            return float(l)
+                        return sum([layer_by.get(p, 0) for p in parents]) / float(len(parents))
+
+                    layers[l] = sorted(arr, key=lambda i: (_barycenter(i), name_by.get(i, "")))
                 # Sizes for tables
                 w_by = {}
                 h_by = {}
@@ -554,6 +569,7 @@ class EtlState(rx.State):
                         table_name = name_by.get(sid, f"table_{sid}")
                         rc = self.table_row_counts.get(table_name, None)
                         rc_text = f"rows: {rc}" if rc is not None else "rows: —"
+                        # In data view, use selection to highlight clicked tables
                         nodes.append(
                             {
                                 "index": sid,
@@ -571,8 +587,12 @@ class EtlState(rx.State):
                                 "height": f"{h_by.get(sid, NODE_H)}px",
                                 "index_str": f"#{sid}",
                                 "last_run": rc_text,
-                                "selected": sid in selected_ids,
-                                "border_css": "1px solid #e5e7eb",
+                                "selected": (self.preview_table_name == table_name),
+                                "border_css": (
+                                    "2px solid #3b82f6"
+                                    if (self.preview_table_name == table_name)
+                                    else "1px solid #e5e7eb"
+                                ),
                             }
                         )
 
@@ -665,7 +685,14 @@ class EtlState(rx.State):
                     label = step_label
                     label_x = (x1 + x2) / 2
                     label_y = (y1 + y2) / 2 - 6
-                    sel = (t in selected_ids) or (s in selected_ids) if s is not None else (t in selected_ids)
+                    # Highlight edges incident to the previewed table
+                    sel = False
+                    try:
+                        sel = (self.preview_table_name == name_by.get(t, "")) or (
+                            s is not None and self.preview_table_name == name_by.get(s, "")
+                        )
+                    except Exception:
+                        sel = False
                     edge_objs.append(
                         {
                             "source": s if s is not None else -1,
@@ -887,6 +914,11 @@ class EtlState(rx.State):
         self.preview_table_name = table_name
         self.preview_open = True
         self.has_preview = False
+        # Rebuild immediately to reflect selection highlight in data view
+        try:
+            self._rebuild_graph()
+        except Exception:
+            pass
         try:
             engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
         except Exception:
@@ -909,9 +941,19 @@ class EtlState(rx.State):
                 coerced.append({})
         self.preview_rows = coerced
         self.has_preview = len(self.preview_rows) > 0
+        # Update graph again now that preview is ready (keeps highlight)
+        try:
+            self._rebuild_graph()
+        except Exception:
+            pass
 
     def close_preview(self) -> None:
         self.preview_open = False
+        self.preview_table_name = None
+        try:
+            self._rebuild_graph()
+        except Exception:
+            pass
 
 
 class ChatState(rx.State):

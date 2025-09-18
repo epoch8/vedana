@@ -29,11 +29,11 @@ def _node_card(node: dict) -> rx.Component:
             "position": "absolute",
             "left": node.get("left", "0px"),
             "top": node.get("top", "0px"),
-            "minWidth": "200px",
-            "maxWidth": node.get("width", "420px"),
+            "width": node.get("width", "420px"),
             "height": "auto",
             "border": node.get("border_css", "1px solid #e5e7eb"),
             "overflow": "visible",
+            "boxSizing": "border-box",
         },
         variant="surface",
         on_click=rx.cond(
@@ -47,7 +47,14 @@ def _node_card(node: dict) -> rx.Component:
 def etl_graph() -> rx.Component:
     svg = rx.box(
         rx.html(EtlState.graph_svg),
-        style={"position": "absolute", "left": 0, "top": 0, "pointerEvents": "none", "width": "100%", "height": "100%"},
+        style={
+            "position": "absolute",
+            "left": 0,
+            "top": 0,
+            "pointerEvents": "none",
+            "width": "100%",
+            "height": "100%",
+        },
     )
 
     nodes_layer = rx.box(
