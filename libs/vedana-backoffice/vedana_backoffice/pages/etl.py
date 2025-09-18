@@ -159,7 +159,18 @@ def _table_preview_popover() -> rx.Component:
                                     EtlState.preview_rows,
                                     lambda r: rx.table.row(
                                         rx.foreach(
-                                            EtlState.preview_columns, lambda c: rx.table.cell(rx.text(r.get(c, "")))
+                                            EtlState.preview_columns,
+                                            lambda c: rx.table.cell(
+                                                rx.text(
+                                                    r.get(c, "—"),
+                                                    style={
+                                                        "whiteSpace": "nowrap",
+                                                        "textOverflow": "ellipsis",
+                                                        "overflow": "hidden",
+                                                        "maxWidth": "420px",
+                                                    },
+                                                )
+                                            ),
                                         )
                                     ),
                                 )

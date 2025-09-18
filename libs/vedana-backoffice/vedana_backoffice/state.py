@@ -1,4 +1,4 @@
-import json
+import orjson as json
 import logging
 import threading
 import time
@@ -973,12 +973,26 @@ class EtlState(rx.State):
 
         self.preview_columns = [str(c) for c in df.columns]
         records_any: list[dict[Any, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
+
+        def _safe_render_value(v: Any) -> str:
+            # if v is None:
+            #     return "—"
+            try:
+                s = json.dumps(v) if isinstance(v, (dict, list)) else str(s)
+            except Exception:
+                try:
+                    s = repr(v)
+                except Exception:
+                    s = "<error rendering value>"
+            return s
+
         coerced: list[dict[str, Any]] = []
         for r in records_any:
             try:
-                coerced.append({str(k): v for k, v in dict(r).items()})
+                coerced.append({str(k): _safe_render_value(v) for k, v in dict(r).items()})
             except Exception:
                 coerced.append({})
+
         self.preview_rows = coerced
         self.has_preview = len(self.preview_rows) > 0
         # Update graph again now that preview is ready (keeps highlight)
