@@ -34,7 +34,7 @@ def _filters() -> rx.Component:
 def _graph_card() -> rx.Component:
     return rx.card(
         rx.hstack(
-            rx.heading("Pipeline", size="4"),
+            rx.heading("ETL Pipeline", size="4"),
             rx.spacer(),
             rx.hstack(
                 rx.hstack(
@@ -200,20 +200,9 @@ def _table_preview_popover() -> rx.Component:
     )
 
 
-def _topbar() -> rx.Component:
-    return rx.hstack(
-        rx.heading("ETL Pipeline"),
-        rx.spacer(),
-        rx.hstack(rx.button("Logs", variant="soft", size="1", on_click=EtlState.toggle_logs), spacing="2"),
-        align="center",
-        width="100%",
-    )
-
-
 def page() -> rx.Component:
     return rx.vstack(
         app_header(),
-        _topbar(),
         _graph_card(),
         rx.cond(EtlState.logs_open, _logs_bottom(), rx.box()),
         _table_preview_popover(),
