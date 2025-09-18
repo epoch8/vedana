@@ -69,7 +69,7 @@ def _graph_card() -> rx.Component:
                     ),
                     content="Reload metadata",
                 ),
-                spacing="2",
+                spacing="3",
                 align="center",
             ),
             align="center",
@@ -187,7 +187,7 @@ def _table_preview_popover() -> rx.Component:
                 padding="1em",
                 width="fit-content",
                 min_width="400px",
-                max_width="80vw",
+                # allow width to be defined by inner table content
             ),
             side="right",
             align="center",
