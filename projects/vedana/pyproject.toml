@@ -15,6 +15,7 @@ dependencies = [
     "vedana-backoffice",
     "jims-tui",
     "reflex>=0.7.5.post1",
+    "orjson>=3.11.3",
 ]
 
 [tool.gh-actions-codegen]
