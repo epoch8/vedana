@@ -200,12 +200,10 @@ class EtlState(rx.State):
     def set_flow(self, flow: str) -> None:
         self.selected_flow = "" if str(flow).lower() == "all" else flow
         self._update_filtered_steps()
-        self._rebuild_graph()
 
     def set_stage(self, stage: str) -> None:
         self.selected_stage = "" if str(stage).lower() == "all" else stage
         self._update_filtered_steps()
-        self._rebuild_graph()
 
     def reset_filters(self) -> None:
         """Reset flow and stage selections and rebuild the graph."""
@@ -214,7 +212,6 @@ class EtlState(rx.State):
         self.selected_node_ids = []  # Also clear explicit selections
         self.has_explicit_selections = False  # Reset explicit selection flag
         self._update_filtered_steps()
-        self._rebuild_graph()
 
     def set_data_view(self, checked: bool) -> None:
         """Toggle between step-centric and data-centric graph."""
