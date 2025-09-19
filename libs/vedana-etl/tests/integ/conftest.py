@@ -1,11 +1,12 @@
 # libs/vedana-etl/tests/integ/conftest.py
 import logging
-import pytest
 
+import pytest
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
-from vedana_etl import steps
 from vedana_core.settings import settings as core_settings
+
+from vedana_etl import steps
 
 load_dotenv()
 

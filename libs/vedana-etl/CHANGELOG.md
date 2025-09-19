@@ -1,3 +1,7 @@
+# 2025-09-19
+
+* Refactored evaluation script into a Datapipe pipeline
+
 # 2025-09-04
 
 * Covered get_grist_data / filter_grist_data with tests
