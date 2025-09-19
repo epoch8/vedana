@@ -114,93 +114,97 @@ def _logs_bottom() -> rx.Component:
 
 
 def _table_preview_popover() -> rx.Component:
-    return rx.popover.root(
-        rx.popover.trigger(
-            rx.box(
-                style={
-                    "position": "absolute",
-                    "left": EtlState.preview_anchor_left,
-                    "top": EtlState.preview_anchor_top,
-                    "width": "1px",
-                    "height": "1px",
-                    "pointerEvents": "none",
-                }
-            ),  # Invisible trigger anchored near the selected node
-        ),
-        rx.popover.content(
-            rx.vstack(
-                rx.hstack(
-                    rx.heading(
-                        rx.cond(
-                            EtlState.preview_display_name,
-                            EtlState.preview_display_name,
-                            rx.cond(EtlState.preview_table_name, EtlState.preview_table_name, "Table"),
-                        ),
-                        size="3",
-                    ),
-                    rx.spacer(),
-                    rx.popover.close(
-                        rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
-                    ),
-                    align="center",
-                    width="100%",
-                ),
-                rx.cond(
-                    EtlState.has_preview,
-                    rx.scroll_area(
-                        rx.table.root(
-                            rx.table.header(
-                                rx.table.row(
-                                    rx.foreach(EtlState.preview_columns, lambda c: rx.table.column_header_cell(c))
-                                )
-                            ),
-                            rx.table.body(
-                                rx.foreach(
-                                    EtlState.preview_rows,
-                                    lambda r: rx.table.row(
-                                        rx.foreach(
-                                            EtlState.preview_columns,
-                                            lambda c: rx.table.cell(
-                                                rx.text(
-                                                    r.get(c, "—"),
-                                                    style={
-                                                        "whiteSpace": "nowrap",
-                                                        "textOverflow": "ellipsis",
-                                                        "overflow": "hidden",
-                                                        "maxWidth": "420px",
-                                                    },
-                                                )
-                                            ),
-                                        )
-                                    ),
-                                )
-                            ),
-                            variant="surface",
-                        ),
-                        type="always",
-                        scrollbars="both",
-                        style={"height": "50vh", "width": "100%"},
-                    ),
-                    rx.box(rx.text("No data")),
-                ),
-                spacing="2",
-                padding="1em",
-                width="fit-content",
-                min_width="400px",
-                # allow width to be defined by inner table content
+    return rx.cond(
+        EtlState.preview_open,
+        rx.popover.root(
+            rx.popover.trigger(
+                rx.box(
+                    style={
+                        "position": "absolute",
+                        "left": EtlState.preview_anchor_left,
+                        "top": EtlState.preview_anchor_top,
+                        "width": "1px",
+                        "height": "1px",
+                        "pointerEvents": "none",
+                    }
+                ),  # Invisible trigger anchored near the selected node
             ),
-            side="right",
-            align="center",
-            size="3",
-            avoid_collisions=True,
-            collision_padding=20,
-            style={
-                "width": "fit-content",
-                "maxWidth": "60vw",
-            },
+            rx.popover.content(
+                rx.vstack(
+                    rx.hstack(
+                        rx.heading(
+                            rx.cond(
+                                EtlState.preview_display_name,
+                                EtlState.preview_display_name,
+                                rx.cond(EtlState.preview_table_name, EtlState.preview_table_name, ""),
+                            ),
+                            size="3",
+                        ),
+                        rx.spacer(),
+                        rx.popover.close(
+                            rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
+                        ),
+                        align="center",
+                        width="100%",
+                    ),
+                    rx.cond(
+                        EtlState.has_preview,
+                        rx.scroll_area(
+                            rx.table.root(
+                                rx.table.header(
+                                    rx.table.row(
+                                        rx.foreach(EtlState.preview_columns, lambda c: rx.table.column_header_cell(c))
+                                    )
+                                ),
+                                rx.table.body(
+                                    rx.foreach(
+                                        EtlState.preview_rows,
+                                        lambda r: rx.table.row(
+                                            rx.foreach(
+                                                EtlState.preview_columns,
+                                                lambda c: rx.table.cell(
+                                                    rx.text(
+                                                        r.get(c, "—"),
+                                                        style={
+                                                            "whiteSpace": "nowrap",
+                                                            "textOverflow": "ellipsis",
+                                                            "overflow": "hidden",
+                                                            "maxWidth": "420px",
+                                                        },
+                                                    )
+                                                ),
+                                            )
+                                        ),
+                                    )
+                                ),
+                                variant="surface",
+                            ),
+                            type="always",
+                            scrollbars="both",
+                            style={"height": "50vh", "width": "100%"},
+                        ),
+                        rx.box(rx.text("No data")),
+                    ),
+                    spacing="2",
+                    padding="1em",
+                    width="fit-content",
+                    min_width="400px",
+                    # allow width to be defined by inner table content
+                ),
+                side="right",
+                align="center",
+                size="3",
+                avoid_collisions=True,
+                collision_padding=20,
+                style={
+                    "width": "fit-content",
+                    "maxWidth": "60vw",
+                },
+            ),
+            open=True,
+            on_open_change=EtlState.set_preview_open,
         ),
-        open=EtlState.preview_open,
-        on_open_change=EtlState.set_preview_open,
+        rx.box(),
     )
 
 
