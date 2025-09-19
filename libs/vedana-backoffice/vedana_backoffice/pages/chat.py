@@ -223,7 +223,7 @@ def page() -> rx.Component:
                                         size="1",
                                     ),
                                     spacing="0",
-                                )
+                                ),
                             ),
                             rx.text(f"model: {ChatState.model}", size="1", color="gray"),
                             spacing="2",

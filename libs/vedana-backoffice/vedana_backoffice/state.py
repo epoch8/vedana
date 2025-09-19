@@ -328,7 +328,6 @@ class EtlState(rx.State):
                     step_type_by[idx] = str(m.get("step_type", ""))
 
                 unique_ids = sorted(step_ids)
-                id_index_map = {sid: i for i, sid in enumerate(unique_ids)}
 
                 # Derive edges by shared tables
                 edges: list[tuple[int, int, list[str]]] = []
@@ -368,20 +367,20 @@ class EtlState(rx.State):
                 layers: dict[int, list[int]] = {}
                 max_layer = 0
                 for sid in unique_ids:
-                    l = layer_by.get(sid, 0)
-                    max_layer = max(max_layer, l)
-                    layers.setdefault(l, []).append(sid)
+                    layer = layer_by.get(sid, 0)
+                    max_layer = max(max_layer, layer)
+                    layers.setdefault(layer, []).append(sid)
 
                 # Stable order in each layer by barycenter of incoming neighbors (reduces edge length)
-                for l, arr in list(layers.items()):
+                for layer, arr in list(layers.items()):
 
                     def _barycenter(node_id: int) -> float:
                         parents = [s for s, t, _ in edges if t == node_id]
                         if not parents:
-                            return float(l)
+                            return float(layer)
                         return sum([layer_by.get(p, 0) for p in parents]) / float(len(parents))
 
-                    layers[l] = sorted(arr, key=lambda i: (_barycenter(i), name_by.get(i, "")))
+                    layers[layer] = sorted(arr, key=lambda i: (_barycenter(i), name_by.get(i, "")))
 
                 # Pre-compute content-based widths/heights per node
                 w_by: dict[int, int] = {}
@@ -468,19 +467,19 @@ class EtlState(rx.State):
                 layers: dict[int, list[int]] = {}
                 max_layer = 0
                 for sid in unique_ids:
-                    l = layer_by.get(sid, 0)
-                    max_layer = max(max_layer, l)
-                    layers.setdefault(l, []).append(sid)
+                    layer = layer_by.get(sid, 0)
+                    max_layer = max(max_layer, layer)
+                    layers.setdefault(layer, []).append(sid)
                 # Data view: order by barycenter of incoming neighbors to reduce crossings/length
-                for l, arr in list(layers.items()):
+                for layer, arr in list(layers.items()):
 
                     def _barycenter(node_id: int) -> float:
                         parents = [s for s, t, _ in edges if t == node_id]
                         if not parents:
-                            return float(l)
+                            return float(layer)
                         return sum([layer_by.get(p, 0) for p in parents]) / float(len(parents))
 
-                    layers[l] = sorted(arr, key=lambda i: (_barycenter(i), name_by.get(i, "")))
+                    layers[layer] = sorted(arr, key=lambda i: (_barycenter(i), name_by.get(i, "")))
                 # Sizes for tables
                 w_by = {}
                 h_by = {}
@@ -510,7 +509,7 @@ class EtlState(rx.State):
 
             # Column widths (max of nodes in that layer)
             col_w: dict[int, int] = {
-                l: (max([w_by[sid] for sid in layers.get(l, [])]) if layers.get(l) else MIN_NODE_W) for l in layers
+                _l: (max([w_by[sid] for sid in layers.get(_l, [])]) if layers.get(_l) else MIN_NODE_W) for _l in layers
             }
 
             # Prefix sums for x offsets per layer
@@ -523,11 +522,11 @@ class EtlState(rx.State):
             # Compute positions
             nodes: list[dict[str, Any]] = []
             pos_by: dict[int, tuple[int, int]] = {}
-            max_rows = max([len(layers.get(l, [])) for l in range(0, max_layer + 1)] or [1])
+            max_rows = max([len(layers.get(layer, [])) for layer in range(0, max_layer + 1)] or [1])
             # compute row heights as max node height across layers for each row index
             row_heights: list[int] = [NODE_H for _ in range(max_rows)]
-            for l in range(0, max_layer + 1):
-                cols = layers.get(l, [])
+            for layer in range(0, max_layer + 1):
+                cols = layers.get(layer, [])
                 for r_idx, sid in enumerate(cols):
                     row_heights[r_idx] = max(row_heights[r_idx], h_by.get(sid, NODE_H))
 
@@ -538,10 +537,10 @@ class EtlState(rx.State):
                 y_offsets.append(acc)
                 acc += row_heights[r] + V_SPACING
 
-            for l in range(0, max_layer + 1):
-                cols = layers.get(l, [])
+            for _l in range(0, max_layer + 1):
+                cols = layers.get(_l, [])
                 for r_idx, sid in enumerate(cols):
-                    x = layer_x(l)
+                    x = layer_x(_l)
                     y = y_offsets[r_idx]
                     pos_by[sid] = (x, y)
                     if not self.data_view:
