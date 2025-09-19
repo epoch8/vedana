@@ -1,5 +1,5 @@
-from dotenv import load_dotenv
 import pandas as pd
+from dotenv import load_dotenv
 
 from vedana_etl import steps
 
@@ -7,7 +7,7 @@ load_dotenv()
 
 
 def test_clean_str_replaces_and_collapses_spaces():
-    s = "A\u00A0B\u2009C\u200B  D\tE"
+    s = "A\u00a0B\u2009C\u200b  D\tE"
     # NBSP, thin space, zero-width + мультипробелы -> одиночные пробелы
     assert steps.clean_str(s) == "A B C D E"
 
