@@ -67,8 +67,7 @@ class EtlState(rx.State):
 
     # Multi-select of nodes (by step index)
     selected_node_ids: list[int] = []
-    # Track if user has made any explicit selections (to distinguish from filter-based)
-    has_explicit_selections: bool = False
+    selection_source: str = "filter"
 
     # View mode: False = step-centric, True = data(table)-centric
     data_view: bool = False
@@ -206,18 +205,20 @@ class EtlState(rx.State):
 
     def set_flow(self, flow: str) -> None:
         self.selected_flow = "" if str(flow).lower() == "all" else flow
+        self.selection_source = "filter"
         self._update_filtered_steps()
 
     def set_stage(self, stage: str) -> None:
         self.selected_stage = "" if str(stage).lower() == "all" else stage
+        self.selection_source = "filter"
         self._update_filtered_steps()
 
     def reset_filters(self) -> None:
         """Reset flow and stage selections and rebuild the graph."""
         self.selected_flow = ""
         self.selected_stage = ""
-        self.selected_node_ids = []  # Also clear explicit selections
-        self.has_explicit_selections = False  # Reset explicit selection flag
+        self.selected_node_ids = []
+        self.selection_source = "filter"
         self._update_filtered_steps()
 
     def set_data_view(self, checked: bool) -> None:
@@ -230,18 +231,45 @@ class EtlState(rx.State):
         self._rebuild_graph()
 
     def toggle_node_selection(self, index: int) -> None:
-        """Toggle a node's selection state by step index."""
+        """Toggle selection; manual interactions become authoritative unless "all selected" case."""
         try:
             sid = int(index)
         except Exception:
             return
-        current: set[int] = set(self.selected_node_ids or [])
-        if sid in current:
-            current.remove(sid)
+
+        # Compute current filter-driven set
+        filter_ids: set[int] = set()
+        for m in self.filtered_steps or []:
+            try:
+                midx = int(m.get("index", -1))
+                if midx >= 0:
+                    filter_ids.add(midx)
+            except Exception:
+                continue
+
+        manual_set: set[int] = set(self.selected_node_ids or [])
+
+        # Special case: when current selection is filter-driven, on click switch to manual with a single selection
+        if self.selection_source == "filter":
+            # If current filter selects all or many, treat as filter-driven
+            # On click, switch to manual with single selection
+            self.selected_node_ids = [sid]
+            self.selection_source = "manual"
+            self._rebuild_graph()
+            return
+
+        # Otherwise we are in manual mode: toggle within manual set
+        if sid in manual_set:
+            manual_set.remove(sid)
         else:
-            current.add(sid)
-        self.selected_node_ids = sorted(list(current))
-        self.has_explicit_selections = True
+            manual_set.add(sid)
+        # If manual set becomes empty, fall back to filter selection
+        if not manual_set:
+            self.selection_source = "filter"
+            self.selected_node_ids = []
+        else:
+            self.selection_source = "manual"
+            self.selected_node_ids = sorted(list(manual_set))
         self._rebuild_graph()
 
     def clear_node_selection(self) -> None:
@@ -404,48 +432,50 @@ class EtlState(rx.State):
                 canon_edges = derive_table_edges(cg)
                 table_edges: list[tuple[int | None, int, str]] = []
                 for s, t, label in canon_edges:
-                    st = None if s is None else int(s)
-                    table_edges.append((st, int(t), label))
-                # Build adjacency for layering based on table graph
-                edges = []  # reuse structure later
+                    if s is None:
+                        table_edges.append((None, int(t), label))
+                    else:
+                        table_edges.append((int(s), int(t), label))
+                # Build adjacency for layering based on table graph (DV-specific names)
+                edges_dv: list[tuple[int, int, list[str]]] = []
                 for s, t, _ in table_edges:
                     if s is None:
                         continue
-                    edges.append((int(s), int(t), []))
-                indeg: dict[int, int] = {sid: 0 for sid in unique_ids}
-                children: dict[int, list[int]] = {sid: [] for sid in unique_ids}
-                for s, t, _ in edges:
-                    indeg[t] = indeg.get(t, 0) + 1
-                    children.setdefault(s, []).append(t)
-                layer_by: dict[int, int] = {sid: 0 for sid in unique_ids}
+                    edges_dv.append((int(s), int(t), []))
+                indeg2: dict[int, int] = {sid: 0 for sid in unique_ids}
+                children2: dict[int, list[int]] = {sid: [] for sid in unique_ids}
+                for s2, t2, _ in edges_dv:
+                    indeg2[t2] = indeg2.get(t2, 0) + 1
+                    children2.setdefault(s2, []).append(t2)
+                layer_by2: dict[int, int] = {sid: 0 for sid in unique_ids}
                 from collections import deque
 
-                q: deque[int] = deque([sid for sid in unique_ids if indeg.get(sid, 0) == 0])
-                visited: set[int] = set()
-                while q:
-                    sid = q.popleft()
-                    visited.add(sid)
-                    for ch in children.get(sid, []):
-                        layer_by[ch] = max(layer_by.get(ch, 0), layer_by.get(sid, 0) + 1)
-                        indeg[ch] -= 1
-                        if indeg[ch] == 0:
-                            q.append(ch)
-                layers: dict[int, list[int]] = {}
+                q2: deque[int] = deque([sid for sid in unique_ids if indeg2.get(sid, 0) == 0])
+                visited2: set[int] = set()
+                while q2:
+                    sid = q2.popleft()
+                    visited2.add(sid)
+                    for ch in children2.get(sid, []):
+                        layer_by2[ch] = max(layer_by2.get(ch, 0), layer_by2.get(sid, 0) + 1)
+                        indeg2[ch] -= 1
+                        if indeg2[ch] == 0:
+                            q2.append(ch)
+                layers2: dict[int, list[int]] = {}
                 max_layer = 0
-                for sid in unique_ids:
-                    layer = layer_by.get(sid, 0)
+                for sid2 in unique_ids:
+                    layer = layer_by2.get(sid2, 0)
                     max_layer = max(max_layer, layer)
-                    layers.setdefault(layer, []).append(sid)
+                    layers2.setdefault(layer, []).append(sid2)
                 # Data view: order by barycenter of incoming neighbors to reduce crossings/length
-                for layer, arr in list(layers.items()):
+                for layer, arr in list(layers2.items()):
 
                     def _barycenter(node_id: int) -> float:
-                        parents = [s for s, t, _ in edges if t == node_id]
+                        parents = [s for s, t, _ in edges_dv if t == node_id]
                         if not parents:
                             return float(layer)
-                        return sum([layer_by.get(p, 0) for p in parents]) / float(len(parents))
+                        return sum([layer_by2.get(p, 0) for p in parents]) / float(len(parents))
 
-                    layers[layer] = sorted(arr, key=lambda i: (_barycenter(i), name_by.get(i, "")))
+                    layers2[layer] = sorted(arr, key=lambda i: (_barycenter(i), name_by.get(i, "")))
                 # Sizes for tables
                 w_by = {}
                 h_by = {}
@@ -456,16 +486,14 @@ class EtlState(rx.State):
                     w_by[sid] = w
                     h_by[sid] = NODE_H
 
-            # Selected node ids: explicit user selections override filter-based selections
+            # Selected node ids based on selection source
             selected_ids: set[int] = set()
             try:
                 if not self.data_view:
-                    # If user has made explicit selections, use only those (even if empty)
-                    if self.has_explicit_selections:
+                    if self.selection_source == "manual" and self.selected_node_ids:
                         for midx in self.selected_node_ids:
                             selected_ids.add(int(midx))
                     else:
-                        # Otherwise, use filter-based selections
                         for m in self.filtered_steps or []:
                             midx = int(m.get("index", -1))
                             if midx >= 0:
@@ -474,9 +502,17 @@ class EtlState(rx.State):
                 selected_ids = set()
 
             # Column widths (max of nodes in that layer)
-            col_w: dict[int, int] = {
-                _l: (max([w_by[sid] for sid in layers.get(_l, [])]) if layers.get(_l) else MIN_NODE_W) for _l in layers
-            }
+            col_w: dict[int, int] = (
+                {
+                    _l: (max([w_by[sid] for sid in layers.get(_l, [])]) if layers.get(_l) else MIN_NODE_W)
+                    for _l in layers
+                }
+                if not self.data_view
+                else {
+                    _l: (max([w_by[sid] for sid in layers2.get(_l, [])]) if layers2.get(_l) else MIN_NODE_W)
+                    for _l in (layers2 if "layers2" in locals() else {})
+                }
+            )
 
             # Prefix sums for x offsets per layer
             def layer_x(layer: int) -> int:
@@ -488,11 +524,14 @@ class EtlState(rx.State):
             # Compute positions
             nodes: list[dict[str, Any]] = []
             pos_by: dict[int, tuple[int, int]] = {}
-            max_rows = max([len(layers.get(layer, [])) for layer in range(0, max_layer + 1)] or [1])
+            max_rows = max(
+                [len((layers2 if self.data_view else layers).get(layer, [])) for layer in range(0, max_layer + 1)]
+                or [1]
+            )
             # compute row heights as max node height across layers for each row index
             row_heights: list[int] = [NODE_H for _ in range(max_rows)]
             for layer in range(0, max_layer + 1):
-                cols = layers.get(layer, [])
+                cols = (layers2 if self.data_view else layers).get(layer, [])
                 for r_idx, sid in enumerate(cols):
                     row_heights[r_idx] = max(row_heights[r_idx], h_by.get(sid, NODE_H))
 
@@ -504,7 +543,7 @@ class EtlState(rx.State):
                 acc += row_heights[r] + V_SPACING
 
             for _l in range(0, max_layer + 1):
-                cols = layers.get(_l, [])
+                cols = (layers2 if self.data_view else layers).get(_l, [])
                 for r_idx, sid in enumerate(cols):
                     x = layer_x(_l)
                     y = y_offsets[r_idx]
@@ -604,41 +643,6 @@ class EtlState(rx.State):
                         }
                     )
             else:
-                # Data-centric edges: need to rebuild table_edges here since it's not in scope
-                table_names: set[str] = set()
-                for m in metas:
-                    for t in m.get("inputs") or []:
-                        try:
-                            table_names.add(str(t))
-                        except Exception:
-                            pass
-                    for t in m.get("outputs") or []:
-                        try:
-                            table_names.add(str(t))
-                        except Exception:
-                            pass
-                table_list = sorted(list(table_names))
-                table_id_by_name: dict[str, int] = {name: i for i, name in enumerate(table_list)}
-
-                table_edges: list[tuple[int | None, int, str]] = []
-                for m in metas:
-                    step_name = str(m.get("name", "step"))
-                    in_tables = [
-                        table_id_by_name.get(str(t)) for t in (m.get("inputs") or []) if str(t) in table_id_by_name
-                    ]
-                    out_tables = [
-                        table_id_by_name.get(str(t)) for t in (m.get("outputs") or []) if str(t) in table_id_by_name
-                    ]
-                    if not in_tables:
-                        # Source-less generates into each output
-                        for ot in out_tables:
-                            table_edges.append((None, int(ot), step_name))
-                    else:
-                        for it in in_tables:
-                            for ot in out_tables:
-                                table_edges.append((int(it), int(ot), step_name))
-
-                # Data-centric edges already computed as (src_table|None, tgt_table, step_name)
                 for s, t, step_label in table_edges:
                     tx, ty = pos_by.get(t, (MARGIN, MARGIN))
                     if s is None:
@@ -819,9 +823,7 @@ class EtlState(rx.State):
         yield
 
         try:
-            # If explicit nodes are selected, run those; otherwise use filters
-            # Use explicit selections if user has made any, otherwise use filter-based
-            if self.has_explicit_selections:
+            if self.selection_source == "manual" and self.selected_node_ids:
                 selected = [i for i in self.selected_node_ids or [] if isinstance(i, int)]
                 steps_to_run = [etl_app.steps[i] for i in sorted(selected) if 0 <= i < len(etl_app.steps)]
             else:
