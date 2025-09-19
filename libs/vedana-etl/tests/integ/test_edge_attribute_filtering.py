@@ -53,9 +53,7 @@ def test_edge_attribute_filtering() -> None:
     else:
         mask = pd.Series(False, index=attrs_df.index)
 
-    allowed_edge_attrs: Set[str] = set(
-        map(str, attrs_df.loc[mask, "attribute_name"].astype(str).tolist())
-    )
+    allowed_edge_attrs: Set[str] = set(map(str, attrs_df.loc[mask, "attribute_name"].astype(str).tolist()))
 
     # 3) Данные → фильтрация рёбер по DM
     nodes_df, edges_df = next(steps.get_grist_data())
@@ -67,10 +65,8 @@ def test_edge_attribute_filtering() -> None:
     lbl = edges_df["edge_label"].astype(str).str.lower().str.strip()
 
     er = edges_df[
-        (
-            ((ft == "document") & (tt == "regulation")) |
-            ((ft == "regulation") & (tt == "document"))
-        ) & (lbl == sentence.lower())
+        (((ft == "document") & (tt == "regulation")) | ((ft == "regulation") & (tt == "document")))
+        & (lbl == sentence.lower())
     ].copy()
     assert not er.empty, f"No edges '{sentence}' between document and regulation"
 
@@ -90,11 +86,8 @@ def test_edge_attribute_filtering() -> None:
 
     # 5.2 Все ключи из рёбер должны быть подмножеством DM-описания
     if not allowed_edge_attrs:
-        assert not has_any_attrs, (
-            f"DM has no edge attributes for '{sentence}', but edges carry: {sorted(union_keys)}"
-        )
+        assert not has_any_attrs, f"DM has no edge attributes for '{sentence}', but edges carry: {sorted(union_keys)}"
     else:
         assert union_keys.issubset(allowed_edge_attrs), (
-            "Edge attributes not described in DM: "
-            f"{sorted(union_keys - allowed_edge_attrs)}"
+            f"Edge attributes not described in DM: {sorted(union_keys - allowed_edge_attrs)}"
         )

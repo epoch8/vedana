@@ -35,11 +35,7 @@ def test_edge_attribute_dtype() -> None:
     a2 = dm["anchor2"].astype(str).str.lower().str.strip()
     snt = dm["sentence"].astype(str)
 
-    row = dm[
-        (a1 == "document")
-        & (a2 == "regulation")
-        & (snt.str.lower().str.strip() == "document_covers_regulation")
-    ]
+    row = dm[(a1 == "document") & (a2 == "regulation") & (snt.str.lower().str.strip() == "document_covers_regulation")]
     assert not row.empty, "В DM нет записи document -> regulation с sentence 'DOCUMENT_covers_REGULATION'."
 
     sentence = str(row.iloc[0]["sentence"]).strip()
@@ -76,29 +72,20 @@ def test_edge_attribute_dtype() -> None:
 
             # строгая проверка типов
             if typ is bool:
-                assert isinstance(val, bool), (
-                    f"{key} должен быть bool, а получен {type(val).__name__}: {val!r}"
-                )
+                assert isinstance(val, bool), f"{key} должен быть bool, а получен {type(val).__name__}: {val!r}"
             elif typ is int:
                 # не принимаем True/False как int
                 assert isinstance(val, int) and not isinstance(val, bool), (
                     f"{key} должен быть int (не bool), а получен {type(val).__name__}: {val!r}"
                 )
             elif typ is float:
-                assert isinstance(val, float), (
-                    f"{key} должен быть float, а получен {type(val).__name__}: {val!r}"
-                )
+                assert isinstance(val, float), f"{key} должен быть float, а получен {type(val).__name__}: {val!r}"
             elif typ is str:
-                assert isinstance(val, str), (
-                    f"{key} должен быть str, а получен {type(val).__name__}: {val!r}"
-                )
+                assert isinstance(val, str), f"{key} должен быть str, а получен {type(val).__name__}: {val!r}"
 
             # запоминаем хотя бы один пример для каждого ключа
             seen.setdefault(key, (val, str(r["from_node_id"]), str(r["to_node_id"])))
 
     # 5) Убедимся, что по каждому ключу нашёлся хотя бы один валидный пример
     missing: Set[str] = set(expected_types) - set(seen)
-    assert not missing, (
-        "Не найдены значения ожидаемого типа по ключам: "
-        f"{sorted(missing)}. Найденные примеры: {seen}"
-    )
+    assert not missing, f"Не найдены значения ожидаемого типа по ключам: {sorted(missing)}. Найденные примеры: {seen}"
