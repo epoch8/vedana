@@ -57,6 +57,7 @@ class EtlState(rx.State):
     last_run_started_at: float | None = None
     last_run_finished_at: float | None = None
     logs: list[str] = []
+    max_log_lines: int = 2000
 
     # UI toggles
     sidebar_open: bool = True
@@ -131,6 +132,7 @@ class EtlState(rx.State):
     def _append_log(self, msg: str) -> None:
         timestamp = time.strftime("%H:%M:%S")
         self.logs.append(f"[{timestamp}] {msg}")
+        self.logs = self.logs[-self.max_log_lines :]
 
     def load_pipeline_metadata(self) -> None:
         """Populate all_steps and available_tables by introspecting vedana_etl pipeline and catalog."""
