@@ -1,5 +1,6 @@
 # WIP
 
+* (vedana-eval/etl) Refactored evaluation script into a Datapipe pipeline
 * (jims/vedana) Introduce and use `JimsApp`/`VedanaApp`, switch from `vedana-tg`
   to `jims-telegram`
 

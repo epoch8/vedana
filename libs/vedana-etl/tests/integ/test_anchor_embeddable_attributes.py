@@ -32,22 +32,14 @@ def test_anchor_embeddable_attributes() -> None:
     anchors_df, attrs_df, links_df = next(steps.get_data_model())
 
     # 2) Ожидаемый набор по правилу (IN {str}; empty -> допустим)
-    dtype_norm: pd.Series = (
-        attrs_df["dtype"]
-        .where(attrs_df["dtype"].notna(), "")
-        .astype(str)
-        .str.strip()
-        .str.lower()
-    )
+    dtype_norm: pd.Series = attrs_df["dtype"].where(attrs_df["dtype"].notna(), "").astype(str).str.strip().str.lower()
     embeddable_mask: pd.Series = attrs_df["embeddable"].astype(bool)
 
     # Белый список типов, при желании можно расширить: {"str", "", "string", "text"}
     allowed_str_like = {"str", ""}
     allowed_type_mask: pd.Series = dtype_norm.isin(allowed_str_like)
 
-    expected_allowed: Set[str] = set(
-        attrs_df.loc[embeddable_mask & allowed_type_mask, "attribute_name"].astype(str)
-    )
+    expected_allowed: Set[str] = set(attrs_df.loc[embeddable_mask & allowed_type_mask, "attribute_name"].astype(str))
 
     assert expected_allowed, "No embeddable attributes with dtype in {'str',''} found in Data Model."
 
@@ -57,12 +49,10 @@ def test_anchor_embeddable_attributes() -> None:
 
     # 4.1. Фактический набор — подмножество ожидаемого белого списка
     extras = sorted(actual - expected_allowed)
-    assert actual.issubset(expected_allowed), (
-        f"""
-        Vectorizable attributes include names outside the allowed rule (embeddable & dtype in {'str',''}). 
+    assert actual.issubset(expected_allowed), f"""
+        Vectorizable attributes include names outside the allowed rule (embeddable & dtype in {"str", ""}). 
         "Unexpected extras: {extras}
         """
-    )
 
     # 4.2. must-have: ключевые текстовые поля точно присутствуют
     must_have = {"document_name", "document_chunk_text"}

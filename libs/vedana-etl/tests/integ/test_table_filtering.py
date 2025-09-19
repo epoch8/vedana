@@ -42,17 +42,13 @@ def test_table_filtering() -> None:
     allowed_node_types: Set[str] = set(anchors_df["noun"].astype(str))
 
     # 'DataModel' всегда присутствует — исключаем его из проверки фильтрации.
-    actual_node_types: Set[str] = set(
-        nodes_df.loc[nodes_df["node_type"] != "DataModel", "node_type"].astype(str)
-    )
+    actual_node_types: Set[str] = set(nodes_df.loc[nodes_df["node_type"] != "DataModel", "node_type"].astype(str))
 
     # 2.1) Все типы узлов из данных должны соответствовать якорям Data Model.
-    assert actual_node_types.issubset(allowed_node_types), (
-        f"""
+    assert actual_node_types.issubset(allowed_node_types), f"""
         Found node types that do not correspond to Data Model Anchors (allowed={sorted(allowed_node_types)}, 
         actual={sorted(actual_node_types)}, extra={sorted(actual_node_types - allowed_node_types)})
         """
-    )
 
     # 3) Дополнительно убеждаемся, что meta-таблица не превратилась в узлы.
     # Проверяем, что в типах нет ничего начинающегося с 'meta_' (регистр игнорируем).
@@ -62,9 +58,7 @@ def test_table_filtering() -> None:
     assert not offending, f"Meta-table leaked into nodes: {offending}"
 
     # Фиксируем наличие хотя бы одного «нормального» типа из Data Model.
-    assert any(t in lower_types for t in ("document", "document_chunk", "regulation")), (
-        """
+    assert any(t in lower_types for t in ("document", "document_chunk", "regulation")), """
         Expected at least one of typical anchor types ('document', 'document_chunk', 'regulation') 
         to be present in the nodes. Adjust this assertion if your DM differs.
         """
-    )
