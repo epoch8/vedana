@@ -35,14 +35,11 @@ def _group_offenders_by_ordered_pair(edges: pd.Series) -> List[Tuple[str, str, s
 
     if edges.empty:
         return []
-    grouped = (
-        edges.assign(
-            f=edges["from_node_id"].astype(str),
-            t=edges["to_node_id"].astype(str),
-            l=edges["edge_label"].astype(str),
-        )[["f", "t", "l"]]
-        .value_counts()
-    )
+    grouped = edges.assign(
+        f=edges["from_node_id"].astype(str),
+        t=edges["to_node_id"].astype(str),
+        l=edges["edge_label"].astype(str),
+    )[["f", "t", "l"]].value_counts()
     return [(fr, to, label) for (fr, to, label), cnt in grouped.items() if cnt > 1]
 
 
@@ -71,10 +68,7 @@ def test_duplicate_edges() -> None:
     lbl = edges_df["edge_label"].astype(str).str.lower().str.strip()
 
     er = edges_df[
-        (
-            ((ft == "document") & (tt == "regulation")) |
-            ((ft == "regulation") & (tt == "document"))
-        )
+        (((ft == "document") & (tt == "regulation")) | ((ft == "regulation") & (tt == "document")))
         & (lbl == sentence.lower())
     ].copy()
     assert not er.empty, f"Нет рёбер '{sentence}' между document и regulation."
@@ -88,12 +82,10 @@ def test_duplicate_edges() -> None:
 
     # 5) Точно для пары document:1 ↔ reg:001 — должна существовать ровно одна связь (в любом направлении)
     er_doc1_reg1 = er[
-        ((er["from_node_id"].astype(str) == "document:1") & (er["to_node_id"].astype(str) == "reg:001")) |
-        ((er["from_node_id"].astype(str) == "reg:001") & (er["to_node_id"].astype(str) == "document:1"))
+        ((er["from_node_id"].astype(str) == "document:1") & (er["to_node_id"].astype(str) == "reg:001"))
+        | ((er["from_node_id"].astype(str) == "reg:001") & (er["to_node_id"].astype(str) == "document:1"))
     ]
-    assert not er_doc1_reg1.empty, (
-        f"Ожидалась хотя бы одна связь '{sentence}' между 'document: 1' и 'reg: 001'."
-    )
+    assert not er_doc1_reg1.empty, f"Ожидалась хотя бы одна связь '{sentence}' между 'document: 1' и 'reg: 001'."
     assert er_doc1_reg1.shape[0] == 1, (
         f"Ожидалась ровно одна связь для пары 'document: 1' ↔ 'reg: 001' с label '{sentence}', "
         f"получено {er_doc1_reg1.shape[0]}."
