@@ -19,6 +19,8 @@ from vedana_etl.app import app as etl_app
 from vedana_etl.app import pipeline
 from vedana_etl.config import DBCONN_DATAPIPE
 
+from vedana_backoffice.graph.build import build_canonical, derive_step_edges, derive_table_edges
+
 vedana_app: VedanaApp | None = None
 
 
@@ -81,6 +83,9 @@ class EtlState(rx.State):
 
     # Step last-run timestamps (loaded from meta table)
     steps_last_run: dict[str, str] = {}
+    # Step status cache: name -> {total_idx_count, changed_idx_count}
+    step_status_by_name: dict[str, dict[str, int]] = {}
+    step_status_loading: bool = False
 
     # Table preview
     preview_table_name: str | None = None
@@ -296,47 +301,34 @@ class EtlState(rx.State):
         computed using indegrees (Kahn) and used to place nodes left-to-right.
         """
         try:
-            # Build graph based on current view mode
-            metas = self.all_steps
-            # Basic node size and spacing constants (px)
+            metas = self.all_steps  # Build graph based on current view mode
+            cg = build_canonical(metas)  # Build canonical graph indexes once
+
+            # Styling: basic node size and spacing constants (px)
             MIN_NODE_W = 220
             MAX_NODE_W = 420
             NODE_H = 90
             H_SPACING = 120
             V_SPACING = 40
             MARGIN = 24
-            if not self.data_view:
-                # -------- STEP-CENTRIC VIEW --------
-                step_ids: list[int] = []
-                inputs_by: dict[int, set[str]] = {}
-                outputs_by: dict[int, set[str]] = {}
+
+            if not self.data_view:  # -------- STEP-CENTRIC VIEW --------
+                step_ids: list[int] = sorted([s.index for s in cg.steps])
+                name_by: dict[int, str] = dict(cg.step_name_by_index)
+                step_type_by: dict[int, str] = dict(cg.step_type_by_index)
+                # Optional labels_str for node text
                 labels_str_by: dict[int, str] = {}
-                name_by: dict[int, str] = {}
-                step_type_by: dict[int, str] = {}
                 for m in metas:
-                    idx = int(m.get("index", -1))
-                    if idx < 0:
-                        continue
-                    step_ids.append(idx)
-                    inps = set([str(x) for x in (m.get("inputs") or [])])
-                    outs = set([str(x) for x in (m.get("outputs") or [])])
-                    inputs_by[idx] = inps
-                    outputs_by[idx] = outs
-                    labels_str_by[idx] = str(m.get("labels_str", ""))
-                    name_by[idx] = str(m.get("name", f"step_{idx}"))
-                    step_type_by[idx] = str(m.get("step_type", ""))
+                    try:
+                        idx = int(m.get("index", -1))
+                        labels_str_by[idx] = str(m.get("labels_str", ""))
+                    except Exception:
+                        pass
 
-                unique_ids = sorted(step_ids)
+                unique_ids = list(step_ids)
 
-                # Derive edges by shared tables
-                edges: list[tuple[int, int, list[str]]] = []
-                for a in unique_ids:
-                    for b in unique_ids:
-                        if a == b:
-                            continue
-                        shared = sorted(list(outputs_by.get(a, set()) & inputs_by.get(b, set())))
-                        if shared:
-                            edges.append((a, b, shared))
+                # Derive edges by table indexes (linear)
+                edges = derive_step_edges(cg)
 
                 # Compute indegrees for Kahn layering
                 indeg: dict[int, int] = {sid: 0 for sid in unique_ids}
@@ -399,46 +391,21 @@ class EtlState(rx.State):
                     base_h = NODE_H
                     extra_lines = max(0, lines - 2)
                     h_by[sid] = base_h + extra_lines * 14
-            else:
-                # -------- DATA-CENTRIC VIEW --------
-                # Build table-centric graph inputs
-                # Map each unique table to an id
-                table_names: set[str] = set()
-                for m in metas:
-                    for t in m.get("inputs") or []:
-                        try:
-                            table_names.add(str(t))
-                        except Exception:
-                            pass
-                    for t in m.get("outputs") or []:
-                        try:
-                            table_names.add(str(t))
-                        except Exception:
-                            pass
-                table_list = sorted(list(table_names))
+
+            else:  # -------- DATA-CENTRIC VIEW --------
+                # Build table-centric graph inputs from canonical
+                table_list = sorted(list(set([t for s in cg.steps for t in s.inputs + s.outputs])))
                 table_id_by_name: dict[str, int] = {name: i for i, name in enumerate(table_list)}
                 # Create pseudo ids for layout
                 unique_ids = list(range(len(table_list)))
                 name_by = {i: n for i, n in enumerate(table_list)}
                 labels_str_by = {i: "" for i in unique_ids}
-                # Edges: for each step, connect each input table (or None) to each output table with step label
+                # Edges between tables from canonical
+                canon_edges = derive_table_edges(cg)
                 table_edges: list[tuple[int | None, int, str]] = []
-                for m in metas:
-                    step_name = str(m.get("name", "step"))
-                    in_tables = [
-                        table_id_by_name.get(str(t)) for t in (m.get("inputs") or []) if str(t) in table_id_by_name
-                    ]
-                    out_tables = [
-                        table_id_by_name.get(str(t)) for t in (m.get("outputs") or []) if str(t) in table_id_by_name
-                    ]
-                    if not in_tables:
-                        # Source-less generates into each output
-                        for ot in out_tables:
-                            table_edges.append((None, int(ot), step_name))
-                    else:
-                        for it in in_tables:
-                            for ot in out_tables:
-                                table_edges.append((int(it), int(ot), step_name))
+                for s, t, label in canon_edges:
+                    st = None if s is None else int(s)
+                    table_edges.append((st, int(t), label))
                 # Build adjacency for layering based on table graph
                 edges = []  # reuse structure later
                 for s, t, _ in table_edges:
@@ -675,7 +642,7 @@ class EtlState(rx.State):
                 for s, t, step_label in table_edges:
                     tx, ty = pos_by.get(t, (MARGIN, MARGIN))
                     if s is None:
-                        x1 = max(0, MARGIN - 40)
+                        x1 = max(0, MARGIN - 120)
                         y1 = ty + h_by.get(t, NODE_H) // 2
                     else:
                         sx, sy = pos_by.get(s, (MARGIN, MARGIN))
