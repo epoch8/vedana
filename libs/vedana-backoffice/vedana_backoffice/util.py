@@ -1,4 +1,4 @@
-from datetime import datetime  #, timezone
+from datetime import datetime  # , timezone
 
 
 def datetime_to_age(created_at: datetime, compact: bool = True) -> str:
