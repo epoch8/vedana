@@ -1,4 +1,4 @@
-# WIP
+# 2025.09.22-dev.21
 
 * (jims/vedana) Introduce and use `JimsApp`/`VedanaApp`, switch from `vedana-tg`
   to `jims-telegram`

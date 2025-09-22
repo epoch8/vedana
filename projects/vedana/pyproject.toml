@@ -1,6 +1,6 @@
 [project]
 name = "vedana"
-version = "2025.09.04-dev.20"
+version = "2025.09.22-dev.21"
 description = "Vedana"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -27,9 +27,7 @@ ignore_missing_imports = true
 follow_imports = "silent"
 namespace_packages = true
 enable_incomplete_feature = ["NewGenericSyntax"]
-exclude = [
-    "migrations/",
-]
+exclude = ["migrations/"]
 
 [tool.ruff]
 line-length = 120
