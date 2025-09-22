@@ -1,7 +1,7 @@
 import reflex as rx
 import os
 
-VERSION = str(f"`{os.environ.get('VERSION', 'unspecified_version')}`")
+VERSION: str = f"`{os.environ.get('VERSION', 'unspecified_version')}`"  # md-formatted
 
 
 def app_header() -> rx.Component:
@@ -9,7 +9,7 @@ def app_header() -> rx.Component:
         rx.hstack(
             rx.hstack(
                 rx.link("Vedana Backoffice", href="/", font_weight="bold", font_size="1.25em"),
-                rx.markdown(VERSION),
+                rx.markdown(VERSION),  # type: ignore[operator]
                 align="center",
                 spacing="3",
             ),
@@ -17,7 +17,8 @@ def app_header() -> rx.Component:
                 rx.link("ETL", href="/etl", font_size="1.1em"),
                 rx.link("Chat", href="/chat", font_size="1.1em"),
                 rx.link("JIMS", href="/jims", font_size="1.1em"),
-                rx.color_mode.button(),
+                # built-in theme styling
+                rx.color_mode.button(),  # type: ignore[attr-defined]
                 spacing="6",
                 align="center",
             ),

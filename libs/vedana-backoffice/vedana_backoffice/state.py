@@ -429,19 +429,13 @@ class EtlState(rx.State):
                 name_by = {i: n for i, n in enumerate(table_list)}
                 labels_str_by = {i: "" for i in unique_ids}
                 # Edges between tables from canonical
-                canon_edges = derive_table_edges(cg)
-                table_edges: list[tuple[int | None, int, str]] = []
-                for s, t, label in canon_edges:
-                    if s is None:
-                        table_edges.append((None, int(t), label))
-                    else:
-                        table_edges.append((int(s), int(t), label))
+                table_edges = derive_table_edges(cg)
                 # Build adjacency for layering based on table graph (DV-specific names)
                 edges_dv: list[tuple[int, int, list[str]]] = []
-                for s, t, _ in table_edges:
-                    if s is None:
+                for s_id, t_id, _ in table_edges:
+                    if s_id < 0:
                         continue
-                    edges_dv.append((int(s), int(t), []))
+                    edges_dv.append((s_id, t_id, []))
                 indeg2: dict[int, int] = {sid: 0 for sid in unique_ids}
                 children2: dict[int, list[int]] = {sid: [] for sid in unique_ids}
                 for s2, t2, _ in edges_dv:
@@ -643,17 +637,17 @@ class EtlState(rx.State):
                         }
                     )
             else:
-                for s, t, step_label in table_edges:
-                    tx, ty = pos_by.get(t, (MARGIN, MARGIN))
-                    if s is None:
+                for s_id, t_id, step_label in table_edges:
+                    tx, ty = pos_by.get(t_id, (MARGIN, MARGIN))
+                    if s_id < 0:
                         x1 = max(0, MARGIN - 120)
-                        y1 = ty + h_by.get(t, NODE_H) // 2
+                        y1 = ty + h_by.get(t_id, NODE_H) // 2
                     else:
-                        sx, sy = pos_by.get(s, (MARGIN, MARGIN))
-                        x1 = sx + w_by.get(s, MIN_NODE_W)
-                        y1 = sy + h_by.get(s, NODE_H) // 2
+                        sx, sy = pos_by.get(s_id, (MARGIN, MARGIN))
+                        x1 = sx + w_by.get(s_id, MIN_NODE_W)
+                        y1 = sy + h_by.get(s_id, NODE_H) // 2
                     x2 = tx
-                    y2 = ty + h_by.get(t, NODE_H) // 2
+                    y2 = ty + h_by.get(t_id, NODE_H) // 2
                     cx1 = x1 + 40
                     cx2 = x2 - 40
                     path = f"M{x1},{y1} C{cx1},{y1} {cx2},{y2} {x2},{y2}"
@@ -663,16 +657,16 @@ class EtlState(rx.State):
                     # Highlight edges incident to the previewed table
                     sel = False
                     try:
-                        if s is None:  # For generator edges, highlight when the target table is highlighted
-                            sel = self.preview_table_name == name_by.get(t, "")
+                        if s_id < 0:  # For generator edges, highlight when the target table is highlighted
+                            sel = self.preview_table_name == name_by.get(t_id, "")
                         else:  # For regular edges, require both endpoints highlighted (not applicable for now)
                             sel = False
                     except Exception:
                         sel = False
                     edge_objs.append(
                         {
-                            "source": s if s is not None else -1,
-                            "target": t,
+                            "source": s_id,
+                            "target": t_id,
                             "label": label,
                             "path": path,
                             "label_x": label_x,
@@ -1133,7 +1127,8 @@ class ChatState(rx.State):
 
         return answer, tech
 
-    @rx.event(background=True)
+    # mypy raises error: "EventNamespace" not callable [operator], though event definition is according to reflex docs
+    @rx.event(background=True)  # type: ignore[operator]
     async def send_background(self, user_text: str):
         """This runs in background (non-blocking), after send() submission."""
         # Need context to modify state safely
@@ -1165,7 +1160,7 @@ class ChatState(rx.State):
 
         yield ChatState.send_background(user_text)
 
-    @rx.event(background=True)
+    @rx.event(background=True)  # type: ignore[operator]
     async def load_data_model_text(self):
         async with self:
             va = await get_vedana_app()
@@ -1177,7 +1172,7 @@ class ChatState(rx.State):
             self.is_refreshing_dm = False  # make the update button available
             yield
 
-    @rx.event(background=True)
+    @rx.event(background=True)  # type: ignore[operator]
     async def refresh_data_model(self):
         async with self:
             try:

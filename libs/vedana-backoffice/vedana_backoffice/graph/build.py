@@ -98,21 +98,21 @@ def derive_step_edges(cg: CanonicalGraph) -> List[Tuple[int, int, List[str]]]:
     return edges
 
 
-def derive_table_edges(cg: CanonicalGraph) -> List[Tuple[int | None, int, str]]:
+def derive_table_edges(cg: CanonicalGraph) -> List[Tuple[int, int, str]]:
     """Edges between tables; labeled by step name.
 
-    For each step, connect each input table (or None for generators) to each output table.
+    For each step, connect each input table (or -1 for BatchGenerate's) to each output table.
     """
     table_names = sorted(list(set([t for s in cg.steps for t in s.inputs + s.outputs])))
     name_to_id: Dict[str, int] = {name: i for i, name in enumerate(table_names)}
 
-    edges: List[Tuple[int | None, int, str]] = []
+    edges: List[Tuple[int, int, str]] = []
     for sm in cg.steps:
         in_ids = [name_to_id[t] for t in sm.inputs if t in name_to_id]
         out_ids = [name_to_id[t] for t in sm.outputs if t in name_to_id]
         if not in_ids:
             for ot in out_ids:
-                edges.append((None, ot, sm.name))
+                edges.append((-1, ot, sm.name))
         else:
             for it in in_ids:
                 for ot in out_ids:
