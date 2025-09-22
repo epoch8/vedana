@@ -12,7 +12,6 @@ dependencies = [
     "jims-core",
     "vedana-gradio",
     "vedana-etl",
-    "vedana-eval",
     "jims-tui",
 ]
 
@@ -21,6 +20,7 @@ generate = true
 template_type = "project"
 generate_standard_pytest_step = false
 generate_typechecking_step = false
+generate_alembic_migration_check_step = true
 
 [tool.mypy]
 ignore_missing_imports = true
@@ -35,7 +35,6 @@ line-length = 120
 [dependency-groups]
 dev = [
     "ipykernel>=6.30.0",
-    "memray>=1.18.0",
     "mypy>=1.16.1",
     "py-spy>=0.4.1",
     "ruff>=0.12.2",

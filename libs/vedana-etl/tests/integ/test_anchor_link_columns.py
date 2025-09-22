@@ -55,21 +55,15 @@ def test_anchor_link_columns() -> None:
     lbl = edges_df["edge_label"].astype(str).str.lower().str.strip()
 
     target_edges = edges_df[
-        (
-            ((ft == "document") & (tt == "document_chunk"))
-            | ((ft == "document_chunk") & (tt == "document"))
-        )
+        (((ft == "document") & (tt == "document_chunk")) | ((ft == "document_chunk") & (tt == "document")))
         & (lbl == sentence.lower())
     ].copy()
 
-    assert not target_edges.empty, (
-        f"Не найдено ни одного ребра document <-> document_chunk с меткой '{sentence}'."
-    )
+    assert not target_edges.empty, f"Не найдено ни одного ребра document <-> document_chunk с меткой '{sentence}'."
 
     # Сформируем множество фактических неориентированных пар
     actual_pairs: Set[Tuple[str, str]] = set(
-        _unordered(str(r["from_node_id"]).strip(), str(r["to_node_id"]).strip())
-        for _, r in target_edges.iterrows()
+        _unordered(str(r["from_node_id"]).strip(), str(r["to_node_id"]).strip()) for _, r in target_edges.iterrows()
     )
 
     # 3) Ожидаемые пары для 'document:1' из тестовых данных
@@ -81,7 +75,4 @@ def test_anchor_link_columns() -> None:
     }
 
     missing = sorted(p for p in expected_pairs if p not in actual_pairs)
-    assert not missing, (
-        "Не все связи из reference-колонки Anchor_document попали в граф. "
-        f"Отсутствуют пары: {missing}"
-    )
+    assert not missing, f"Не все связи из reference-колонки Anchor_document попали в граф. Отсутствуют пары: {missing}"
