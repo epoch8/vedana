@@ -56,7 +56,7 @@ def _message_row(msg: dict) -> rx.Component:
                     variant="ghost",
                     color_scheme="gray",
                     size="1",
-                    on_click=ChatState.toggle_details_by_id(msg["id"]),
+                    on_click=ChatState.toggle_details_by_id(message_id=msg["id"]),  # type: ignore[call-arg,func-returns-value]
                 ),
             ),
             rx.text(msg.get("created_at_fmt", msg["created_at"]), size="1", color="gray"),
@@ -174,7 +174,7 @@ def page() -> rx.Component:
                                         width="100%",
                                     ),
                                     rx.scroll_area(
-                                        rx.markdown(ChatState.data_model_text),
+                                        rx.markdown(ChatState.data_model_text),  # type: ignore[operator]
                                         type="always",
                                         scrollbars="vertical",
                                         style={"height": "50vh"},

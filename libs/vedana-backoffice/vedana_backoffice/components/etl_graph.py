@@ -45,8 +45,9 @@ def _node_card(node: dict) -> rx.Component:
         variant="surface",
         on_click=rx.cond(
             is_table,
-            EtlState.preview_table(node.get("name", "")),  # type: ignore[misc,arg-type]
-            EtlState.toggle_node_selection(index=node.get("index_value")),  # type: ignore[misc,arg-type]
+            # no direct return values here and that's ok, handled in state
+            EtlState.preview_table(table_name=node.get("name", "")),  # type: ignore
+            EtlState.toggle_node_selection(index=node.get("index_value")),  # type: ignore
         ),
     )
 
