@@ -1,7 +1,12 @@
 [project]
 name = "vedana"
+version = "2025.09.22-dev.21"
+description = "Vedana"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.16.4",
+    "litellm[proxy]",
     "google-cloud-kms >= 2.21.3",
     "google-cloud-iam >= 2.19.1",
     "jims-core",
@@ -11,10 +16,6 @@ dependencies = [
     "reflex>=0.7.5.post1",
     "orjson>=3.11.3",
 ]
-version = "2025.09.16-dev.20"
-description = "Vedana"
-readme = "README.md"
-requires-python = ">=3.12,<3.13"
 
 [tool.gh-actions-codegen]
 generate = true
