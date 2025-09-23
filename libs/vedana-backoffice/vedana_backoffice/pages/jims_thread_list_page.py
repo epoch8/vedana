@@ -1,13 +1,19 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import reflex as rx
 import sqlalchemy as sa
-from jims_core.db import ThreadDB
+from jims_core.db import ThreadDB, ThreadEventDB
 from vedana_core.app import make_vedana_app
 
+from vedana_backoffice.pages.jims_thread_page import ThreadViewState, _message_bubble
 from vedana_backoffice.ui import app_header, breadcrumbs
 from vedana_backoffice.util import datetime_to_age
+
+
+def _evt_select_thread(thread_id: str):  # type: ignore[missing-type-doc]
+    # Wrapper to satisfy type checker; Reflex runtime accepts this event spec.
+    return ThreadViewState.select_thread(thread_id=thread_id)  # type: ignore[call-arg,func-returns-value]
 
 
 @dataclass
@@ -16,9 +22,17 @@ class ThreadVis:
     created_at: str
     thread_age: str
     interface: str
+    last_activity: str
+    last_activity_age: str
 
     @classmethod
-    def create(cls, thread_id: str, created_at: datetime, thread_config: dict) -> "ThreadVis":
+    def create(
+        cls,
+        thread_id: str,
+        created_at: datetime,
+        last_activity: datetime,
+        thread_config: dict,
+    ) -> "ThreadVis":
         cfg = thread_config or {}
         iface_val = cfg.get("interface") or cfg.get("channel") or cfg.get("source")
         if isinstance(iface_val, dict):
@@ -28,6 +42,8 @@ class ThreadVis:
             created_at=datetime.strftime(created_at, "%Y-%m-%d %H:%M:%S"),
             thread_age=datetime_to_age(created_at),
             interface=str(iface_val or ""),
+            last_activity=datetime.strftime(last_activity, "%Y-%m-%d %H:%M:%S"),
+            last_activity_age=datetime_to_age(last_activity),
         )
 
 
@@ -35,61 +51,228 @@ class ThreadListState(rx.State):
     threads_refreshing: bool = True
     threads: list[ThreadVis] = []
 
+    # Filters
+    from_date: str = ""
+    to_date: str = ""
+    search_text: str = ""
+
+    @staticmethod
+    def _parse_date(date_str: str | None) -> datetime | None:
+        try:
+            if date_str:
+                return datetime.strptime(date_str, "%Y-%m-%d")
+        except Exception:
+            return None
+        return None
+
+    @rx.event
+    def set_from_date(self, value: str) -> None:
+        self.from_date = value
+
+    @rx.event
+    def set_to_date(self, value: str) -> None:
+        self.to_date = value
+
+    @rx.event
+    def set_search_text(self, value: str) -> None:
+        self.search_text = value
+
+    @rx.event
+    def clear_filters(self) -> None:
+        self.from_date = ""
+        self.to_date = ""
+        self.search_text = ""
+        return None
+
     @rx.event
     async def get_data(self) -> None:
         vedana_app = await make_vedana_app()
 
-        async with vedana_app.sessionmaker() as session:
-            stmt = sa.select(ThreadDB).order_by(ThreadDB.created_at.desc())
-            threads = (await session.execute(stmt)).scalars().all()
+        from_dt = self._parse_date(self.from_date)
+        to_dt = self._parse_date(self.to_date)
+        if to_dt is not None:
+            # Make end exclusive by adding one day
+            to_dt = to_dt + timedelta(days=1)
 
-        self.threads = [
-            ThreadVis.create(
-                thread_id=str(thread.thread_id),
-                created_at=thread.created_at,
-                thread_config=thread.thread_config,
+        async with vedana_app.sessionmaker() as session:
+            last_event_sq = (
+                sa.select(
+                    ThreadEventDB.thread_id.label("t_id"),
+                    sa.func.max(ThreadEventDB.created_at).label("last_at"),
+                )
+                .group_by(ThreadEventDB.thread_id)
+                .subquery()
             )
-            for thread in threads
-        ]
+
+            stmt = (
+                sa.select(ThreadDB, last_event_sq.c.last_at)
+                .join(last_event_sq, last_event_sq.c.t_id == ThreadDB.thread_id)
+                .order_by(last_event_sq.c.last_at.desc())
+            )
+
+            # Apply date filters at SQL level when possible
+            if from_dt is not None:
+                stmt = stmt.where(last_event_sq.c.last_at >= from_dt)
+            if to_dt is not None:
+                stmt = stmt.where(last_event_sq.c.last_at < to_dt)
+
+            results = await session.execute(stmt)
+            rows = results.all()
+
+        items: list[ThreadVis] = []
+        for thread_obj, last_at in rows:
+            try:
+                items.append(
+                    ThreadVis.create(
+                        thread_id=str(thread_obj.thread_id),
+                        created_at=thread_obj.created_at,
+                        last_activity=last_at or thread_obj.created_at,
+                        thread_config=thread_obj.thread_config,
+                    )
+                )
+            except Exception:
+                # Fall back if last_at is None or bad
+                items.append(
+                    ThreadVis.create(
+                        thread_id=str(thread_obj.thread_id),
+                        created_at=thread_obj.created_at,
+                        last_activity=thread_obj.created_at,
+                        thread_config=thread_obj.thread_config,
+                    )
+                )
+
+        # In-memory search (thread_id or interface)
+        search = (self.search_text or "").strip().lower()
+        if search:
+            items = [it for it in items if search in it.thread_id.lower() or search in (it.interface or "").lower()]
+
+        self.threads = items
         self.threads_refreshing = False
 
 
 @rx.page(route="/jims", on_load=ThreadListState.get_data)
 def jims_thread_list_page() -> rx.Component:
-    return rx.container(
-        rx.vstack(
-            app_header(),
-            breadcrumbs([("Main", "/"), ("JIMS threads", "/jims")]),
-            rx.heading("JIMS Threads"),
-            rx.cond(
-                ThreadListState.threads_refreshing,
-                rx.text("Loading..."),
-                rx.table.root(
-                    rx.table.header(
-                        rx.table.row(
-                            rx.table.column_header_cell("Thread ID"),
-                            rx.table.column_header_cell("Created"),
-                            rx.table.column_header_cell("Age"),
-                            rx.table.column_header_cell("Interface"),
-                        ),
+    filters = rx.hstack(
+        rx.hstack(
+            rx.text("From"),
+            rx.input(value=ThreadListState.from_date, type="date", on_change=ThreadListState.set_from_date),
+            align="center",
+            spacing="2",
+        ),
+        rx.hstack(
+            rx.text("To"),
+            rx.input(value=ThreadListState.to_date, type="date", on_change=ThreadListState.set_to_date),
+            align="center",
+            spacing="2",
+        ),
+        rx.input(
+            placeholder="Search by thread or interface",
+            value=ThreadListState.search_text,
+            on_change=ThreadListState.set_search_text,
+            width="280px",
+        ),
+        rx.button("Apply", on_click=ThreadListState.get_data),
+        rx.button("Clear", variant="soft", on_click=ThreadListState.clear_filters),
+        spacing="4",
+        wrap="wrap",
+    )
+
+    table = rx.table.root(
+        rx.table.header(
+            rx.table.row(
+                rx.table.column_header_cell("Thread ID"),
+                rx.table.column_header_cell("Created"),
+                rx.table.column_header_cell("Age"),
+                rx.table.column_header_cell("Last Activity"),
+                rx.table.column_header_cell("Since"),
+                rx.table.column_header_cell("Interface"),
+            ),
+        ),
+        rx.table.body(
+            rx.foreach(
+                ThreadListState.threads,
+                lambda t: rx.table.row(
+                    rx.table.cell(
+                        rx.button(
+                            t.thread_id,
+                            variant="ghost",
+                            color_scheme="gray",
+                            size="1",
+                            on_click=_evt_select_thread(t.thread_id),
+                        )
                     ),
-                    rx.table.body(
-                        rx.foreach(
-                            ThreadListState.threads,
-                            lambda thread: rx.table.row(
-                                rx.table.cell(
-                                    rx.link(
-                                        thread.thread_id,
-                                        href=f"/jims/thread/{thread.thread_id}",
-                                    ),
-                                ),
-                                rx.table.cell(thread.created_at),
-                                rx.table.cell(thread.thread_age),
-                                rx.table.cell(thread.interface),
-                            ),
-                        ),
-                    ),
+                    rx.table.cell(t.created_at),
+                    rx.table.cell(t.thread_age),
+                    rx.table.cell(t.last_activity),
+                    rx.table.cell(t.last_activity_age),
+                    rx.table.cell(t.interface),
                 ),
             ),
         ),
+    )
+
+    notes_panel = rx.card(
+        rx.vstack(
+            rx.heading("Prompt Note"),
+            rx.text_area(
+                placeholder="Add a note to improve prompts...",
+                value=ThreadViewState.note_text,
+                on_change=ThreadViewState.set_note_text,
+                rows="4",
+                width="100%",
+            ),
+            rx.hstack(
+                rx.select(
+                    items=["Low", "Medium", "High"],
+                    value=ThreadViewState.note_severity,
+                    on_change=ThreadViewState.set_note_severity,
+                ),
+                rx.button("Add", on_click=ThreadViewState.submit_note),
+                spacing="3",
+            ),
+            spacing="2",
+        ),
+        width="100%",
+    )
+
+    right_panel = rx.vstack(
+        rx.cond(
+            ThreadViewState.selected_thread_id == "",
+            rx.text("Select a thread to view conversation"),
+            rx.vstack(
+                rx.heading("Conversation"),
+                rx.scroll_area(
+                    rx.vstack(
+                        rx.foreach(ThreadViewState.events, _message_bubble),
+                        spacing="3",
+                        width="100%",
+                    ),
+                    type="always",
+                    scrollbars="vertical",
+                    style={"height": "60vh"},
+                ),
+                notes_panel,
+                spacing="3",
+                width="100%",
+            ),
+        ),
+        width="100%",
+    )
+
+    return rx.vstack(
+        app_header(),
+        rx.grid(
+            rx.vstack(
+                rx.heading("Threads"),
+                filters,
+                rx.cond(ThreadListState.threads_refreshing, rx.text("Loading..."), table),
+                spacing="3",
+            ),
+            right_panel,
+            columns="2",
+            spacing="4",
+            sm_columns="1",
+            width="100%",
+        ),
+        spacing="4",
     )
