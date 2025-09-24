@@ -4,7 +4,13 @@ version = "0.1.0"
 description = "Reflex-based admin/backoffice UI for Vedana"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["reflex>=0.7.0", "vedana-core", "vedana-etl", "jims-backoffice"]
+dependencies = [
+    "reflex>=0.8.0",
+    "orjson>=3.11.3",
+    "vedana-core",
+    "vedana-etl",
+    "jims-backoffice",
+]
 
 [build-system]
 requires = ["hatchling"]
