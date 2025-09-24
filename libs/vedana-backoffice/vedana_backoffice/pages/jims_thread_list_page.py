@@ -6,9 +6,9 @@ import sqlalchemy as sa
 from jims_core.db import ThreadDB, ThreadEventDB
 from vedana_core.app import make_vedana_app
 
+from vedana_backoffice.components.ui_chat import render_message_bubble
 from vedana_backoffice.pages.jims_thread_page import ThreadViewState
 from vedana_backoffice.ui import app_header
-from vedana_backoffice.components.ui_chat import render_message_bubble
 from vedana_backoffice.util import datetime_to_age
 
 
@@ -168,7 +168,7 @@ def jims_thread_list_page() -> rx.Component:
             width="280px",
         ),
         rx.button("Apply", on_click=ThreadListState.get_data),
-        rx.button("Clear", variant="soft", on_click=ThreadListState.clear_filters),
+        rx.button("Clear", variant="soft", on_click=[ThreadListState.clear_filters, ThreadListState.get_data]),
         spacing="4",
         wrap="wrap",
     )
