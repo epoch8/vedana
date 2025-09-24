@@ -16,8 +16,8 @@ class ThreadEventVis:
     created_at: datetime
     created_at_str: str
     event_type: str
-    role: str | None
-    content: str | None
+    role: str
+    content: str
     tags: list[str]
     event_age: str
     event_data_list: list[tuple[str, str]]
@@ -37,8 +37,8 @@ class ThreadEventVis:
         import json
 
         # Parse technical_info if present
-        base_data = dict(event_data or {}) if isinstance(event_data, dict) else {}
-        tech = base_data.get("technical_info", {}) if isinstance(base_data, dict) else {}
+        base_data = event_data  # todo rm / simplify
+        tech = base_data.get("technical_info", {})
         has_technical_info = bool(tech)
 
         # Generic key-value list for display (exclude raw technical_info if present)
@@ -47,14 +47,13 @@ class ThreadEventVis:
                 del base_data["technical_info"]
             except Exception:
                 pass
-        event_data_list = [(str(k), str(v)) for k, v in base_data.items()]
 
         # Extract message-like fields
         # Role: Only comm.user_message is user; all others assistant.
         role = "user" if event_type == "comm.user_message" else "assistant"
-        content = base_data.get("content") if isinstance(base_data, dict) else None
+        content: str = base_data.get("content", "")
         # tags may be stored in event_data["tags"] as list[str]
-        tags_value = base_data.get("tags") if isinstance(base_data, dict) else None
+        tags_value = base_data.get("tags")  # todo check fmt
         tags: list[str] = list(tags_value or []) if isinstance(tags_value, (list, tuple)) else []
 
         vts_queries: list[str] = list(tech.get("vts_queries", []) or [])
@@ -81,11 +80,11 @@ class ThreadEventVis:
             created_at=created_at.replace(microsecond=0),
             created_at_str=datetime.strftime(created_at, "%Y-%m-%d %H:%M:%S"),
             event_type=event_type,
-            role=str(role) if role else None,
-            content=str(content) if content else None,
+            role=role,
+            content=content,
             tags=tags,
             event_age=datetime_to_age(created_at),
-            event_data_list=event_data_list,
+            event_data_list=[(str(k), str(v)) for k, v in base_data.items()],
             technical_vts_queries=vts_queries,
             technical_cypher_queries=cypher_queries,
             technical_models=models_list,
