@@ -105,7 +105,10 @@ class ThreadViewState(rx.State):
         vedana_app = await make_vedana_app()
 
         async with vedana_app.sessionmaker() as session:
-            stmt = sa.select(ThreadEventDB).where(ThreadEventDB.thread_id == self.selected_thread_id)
+            stmt = sa.select(ThreadEventDB).where(
+                ThreadEventDB.thread_id == self.selected_thread_id,
+                sa.not_(ThreadEventDB.event_type.like("jims.%")),
+            )
             events = (await session.execute(stmt)).scalars().all()
 
         self.events = [
