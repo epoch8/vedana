@@ -7,7 +7,6 @@ import sqlalchemy as sa
 from jims_core.db import ThreadEventDB
 from vedana_core.app import make_vedana_app
 
-from vedana_backoffice.ui import app_header, breadcrumbs
 from vedana_backoffice.util import datetime_to_age
 
 
@@ -15,6 +14,7 @@ from vedana_backoffice.util import datetime_to_age
 class ThreadEventVis:
     event_id: str
     created_at: datetime
+    created_at_str: str
     event_type: str
     role: str | None
     content: str | None
@@ -24,6 +24,9 @@ class ThreadEventVis:
     technical_vts_queries: list[str]
     technical_cypher_queries: list[str]
     technical_models: list[tuple[str, str]]
+    vts_str: str
+    cypher_str: str
+    models_str: str
     has_technical_info: bool
     has_vts: bool
     has_cypher: bool
@@ -47,7 +50,8 @@ class ThreadEventVis:
         event_data_list = [(str(k), str(v)) for k, v in base_data.items()]
 
         # Extract message-like fields
-        role = base_data.get("role") if isinstance(base_data, dict) else None
+        # Role: Only comm.user_message is user; all others assistant.
+        role = "user" if event_type == "comm.user_message" else "assistant"
         content = base_data.get("content") if isinstance(base_data, dict) else None
         # tags may be stored in event_data["tags"] as list[str]
         tags_value = base_data.get("tags") if isinstance(base_data, dict) else None
@@ -68,9 +72,14 @@ class ThreadEventVis:
         except Exception:
             pass
 
+        vts_str = "\n".join(vts_queries)
+        cypher_str = "\n".join([str(x) for x in cypher_queries])
+        models_str = "\n".join([f"{k}: {v}" for k, v in models_list])
+
         return cls(
             event_id=str(event_id),
             created_at=created_at.replace(microsecond=0),
+            created_at_str=datetime.strftime(created_at, "%Y-%m-%d %H:%M:%S"),
             event_type=event_type,
             role=str(role) if role else None,
             content=str(content) if content else None,
@@ -80,6 +89,9 @@ class ThreadEventVis:
             technical_vts_queries=vts_queries,
             technical_cypher_queries=cypher_queries,
             technical_models=models_list,
+            vts_str=vts_str,
+            cypher_str=cypher_str,
+            models_str=models_str,
             has_technical_info=has_technical_info,
             has_vts=bool(vts_queries),
             has_cypher=bool(cypher_queries),
@@ -199,13 +211,23 @@ class ThreadViewState(rx.State):
 
 
 def _message_bubble(event: ThreadEventVis) -> rx.Component:
-    def _evt_remove(tag: str):  # type: ignore[missing-type-doc]
+    # Local wrappers so type checker doesn't flag callables
+    def _on_remove(tag: str):  # type: ignore[missing-type-doc]
         return ThreadViewState.remove_tag(event_id=event.event_id, tag=tag)  # type: ignore[call-arg,func-returns-value]
+
+    def _on_toggle():  # type: ignore[missing-type-doc]
+        return ThreadViewState.toggle_details(event_id=event.event_id)  # type: ignore[call-arg,func-returns-value]
 
     tag_badges = rx.hstack(
         rx.foreach(
             event.tags,
-            lambda tag: rx.button(tag, variant="soft", size="1", color_scheme="gray", on_click=_evt_remove(tag)),
+            lambda tag: rx.button(
+                tag,
+                variant="soft",
+                size="1",
+                color_scheme="gray",
+                on_click=_on_remove(tag),
+            ),
         ),
         spacing="1",
         wrap="wrap",
@@ -222,11 +244,13 @@ def _message_bubble(event: ThreadEventVis) -> rx.Component:
         spacing="2",
     )
 
-    def _evt_toggle_details():  # type: ignore[missing-type-doc]
-        return ThreadViewState.toggle_details(event_id=event.event_id)  # type: ignore[call-arg,func-returns-value]
-
     details = rx.vstack(
-        rx.button("Details", variant="soft", size="1", on_click=_evt_toggle_details()),
+        rx.button(
+            "Details",
+            variant="soft",
+            size="1",
+            on_click=_on_toggle(),
+        ),
         rx.cond(
             ThreadViewState.expanded_event_id == event.event_id,
             rx.vstack(

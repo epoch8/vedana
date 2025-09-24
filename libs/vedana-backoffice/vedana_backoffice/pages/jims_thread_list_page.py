@@ -6,14 +6,10 @@ import sqlalchemy as sa
 from jims_core.db import ThreadDB, ThreadEventDB
 from vedana_core.app import make_vedana_app
 
-from vedana_backoffice.pages.jims_thread_page import ThreadViewState, _message_bubble
-from vedana_backoffice.ui import app_header, breadcrumbs
+from vedana_backoffice.pages.jims_thread_page import ThreadViewState
+from vedana_backoffice.ui import app_header
+from vedana_backoffice.components.ui_chat import render_message_bubble
 from vedana_backoffice.util import datetime_to_age
-
-
-def _evt_select_thread(thread_id: str):  # type: ignore[missing-type-doc]
-    # Wrapper to satisfy type checker; Reflex runtime accepts this event spec.
-    return ThreadViewState.select_thread(thread_id=thread_id)  # type: ignore[call-arg,func-returns-value]
 
 
 @dataclass
@@ -198,9 +194,9 @@ def jims_thread_list_page() -> rx.Component:
                             variant="ghost",
                             color_scheme="gray",
                             size="1",
-                            on_click=_evt_select_thread(t.thread_id),
+                            on_click=ThreadViewState.select_thread(thread_id=t.thread_id),
                         )
-                    ),
+                    ),  # type: ignore[call-arg,func-returns-value]
                     rx.table.cell(t.created_at),
                     rx.table.cell(t.thread_age),
                     rx.table.cell(t.last_activity),
@@ -235,6 +231,62 @@ def jims_thread_list_page() -> rx.Component:
         width="100%",
     )
 
+    def _render_event_as_msg(ev):  # type: ignore[valid-type]
+        msg = {
+            "id": ev.event_id,
+            "content": ev.content,
+            "created_at": ev.created_at_str,
+            "created_at_fmt": ev.event_age,
+            "is_assistant": ev.role == "assistant",
+            "tag_label": ev.event_type,
+            "has_tech": ev.has_technical_info,
+            "has_models": ev.has_models,
+            "has_vts": ev.has_vts,
+            "has_cypher": ev.has_cypher,
+            "models_str": ev.models_str,
+            "vts_str": ev.vts_str,
+            "cypher_str": ev.cypher_str,
+            "show_details": ThreadViewState.expanded_event_id == ev.event_id,
+        }
+
+        extras = rx.vstack(
+            rx.hstack(
+                rx.foreach(
+                    ev.tags,
+                    lambda tag: rx.button(
+                        tag,
+                        variant="soft",
+                        size="1",
+                        color_scheme="gray",
+                        on_click=ThreadViewState.remove_tag(event_id=ev.event_id, tag=tag),  # type: ignore[call-arg,func-returns-value]
+                    ),
+                ),
+                spacing="1",
+                wrap="wrap",
+            ),
+            rx.hstack(
+                rx.input(
+                    placeholder="Add tag",
+                    value=ThreadViewState.new_tag_text,
+                    on_change=ThreadViewState.set_new_tag_text,
+                    width="160px",
+                ),
+                rx.button(
+                    "Add",
+                    size="1",
+                    on_click=ThreadViewState.add_tag(event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
+                ),
+                spacing="2",
+            ),
+            spacing="2",
+        )
+
+        return render_message_bubble(
+            msg,
+            on_toggle_details=ThreadViewState.toggle_details(event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
+            extras=extras,
+        )
+
     right_panel = rx.vstack(
         rx.cond(
             ThreadViewState.selected_thread_id == "",
@@ -242,11 +294,7 @@ def jims_thread_list_page() -> rx.Component:
             rx.vstack(
                 rx.heading("Conversation"),
                 rx.scroll_area(
-                    rx.vstack(
-                        rx.foreach(ThreadViewState.events, _message_bubble),
-                        spacing="3",
-                        width="100%",
-                    ),
+                    rx.vstack(rx.foreach(ThreadViewState.events, _render_event_as_msg), spacing="3", width="100%"),
                     type="always",
                     scrollbars="vertical",
                     style={"height": "60vh"},

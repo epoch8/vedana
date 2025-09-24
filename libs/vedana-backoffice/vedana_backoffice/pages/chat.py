@@ -2,111 +2,13 @@ import reflex as rx
 
 from vedana_backoffice.state import ChatState
 from vedana_backoffice.ui import app_header
+from vedana_backoffice.components.ui_chat import render_message_bubble
 
 
 def _message_row(msg: dict) -> rx.Component:
-    tech_block = rx.cond(
-        msg["has_tech"] & msg["show_details"],
-        rx.card(
-            rx.vstack(
-                rx.cond(
-                    msg.get("has_models"),
-                    rx.vstack(
-                        rx.text("Models", weight="medium"),
-                        rx.code(msg.get("models_str", ""), font_size="11px"),
-                        spacing="1",
-                        width="100%",
-                    ),
-                ),
-                rx.cond(
-                    msg.get("has_vts"),
-                    rx.vstack(
-                        rx.text("VTS Queries", weight="medium"),
-                        rx.code(msg.get("vts_str", ""), font_size="11px"),
-                        spacing="1",
-                        width="100%",
-                    ),
-                ),
-                rx.cond(
-                    msg.get("has_cypher"),
-                    rx.vstack(
-                        rx.text("Cypher Queries", weight="medium"),
-                        rx.code(msg.get("cypher_str", ""), font_size="11px"),
-                        spacing="1",
-                        width="100%",
-                    ),
-                ),
-                spacing="2",
-                width="100%",
-            ),
-            padding="0.75em",
-            variant="surface",
-        ),
-        rx.box(),
-    )
-
-    # Common bubble content
-    bubble_content = rx.vstack(
-        rx.text(msg["content"]),
-        rx.hstack(
-            rx.cond(
-                msg["has_tech"],
-                rx.button(
-                    "Details",
-                    variant="ghost",
-                    color_scheme="gray",
-                    size="1",
-                    on_click=ChatState.toggle_details_by_id(message_id=msg["id"]),  # type: ignore[call-arg,func-returns-value]
-                ),
-            ),
-            rx.text(msg.get("created_at_fmt", msg["created_at"]), size="1", color="gray"),
-            justify="between",
-            width="100%",
-        ),
-        tech_block,
-        spacing="2",
-        width="100%",
-    )
-
-    assistant_bubble = rx.card(
-        bubble_content,
-        padding="0.75em",
-        style={
-            "maxWidth": "70%",
-            "backgroundColor": "#11182714",
-            "border": "1px solid #e5e7eb",
-            "borderRadius": "12px",
-        },
-    )
-    user_bubble = rx.card(
-        bubble_content,
-        padding="0.75em",
-        style={
-            "maxWidth": "70%",
-            "backgroundColor": "#3b82f614",
-            "border": "1px solid #e5e7eb",
-            "borderRadius": "12px",
-        },
-    )
-
-    return rx.cond(
-        msg["is_assistant"],
-        rx.hstack(
-            rx.avatar(fallback="A", size="2", radius="full"),
-            assistant_bubble,
-            spacing="2",
-            width="100%",
-            justify="start",
-            align="start",
-        ),
-        rx.hstack(
-            user_bubble,
-            rx.avatar(fallback="U", size="2", radius="full"),
-            spacing="2",
-            width="100%",
-            justify="end",
-            align="start",
-        ),
+    return render_message_bubble(
+        msg,
+        on_toggle_details=ChatState.toggle_details_by_id(message_id=msg["id"]),  # type: ignore[call-arg,func-returns-value]
     )
 
 
@@ -216,13 +118,13 @@ def page() -> rx.Component:
                                 ChatState.chat_thread_id != "",
                                 rx.hstack(
                                     rx.text("thread id: ", size="1", color="gray"),
-                                    rx.link(
+                                    rx.button(
                                         ChatState.chat_thread_id,
-                                        href=f"/jims/thread/{ChatState.chat_thread_id}",
-                                        target="_blank",
+                                        variant="soft",
                                         size="1",
+                                        on_click=ChatState.open_jims_thread,
                                     ),
-                                    spacing="0",
+                                    spacing="1",
                                 ),
                             ),
                             rx.text(f"model: {ChatState.model}", size="1", color="gray"),
