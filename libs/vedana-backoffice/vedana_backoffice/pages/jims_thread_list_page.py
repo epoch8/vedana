@@ -202,6 +202,9 @@ def jims_thread_list_page() -> rx.Component:
                     rx.table.cell(t.last_activity),
                     rx.table.cell(t.last_activity_age),
                     rx.table.cell(t.interface),
+                    style=rx.cond(
+                        t.thread_id == ThreadViewState.selected_thread_id, {"backgroundColor": "var(--accent-3)"}, {}
+                    ),
                 ),
             ),
         ),
