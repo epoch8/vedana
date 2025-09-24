@@ -207,30 +207,6 @@ def jims_thread_list_page() -> rx.Component:
         ),
     )
 
-    notes_panel = rx.card(
-        rx.vstack(
-            rx.heading("Prompt Note"),
-            rx.text_area(
-                placeholder="Add a note to improve prompts...",
-                value=ThreadViewState.note_text,
-                on_change=ThreadViewState.set_note_text,
-                rows="4",
-                width="100%",
-            ),
-            rx.hstack(
-                rx.select(
-                    items=["Low", "Medium", "High"],
-                    value=ThreadViewState.note_severity,
-                    on_change=ThreadViewState.set_note_severity,
-                ),
-                rx.button("Add", on_click=ThreadViewState.submit_note),
-                spacing="3",
-            ),
-            spacing="2",
-        ),
-        width="100%",
-    )
-
     def _render_event_as_msg(ev):  # type: ignore[valid-type]
         msg = {
             "id": ev.event_id,
@@ -249,6 +225,45 @@ def jims_thread_list_page() -> rx.Component:
             "show_details": ThreadViewState.expanded_event_id == ev.event_id,
         }
 
+        action_line = rx.cond(
+            (ev.role == "assistant") & ev.content != "",
+            rx.hstack(
+                # Add Tag (only for messages with content)
+                rx.input(
+                    placeholder="Add tag",
+                    value=ThreadViewState.new_tag_text,
+                    on_change=ThreadViewState.set_new_tag_text,
+                    width="20%",
+                ),
+                rx.button(
+                    "Add tag",
+                    size="1",
+                    on_click=ThreadViewState.add_tag(event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
+                ),
+                # Add Note (single-line input)
+                rx.input(
+                    placeholder="Add note...",
+                    value=ThreadViewState.note_text_by_event.get(ev.event_id, ""),
+                    on_change=lambda v: ThreadViewState.set_note_text_for(v, event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
+                    width="40%",
+                ),
+                rx.select(
+                    items=["Low", "Medium", "High"],
+                    value=ThreadViewState.note_severity_by_event.get(ev.event_id, "Low"),
+                    on_change=lambda v: ThreadViewState.set_note_severity_for(v, event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
+                ),
+                rx.button(
+                    "Add note",
+                    size="1",
+                    on_click=ThreadViewState.submit_note_for(event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
+                ),
+                spacing="2",
+                wrap="wrap",
+                width="100%",
+            ),
+            rx.box(),
+        )
+
         extras = rx.vstack(
             rx.hstack(
                 rx.foreach(
@@ -264,20 +279,7 @@ def jims_thread_list_page() -> rx.Component:
                 spacing="1",
                 wrap="wrap",
             ),
-            rx.hstack(
-                rx.input(
-                    placeholder="Add tag",
-                    value=ThreadViewState.new_tag_text,
-                    on_change=ThreadViewState.set_new_tag_text,
-                    width="160px",
-                ),
-                rx.button(
-                    "Add",
-                    size="1",
-                    on_click=ThreadViewState.add_tag(event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
-                ),
-                spacing="2",
-            ),
+            action_line,
             spacing="2",
         )
 
@@ -299,7 +301,6 @@ def jims_thread_list_page() -> rx.Component:
                     scrollbars="vertical",
                     style={"height": "60vh"},
                 ),
-                notes_panel,
                 spacing="3",
                 width="100%",
             ),
