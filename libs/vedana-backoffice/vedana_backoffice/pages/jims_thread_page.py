@@ -37,23 +37,15 @@ class ThreadEventVis:
         import json
 
         # Parse technical_info if present
-        base_data = event_data  # todo rm / simplify
-        tech = base_data.get("technical_info", {})
+        tech: dict = event_data.get("technical_info", {})
         has_technical_info = bool(tech)
-
-        # Generic key-value list for display (exclude raw technical_info if present)
-        if has_technical_info and "technical_info" in base_data:
-            try:
-                del base_data["technical_info"]
-            except Exception:
-                pass
 
         # Extract message-like fields
         # Role: Only comm.user_message is user; all others assistant.
         role = "user" if event_type == "comm.user_message" else "assistant"
-        content: str = base_data.get("content", "")
+        content: str = event_data.get("content", "")
         # tags may be stored in event_data["tags"] as list[str]
-        tags_value = base_data.get("tags")  # todo check fmt
+        tags_value = event_data.get("tags")  # todo check fmt
         tags: list[str] = list(tags_value or []) if isinstance(tags_value, (list, tuple)) else []
 
         vts_queries: list[str] = list(tech.get("vts_queries", []) or [])
@@ -84,7 +76,7 @@ class ThreadEventVis:
             content=content,
             tags=tags,
             event_age=datetime_to_age(created_at),
-            event_data_list=[(str(k), str(v)) for k, v in base_data.items()],
+            event_data_list=[(str(k), str(v)) for k, v in event_data.items()],
             technical_vts_queries=vts_queries,
             technical_cypher_queries=cypher_queries,
             technical_models=models_list,
@@ -104,6 +96,8 @@ class ThreadViewState(rx.State):
     new_tag_text: str = ""
     note_text: str = ""
     note_severity: str = "Low"
+    note_text_by_event: dict[str, str] = {}
+    note_severity_by_event: dict[str, str] = {}
     selected_thread_id: str = ""
     expanded_event_id: str = ""
 
@@ -150,6 +144,16 @@ class ThreadViewState(rx.State):
     @rx.event
     def toggle_details(self, event_id: str) -> None:
         self.expanded_event_id = "" if self.expanded_event_id == event_id else event_id
+
+    # Per-message note editing
+    # todo check if necessary or just keep jims sending only
+    @rx.event
+    def set_note_text_for(self, value: str, event_id: str) -> None:
+        self.note_text_by_event[event_id] = value
+
+    @rx.event
+    def set_note_severity_for(self, value: str, event_id: str) -> None:
+        self.note_severity_by_event[event_id] = value
 
     # Persistence events: we encode admin actions as jims.backoffice.* events for now
     @rx.event
@@ -206,6 +210,43 @@ class ThreadViewState(rx.State):
             await session.commit()
         self.note_text = ""
         self.note_severity = "Low"
+        await self._reload()
+
+    @rx.event
+    async def submit_note_for(self, event_id: str) -> None:
+        text = (self.note_text_by_event.get(event_id) or "").strip()
+        if not text:
+            return
+        # Collect current tags from the target event if present
+        try:
+            target = next((e for e in self.events if e.event_id == event_id), None)
+            tags_list = list(getattr(target, "tags", []) or []) if target is not None else []
+        except Exception:
+            tags_list = []
+        vedana_app = await make_vedana_app()
+        async with vedana_app.sessionmaker() as session:
+            from jims_core.util import uuid7
+
+            note_event = ThreadEventDB(
+                thread_id=self.selected_thread_id,
+                event_id=uuid7(),
+                event_type="jims.backoffice.feedback",
+                event_data={
+                    "event_id": event_id,
+                    "tags": tags_list,
+                    "note": text,
+                },
+            )
+            session.add(note_event)
+            await session.commit()
+        try:
+            del self.note_text_by_event[event_id]
+        except Exception:
+            pass
+        try:
+            del self.note_severity_by_event[event_id]
+        except Exception:
+            pass
         await self._reload()
 
 
