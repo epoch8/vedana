@@ -115,3 +115,20 @@ variable "authentik_group_ids" {
   type    = list(string)
   default = []
 }
+
+variable "gdrive_config" {
+  type = object({
+    folder_id   = string
+    gcp_sa_json = string
+  })
+  default = null
+}
+
+variable "datapipe_command" {
+  type = list(string)
+  default = [
+    "datapipe",
+    "step",
+    "run",
+  ]
+}
