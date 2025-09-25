@@ -1166,15 +1166,12 @@ class ChatState(rx.State):
         yield ChatState.send_background(user_text)
 
     def open_jims_thread(self) -> None:
-        """Open the merged JIMS page and preselect the current chat thread."""
+        """Open the JIMS page and preselect the current chat thread."""
         if not (self.chat_thread_id or "").strip():
             return
+
         # First set selection on JIMS state, then navigate to /jims
-        yield __import__(
-            "vedana_backoffice.pages.jims_thread_page", fromlist=["ThreadViewState"]
-        ).ThreadViewState.select_thread(  # type: ignore[attr-defined]
-            thread_id=self.chat_thread_id
-        )
+        yield ThreadViewState.select_thread(thread_id=self.chat_thread_id)
         yield rx.redirect("/jims")
 
     @rx.event(background=True)  # type: ignore[operator]
