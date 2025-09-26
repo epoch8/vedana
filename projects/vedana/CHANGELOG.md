@@ -1,6 +1,9 @@
+# WIP
+
+* (vedana) Add backoffice app
+
 # 2025.09.22-dev.21
 
-* (vedana) Add backoffice app 
 * (vedana-eval/etl) Refactored evaluation script into a Datapipe pipeline
 * (jims/vedana) Introduce and use `JimsApp`/`VedanaApp`, switch from `vedana-tg`
   to `jims-telegram`
