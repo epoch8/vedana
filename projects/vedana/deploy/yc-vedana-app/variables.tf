@@ -132,3 +132,8 @@ variable "datapipe_command" {
     "run",
   ]
 }
+
+variable "apply_pii_masking" {
+  type    = bool
+  default = false
+}
