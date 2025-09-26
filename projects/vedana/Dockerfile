@@ -1,8 +1,13 @@
-FROM python:3.12
+FROM python:3.12 AS base
 
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
 ENV UV_LINK_MODE=copy
 RUN --mount=type=cache,target=/root/.cache pip install uv
+
+RUN apt-get update && apt-get install -y \
+    supervisor \
+    caddy \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock /app/
 COPY libs/ /app/libs/
@@ -19,8 +24,16 @@ ENV PORT=80
 
 COPY projects/vedana/ ./
 
-RUN \
-    cp .env.ci-cd .env && \
-    reflex export --loglevel debug --frontend-only --no-zip && \
-    mv .web/build/client/* /srv/ && \
-    rm -rf .web && rm .env
+#########################################
+FROM base AS build
+
+RUN cp .env.ci-cd .env 
+# Builds to .web/build/client/
+RUN reflex export --loglevel debug --frontend-only --no-zip
+
+#########################################
+FROM base AS runtime
+
+COPY --from=build /app/projects/vedana/.web/build/client/ /srv
+COPY libs/vedana-backoffice/deploy/single-port-container/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY libs/vedana-backoffice/deploy/single-port-container/Caddyfile /etc/caddy/Caddyfile

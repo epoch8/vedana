@@ -204,8 +204,7 @@ resource "helm_release" "backoffice" {
     local.common_values,
     <<EOF
     command:
-      - reflex
-      - run
+      - supervisord
 
     resources:
       requests:
@@ -215,7 +214,7 @@ resource "helm_release" "backoffice" {
         cpu: "500m"
         memory: "512Mi"
 
-    port: 8000
+    port: 9000
 
     probe:
       path: "/"
