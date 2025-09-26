@@ -106,7 +106,12 @@ resource "helm_release" "datapipe_all" {
 
       volumes = concat(local.llm_volumes, local.gdrive_volumes)
 
-      command = var.datapipe_command
+      command = [
+        "datapipe",
+        "step",
+        "--labels=flow=regular",
+        "run",
+      ]
       resources = {
         requests = {
           cpu    = "1"

@@ -124,15 +124,6 @@ variable "gdrive_config" {
   default = null
 }
 
-variable "datapipe_command" {
-  type = list(string)
-  default = [
-    "datapipe",
-    "step",
-    "run",
-  ]
-}
-
 variable "apply_pii_masking" {
   type    = bool
   default = false
