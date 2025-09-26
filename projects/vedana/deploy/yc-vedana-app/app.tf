@@ -211,7 +211,7 @@ resource "helm_release" "backoffice" {
     local.common_values,
     <<EOF
     command:
-      - supervisord
+      - /init
 
     resources:
       requests:
@@ -224,7 +224,7 @@ resource "helm_release" "backoffice" {
     port: 9000
 
     probe:
-      path: "/"
+      path: "/ping"
 
     domain: "${local.backoffice_domain}"
     ingress:
