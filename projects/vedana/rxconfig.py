@@ -1,8 +1,9 @@
-import reflex as rx
+import reflex
 
-config = rx.Config(  # type: ignore
+config = reflex.Config(  # type: ignore
     app_name="vedana_backoffice",
     plugins=[
-        rx.plugins.TailwindV3Plugin(),
+        reflex.plugins.TailwindV3Plugin(),
+        reflex.plugins.sitemap.SitemapPlugin(),
     ],
 )
