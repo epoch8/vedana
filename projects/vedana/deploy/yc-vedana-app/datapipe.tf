@@ -104,11 +104,12 @@ resource "helm_release" "datapipe_all" {
 
       schedule = "0 0 * * *"
 
-      volumes = local.llm_volumes
+      volumes = concat(local.llm_volumes, local.gdrive_volumes)
 
       command = [
         "datapipe",
         "step",
+        "--labels=flow=regular",
         "run",
       ]
       resources = {

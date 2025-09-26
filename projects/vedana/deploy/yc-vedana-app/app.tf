@@ -45,7 +45,9 @@ locals {
     var.enable_api ? {
       API_KEY = random_string.api_key[0].result
     } : {},
-    local.llm_env
+    local.llm_env,
+    local.gdrive_env,
+    var.extra_env,
   )
 
   common_values = <<EOF
@@ -64,9 +66,14 @@ locals {
       value: "${value}"
   %{~endfor~}
 
-  %{~if local.llm_volumes != []~}
   volumes:
+  %{~if local.llm_volumes != []~}
   %{~for volume in local.llm_volumes~}
+    - ${jsonencode(volume)}
+  %{~endfor~}
+  %{~endif~}
+  %{~if local.gdrive_volumes != []~}
+  %{~for volume in local.gdrive_volumes~}
     - ${jsonencode(volume)}
   %{~endfor~}
   %{~endif~}
