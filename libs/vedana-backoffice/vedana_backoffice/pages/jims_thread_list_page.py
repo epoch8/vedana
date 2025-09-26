@@ -292,39 +292,47 @@ def jims_thread_list_page() -> rx.Component:
             extras=extras,
         )
 
-    right_panel = rx.vstack(
+    # Left panel (thread list with its own scroll)
+    left_panel = rx.vstack(
+        rx.heading("Threads"),
+        filters,
         rx.cond(
-            ThreadViewState.selected_thread_id == "",
-            rx.text("Select a thread to view conversation"),
-            rx.vstack(
-                rx.heading("Conversation"),
-                rx.scroll_area(
-                    rx.vstack(rx.foreach(ThreadViewState.events, _render_event_as_msg), spacing="3", width="100%"),
-                    type="always",
-                    scrollbars="vertical",
-                    style={"height": "60vh"},
-                ),
-                spacing="3",
-                width="100%",
-            ),
+            ThreadListState.threads_refreshing,
+            rx.center("Loading threads..."),
+            rx.scroll_area(table, type="always", scrollbars="vertical", style={"flex": 1, "height": "100%"}),
         ),
-        width="100%",
+        spacing="3",
+        style={"height": "100%", "overflow": "hidden"},
+    )
+
+    # Right panel (conversation fills height with scroll)
+    right_panel = rx.cond(
+        ThreadViewState.selected_thread_id == "",
+        rx.center(rx.text("Select a thread to view conversation"), style={"height": "100%"}),
+        rx.vstack(
+            rx.heading("Conversation"),
+            rx.scroll_area(
+                rx.vstack(rx.foreach(ThreadViewState.events, _render_event_as_msg), spacing="3", width="100%"),
+                type="always",
+                scrollbars="vertical",
+                style={"flex": 1, "height": "100%"},
+            ),
+            spacing="3",
+            style={"height": "100%", "overflow": "hidden"},
+        ),
     )
 
     return rx.vstack(
         app_header(),
         rx.grid(
-            rx.vstack(
-                rx.heading("Threads"),
-                filters,
-                rx.cond(ThreadListState.threads_refreshing, rx.text("Loading..."), table),
-                spacing="3",
-            ),
+            left_panel,
             right_panel,
             columns="2",
             spacing="4",
             sm_columns="1",
             width="100%",
+            style={"flex": 1, "height": "100%"},
         ),
         spacing="4",
+        style={"height": "100vh", "overflow": "hidden"},
     )
