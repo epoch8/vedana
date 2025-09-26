@@ -7,7 +7,7 @@ authors = [{ name = "Andrey Tatarinov", email = "a@tatarinov.co" }]
 requires-python = ">=3.12"
 dependencies = [
     "backoff>=2.2.1",
-    "litellm>=1.74.8",
+    "litellm>=1.74.8,<1.77.0",
     "opentelemetry-api>=1.34.1",
     "opentelemetry-sdk>=1.34.1",
     "prometheus-client>=0.21.1",
@@ -19,20 +19,16 @@ dependencies = [
 ]
 
 [dependency-groups]
-google = [
-    "google-cloud-aiplatform>=1.105.0",
-]
+google = ["google-cloud-aiplatform>=1.105.0"]
 dev = [
     "aiosqlite>=0.21.0",
+    "mypy>=1.17.1",
     "pytest>=8.3.5",
     "pytest-asyncio>=1.0.0",
     "pytest-vcr>=1.0.2",
     "ruff>=0.12.9",
-    "ty>=0.0.1a20",
 ]
-sentry = [
-    "sentry-sdk>=2.35.0",
-]
+sentry = ["sentry-sdk>=2.35.0"]
 
 [build-system]
 requires = ["hatchling"]
@@ -42,4 +38,4 @@ build-backend = "hatchling.build"
 generate = true
 template_type = "lib"
 generate_standard_pytest_step = true
-typechecker = "ty"
+typechecker = "mypy"
