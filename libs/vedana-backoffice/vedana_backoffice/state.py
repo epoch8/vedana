@@ -1165,14 +1165,14 @@ class ChatState(rx.State):
 
         yield ChatState.send_background(user_text)
 
-    def open_jims_thread(self) -> None:
+    def open_jims_thread(self):
         """Open the JIMS page and preselect the current chat thread."""
         if not (self.chat_thread_id or "").strip():
             return
 
         # First set selection on JIMS state, then navigate to /jims
-        yield ThreadViewState.select_thread(thread_id=self.chat_thread_id)
-        yield rx.redirect("/jims")
+        yield ThreadViewState.select_thread(thread_id=self.chat_thread_id)  # type: ignore[operator]
+        yield rx.redirect("/jims")  # type: ignore[operator]
 
     @rx.event(background=True)  # type: ignore[operator]
     async def load_data_model_text(self):
