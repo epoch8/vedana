@@ -1,3 +1,7 @@
+# WIP
+
+* (vedana) Add backoffice app
+
 # 2025.09.22-dev.21
 
 * (vedana-eval/etl) Refactored evaluation script into a Datapipe pipeline
