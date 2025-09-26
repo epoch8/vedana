@@ -194,7 +194,7 @@ def jims_thread_list_page() -> rx.Component:
                             variant="ghost",
                             color_scheme="gray",
                             size="1",
-                            on_click=ThreadViewState.select_thread(thread_id=t.thread_id),
+                            on_click=ThreadViewState.select_thread(thread_id=t.thread_id),  # type: ignore[operator]
                         )
                     ),  # type: ignore[call-arg,func-returns-value]
                     rx.table.cell(t.created_at),
