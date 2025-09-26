@@ -124,7 +124,7 @@ variable "gdrive_config" {
   default = null
 }
 
-variable "apply_pii_masking" {
-  type    = bool
-  default = false
+variable "extra_env" {
+  type    = map(string)
+  default = {}
 }
