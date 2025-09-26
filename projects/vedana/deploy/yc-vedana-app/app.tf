@@ -34,8 +34,6 @@ locals {
       GRIST_API_KEY           = var.grist.api_key
       GRIST_DATA_MODEL_DOC_ID = var.grist.data_model_doc_id
       GRIST_DATA_DOC_ID       = var.grist.data_doc_id
-
-      APPLY_PII_MASKING       = title(tostring(var.apply_pii_masking))
     },
     var.grist.test_set_doc_id != null ? {
       TEST_ENVIRONMENT      = local.slug
@@ -49,6 +47,7 @@ locals {
     } : {},
     local.llm_env,
     local.gdrive_env,
+    var.extra_env,
   )
 
   common_values = <<EOF
