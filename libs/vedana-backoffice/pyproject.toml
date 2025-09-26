@@ -9,7 +9,6 @@ dependencies = [
     "orjson>=3.11.3",
     "vedana-core",
     "vedana-etl",
-    "jims-backoffice",
 ]
 
 [build-system]
