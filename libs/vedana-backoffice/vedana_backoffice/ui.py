@@ -2,7 +2,9 @@ import os
 
 import reflex as rx
 
-VERSION: str = f"`{os.environ.get('VERSION', 'unspecified_version')}`"  # md-formatted
+
+class AppVersionState(rx.State):
+    version: str = f"`{os.environ.get('VERSION', 'unspecified_version')}`"  # md-formatted
 
 
 def app_header() -> rx.Component:
@@ -10,7 +12,7 @@ def app_header() -> rx.Component:
         rx.hstack(
             rx.hstack(
                 rx.link("Vedana Backoffice", href="/", font_weight="bold", font_size="1.25em"),
-                rx.markdown(VERSION),  # type: ignore[operator]
+                rx.markdown(AppVersionState.version),  # type: ignore[operator]
                 align="center",
                 spacing="3",
             ),
