@@ -18,15 +18,15 @@ class ThreadVis:
     created_at: str
     thread_age: str
     interface: str
-    last_activity: str
-    last_activity_age: str
+    # last_activity: str
+    # last_activity_age: str
 
     @classmethod
     def create(
         cls,
         thread_id: str,
         created_at: datetime,
-        last_activity: datetime,
+        # last_activity: datetime,
         thread_config: dict,
     ) -> "ThreadVis":
         cfg = thread_config or {}
@@ -38,8 +38,8 @@ class ThreadVis:
             created_at=datetime.strftime(created_at, "%Y-%m-%d %H:%M:%S"),
             thread_age=datetime_to_age(created_at),
             interface=str(iface_val or ""),
-            last_activity=datetime.strftime(last_activity, "%Y-%m-%d %H:%M:%S"),
-            last_activity_age=datetime_to_age(last_activity),
+            # last_activity=datetime.strftime(last_activity, "%Y-%m-%d %H:%M:%S"),  # todo format tz
+            # last_activity_age=datetime_to_age(last_activity),
         )
 
 
@@ -122,7 +122,7 @@ class ThreadListState(rx.State):
                     ThreadVis.create(
                         thread_id=str(thread_obj.thread_id),
                         created_at=thread_obj.created_at,
-                        last_activity=last_at or thread_obj.created_at,
+                        # last_activity=last_at or thread_obj.created_at,
                         thread_config=thread_obj.thread_config,
                     )
                 )
@@ -132,7 +132,7 @@ class ThreadListState(rx.State):
                     ThreadVis.create(
                         thread_id=str(thread_obj.thread_id),
                         created_at=thread_obj.created_at,
-                        last_activity=thread_obj.created_at,
+                        # last_activity=thread_obj.created_at,
                         thread_config=thread_obj.thread_config,
                     )
                 )
@@ -179,8 +179,8 @@ def jims_thread_list_page() -> rx.Component:
                 rx.table.column_header_cell("Thread ID"),
                 rx.table.column_header_cell("Created"),
                 rx.table.column_header_cell("Age"),
-                rx.table.column_header_cell("Last Activity"),
-                rx.table.column_header_cell("Since"),
+                # rx.table.column_header_cell("Last Activity"),
+                # rx.table.column_header_cell("Since"),
                 rx.table.column_header_cell("Interface"),
             ),
         ),
@@ -199,8 +199,8 @@ def jims_thread_list_page() -> rx.Component:
                     ),  # type: ignore[call-arg,func-returns-value]
                     rx.table.cell(t.created_at),
                     rx.table.cell(t.thread_age),
-                    rx.table.cell(t.last_activity),
-                    rx.table.cell(t.last_activity_age),
+                    # rx.table.cell(t.last_activity),
+                    # rx.table.cell(t.last_activity_age),
                     rx.table.cell(t.interface),
                     style=rx.cond(
                         t.thread_id == ThreadViewState.selected_thread_id, {"backgroundColor": "var(--accent-3)"}, {}
