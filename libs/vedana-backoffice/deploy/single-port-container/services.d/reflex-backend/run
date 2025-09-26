@@ -1,0 +1,3 @@
+#!/command/with-contenv bash
+cd /app/projects/vedana
+exec reflex run --env prod --backend-only
