@@ -204,7 +204,8 @@ resource "helm_release" "backoffice" {
     local.common_values,
     <<EOF
     command:
-      - jims-backoffice
+      - reflex
+      - run
 
     resources:
       requests:
