@@ -1,4 +1,4 @@
-# WIP
+# 2025.09.26-dev.22
 
 * (vedana) Add backoffice app
 
