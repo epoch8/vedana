@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import sqlalchemy.ext.asyncio as sa_aio
+from async_lru import alru_cache
 from jims_core.app import JimsApp
 from loguru import logger
 
@@ -21,6 +22,7 @@ class VedanaApp:
     start_pipeline: StartPipeline
 
 
+@alru_cache
 async def make_vedana_app() -> VedanaApp:
     graph = MemgraphGraph(core_settings.memgraph_uri, core_settings.memgraph_user, core_settings.memgraph_pwd)
 
@@ -60,6 +62,7 @@ async def make_vedana_app() -> VedanaApp:
     )
 
 
+@alru_cache
 async def make_jims_app() -> JimsApp:
     vedana_app = await make_vedana_app()
 

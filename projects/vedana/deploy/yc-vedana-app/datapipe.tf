@@ -85,8 +85,8 @@ resource "helm_release" "datapipe_api" {
   ]
 }
 
-resource "helm_release" "datapipe_all" {
-  name      = "${local.slug}-datapipe-all"
+resource "helm_release" "datapipe_regular" {
+  name      = "${local.slug}-datapipe-regular"
   namespace = var.k8s_namespace
 
   repository = "https://epoch8.github.io/helm-charts/"

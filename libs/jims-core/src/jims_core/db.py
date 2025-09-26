@@ -15,7 +15,7 @@ class ThreadDB(Base):
     __tablename__ = "threads"
 
     thread_id: sa_orm.Mapped[UUID] = sa_orm.mapped_column(sa_types.UUID, primary_key=True)
-    created_at: sa_orm.Mapped[sa_types.DateTime] = sa_orm.mapped_column(sa_types.DateTime, nullable=False)
+    created_at: sa_orm.Mapped[datetime] = sa_orm.mapped_column(sa_types.DateTime, nullable=False)
 
     thread_config: sa_orm.Mapped[dict] = sa_orm.mapped_column(
         sa_pg.JSONB().with_variant(sa.JSON, "sqlite"), nullable=False
