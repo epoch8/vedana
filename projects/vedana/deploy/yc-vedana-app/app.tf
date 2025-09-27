@@ -211,7 +211,7 @@ resource "helm_release" "backoffice" {
     local.common_values,
     <<EOF
     command:
-      - /init
+      - vedana-backoffice-with-caddy
 
     resources:
       requests:
