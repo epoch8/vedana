@@ -23,10 +23,8 @@ COPY libs/ /app/libs/
 WORKDIR /app/${PROJECT_SRC}
 
 # Copy dependency files, startup and migration scripts
-COPY ${PROJECT_SRC}/pyproject.toml ./
-RUN --mount=type=cache,target=/root/.cache uv sync
-
 COPY ${PROJECT_SRC}/ ./
+RUN --mount=type=cache,target=/root/.cache uv sync
 
 #########################################
 FROM base AS build
