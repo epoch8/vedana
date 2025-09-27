@@ -4,12 +4,6 @@ ENV UV_PROJECT_ENVIRONMENT=/usr/local
 ENV UV_LINK_MODE=copy
 RUN --mount=type=cache,target=/root/.cache pip install uv
 
-ADD --chmod=755 https://github.com/just-containers/s6-overlay/releases/download/v3.1.6.2/s6-overlay-noarch.tar.xz /tmp
-ADD --chmod=755 https://github.com/just-containers/s6-overlay/releases/download/v3.1.6.2/s6-overlay-x86_64.tar.xz /tmp
-RUN tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz \
-    && tar -C / -Jxpf /tmp/s6-overlay-x86_64.tar.xz \
-    && rm -f /tmp/s6-overlay-*.tar.xz
-
 RUN apt-get update && apt-get install -y \
     caddy \
     && rm -rf /var/lib/apt/lists/*
@@ -40,8 +34,3 @@ RUN reflex export --loglevel debug --frontend-only --no-zip
 FROM base AS runtime
 
 COPY --from=build /app/projects/vedana/.web/build/client/ /srv
-COPY libs/vedana-backoffice/deploy/single-port-container/services.d/ /etc/services.d/
-COPY libs/vedana-backoffice/deploy/single-port-container/Caddyfile /etc/caddy/Caddyfile
-
-# Make service scripts executable
-RUN chmod +x /etc/services.d/*/run
