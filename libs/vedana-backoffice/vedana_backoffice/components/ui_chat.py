@@ -5,6 +5,7 @@ def render_message_bubble(
     msg: dict,
     on_toggle_details,
     extras: rx.Component | None = None,
+    corner_tags_component: rx.Component | None = None,
 ) -> rx.Component:  # type: ignore[valid-type]
     """Render a chat-style message bubble.
 
@@ -54,7 +55,16 @@ def render_message_bubble(
         rx.box(),
     )
 
-    header = rx.hstack(
+    # Tag badges for feedback
+    tags_box = corner_tags_component or rx.box()
+
+    header_left = rx.hstack(
+        # event type label at the very left
+        rx.cond(
+            msg.get("tag_label", "") != "",
+            rx.badge(msg.get("tag_label", ""), variant="soft", size="1", color_scheme="gray"),
+            rx.box(),
+        ),
         rx.cond(
             msg.get("has_tech"),
             rx.button(
@@ -66,28 +76,33 @@ def render_message_bubble(
             ),
         ),
         rx.text(msg.get("created_at_fmt", msg.get("created_at", "")), size="1", color="gray"),
-        justify="between",
-        width="100%",
+        spacing="2",
+        align="center",
     )
 
-    body_children = []
-    # Optional tag label; avoid Python truthiness on Vars
-    tag_label = msg.get("tag_label", "")
-    body_children.append(
-        rx.cond(
-            tag_label != "",
-            rx.badge(tag_label, variant="soft", size="1", color_scheme="gray"),
-            rx.box(),
-        )
+    header = rx.hstack(
+        header_left,
+        tags_box,
+        justify="between",
+        width="100%",
+        align="center",
     )
-    body_children.extend(
-        [
-            rx.text(msg.get("content", "")),
-            header,
-            rx.cond(msg.get("show_details"), tech_block),
-            rx.cond(extras is not None, extras or rx.box()),
-        ]
+
+    _evt_label = msg.get("tag_label", "")
+    label_box = rx.cond(
+        _evt_label != "",
+        rx.badge(_evt_label, variant="soft", size="1", color_scheme="gray"),
+        rx.box(),
     )
+
+    body_children = [
+        header,
+        rx.text(msg.get("content", "")),
+        rx.cond(msg.get("show_details"), tech_block),
+        rx.cond(extras is not None, extras or rx.box()),
+    ]
+
+    # Comments are appended by caller via `extras`
 
     body = rx.vstack(
         *body_children,
