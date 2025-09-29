@@ -54,8 +54,9 @@ class ThreadListState(rx.State):
     from_date: str = ""
     to_date: str = ""
     search_text: str = ""
-    review_filter: str = "All"  # Default
-    sort_by: str = "Date (desc)"
+    sort_reverse: bool = False
+    review_filter: str = "Review: All"  # Default
+    sort_by: str = "Sort by: Date ↓"
 
     @staticmethod
     def _parse_date(date_str: str | None) -> datetime | None:
@@ -83,9 +84,15 @@ class ThreadListState(rx.State):
         self.from_date = ""
         self.to_date = ""
         self.search_text = ""
-        self.review_filter = "All"
-        self.sort_by = "Date (desc)"
+        self.sort_reverse = False
+        self.review_filter = "Review: All"
+        self.sort_by = "Sort by: Date ↓"
         return None
+
+    @rx.event
+    async def toggle_sort(self) -> None:
+        self.sort_reverse = not self.sort_reverse
+        await self.get_data()
 
     @rx.event
     def set_review_filter(self, value: str) -> None:
@@ -211,13 +218,13 @@ class ThreadListState(rx.State):
             items = [it for it in items if search in it.thread_id.lower() or search in (it.interface or "").lower()]
 
         # Filter by review status
-        rf = (self.review_filter or "All").strip()
+        rf = (self.review_filter.removeprefix("Review: ") or "All").strip()
         if rf and rf != "All":
             items = [it for it in items if it.review_status == rf]
 
         # Sorting
-        sort_val = (self.sort_by or "Date (desc)").strip()
-        if sort_val == "Date (asc)":
+        sort_val = (self.sort_by or "Date ↓").strip()
+        if sort_val == "Date ↑":
             items = sorted(items, key=lambda it: last_at_by_tid.get(it.thread_id, datetime.min))
         elif sort_val == "Priority":
             rank_map = {"-": -1, "Low": 0, "Medium": 1, "High": 2}
@@ -226,7 +233,7 @@ class ThreadListState(rx.State):
                 key=lambda it: (rank_map.get(it.priority, -1), last_at_by_tid.get(it.thread_id, datetime.min)),
                 reverse=True,
             )
-        else:  # Date (desc)
+        else:  # Date descending
             items = sorted(items, key=lambda it: last_at_by_tid.get(it.thread_id, datetime.min), reverse=True)
 
         self.threads = items
@@ -277,9 +284,9 @@ def jims_thread_list_page() -> rx.Component:
             spacing="2",
         ),
         rx.hstack(
-            rx.text("Review Status"),
             rx.select(
                 items=["All", "Pending", "Complete"],
+                placeholder="Review: All",
                 value=ThreadListState.review_filter,
                 on_change=ThreadListState.set_review_filter,
                 width="180px",
@@ -288,18 +295,37 @@ def jims_thread_list_page() -> rx.Component:
             spacing="2",
         ),
         rx.hstack(
-            rx.text("Sort"),
-            rx.select(
-                items=["Date (desc)", "Date (asc)", "Priority"],
-                value=ThreadListState.sort_by,
-                on_change=ThreadListState.set_sort_by,
-                width="160px",
+            rx.flex(
+            rx.cond(
+                ThreadListState.sort_reverse,
+                rx.icon(
+                    "arrow-down-z-a",
+                    size=28,
+                    stroke_width=1.5,
+                    cursor="pointer",
+                    flex_shrink="0",
+                    on_click=ThreadListState.toggle_sort,
+                ),
+                rx.icon(
+                    "arrow-down-a-z",
+                    size=28,
+                    stroke_width=1.5,
+                    cursor="pointer",
+                    flex_shrink="0",
+                    on_click=ThreadListState.toggle_sort,
+                ),
             ),
-            align="center",
-            spacing="2",
+            rx.select(
+                items=["Date ↓", "Date ↑", "Priority"],
+                value=ThreadListState.sort_by,
+                on_change=ThreadListState.get_data,
+                placeholder="Sort By: Date ↓",
+                width="160px",
+            )
+            )
         ),
         rx.input(
-            placeholder="Search by thread or interface",
+            placeholder="Search thread, tag or interface",
             value=ThreadListState.search_text,
             on_change=ThreadListState.set_search_text,
             width="280px",
