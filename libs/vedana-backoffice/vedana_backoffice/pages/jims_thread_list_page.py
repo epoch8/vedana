@@ -218,6 +218,8 @@ def jims_thread_list_page() -> rx.Component:
             "created_at_fmt": ev.event_age,
             "is_assistant": ev.role == "assistant",
             "tag_label": ev.event_type,
+            "tags": ev.visible_tags,  # tags/comments from backoffice annotations
+            "comments": ev.feedback_comments,
             "has_tech": ev.has_technical_info,
             "has_models": ev.has_models,
             "has_vts": ev.has_vts,
@@ -268,28 +270,22 @@ def jims_thread_list_page() -> rx.Component:
         )
 
         extras = rx.vstack(
-            rx.hstack(
-                rx.foreach(
-                    ev.tags,
-                    lambda tag: rx.button(
-                        tag,
-                        variant="soft",
-                        size="1",
-                        color_scheme="gray",
-                        on_click=ThreadViewState.remove_tag(event_id=ev.event_id, tag=tag),  # type: ignore[call-arg,func-returns-value]
-                    ),
-                ),
-                spacing="1",
-                wrap="wrap",
-            ),
             action_line,
             spacing="2",
+        )
+        tags_component = rx.hstack(
+            rx.foreach(
+                ev.visible_tags,
+                lambda t: rx.badge(t, variant="soft", size="1", color_scheme="gray"),
+            ),
+            spacing="1",
         )
 
         return render_message_bubble(
             msg,
             on_toggle_details=ThreadViewState.toggle_details(event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
             extras=extras,
+            corner_tags_component=tags_component,
         )
 
     # Left panel (thread list with its own scroll)
