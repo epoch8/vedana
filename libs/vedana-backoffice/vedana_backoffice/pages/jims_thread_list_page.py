@@ -57,6 +57,8 @@ class ThreadListState(rx.State):
     sort_reverse: bool = False
     review_filter: str = "Review: All"  # Default
     sort_by: str = "Sort by: Date ↓"
+    available_tags: list[str] = []
+    selected_tags: list[str] = []
 
     @staticmethod
     def _parse_date(date_str: str | None) -> datetime | None:
@@ -103,6 +105,22 @@ class ThreadListState(rx.State):
     async def set_sort_by(self, value: str) -> None:
         self.sort_by = value
         await self.get_data()
+
+    @rx.event
+    def toggle_tag_filter(self, tag: str, value: bool) -> None:
+        try:
+            t = str(tag)
+            if value:
+                if t not in self.selected_tags:
+                    self.selected_tags = [*self.selected_tags, t]
+            else:
+                self.selected_tags = [x for x in self.selected_tags if x != t]
+        except Exception:
+            pass
+
+    @rx.event
+    def clear_tag_filter(self) -> None:
+        self.selected_tags = []
 
     @rx.event
     async def get_data(self) -> None:
@@ -164,6 +182,11 @@ class ThreadListState(rx.State):
 
                 has_feedback: dict[str, bool] = {tid: False for tid in thread_ids}
                 has_resolved: dict[str, bool] = {tid: False for tid in thread_ids}
+
+                # Tag aggregation
+                available_tags_set: set[str] = set()
+                tags_by_event: dict[str, set[str]] = {}
+                bo_rows_sorted = sorted(bo_rows, key=lambda r: getattr(r, "created_at", datetime.min))
                 for ev in bo_rows:
                     tid = str(ev.thread_id)
                     etype = str(getattr(ev, "event_type", ""))
@@ -179,6 +202,22 @@ class ThreadListState(rx.State):
                             priority_by_tid[tid] = {0: "Low", 1: "Medium", 2: "High"}.get(rank, "Low")
                     elif etype == "jims.backoffice.review_resolved":
                         has_resolved[tid] = True
+                    elif etype in ("jims.backoffice.tag_added", "jims.backoffice.tag_removed"):
+                        ed = dict(getattr(ev, "event_data", {}) or {})
+                        tag = str(ed.get("tag", "")).strip()
+                        target = str(ed.get("target_event_id", ""))
+                        if tag:
+                            available_tags_set.add(tag)
+                        if not target:
+                            continue
+                        cur = tags_by_event.setdefault(target, set())
+                        if etype == "jims.backoffice.tag_added" and tag:
+                            cur.add(tag)
+                        elif etype == "jims.backoffice.tag_removed" and tag:
+                            try:
+                                cur.discard(tag)
+                            except Exception:
+                                pass
 
                 for tid in thread_ids:
                     if has_resolved.get(tid):
@@ -187,6 +226,23 @@ class ThreadListState(rx.State):
                         review_status_by_tid[tid] = "Pending"
                     else:
                         review_status_by_tid[tid] = "-"
+
+                # store available tag values for multi-select
+                self.available_tags = sorted(list(available_tags_set))
+
+                # derive thread-level tag sets from event-level tags
+                thread_tags_by_tid: dict[str, set[str]] = {tid: set() for tid in thread_ids}
+                for ev in bo_rows_sorted:
+                    etype = str(getattr(ev, "event_type", ""))
+                    if etype not in ("jims.backoffice.tag_added", "jims.backoffice.tag_removed"):
+                        continue
+                    ed = dict(getattr(ev, "event_data", {}) or {})
+                    target = str(ed.get("target_event_id", ""))
+                    if not target:
+                        continue
+                    cur_tags = tags_by_event.get(target, set())
+                    # union into its thread
+                    thread_tags_by_tid[str(ev.thread_id)].update(cur_tags)
 
         items: list[ThreadVis] = []
         for thread_obj, last_at in rows:
@@ -223,6 +279,19 @@ class ThreadListState(rx.State):
         rf = (self.review_filter.removeprefix("Review: ") or "All").strip()
         if rf and rf != "All":
             items = [it for it in items if it.review_status == rf]
+
+        # Filter by selected tags (OR semantics)
+        sel = set(self.selected_tags or [])
+        if sel:
+
+            def _has_any(t: ThreadVis) -> bool:
+                try:
+                    tid = t.thread_id
+                    return len(sel.intersection(thread_tags_by_tid.get(tid, set()))) > 0
+                except Exception:
+                    return False
+
+            items = [it for it in items if _has_any(it)]
 
         # Sorting
         sort_val = (self.sort_by or "Date ↓").strip()
@@ -294,6 +363,62 @@ def jims_thread_list_page() -> rx.Component:
             ),
             align="center",
             spacing="2",
+        ),
+        # Tags multi-select (dialog with checkboxes)
+        rx.dialog.root(
+            rx.dialog.trigger(
+                rx.button(
+                    rx.cond(
+                        ThreadListState.selected_tags.length() > 0,
+                        "Tags: " + ThreadListState.selected_tags.join(", "),
+                        "Tags: All",
+                    ),
+                    variant="soft",
+                    color_scheme="gray",
+                )
+            ),
+            rx.dialog.content(
+                rx.vstack(
+                    rx.hstack(
+                        rx.dialog.title("Filter by Tags"),
+                        rx.dialog.close(rx.button("Close", variant="ghost", size="1")),
+                        justify="between",
+                        align="center",
+                        width="100%",
+                    ),
+                    rx.scroll_area(
+                        rx.vstack(
+                            rx.foreach(
+                                ThreadListState.available_tags,
+                                lambda t: rx.checkbox(
+                                    t,
+                                    checked=ThreadListState.selected_tags.contains(t),
+                                    on_change=lambda v, tag=t: ThreadListState.toggle_tag_filter(tag=tag, value=v),  # type: ignore[call-arg,func-returns-value]
+                                ),
+                            ),
+                            spacing="2",
+                            width="100%",
+                        ),
+                        type="always",
+                        scrollbars="vertical",
+                        style={"height": "240px", "width": "100%"},
+                    ),
+                    rx.hstack(
+                        rx.button("Apply", on_click=ThreadListState.get_data, size="1"),
+                        rx.button(
+                            "Clear",
+                            variant="soft",
+                            on_click=[ThreadListState.clear_tag_filter, ThreadListState.get_data],
+                            size="1",
+                        ),
+                        spacing="2",
+                        justify="end",
+                        width="100%",
+                    ),
+                    spacing="3",
+                    width="480px",
+                )
+            ),
         ),
         rx.hstack(
             rx.flex(
@@ -467,11 +592,27 @@ def jims_thread_list_page() -> rx.Component:
             action_line,
             spacing="2",
         )
+
+        def _tag_badge(tag: str):  # type: ignore[valid-type]
+            return rx.badge(
+                rx.hstack(
+                    rx.text(tag),
+                    rx.button(
+                        "×",
+                        variant="ghost",
+                        size="1",
+                        color_scheme="gray",
+                        on_click=ThreadViewState.remove_tag(event_id=ev.event_id, tag=tag),  # type: ignore[call-arg,func-returns-value]
+                    ),
+                    spacing="1",
+                ),
+                variant="soft",
+                size="1",
+                color_scheme="gray",
+            )
+
         tags_component = rx.hstack(
-            rx.foreach(
-                ev.visible_tags,
-                lambda t: rx.badge(t, variant="soft", size="1", color_scheme="gray"),
-            ),
+            rx.foreach(ev.visible_tags, _tag_badge),
             spacing="1",
         )
 
