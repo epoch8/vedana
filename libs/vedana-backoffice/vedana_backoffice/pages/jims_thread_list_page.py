@@ -573,9 +573,42 @@ def jims_thread_list_page() -> rx.Component:
                                 ),
                             ),
                             rx.text(c["created_at"], size="1", color="gray"),
+                            rx.spacer(),
+                            # Status badge
+                            rx.cond(
+                                c.get("status", "open") == "resolved",
+                                rx.badge("Resolved", variant="soft", size="1", color_scheme="green"),
+                                rx.cond(
+                                    c.get("status", "open") == "closed",
+                                    rx.badge("Ignored", variant="soft", size="1", color_scheme="gray"),
+                                    rx.box(),
+                                ),
+                            ),
                             spacing="2",
+                            align="center",
+                            width="100%",
                         ),
                         rx.text(c["note"]),
+                        # Actions row
+                        rx.hstack(
+                            rx.button(
+                                "✔",
+                                variant="soft",
+                                size="1",
+                                color_scheme="green",
+                                disabled=c.get("status", "open") != "open",
+                                on_click=ThreadViewState.mark_comment_resolved(comment_id=c["id"]),  # type: ignore[call-arg,func-returns-value]
+                            ),
+                            rx.button(
+                                "✖",
+                                variant="soft",
+                                size="1",
+                                color_scheme="gray",
+                                disabled=c.get("status", "open") != "open",
+                                on_click=ThreadViewState.mark_comment_closed(comment_id=c["id"]),  # type: ignore[call-arg,func-returns-value]
+                            ),
+                            spacing="2",
+                        ),
                         spacing="1",
                         width="100%",
                     ),

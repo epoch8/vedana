@@ -1380,26 +1380,35 @@ class ThreadViewState(rx.State):
                     except Exception:
                         pass
 
-        # 2) Comments per original event
+        # 2) Comments per original event + status mapping
         comments_by_event: dict[str, list[dict[str, Any]]] = {}
+        # status by comment id (event_id of feedback)
+        comment_status: dict[str, str] = {}
         for ev in backoffice_events:
             etype = str(getattr(ev, "event_type", ""))
-            if etype != "jims.backoffice.feedback":
-                continue
-            edata = dict(getattr(ev, "event_data", {}) or {})
-            target = str(edata.get("event_id", ""))
-            if not target:
-                continue
-            note_text = str(edata.get("note", ""))
-            severity = str(edata.get("severity", "Low"))
-            created_at = getattr(ev, "created_at", datetime.utcnow()).replace(microsecond=0)
-            comments_by_event.setdefault(target, []).append(
-                {
-                    "note": note_text,
-                    "severity": severity,
-                    "created_at": datetime.strftime(created_at, "%Y-%m-%d %H:%M:%S"),
-                }
-            )
+            if etype == "jims.backoffice.feedback":
+                edata = dict(getattr(ev, "event_data", {}) or {})
+                target = str(edata.get("event_id", ""))
+                if not target:
+                    continue
+                note_text = str(edata.get("note", ""))
+                severity = str(edata.get("severity", "Low"))
+                created_at = getattr(ev, "created_at", datetime.utcnow()).replace(microsecond=0)
+                comments_by_event.setdefault(target, []).append(
+                    {
+                        "id": str(getattr(ev, "event_id", "")),
+                        "note": note_text,
+                        "severity": severity,
+                        "created_at": datetime.strftime(created_at, "%Y-%m-%d %H:%M:%S"),
+                        "status": "open",
+                    }
+                )
+            elif etype in ("jims.backoffice.comment_resolved", "jims.backoffice.comment_closed"):
+                ed = dict(getattr(ev, "event_data", {}) or {})
+                cid = str(ed.get("comment_id", ""))
+                if not cid:
+                    continue
+                comment_status[cid] = "resolved" if etype.endswith("comment_resolved") else "closed"
 
         # Convert base events into visual items and attach aggregations
         ev_items: list[ThreadEventVis] = []
@@ -1416,7 +1425,14 @@ class ThreadViewState(rx.State):
             except Exception:
                 item.visible_tags = list(item.tags or [])
             try:
-                item.feedback_comments = list(comments_by_event.get(eid, []))
+                cmts = []
+                for c in comments_by_event.get(eid, []) or []:
+                    c = dict(c)
+                    cid = str(c.get("id", ""))
+                    if cid in comment_status:
+                        c["status"] = comment_status[cid]
+                    cmts.append(c)
+                item.feedback_comments = cmts
             except Exception:
                 item.feedback_comments = []
             ev_items.append(item)
@@ -1484,6 +1500,7 @@ class ThreadViewState(rx.State):
         try:
             # local import to avoid cycles todo check
             from vedana_backoffice.pages.jims_thread_list_page import ThreadListState
+
             yield ThreadListState.get_data()  # type: ignore[operator]
         except Exception:
             pass
@@ -1505,6 +1522,7 @@ class ThreadViewState(rx.State):
         await self._reload()
         try:
             from vedana_backoffice.pages.jims_thread_list_page import ThreadListState  # local import todo check
+
             yield ThreadListState.get_data()  # type: ignore[operator]
         except Exception:
             pass
@@ -1550,6 +1568,52 @@ class ThreadViewState(rx.State):
         try:
             # todo check
             from vedana_backoffice.pages.jims_thread_list_page import ThreadListState  # local import
+
+            yield ThreadListState.get_data()  # type: ignore[operator]
+        except Exception:
+            pass
+
+    # --- Comment status actions ---
+    @rx.event
+    async def mark_comment_resolved(self, comment_id: str) -> None:
+        vedana_app = await make_vedana_app()
+        async with vedana_app.sessionmaker() as session:
+            from jims_core.util import uuid7
+
+            ev = ThreadEventDB(
+                thread_id=self.selected_thread_id,
+                event_id=uuid7(),
+                event_type="jims.backoffice.comment_resolved",
+                event_data={"comment_id": comment_id},
+            )
+            session.add(ev)
+            await session.commit()
+        await self._reload()
+        try:
+            from vedana_backoffice.pages.jims_thread_list_page import ThreadListState
+
+            yield ThreadListState.get_data()  # type: ignore[operator]
+        except Exception:
+            pass
+
+    @rx.event
+    async def mark_comment_closed(self, comment_id: str) -> None:
+        vedana_app = await make_vedana_app()
+        async with vedana_app.sessionmaker() as session:
+            from jims_core.util import uuid7
+
+            ev = ThreadEventDB(
+                thread_id=self.selected_thread_id,
+                event_id=uuid7(),
+                event_type="jims.backoffice.comment_closed",
+                event_data={"comment_id": comment_id},
+            )
+            session.add(ev)
+            await session.commit()
+        await self._reload()
+        try:
+            from vedana_backoffice.pages.jims_thread_list_page import ThreadListState
+
             yield ThreadListState.get_data()  # type: ignore[operator]
         except Exception:
             pass
