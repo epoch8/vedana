@@ -20,6 +20,9 @@ class ThreadVis:
     interface: str
     review_status: str
     priority: str
+    tag1: str = ""
+    tag2: str = ""
+    tag3: str = ""
 
     @classmethod
     def create(
@@ -29,11 +32,15 @@ class ThreadVis:
         thread_config: dict,
         review_status: str = "-",
         priority: str = "-",
+        tags_sample: list[str] | None = None,
     ) -> "ThreadVis":
         cfg = thread_config or {}
         iface_val = cfg.get("interface") or cfg.get("channel") or cfg.get("source")
         if isinstance(iface_val, dict):
             iface_val = iface_val.get("name") or iface_val.get("type") or str(iface_val)
+        ts = list(tags_sample or [])
+        while len(ts) < 3:
+            ts.append("")
         return cls(
             thread_id=str(thread_id),
             created_at=datetime.strftime(created_at, "%Y-%m-%d %H:%M:%S"),
@@ -41,6 +48,9 @@ class ThreadVis:
             interface=str(iface_val or ""),
             review_status=str(review_status),
             priority=str(priority),
+            tag1=str(ts[0] or ""),
+            tag2=str(ts[1] or ""),
+            tag3=str(ts[2] or ""),
             # last_activity=datetime.strftime(last_activity, "%Y-%m-%d %H:%M:%S"),  # todo format tz
             # last_activity_age=datetime_to_age(last_activity),
         )
@@ -155,7 +165,7 @@ class ThreadListState(rx.State):
             results = await session.execute(stmt)
             rows = results.all()
 
-            # Collect thread ids and last_at
+            # Collect thread ids and last_at (any event)
             thread_ids: list[str] = []
             last_at_by_tid: dict[str, datetime] = {}
             for thread_obj, last_at in rows:
@@ -165,6 +175,29 @@ class ThreadListState(rx.State):
                     last_at_by_tid[tid] = last_at or thread_obj.created_at
                 except Exception:
                     last_at_by_tid[tid] = thread_obj.created_at
+
+            # Also collect last chat-related activity (exclude jims.backoffice.% events)
+            last_chat_at_by_tid: dict[str, datetime] = {}
+            if thread_ids:
+                chat_stmt = (
+                    sa.select(
+                        ThreadEventDB.thread_id.label("t_id"),
+                        sa.func.max(ThreadEventDB.created_at).label("last_chat_at"),
+                    )
+                    .where(
+                        sa.and_(
+                            ThreadEventDB.thread_id.in_(thread_ids),
+                            sa.not_(ThreadEventDB.event_type.like("jims.backoffice.%")),
+                        )
+                    )
+                    .group_by(ThreadEventDB.thread_id)
+                )
+                chat_rows = (await session.execute(chat_stmt)).all()
+                for t_id, last_chat_at in chat_rows:
+                    try:
+                        last_chat_at_by_tid[str(t_id)] = last_chat_at
+                    except Exception:
+                        continue
 
             # Load backoffice events for review/priority aggregation
             review_status_by_tid: dict[str, str] = {tid: "-" for tid in thread_ids}
@@ -272,6 +305,7 @@ class ThreadListState(rx.State):
         items: list[ThreadVis] = []
         for thread_obj, last_at in rows:
             try:
+                sample = sorted(list(thread_tags_by_tid.get(str(thread_obj.thread_id), set())))[:3]
                 items.append(
                     ThreadVis.create(
                         thread_id=str(thread_obj.thread_id),
@@ -280,10 +314,12 @@ class ThreadListState(rx.State):
                         thread_config=thread_obj.thread_config,
                         review_status=review_status_by_tid.get(str(thread_obj.thread_id), "-"),
                         priority=priority_by_tid.get(str(thread_obj.thread_id), "-"),
+                        tags_sample=sample,
                     )
                 )
             except Exception:
                 # Fall back if last_at is None or bad
+                sample = sorted(list(thread_tags_by_tid.get(str(thread_obj.thread_id), set())))[:3]
                 items.append(
                     ThreadVis.create(
                         thread_id=str(thread_obj.thread_id),
@@ -292,6 +328,7 @@ class ThreadListState(rx.State):
                         thread_config=thread_obj.thread_config,
                         review_status=review_status_by_tid.get(str(thread_obj.thread_id), "-"),
                         priority=priority_by_tid.get(str(thread_obj.thread_id), "-"),
+                        tags_sample=sample,
                     )
                 )
 
@@ -318,19 +355,29 @@ class ThreadListState(rx.State):
 
             items = [it for it in items if _has_any(it)]
 
-        # Sorting
+        # Sorting (by last chat-related activity for Date sorts)
         sort_val = (self.sort_by or "Date ↓").strip()
         if sort_val == "Date ↑":
-            items = sorted(items, key=lambda it: last_at_by_tid.get(it.thread_id, datetime.min))
+            items = sorted(
+                items,
+                key=lambda it: last_chat_at_by_tid.get(it.thread_id, last_at_by_tid.get(it.thread_id, datetime.min)),
+            )
         elif sort_val == "Priority":
             rank_map = {"-": -1, "Low": 0, "Medium": 1, "High": 2}
             items = sorted(
                 items,
-                key=lambda it: (rank_map.get(it.priority, -1), last_at_by_tid.get(it.thread_id, datetime.min)),
+                key=lambda it: (
+                    rank_map.get(it.priority, -1),
+                    last_chat_at_by_tid.get(it.thread_id, last_at_by_tid.get(it.thread_id, datetime.min)),
+                ),
                 reverse=True,
             )
         else:  # Date descending
-            items = sorted(items, key=lambda it: last_at_by_tid.get(it.thread_id, datetime.min), reverse=True)
+            items = sorted(
+                items,
+                key=lambda it: last_chat_at_by_tid.get(it.thread_id, last_at_by_tid.get(it.thread_id, datetime.min)),
+                reverse=True,
+            )
 
         self.threads = items
         self.threads_refreshing = False
@@ -493,6 +540,7 @@ def jims_thread_list_page() -> rx.Component:
                 rx.table.column_header_cell("Created"),
                 rx.table.column_header_cell("Age"),
                 rx.table.column_header_cell("Interface"),
+                rx.table.column_header_cell("Tags"),
                 rx.table.column_header_cell("Review"),
                 rx.table.column_header_cell("Priority"),
             ),
@@ -513,6 +561,14 @@ def jims_thread_list_page() -> rx.Component:
                     rx.table.cell(t.created_at),
                     rx.table.cell(t.thread_age),
                     rx.table.cell(t.interface),
+                    rx.table.cell(
+                        rx.hstack(
+                            rx.cond(t.tag1 != "", rx.badge(t.tag1, variant="soft", size="1", color_scheme="gray")),
+                            rx.cond(t.tag2 != "", rx.badge(t.tag2, variant="soft", size="1", color_scheme="gray")),
+                            rx.cond(t.tag3 != "", rx.badge(t.tag3, variant="soft", size="1", color_scheme="gray")),
+                            spacing="1",
+                        )
+                    ),
                     rx.table.cell(review_badge(t.review_status)),
                     rx.table.cell(priority_badge(t.priority)),
                     style=rx.cond(
