@@ -95,12 +95,14 @@ class ThreadListState(rx.State):
         await self.get_data()
 
     @rx.event
-    def set_review_filter(self, value: str) -> None:
+    async def set_review_filter(self, value: str) -> None:
         self.review_filter = value
+        await self.get_data()
 
     @rx.event
-    def set_sort_by(self, value: str) -> None:
+    async def set_sort_by(self, value: str) -> None:
         self.sort_by = value
+        await self.get_data()
 
     @rx.event
     async def get_data(self) -> None:
@@ -287,7 +289,6 @@ def jims_thread_list_page() -> rx.Component:
             rx.select(
                 items=["All", "Pending", "Complete"],
                 placeholder="Review: All",
-                value=ThreadListState.review_filter,
                 on_change=ThreadListState.set_review_filter,
                 width="180px",
             ),
@@ -296,32 +297,31 @@ def jims_thread_list_page() -> rx.Component:
         ),
         rx.hstack(
             rx.flex(
-            rx.cond(
-                ThreadListState.sort_reverse,
-                rx.icon(
-                    "arrow-down-z-a",
-                    size=28,
-                    stroke_width=1.5,
-                    cursor="pointer",
-                    flex_shrink="0",
-                    on_click=ThreadListState.toggle_sort,
+                rx.cond(
+                    ThreadListState.sort_reverse,
+                    rx.icon(
+                        "arrow-down-z-a",
+                        size=28,
+                        stroke_width=1.5,
+                        cursor="pointer",
+                        flex_shrink="0",
+                        on_click=ThreadListState.toggle_sort,
+                    ),
+                    rx.icon(
+                        "arrow-down-a-z",
+                        size=28,
+                        stroke_width=1.5,
+                        cursor="pointer",
+                        flex_shrink="0",
+                        on_click=ThreadListState.toggle_sort,
+                    ),
                 ),
-                rx.icon(
-                    "arrow-down-a-z",
-                    size=28,
-                    stroke_width=1.5,
-                    cursor="pointer",
-                    flex_shrink="0",
-                    on_click=ThreadListState.toggle_sort,
+                rx.select(
+                    items=["Date ↓", "Date ↑", "Priority"],
+                    on_change=ThreadListState.set_sort_by,
+                    placeholder="Sort By: Date ↓",
+                    width="160px",
                 ),
-            ),
-            rx.select(
-                items=["Date ↓", "Date ↑", "Priority"],
-                value=ThreadListState.sort_by,
-                on_change=ThreadListState.get_data,
-                placeholder="Sort By: Date ↓",
-                width="160px",
-            )
             )
         ),
         rx.input(
