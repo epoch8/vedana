@@ -187,7 +187,13 @@ class ThreadListState(rx.State):
                 available_tags_set: set[str] = set()
                 tags_by_event: dict[str, set[str]] = {}
                 bo_rows_sorted = sorted(bo_rows, key=lambda r: getattr(r, "created_at", datetime.min))
-                for ev in bo_rows:
+
+                # Comment resolution aggregation
+                unresolved_by_tid: dict[str, int] = {tid: 0 for tid in thread_ids}
+                comment_tid_by_id: dict[str, str] = {}
+                resolved_cids: set[str] = set()
+
+                for ev in bo_rows_sorted:
                     tid = str(ev.thread_id)
                     etype = str(getattr(ev, "event_type", ""))
                     if etype == "jims.backoffice.feedback":
@@ -200,6 +206,14 @@ class ThreadListState(rx.State):
                         if rank > priority_rank_by_tid.get(tid, -1):
                             priority_rank_by_tid[tid] = rank
                             priority_by_tid[tid] = {0: "Low", 1: "Medium", 2: "High"}.get(rank, "Low")
+                        # Count unresolved comment
+                        try:
+                            cid = str(getattr(ev, "event_id"))
+                            if cid:
+                                comment_tid_by_id[cid] = tid
+                                unresolved_by_tid[tid] = unresolved_by_tid.get(tid, 0) + 1
+                        except Exception:
+                            pass
                     elif etype == "jims.backoffice.review_resolved":
                         has_resolved[tid] = True
                     elif etype in ("jims.backoffice.tag_added", "jims.backoffice.tag_removed"):
@@ -218,9 +232,20 @@ class ThreadListState(rx.State):
                                 cur.discard(tag)
                             except Exception:
                                 pass
+                    elif etype in ("jims.backoffice.comment_resolved", "jims.backoffice.comment_closed"):
+                        ed = dict(getattr(ev, "event_data", {}) or {})
+                        cid = str(ed.get("comment_id", ""))
+                        if not cid or cid in resolved_cids:
+                            continue
+                        resolved_cids.add(cid)
+                        rtid = comment_tid_by_id.get(cid, tid)
+                        try:
+                            unresolved_by_tid[rtid] = max(0, unresolved_by_tid.get(rtid, 0) - 1)
+                        except Exception:
+                            pass
 
                 for tid in thread_ids:
-                    if has_resolved.get(tid):
+                    if has_resolved.get(tid) or (has_feedback.get(tid) and unresolved_by_tid.get(tid, 0) == 0):
                         review_status_by_tid[tid] = "Complete"
                     elif has_feedback.get(tid):
                         review_status_by_tid[tid] = "Pending"
