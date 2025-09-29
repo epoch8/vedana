@@ -352,7 +352,6 @@ def jims_thread_list_page() -> rx.Component:
             "id": ev.event_id,
             "content": ev.content,
             "created_at": ev.created_at_str,
-            "created_at_fmt": ev.event_age,
             "is_assistant": ev.role == "assistant",
             "tag_label": ev.event_type,
             "tags": ev.visible_tags,  # tags/comments from backoffice annotations

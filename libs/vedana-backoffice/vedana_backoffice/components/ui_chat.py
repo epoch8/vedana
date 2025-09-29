@@ -75,7 +75,7 @@ def render_message_bubble(
                 on_click=on_toggle_details,  # type: ignore[arg-type]
             ),
         ),
-        rx.text(msg.get("created_at_fmt", msg.get("created_at", "")), size="1", color="gray"),
+        rx.text(msg.get("created_at", ""), size="1", color="gray"),
         spacing="2",
         align="center",
     )
