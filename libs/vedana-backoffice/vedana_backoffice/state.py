@@ -1240,7 +1240,6 @@ class ThreadEventVis:
     role: str
     content: str
     tags: list[str]
-    event_age: str
     event_data_list: list[tuple[str, str]]
     technical_vts_queries: list[str]
     technical_cypher_queries: list[str]
@@ -1299,7 +1298,6 @@ class ThreadEventVis:
             role=role,
             content=content,
             tags=tags,
-            event_age=datetime_to_age(created_at),
             event_data_list=[(str(k), str(v)) for k, v in event_data.items()],
             technical_vts_queries=vts_queries,
             technical_cypher_queries=cypher_queries,
