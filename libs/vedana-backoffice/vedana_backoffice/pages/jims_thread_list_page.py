@@ -104,17 +104,17 @@ class ThreadListState(rx.State):
     @rx.event
     async def toggle_sort(self) -> None:
         self.sort_reverse = not self.sort_reverse
-        await self.get_data()
+        await self.get_data()  # type: ignore[operator]
 
     @rx.event
     async def set_review_filter(self, value: str) -> None:
         self.review_filter = value
-        await self.get_data()
+        await self.get_data()  # type: ignore[operator]
 
     @rx.event
     async def set_sort_by(self, value: str) -> None:
         self.sort_by = value
-        await self.get_data()
+        await self.get_data()  # type: ignore[operator]
 
     @rx.event
     def toggle_tag_filter(self, tag: str, value: bool) -> None:
@@ -443,8 +443,8 @@ def jims_thread_list_page() -> rx.Component:
             rx.dialog.trigger(
                 rx.button(
                     rx.cond(
-                        ThreadListState.selected_tags.length() > 0,
-                        "Tags: " + ThreadListState.selected_tags.join(", "),
+                        ThreadListState.selected_tags.length() > 0,  # type: ignore[attr-defined]
+                        "Tags: " + ThreadListState.selected_tags.join(", "),  # type: ignore[attr-defined]
                         "Tags: All",
                     ),
                     variant="soft",
@@ -466,8 +466,8 @@ def jims_thread_list_page() -> rx.Component:
                                 ThreadListState.available_tags,
                                 lambda t: rx.checkbox(
                                     t,
-                                    checked=ThreadListState.selected_tags.contains(t),
-                                    on_change=lambda v, tag=t: ThreadListState.toggle_tag_filter(tag=tag, value=v),  # type: ignore[call-arg,func-returns-value]
+                                    checked=ThreadListState.selected_tags.contains(t),  # type: ignore[attr-defined, operator]
+                                    on_change=lambda v, tag=t: ThreadListState.toggle_tag_filter(tag=tag, value=v),  # type: ignore[call-arg,func-returns-value, operator]
                                 ),
                             ),
                             spacing="2",
@@ -504,7 +504,7 @@ def jims_thread_list_page() -> rx.Component:
                         stroke_width=1.5,
                         cursor="pointer",
                         flex_shrink="0",
-                        on_click=ThreadListState.toggle_sort,
+                        on_click=ThreadListState.toggle_sort,  # type: ignore[operator]
                     ),
                     rx.icon(
                         "arrow-down-0-1",
@@ -512,7 +512,7 @@ def jims_thread_list_page() -> rx.Component:
                         stroke_width=1.5,
                         cursor="pointer",
                         flex_shrink="0",
-                        on_click=ThreadListState.toggle_sort,
+                        on_click=ThreadListState.toggle_sort,  # type: ignore[operator]
                     ),
                 ),
                 rx.select(
@@ -718,7 +718,7 @@ def jims_thread_list_page() -> rx.Component:
                         variant="ghost",
                         size="1",
                         color_scheme="gray",
-                        on_click=ThreadViewState.remove_tag(event_id=ev.event_id, tag=tag),  # type: ignore[call-arg,func-returns-value]
+                        on_click=ThreadViewState.remove_tag(event_id=ev.event_id, tag=tag),  # type: ignore[operator, call-arg,func-returns-value]
                     ),
                     spacing="1",
                 ),
