@@ -64,7 +64,7 @@ class ThreadListState(rx.State):
     from_date: str = ""
     to_date: str = ""
     search_text: str = ""
-    sort_reverse: bool = False
+    sort_reverse: bool = True
     review_filter: str = "Review: All"  # Default
     sort_by: str = "Sort by: Date"
     available_tags: list[str] = []
@@ -96,7 +96,7 @@ class ThreadListState(rx.State):
         self.from_date = ""
         self.to_date = ""
         self.search_text = ""
-        self.sort_reverse = False
+        self.sort_reverse = True
         self.review_filter = "Review: All"
         self.sort_by = "Sort by: Date"
         return None
@@ -736,6 +736,7 @@ def jims_thread_list_page() -> rx.Component:
             msg,
             on_toggle_details=ThreadViewState.toggle_details(event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
             extras=extras,
+            corner_tags_component=tags_component,
         )
 
     # Left panel (thread list with its own scroll)
