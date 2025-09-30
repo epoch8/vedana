@@ -1478,7 +1478,7 @@ class ThreadViewState(rx.State):
 
     # Persistence events: we encode admin actions as jims.backoffice.* events for now
     @rx.event
-    async def add_tag(self, event_id: str) -> None:
+    async def add_tag(self, event_id: str):
         if not self.new_tag_text.strip():
             return
         vedana_app = await make_vedana_app()
@@ -1505,7 +1505,7 @@ class ThreadViewState(rx.State):
             pass
 
     @rx.event
-    async def remove_tag(self, event_id: str, tag: str) -> None:
+    async def remove_tag(self, event_id: str, tag: str):
         vedana_app = await make_vedana_app()
         async with vedana_app.sessionmaker() as session:
             from jims_core.util import uuid7
@@ -1527,7 +1527,7 @@ class ThreadViewState(rx.State):
             pass
 
     @rx.event
-    async def submit_note_for(self, event_id: str) -> None:
+    async def submit_note_for(self, event_id: str):
         text = (self.note_text_by_event.get(event_id) or "").strip()
         if not text:
             return
@@ -1574,7 +1574,7 @@ class ThreadViewState(rx.State):
 
     # --- Comment status actions ---
     @rx.event
-    async def mark_comment_resolved(self, comment_id: str) -> None:
+    async def mark_comment_resolved(self, comment_id: str):
         vedana_app = await make_vedana_app()
         async with vedana_app.sessionmaker() as session:
             from jims_core.util import uuid7
@@ -1596,7 +1596,7 @@ class ThreadViewState(rx.State):
             pass
 
     @rx.event
-    async def mark_comment_closed(self, comment_id: str) -> None:
+    async def mark_comment_closed(self, comment_id: str):
         vedana_app = await make_vedana_app()
         async with vedana_app.sessionmaker() as session:
             from jims_core.util import uuid7
