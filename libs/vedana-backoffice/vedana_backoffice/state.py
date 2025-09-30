@@ -23,7 +23,6 @@ from vedana_etl.app import pipeline
 from vedana_etl.config import DBCONN_DATAPIPE
 
 from vedana_backoffice.graph.build import build_canonical, derive_step_edges, derive_table_edges
-from vedana_backoffice.util import datetime_to_age
 
 vedana_app: VedanaApp | None = None
 
