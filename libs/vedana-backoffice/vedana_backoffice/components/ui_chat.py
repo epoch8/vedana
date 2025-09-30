@@ -88,13 +88,6 @@ def render_message_bubble(
         align="center",
     )
 
-    _evt_label = msg.get("tag_label", "")
-    label_box = rx.cond(
-        _evt_label != "",
-        rx.badge(_evt_label, variant="soft", size="1", color_scheme="gray"),
-        rx.box(),
-    )
-
     body_children = [
         header,
         rx.text(msg.get("content", "")),
