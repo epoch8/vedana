@@ -57,7 +57,7 @@ def page() -> rx.Component:
                                 ChatState.chat_thread_id == "",
                                 True,  # no thread_id --> nothing to reset
                                 False,  # thread_id present --> can be reset
-                            )
+                            ),
                         ),
                         rx.dialog.root(
                             rx.dialog.trigger(
