@@ -741,7 +741,7 @@ def jims_thread_list_page() -> rx.Component:
 
     # Left panel (thread list with its own scroll)
     left_panel = rx.vstack(
-        rx.heading("Threads"),
+        # rx.heading("Threads"),
         filters,
         rx.cond(
             ThreadListState.threads_refreshing,
@@ -757,7 +757,7 @@ def jims_thread_list_page() -> rx.Component:
         ThreadViewState.selected_thread_id == "",
         rx.center(rx.text("Select a thread to view conversation"), style={"height": "100%"}),
         rx.vstack(
-            rx.heading("Conversation"),
+            # rx.heading("Conversation"),
             rx.scroll_area(
                 rx.vstack(rx.foreach(ThreadViewState.events, _render_event_as_msg), spacing="3", width="100%"),
                 type="always",
