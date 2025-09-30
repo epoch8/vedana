@@ -66,7 +66,7 @@ class ThreadListState(rx.State):
     search_text: str = ""
     sort_reverse: bool = False
     review_filter: str = "Review: All"  # Default
-    sort_by: str = "Sort by: Date ↓"
+    sort_by: str = "Sort by: Date"
     available_tags: list[str] = []
     selected_tags: list[str] = []
 
@@ -98,7 +98,7 @@ class ThreadListState(rx.State):
         self.search_text = ""
         self.sort_reverse = False
         self.review_filter = "Review: All"
-        self.sort_by = "Sort by: Date ↓"
+        self.sort_by = "Sort by: Date"
         return None
 
     @rx.event
@@ -134,6 +134,7 @@ class ThreadListState(rx.State):
 
     @rx.event
     async def get_data(self) -> None:
+        """compiles the entire thread list table"""
         vedana_app = await make_vedana_app()
 
         from_dt = self._parse_date(self.from_date)
@@ -356,11 +357,12 @@ class ThreadListState(rx.State):
             items = [it for it in items if _has_any(it)]
 
         # Sorting (by last chat-related activity for Date sorts)
-        sort_val = (self.sort_by or "Date ↓").strip()
-        if sort_val == "Date ↑":
+        sort_val = self.sort_by.removeprefix("Sort by:").strip()
+        if sort_val == "Date":
             items = sorted(
                 items,
                 key=lambda it: last_chat_at_by_tid.get(it.thread_id, last_at_by_tid.get(it.thread_id, datetime.min)),
+                reverse=self.sort_reverse,  # sort_reverse = True by default
             )
         elif sort_val == "Priority":
             rank_map = {"-": -1, "Low": 0, "Medium": 1, "High": 2}
@@ -370,9 +372,9 @@ class ThreadListState(rx.State):
                     rank_map.get(it.priority, -1),
                     last_chat_at_by_tid.get(it.thread_id, last_at_by_tid.get(it.thread_id, datetime.min)),
                 ),
-                reverse=True,
+                reverse=self.sort_reverse,  # sort_reverse = True by default
             )
-        else:  # Date descending
+        else:  # Date descending as a fallback
             items = sorted(
                 items,
                 key=lambda it: last_chat_at_by_tid.get(it.thread_id, last_at_by_tid.get(it.thread_id, datetime.min)),
@@ -497,7 +499,7 @@ def jims_thread_list_page() -> rx.Component:
                 rx.cond(
                     ThreadListState.sort_reverse,
                     rx.icon(
-                        "arrow-down-z-a",
+                        "arrow-down-1-0",
                         size=28,
                         stroke_width=1.5,
                         cursor="pointer",
@@ -505,7 +507,7 @@ def jims_thread_list_page() -> rx.Component:
                         on_click=ThreadListState.toggle_sort,
                     ),
                     rx.icon(
-                        "arrow-down-a-z",
+                        "arrow-down-0-1",
                         size=28,
                         stroke_width=1.5,
                         cursor="pointer",
@@ -514,9 +516,9 @@ def jims_thread_list_page() -> rx.Component:
                     ),
                 ),
                 rx.select(
-                    items=["Date ↓", "Date ↑", "Priority"],
+                    items=["Date", "Priority"],
                     on_change=ThreadListState.set_sort_by,
-                    placeholder="Sort By: Date ↓",
+                    placeholder="Sort By: Date",
                     width="160px",
                 ),
             )
@@ -734,7 +736,6 @@ def jims_thread_list_page() -> rx.Component:
             msg,
             on_toggle_details=ThreadViewState.toggle_details(event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
             extras=extras,
-            corner_tags_component=tags_component,
         )
 
     # Left panel (thread list with its own scroll)
