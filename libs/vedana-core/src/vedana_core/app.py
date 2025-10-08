@@ -45,7 +45,7 @@ async def make_vedana_app() -> VedanaApp:
         data_model=data_model,
         logger=logger,
         threshold=0.8,
-        temperature=0.1,
+        temperature=1,
     )
 
     start_pipeline = StartPipeline(data_model=data_model)
