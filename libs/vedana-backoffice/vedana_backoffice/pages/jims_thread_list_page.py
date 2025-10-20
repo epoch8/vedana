@@ -328,7 +328,6 @@ class ThreadListState(rx.State):
                     ThreadVis.create(
                         thread_id=str(thread_obj.thread_id),
                         created_at=thread_obj.created_at,
-                        # last_activity=thread_obj.created_at,
                         thread_config=thread_obj.thread_config,
                         review_status=review_status_by_tid.get(str(thread_obj.thread_id), "-"),
                         priority=priority_by_tid.get(str(thread_obj.thread_id), "-"),
@@ -420,85 +419,89 @@ def jims_thread_list_page() -> rx.Component:
 
     filters = rx.hstack(
         rx.hstack(
-            rx.text("From"),
-            rx.input(value=ThreadListState.from_date, type="date", on_change=ThreadListState.set_from_date),
-            align="center",
-            spacing="2",
-        ),
-        rx.hstack(
-            rx.text("To"),
-            rx.input(value=ThreadListState.to_date, type="date", on_change=ThreadListState.set_to_date),
-            align="center",
-            spacing="2",
-        ),
-        rx.hstack(
+            rx.hstack(
+                rx.input(
+                    value=ThreadListState.from_date,
+                    type="date",
+                    on_change=ThreadListState.set_from_date,
+                ),
+                rx.text("-"),
+                rx.input(
+                    value=ThreadListState.to_date,
+                    type="date",
+                    on_change=ThreadListState.set_to_date,
+                ),
+                align="center",
+                spacing="1",
+            ),
             rx.select(
                 items=["All", "Pending", "Complete"],
                 placeholder="Review: All",
                 on_change=ThreadListState.set_review_filter,
                 width="180px",
             ),
-            align="center",
-            spacing="2",
-        ),
-        # Tags multi-select (dialog with checkboxes)
-        rx.dialog.root(
-            rx.dialog.trigger(
-                rx.button(
-                    rx.cond(
-                        ThreadListState.selected_tags.length() > 0,  # type: ignore[attr-defined]
-                        "Tags: " + ThreadListState.selected_tags.join(", "),  # type: ignore[attr-defined]
-                        "Tags: All",
-                    ),
-                    variant="soft",
-                    color_scheme="gray",
-                )
-            ),
-            rx.dialog.content(
-                rx.vstack(
-                    rx.hstack(
-                        rx.dialog.title("Filter by Tags"),
-                        rx.dialog.close(rx.button("Close", variant="ghost", size="1")),
-                        justify="between",
-                        align="center",
-                        width="100%",
-                    ),
-                    rx.scroll_area(
-                        rx.vstack(
-                            rx.foreach(
-                                ThreadListState.available_tags,
-                                lambda t: rx.checkbox(
-                                    t,
-                                    checked=ThreadListState.selected_tags.contains(t),  # type: ignore[attr-defined, operator]
-                                    on_change=lambda v, tag=t: ThreadListState.toggle_tag_filter(tag=tag, value=v),  # type: ignore[call-arg,func-returns-value, operator]
-                                ),
-                            ),
-                            spacing="2",
+            rx.dialog.root(
+                rx.dialog.trigger(
+                    rx.button(
+                        rx.cond(
+                            ThreadListState.selected_tags.length() > 0,  # type: ignore[attr-defined]
+                            "Tags: " + ThreadListState.selected_tags.join(", "),  # type: ignore[attr-defined]
+                            "Tags: All",
+                        ),
+                        variant="soft",
+                        color_scheme="gray",
+                    )
+                ),
+                rx.dialog.content(
+                    rx.vstack(
+                        rx.hstack(
+                            rx.dialog.title("Filter by Tags"),
+                            rx.dialog.close(rx.button("Close", variant="ghost", size="1")),
+                            justify="between",
+                            align="center",
                             width="100%",
                         ),
-                        type="always",
-                        scrollbars="vertical",
-                        style={"height": "240px", "width": "100%"},
-                    ),
-                    rx.hstack(
-                        rx.button("Apply", on_click=ThreadListState.get_data, size="1"),
-                        rx.button(
-                            "Clear",
-                            variant="soft",
-                            on_click=[ThreadListState.clear_tag_filter, ThreadListState.get_data],
-                            size="1",
+                        rx.scroll_area(
+                            rx.vstack(
+                                rx.foreach(
+                                    ThreadListState.available_tags,
+                                    lambda t: rx.checkbox(
+                                        t,
+                                        checked=ThreadListState.selected_tags.contains(t),
+                                        on_change=lambda v, tag=t: ThreadListState.toggle_tag_filter(tag=tag, value=v),
+                                    ),
+                                ),
+                                spacing="2",
+                                width="100%",
+                            ),
+                            type="always",
+                            scrollbars="vertical",
+                            style={"height": "240px", "width": "100%"},
                         ),
-                        spacing="2",
-                        justify="end",
-                        width="100%",
-                    ),
-                    spacing="3",
-                    width="480px",
-                )
+                        rx.hstack(
+                            rx.button("Apply", on_click=ThreadListState.get_data, size="1"),
+                            rx.button(
+                                "Clear",
+                                variant="soft",
+                                on_click=[ThreadListState.clear_tag_filter, ThreadListState.get_data],
+                                size="1",
+                            ),
+                            spacing="2",
+                            justify="end",
+                            width="100%",
+                        ),
+                        spacing="3",
+                        width="480px",
+                    )
+                ),
             ),
-        ),
-        rx.hstack(
-            rx.flex(
+            rx.hstack(
+                rx.select(
+                    items=["Date", "Priority"],
+                    on_change=ThreadListState.set_sort_by,
+                    placeholder="Sort By: Date",
+                    width="160px",
+                ),
                 rx.cond(
                     ThreadListState.sort_reverse,
                     rx.icon(
@@ -507,7 +510,7 @@ def jims_thread_list_page() -> rx.Component:
                         stroke_width=1.5,
                         cursor="pointer",
                         flex_shrink="0",
-                        on_click=ThreadListState.toggle_sort,  # type: ignore[operator]
+                        on_click=ThreadListState.toggle_sort,
                     ),
                     rx.icon(
                         "arrow-down-0-1",
@@ -515,26 +518,30 @@ def jims_thread_list_page() -> rx.Component:
                         stroke_width=1.5,
                         cursor="pointer",
                         flex_shrink="0",
-                        on_click=ThreadListState.toggle_sort,  # type: ignore[operator]
+                        on_click=ThreadListState.toggle_sort,
                     ),
                 ),
-                rx.select(
-                    items=["Date", "Priority"],
-                    on_change=ThreadListState.set_sort_by,
-                    placeholder="Sort By: Date",
-                    width="160px",
-                ),
-            )
+                spacing="0",
+            ),
+            rx.input(
+                placeholder="Search thread, tag or interface",
+                value=ThreadListState.search_text,
+                on_change=ThreadListState.set_search_text,
+                width="280px",
+            ),
         ),
-        rx.input(
-            placeholder="Search thread, tag or interface",
-            value=ThreadListState.search_text,
-            on_change=ThreadListState.set_search_text,
-            width="280px",
+        rx.hstack(
+            rx.button("Search", on_click=ThreadListState.get_data),
+            rx.button(
+                "Clear",
+                variant="soft",
+                on_click=[ThreadListState.clear_filters, ThreadListState.get_data],
+            ),
+            spacing="2",
         ),
-        rx.button("Apply", on_click=ThreadListState.get_data),
-        rx.button("Clear", variant="soft", on_click=[ThreadListState.clear_filters, ThreadListState.get_data]),
-        spacing="4",
+        justify="between",
+        width="100%",
+        align="center",
         wrap="wrap",
     )
 
@@ -742,10 +749,13 @@ def jims_thread_list_page() -> rx.Component:
             corner_tags_component=tags_component,
         )
 
+    filters_box = rx.box(
+        filters,
+        margin_bottom="1em",
+    )
+
     # Left panel (thread list with its own scroll)
     left_panel = rx.vstack(
-        # rx.heading("Threads"),
-        filters,
         rx.cond(
             ThreadListState.threads_refreshing,
             rx.center("Loading threads..."),
@@ -774,6 +784,7 @@ def jims_thread_list_page() -> rx.Component:
 
     return rx.vstack(
         app_header(),
+        filters_box,
         rx.grid(
             left_panel,
             right_panel,
