@@ -286,9 +286,6 @@ class ThreadListState(rx.State):
                     else:
                         review_status_by_tid[tid] = "-"
 
-                # store available tag values for multi-select
-                self.available_tags = sorted(list(available_tags_set))
-
                 # derive thread-level tag sets from event-level tags
                 thread_tags_by_tid: dict[str, set[str]] = {tid: set() for tid in thread_ids}
                 for ev in bo_rows_sorted:
@@ -302,6 +299,12 @@ class ThreadListState(rx.State):
                     cur_tags = tags_by_event.get(target, set())
                     # union into its thread
                     thread_tags_by_tid[str(ev.thread_id)].update(cur_tags)
+
+                # store available tag values for multi-select
+                current_tags: set[str] = set()
+                for _tid, _tags in thread_tags_by_tid.items():
+                    current_tags.update(set(_tags))
+                self.available_tags = sorted(list(current_tags))
 
         items: list[ThreadVis] = []
         for thread_obj, last_at in rows:
