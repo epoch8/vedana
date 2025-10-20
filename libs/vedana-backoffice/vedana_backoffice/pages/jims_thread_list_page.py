@@ -524,7 +524,7 @@ def jims_thread_list_page() -> rx.Component:
                 spacing="0",
             ),
             rx.input(
-                placeholder="Search thread, tag or interface",
+                placeholder="Search thread or interface",
                 value=ThreadListState.search_text,
                 on_change=ThreadListState.set_search_text,
                 width="280px",
