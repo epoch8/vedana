@@ -1,6 +1,6 @@
 [project]
 name = "vedana"
-version = "2025.09.26-dev.22"
+version = "2025.09.26-dev.23"
 description = "Vedana"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
