@@ -467,8 +467,8 @@ def jims_thread_list_page() -> rx.Component:
                                     ThreadListState.available_tags,
                                     lambda t: rx.checkbox(
                                         t,
-                                        checked=ThreadListState.selected_tags.contains(t),
-                                        on_change=lambda v, tag=t: ThreadListState.toggle_tag_filter(tag=tag, value=v),
+                                        checked=ThreadListState.selected_tags.contains(t),  # type: ignore[attr-defined]
+                                        on_change=lambda v, tag=t: ThreadListState.toggle_tag_filter(tag=tag, value=v),  # type: ignore[operator]
                                     ),
                                 ),
                                 spacing="2",
