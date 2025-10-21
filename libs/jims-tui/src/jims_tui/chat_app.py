@@ -58,7 +58,7 @@ class ChatApp(App):
         @self.call_later
         async def process():
             with trace.use_span(span):
-                pipeline_events = await self.ctl.run_pipeline_with_context(pipeline)
+                pipeline_events = await self.ctl.run_with_context(pipeline)
 
             for pipeline_event in pipeline_events:
                 if pipeline_event.event_type == "comm.assistant_message":
