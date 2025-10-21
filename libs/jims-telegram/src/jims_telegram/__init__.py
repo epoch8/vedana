@@ -1,6 +1,7 @@
 import asyncio
 import uuid
 from contextlib import suppress
+from datetime import datetime
 from typing import Any, Awaitable, overload
 
 from aiogram import Bot, Dispatcher
@@ -121,6 +122,8 @@ class TelegramController:
         ctl = await self.app.new_thread(
             uuid_from_int(message.chat.id),
             {
+                "interface": "telegram",
+                "created_at": str(datetime.now()),
                 "telegram_chat_id": message.chat.id,
                 "telegram_user_id": message.from_user.id if message.from_user else None,
             },
@@ -149,6 +152,8 @@ class TelegramController:
                     self.app.sessionmaker,
                     uuid_from_int(message.chat.id),
                     {
+                        "interface": "telegram",
+                        "created_at": str(datetime.now()),
                         "telegram_chat_id": message.chat.id,
                         "telegram_user_id": message.from_user.id if message.from_user else None,
                     },
