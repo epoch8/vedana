@@ -28,6 +28,8 @@ class ThreadContext:
 
     status_updater: StatusUpdater | None = None
 
+    current_pipeline: str = "main"  # used to pass pipeline selection to Orchestrator
+
     def with_status_updater(self, status_updater: StatusUpdater) -> "ThreadContext":
         """Set the status updater for this thread context."""
         self.status_updater = status_updater

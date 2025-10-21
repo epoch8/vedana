@@ -7,7 +7,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 from jims_core.app import JimsApp
-from jims_core.schema import Pipeline
+from jims_core.schema import Orchestrator
 from jims_core.thread.thread_context import StatusUpdater
 from jims_core.thread.thread_controller import ThreadController
 from loguru import logger
@@ -27,7 +27,7 @@ class TelegramSettings(BaseSettings):
         extra="ignore",
     )
 
-    bot_token: str
+    bot_token: str = "7680711745:AAFO7SDh_SCqe1tPl42yh9Dotj3utGbrEsE"
 
 
 settings = TelegramSettings()  # type: ignore
@@ -86,9 +86,14 @@ class TelegramController:
             app = await app
         return cls(app)
 
-    async def _run_pipeline(self, ctl: ThreadController, chat_id: Any, pipeline: Pipeline) -> None:
+    async def _run_pipeline(
+        self, ctl: ThreadController, chat_id: Any, orchestrator: Orchestrator, pipeline_route: str | None = None
+    ) -> None:
         ctx = await ctl.make_context()
         ctx = ctx.with_status_updater(TelegramStatusUpdater(self.bot, chat_id))
+
+        if pipeline_route:
+            ctx.current_pipeline = pipeline_route
 
         async def status_updater():
             try:
@@ -101,7 +106,7 @@ class TelegramController:
         updater_task = asyncio.create_task(status_updater())
 
         try:
-            events = await ctl.run_pipeline_with_context(pipeline, ctx)
+            events = await ctl.run_with_context(orchestrator, ctx)
         finally:
             updater_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -132,8 +137,8 @@ class TelegramController:
                 content=message.text,
             )
 
-        if self.app.conversation_start_pipeline is not None:
-            await self._run_pipeline(ctl, message.chat.id, self.app.conversation_start_pipeline)
+        # Explicit start route via context
+        await self._run_pipeline(ctl, message.chat.id, self.app.orchestrator, pipeline_route="start")
 
     async def handle_message(self, message: Message) -> None:
         with tracer.start_as_current_span("jims_telegram.handle_message"):
@@ -160,7 +165,7 @@ class TelegramController:
                     content=message.text,
                 )
 
-            await self._run_pipeline(ctl, message.chat.id, self.app.pipeline)
+            await self._run_pipeline(ctl, message.chat.id, self.app.orchestrator, pipeline_route="main")
 
     async def run(self):
         logger.debug("Starting Telegram bot")

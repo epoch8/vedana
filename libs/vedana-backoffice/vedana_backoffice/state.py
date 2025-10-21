@@ -1120,7 +1120,7 @@ class ChatState(rx.State):
             ctl = await ThreadController.new_thread(vedana_app.sessionmaker, uuid7(), {"interface": "reflex"})
 
         await ctl.store_user_message(uuid7(), user_text)
-        events = await ctl.run_pipeline_with_context(vedana_app.pipeline)
+        events = await ctl.run_with_context(vedana_app.orchestrator)
 
         answer: str = ""
         tech: dict[str, Any] = {}

@@ -42,15 +42,15 @@ async def test_set_state(sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSes
         state = ctx.get_state(State)
         assert state is None, "Expected no state to be set"
 
-    await ctl.run_pipeline_with_context(expect_no_state)
+    await ctl.run_with_context(expect_no_state)
 
     async def set_state(ctx: ThreadContext) -> None:
         ctx.set_state(State(key="value"))
 
-    await ctl.run_pipeline_with_context(set_state)
+    await ctl.run_with_context(set_state)
 
     async def get_state(ctx: ThreadContext) -> None:
         state = ctx.get_state(State)
         assert state == State(key="value")
 
-    await ctl.run_pipeline_with_context(get_state)
+    await ctl.run_with_context(get_state)
