@@ -94,24 +94,24 @@ class TelegramController:
     async def thread_from_user_id(
         cls,
         sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession],
-        from_user_id: int,
+        from_user_id: int | None,
     ) -> "ThreadController | None":
         """
         Retrieve the latest thread associated with a given telegram user_id.
         """
-        async with sessionmaker() as session:
-            stmt = (
-                sa.select(ThreadDB)
-                .where(ThreadDB.thread_config["telegram_user_id"].astext == str(from_user_id))
-                .order_by(ThreadDB.thread_id.desc())  # or created_at(?)
-                .limit(1)
-            )
-            thread = (await session.execute(stmt)).scalar_one_or_none()
+        if from_user_id:
+            async with sessionmaker() as session:
+                stmt = (
+                    sa.select(ThreadDB)
+                    .where(ThreadDB.thread_config["telegram_user_id"].astext == str(from_user_id))
+                    .order_by(ThreadDB.thread_id.desc())  # or created_at(?)
+                    .limit(1)
+                )
+                thread = (await session.execute(stmt)).scalar_one_or_none()
 
-        if thread:
-            return ThreadController(sessionmaker, thread)
-        else:
-            return None
+            if thread:
+                return ThreadController(sessionmaker, thread)
+        return None
 
     async def _run_pipeline(self, ctl: ThreadController, chat_id: Any, pipeline: Pipeline) -> None:
         ctx = await ctl.make_context()
@@ -169,7 +169,7 @@ class TelegramController:
             logger.debug(f"Received message {message.text=} from {message.chat.id=}")
             ctl = await self.thread_from_user_id(
                 self.app.sessionmaker,
-                message.from_user.id,
+                message.from_user.id if message.from_user else None,
             )
 
             if ctl is None:
