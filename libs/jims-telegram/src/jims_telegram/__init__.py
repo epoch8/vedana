@@ -104,7 +104,7 @@ class TelegramController:
                 stmt = (
                     sa.select(ThreadDB)
                     .where(ThreadDB.thread_config["telegram_user_id"].astext == str(from_user_id))
-                    .order_by(ThreadDB.thread_id.desc())  # or created_at(?)
+                    .order_by(ThreadDB.created_at.desc())
                     .limit(1)
                 )
                 thread = (await session.execute(stmt)).scalar_one_or_none()
