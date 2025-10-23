@@ -2,14 +2,11 @@ import asyncio
 import uuid
 from contextlib import suppress
 from typing import Any, Awaitable, overload
-import sqlalchemy as sa
-import sqlalchemy.ext.asyncio as sa_aio
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 from jims_core.app import JimsApp
-from jims_core.db import ThreadDB
 from jims_core.schema import Pipeline
 from jims_core.thread.thread_context import StatusUpdater
 from jims_core.thread.thread_controller import ThreadController
