@@ -119,7 +119,7 @@ class TelegramController:
     async def command_start(self, message: Message) -> None:
         logger.debug(f"Received command start from {message.chat.id}")
         if not message.from_user:  # messages sent on behalf of chats, channels, or by tg
-            logger.error(f"from_user.id not found in message")
+            logger.error("from_user.id not found in message")
             return
 
         from_id = message.from_user.id  # type: ignore[union-attr]
@@ -148,7 +148,7 @@ class TelegramController:
         with tracer.start_as_current_span("jims_telegram.handle_message"):
             logger.debug(f"Received message {message.text=} from {message.chat.id=}")
             if not message.from_user:  # messages sent on behalf of chats, channels, or by tg
-                logger.error(f"from_user.id not found in message")
+                logger.error("from_user.id not found in message")
                 return
 
             from_id = message.from_user.id  # type: ignore[union-attr]
