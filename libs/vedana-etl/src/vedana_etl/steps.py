@@ -56,7 +56,7 @@ def clean_str(text: str) -> str:
     return text.strip()
 
 
-def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
+def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
     loader = GristCsvDataProvider(
         doc_id=core_settings.grist_data_model_doc_id,
         grist_server=core_settings.grist_server_url,
@@ -84,15 +84,14 @@ def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
     links_df["has_direction"] = _links_df["has_direction"].astype(bool)
     links_df = links_df.dropna(subset=["anchor1", "anchor2", "sentence"], inplace=False)
 
-    attrs_df = loader.get_table("Attributes")
-    attrs_df = cast(
+    anchor_attrs_df = loader.get_table("Anchor_attributes")
+    anchor_attrs_df = cast(
         pd.DataFrame,
-        attrs_df[
+        anchor_attrs_df[
             [
+                "anchor",
                 "attribute_name",
                 "description",
-                "anchor",
-                "link",
                 "data_example",
                 "embeddable",
                 "query",
@@ -101,10 +100,29 @@ def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
             ]
         ],
     )
-    attrs_df["embeddable"] = attrs_df["embeddable"].astype(bool)
-    attrs_df["embed_threshold"] = attrs_df["embed_threshold"].astype(float)
-    attrs_df = attrs_df.dropna(subset=["attribute_name"])
-    attrs_df = attrs_df.dropna(subset=["anchor", "link"], how="all")
+    anchor_attrs_df["embeddable"] = anchor_attrs_df["embeddable"].astype(bool)
+    anchor_attrs_df["embed_threshold"] = anchor_attrs_df["embed_threshold"].astype(float)
+    anchor_attrs_df = anchor_attrs_df.dropna(subset=["anchor", "attribute_name"], how="any")
+
+    link_attrs_df = loader.get_table("Link_attributes")
+    link_attrs_df = cast(
+        pd.DataFrame,
+        link_attrs_df[
+            [
+                "link",
+                "attribute_name",
+                "description",
+                "data_example",
+                "embeddable",
+                "query",
+                "dtype",
+                "embed_threshold",
+            ]
+        ],
+    )
+    link_attrs_df["embeddable"] = link_attrs_df["embeddable"].astype(bool)
+    link_attrs_df["embed_threshold"] = link_attrs_df["embed_threshold"].astype(float)
+    link_attrs_df = link_attrs_df.dropna(subset=["link", "attribute_name"], how="any")
 
     anchors_df = loader.get_table("Anchors")
     anchors_df = cast(
@@ -121,7 +139,7 @@ def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
     anchors_df = anchors_df.dropna(subset=["noun"], inplace=False)
     anchors_df = anchors_df.astype(str)
 
-    yield anchors_df, attrs_df, links_df
+    yield anchors_df, anchor_attrs_df, link_attrs_df, links_df
 
 
 def get_data_model_snapshot() -> Iterator[pd.DataFrame]:
