@@ -1,7 +1,7 @@
 [project]
 name = "jims-telegram"
-version = "0.1.1"
-description = "Add your description here"
+version = "0.1.2"
+description = "Telegram interface for JIMS applications"
 readme = "README.md"
 authors = [{ name = "Andrey Tatarinov", email = "a@tatarinov.co" }]
 requires-python = ">=3.12"
