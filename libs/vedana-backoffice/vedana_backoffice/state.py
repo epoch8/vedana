@@ -1119,11 +1119,11 @@ class ChatState(rx.State):
 
         ctl = await ThreadController.from_thread_id(vedana_app.sessionmaker, tid)
         if ctl is None:
-            thread_id = uuid7()
+            thr_id = uuid7()
             ctl = await ThreadController.new_thread(
                 vedana_app.sessionmaker,
-                contact_id=f"reflex:{thread_id}",
-                thread_id=thread_id,
+                contact_id=f"reflex:{thr_id}",
+                thread_id=thr_id,
                 thread_config={"interface": "reflex"},
             )
 
