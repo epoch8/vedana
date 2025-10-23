@@ -118,10 +118,10 @@ class TelegramController:
 
     async def command_start(self, message: Message) -> None:
         logger.debug(f"Received command start from {message.chat.id}")
-
+        thread_id = uuid7()
         ctl = await self.app.new_thread(
-            contact_id=f"telegram:{message.from_user.id}",  # type: ignore[union-attr]
-            thread_id=uuid7(),
+            contact_id=f"telegram:{message.from_user.id if message.from_user else thread_id}",
+            thread_id=thread_id,
             thread_config={
                 "interface": "telegram",
                 "telegram_chat_id": message.chat.id,
@@ -149,10 +149,11 @@ class TelegramController:
                 )
             if ctl is None:
                 logger.warning(f"Thread with id {message.chat.id} not found, recreating")
+                thread_id = uuid7()
                 ctl = await ThreadController.new_thread(
                     self.app.sessionmaker,
-                    contact_id=f"telegram:{message.from_user.id}",
-                    thread_id=uuid7(),
+                    contact_id=f"telegram:{message.from_user.id if message.from_user else thread_id}",
+                    thread_id=thread_id,
                     thread_config={
                         "interface": "telegram",
                         "telegram_chat_id": message.chat.id,
