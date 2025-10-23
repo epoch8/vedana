@@ -5,7 +5,8 @@ from datapipe.step.batch_transform import BatchTransform
 import vedana_etl.steps as steps
 from vedana_etl.catalog import (
     dm_anchors,
-    dm_attributes,
+    dm_link_attributes,
+    dm_anchor_attributes,
     dm_links,
     dm_version,
     edges,
@@ -27,7 +28,7 @@ from vedana_etl.catalog import (
 data_model_steps = [
     BatchGenerate(
         func=steps.get_data_model,  # Generator with main graph data
-        outputs=[dm_anchors, dm_attributes, dm_links],
+        outputs=[dm_anchors, dm_anchor_attributes, dm_link_attributes, dm_links],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "extract"), ("stage", "data-model")],
     ),
     BatchGenerate(
@@ -83,8 +84,8 @@ default_custom_steps = [
 memgraph_steps = [
     BatchTransform(
         func=steps.ensure_memgraph_indexes,
-        inputs=[dm_attributes],
         outputs=[memgraph_indexes, memgraph_vector_indexes],
+        inputs=[dm_anchor_attributes, dm_link_attributes],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["attribute_name"],
     ),

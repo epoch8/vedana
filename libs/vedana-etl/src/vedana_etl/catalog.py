@@ -28,16 +28,33 @@ dm_links = Table(
     ),
 )
 
-dm_attributes = Table(
-    name="dm_attributes_v2",
+dm_anchor_attributes = Table(
+    name="dm_anchor_attributes",
     store=TableStoreDB(
         dbconn=DBCONN_DATAPIPE,
-        name="dm_attributes_v2",
+        name="dm_anchor_attributes",
         data_sql_schema=[
-            Column("attribute_name", String, primary_key=True),
             Column("anchor", String, primary_key=True),
+            Column("attribute_name", String, primary_key=True),
             Column("description", String),
-            Column("link", String),
+            Column("data_example", String),
+            Column("embeddable", Boolean),
+            Column("query", String),
+            Column("dtype", String),
+            Column("embed_threshold", Float),
+        ],
+    ),
+)
+
+dm_link_attributes = Table(
+    name="dm_link_attributes",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="dm_link_attributes",
+        data_sql_schema=[
+            Column("link", String, primary_key=True),
+            Column("attribute_name", String, primary_key=True),
+            Column("description", String),
             Column("data_example", String),
             Column("embeddable", Boolean),
             Column("query", String),
