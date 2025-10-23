@@ -1,3 +1,7 @@
+# 2025.10.23
+
+* Add `contact_id` field to threads
+
 # 2025.09.05
 
 * Add `jims_core.JimsApp` abstraction
