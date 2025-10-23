@@ -118,14 +118,20 @@ class TelegramController:
 
     async def command_start(self, message: Message) -> None:
         logger.debug(f"Received command start from {message.chat.id}")
+        if not message.from_user:  # messages sent on behalf of chats, channels, or by tg
+            logger.error(f"from_user.id not found in message")
+            return
+
+        from_id = message.from_user.id  # type: ignore[union-attr]
+
         thread_id = uuid7()
         ctl = await self.app.new_thread(
-            contact_id=f"telegram:{message.from_user.id if message.from_user else thread_id}",
+            contact_id=f"telegram:{from_id}",
             thread_id=thread_id,
             thread_config={
                 "interface": "telegram",
                 "telegram_chat_id": message.chat.id,
-                "telegram_user_id": message.from_user.id if message.from_user else None,
+                "telegram_user_id": from_id,
             },
         )
 
@@ -141,23 +147,26 @@ class TelegramController:
     async def handle_message(self, message: Message) -> None:
         with tracer.start_as_current_span("jims_telegram.handle_message"):
             logger.debug(f"Received message {message.text=} from {message.chat.id=}")
+            if not message.from_user:  # messages sent on behalf of chats, channels, or by tg
+                logger.error(f"from_user.id not found in message")
+                return
 
-            ctl = None  # placeholder
-            if message.from_user:
-                ctl = await ThreadController.latest_thread_from_contact_id(
-                    self.app.sessionmaker, f"telegram:{message.from_user.id}"  # type: ignore[union-attr]
-                )
+            from_id = message.from_user.id  # type: ignore[union-attr]
+
+            ctl = await ThreadController.latest_thread_from_contact_id(
+                self.app.sessionmaker, f"telegram:{from_id}"
+            )
             if ctl is None:
                 logger.warning(f"Thread with id {message.chat.id} not found, recreating")
                 thread_id = uuid7()
                 ctl = await ThreadController.new_thread(
                     self.app.sessionmaker,
-                    contact_id=f"telegram:{message.from_user.id if message.from_user else thread_id}",
+                    contact_id=f"telegram:{from_id}",
                     thread_id=thread_id,
                     thread_config={
                         "interface": "telegram",
                         "telegram_chat_id": message.chat.id,
-                        "telegram_user_id": message.from_user.id if message.from_user else None,
+                        "telegram_user_id": from_id,
                     },
                 )
 
