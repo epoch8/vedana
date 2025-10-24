@@ -402,17 +402,18 @@ def get_grist_data(
     yield nodes_df, edges_df
 
 
-def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def ensure_memgraph_indexes(dm_anchor_attrs: pd.DataFrame, dm_link_attrs: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Create label / vector indices
+    https://memgraph.com/docs/querying/vector-search
     """
 
-    # anchors for indices
-    dm_attributes = dm_attributes.dropna(subset="anchor")  # todo remove - temp until embeddable edge attrs are checked
-    anchor_types: set[str] = set(dm_attributes["anchor"].dropna().unique())
+    anchor_types: set[str] = set(dm_anchor_attrs["anchor"].dropna().unique())
+    link_types: set[str] = set(dm_link_attrs["link"].dropna().unique())
 
     # embeddable attrs for vector indices
-    vec_attr_rows = dm_attributes[(dm_attributes["embeddable"]) & (dm_attributes["dtype"].str.lower() == "str")]
+    vec_l_attr_rows = dm_link_attrs[(dm_link_attrs["embeddable"]) & (dm_link_attrs["dtype"].str.lower() == "str")]
+    vec_a_attr_rows = dm_anchor_attrs[(dm_anchor_attrs["embeddable"]) & (dm_anchor_attrs["dtype"].str.lower() == "str")]
 
     driver = GraphDatabase.driver(
         uri=core_settings.memgraph_uri,
@@ -423,7 +424,7 @@ def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, 
     )
 
     with driver.session() as session:
-        # Indices
+        # Indices on Anchors
         for label in anchor_types:
             try:
                 session.run(f"CREATE INDEX ON :`{label}`(id)")  # type: ignore
@@ -435,17 +436,25 @@ def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, 
             except Exception as exc:
                 logger.debug(f"CREATE CONSTRAINT failed for label {label}: {exc}")  # probably index exists
 
-        # Vector indices
-        for _, row in vec_attr_rows.iterrows():
+        # Indices on Edges (optimizes queries such as MATCH ()-[r:EDGE_TYPE]->() RETURN r;)
+        # If queried by edge property, will need to add property index (similar to above for Anchor)
+        for label in link_types:
+            try:
+                session.run(f"CREATE EDGE INDEX ON :`{label}`")  # type: ignore
+            except Exception as exc:
+                logger.debug(f"CREATE EDGE INDEX failed for label {label}: {exc}")  # probably index exists
+
+            # todo edge constraints?
+            # try:
+            #     session.run(f"CREATE CONSTRAINT ON (n:`{label}`) ASSERT n.id IS UNIQUE")  # type: ignore
+            # except Exception as exc:
+            #     logger.debug(f"CREATE CONSTRAINT failed for label {label}: {exc}")  # probably index exists
+
+        # Vector indices - Anchors
+        for _, row in vec_a_attr_rows.iterrows():
             attr: str = row["attribute_name"]
             embeddings_dim = core_settings.embeddings_dim
-
-            if pd.notna(row["anchor"]):
-                label = row["anchor"]
-            elif pd.notna(row["link"]):
-                label = row["link"]  # relationship label
-            else:
-                continue  # cannot determine label
+            label = row["anchor"]
 
             idx_name = f"{label}_{attr}_embed_idx".replace(" ", "_")
             prop_name = f"{attr}_embedding"
@@ -460,12 +469,33 @@ def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, 
                 logger.debug(f"CREATE VECTOR INDEX failed for {idx_name}: {exc}")  # probably index exists
                 continue
 
+        # Vector indices - Links
+        for _, row in vec_l_attr_rows.iterrows():
+            attr: str = row["attribute_name"]
+            embeddings_dim = core_settings.embeddings_dim
+            label = row["link"]
+
+            idx_name = f"{label}_{attr}_embed_idx".replace(" ", "_")
+            prop_name = f"{attr}_embedding"
+
+            cypher = (
+                f"CREATE VECTOR EDGE INDEX `{idx_name}` ON :`{label}`(`{prop_name}`) "
+                f'WITH CONFIG {{"dimension": {embeddings_dim}, "capacity": 1024, "metric": "cos"}}'
+            )
+            try:
+                session.run(cypher)  # type: ignore
+            except Exception as exc:
+                logger.debug(f"CREATE VECTOR EDGE INDEX failed for {idx_name}: {exc}")  # probably index exists
+                continue
+
     driver.close()
 
     # nominal outputs
-    memgraph_indexes = pd.DataFrame({"attribute_name": list(anchor_types)})
-    memgraph_vector_indexes = vec_attr_rows[["attribute_name", "anchor", "link"]].copy()
-    return memgraph_indexes, memgraph_vector_indexes
+    mg_anchor_indexes = pd.DataFrame({"anchor": list(anchor_types)})
+    mg_link_indexes = pd.DataFrame({"link": list(link_types)})
+    mg_anchor_vector_indexes = vec_a_attr_rows[["anchor", "attribute_name"]].copy()
+    mg_link_vector_indexes = vec_l_attr_rows[["link", "attribute_name"]].copy()
+    return mg_anchor_indexes, mg_link_indexes, mg_anchor_vector_indexes, mg_link_vector_indexes
 
 
 def generate_embeddings(

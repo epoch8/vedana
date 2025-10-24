@@ -119,26 +119,48 @@ edges = Table(
 
 # --- Memgraph-related tables ---
 
-memgraph_indexes = Table(
-    name="memgraph_indexes",
+memgraph_anchor_indexes = Table(
+    name="memgraph_anchor_indexes",
     store=TableStoreDB(
         dbconn=DBCONN_DATAPIPE,
-        name="memgraph_indexes",
+        name="memgraph_anchor_indexes",
         data_sql_schema=[
+            Column("anchor", String, primary_key=True),
+        ],
+    ),
+)
+
+memgraph_link_indexes = Table(
+    name="memgraph_link_indexes",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="memgraph_link_indexes",
+        data_sql_schema=[
+            Column("link", String, primary_key=True),
+        ],
+    ),
+)
+
+memgraph_anchor_vector_indexes = Table(
+    name="memgraph_anchor_vector_indexes",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="memgraph_anchor_vector_indexes",
+        data_sql_schema=[
+            Column("anchor", String, primary_key=True),
             Column("attribute_name", String, primary_key=True),
         ],
     ),
 )
 
-memgraph_vector_indexes = Table(
-    name="memgraph_vector_indexes",
+memgraph_link_vector_indexes = Table(
+    name="memgraph_link_vector_indexes",
     store=TableStoreDB(
         dbconn=DBCONN_DATAPIPE,
-        name="memgraph_vector_indexes",
+        name="memgraph_link_vector_indexes",
         data_sql_schema=[
+            Column("link", String, primary_key=True),
             Column("attribute_name", String, primary_key=True),
-            Column("anchor", String),
-            Column("link", String),
         ],
     ),
 )
