@@ -15,9 +15,11 @@ from vedana_etl.catalog import (
     llm_pipeline_config,
     llm_embeddings_config,
     memgraph_edges,
-    memgraph_indexes,
     memgraph_nodes,
-    memgraph_vector_indexes,
+    memgraph_anchor_indexes,
+    memgraph_link_indexes,
+    memgraph_anchor_vector_indexes,
+    memgraph_link_vector_indexes,
     nodes,
     judge_config,
     eval_gds,
@@ -84,8 +86,13 @@ default_custom_steps = [
 memgraph_steps = [
     BatchTransform(
         func=steps.ensure_memgraph_indexes,
-        outputs=[memgraph_indexes, memgraph_vector_indexes],
         inputs=[dm_anchor_attributes, dm_link_attributes],
+        outputs=[
+            memgraph_anchor_indexes,
+            memgraph_link_indexes,
+            memgraph_anchor_vector_indexes,
+            memgraph_link_vector_indexes
+        ],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["attribute_name"],
     ),
@@ -95,7 +102,7 @@ memgraph_steps = [
     # generate_embeddings is a last processing step, making DataFrame ready for upload
     BatchTransform(
         func=steps.generate_embeddings,
-        inputs=[nodes, memgraph_vector_indexes],
+        inputs=[nodes, memgraph_anchor_vector_indexes],
         outputs=[memgraph_nodes],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["node_id", "node_type"],
@@ -103,7 +110,7 @@ memgraph_steps = [
     ),
     BatchTransform(
         func=steps.generate_embeddings,
-        inputs=[edges, memgraph_vector_indexes],
+        inputs=[edges, memgraph_link_vector_indexes],
         outputs=[memgraph_edges],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["from_node_id", "to_node_id", "edge_label"],
