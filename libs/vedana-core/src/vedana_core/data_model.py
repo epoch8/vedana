@@ -73,29 +73,7 @@ class Prompt:
     text: str
 
 
-class DataModelLoader(abc.ABC):
-    def iter_anchors(self) -> Iterable[tuple]:
-        raise NotImplementedError("Subclasses must implement iter_anchors")
-
-    def iter_links(self) -> Iterable[tuple]:
-        raise NotImplementedError("Subclasses must implement iter_links")
-
-    def iter_attrs(self) -> Iterable[tuple]:
-        raise NotImplementedError("Subclasses must implement iter_attrs")
-
-    def iter_queries(self) -> Iterable[tuple]:
-        raise NotImplementedError("Subclasses must implement iter_queries")
-
-    def iter_conversation_lifecycle_events(self) -> Iterable[tuple]:
-        raise NotImplementedError("Subclasses must implement iter_conversation_lifecycle_events")
-
-    def iter_prompts(self) -> Iterable[tuple]:
-        raise NotImplementedError("Subclasses must implement iter_prompts")
-
-    def close(self) -> None: ...
-
-
-class DataModel:
+class DataModel:  # TODO refer to SQL only for all operations. All ops should get replaced with database read queries.
     def __init__(
         self,
         anchors: list[Anchor],
@@ -113,18 +91,8 @@ class DataModel:
         self.prompts = prompts
 
     @classmethod
-    def load_sqlite(cls, db_path: Path) -> "DataModel":
-        with closing(SqliteDataModelLoader(db_path)) as loader:
-            return cls._load(loader)
-
-    @classmethod
-    def load_grist_online(cls, doc_id: str, grist_server: str, api_key: str | None = None) -> "DataModel":
-        with closing(GristOnlineDataModelLoader(doc_id=doc_id, grist_server=grist_server, api_key=api_key)) as loader:
-            return cls._load(loader)
-
-    @classmethod
     def _load(cls, loader: DataModelLoader) -> "DataModel":
-        # TODO id_example?
+        # TODO relpace with reads during func calls
         anchors = {
             noun: Anchor(
                 noun=noun,
@@ -229,6 +197,11 @@ class DataModel:
             for anchor in self.anchors
             for attr in anchor.attributes
             if attr.embeddable
+        } | {
+            attr.name: {"link": link.sentence, "th": attr.embed_threshold}
+            for link in self.links
+            for attr in link.attributes
+            if attr.embeddable
         }
 
     def conversation_lifecycle_events(self) -> dict[str, str]:
@@ -238,7 +211,10 @@ class DataModel:
         return {p.name: p.text for p in self.prompts}
 
     def vector_indices(self) -> list[tuple[str, str]]:
-        return [(anchor.noun, attr.name) for anchor in self.anchors for attr in anchor.attributes if attr.embeddable]
+        a_i = [(anchor.noun, attr.name) for anchor in self.anchors for attr in anchor.attributes if attr.embeddable]
+        l_i = [(link.sentence, attr.name) for link in self.links for attr in link.attributes if attr.embeddable]
+        # todo links as well
+        return a_i + l_i
 
     def anchor_links(self, anchor_noun: str) -> list[Link]:
         return [
@@ -287,188 +263,6 @@ class DataModel:
             queries=queries_descr,
         )
 
-    def to_dict(self) -> dict:
-        """serialize DataModel"""
-
-        anchors = [
-            {
-                "noun": a.noun,
-                "description": a.description,
-                "id_example": a.id_example,
-                "query": a.query,
-            }
-            for a in self.anchors
-        ]
-
-        links = [
-            {
-                "anchor_from": link.anchor_from.noun,
-                "anchor_to": link.anchor_to.noun,
-                "sentence": link.sentence,
-                "description": link.description,
-                "query": link.query,
-                "has_direction": link.has_direction,
-                "anchor_from_link_attr_name": link.anchor_from_link_attr_name,
-                "anchor_to_link_attr_name": link.anchor_to_link_attr_name,
-            }
-            for link in self.links
-        ]
-
-        # Flatten attributes and keep mapping to reconstruct later
-        attrs: list[dict] = []
-        for a in self.anchors:
-            for attr in a.attributes:
-                attrs.append(
-                    {
-                        "name": attr.name,
-                        "description": attr.description,
-                        "example": attr.example,
-                        "query": attr.query,
-                        "dtype": attr.dtype,
-                        "embeddable": attr.embeddable,
-                        "embed_threshold": attr.embed_threshold,
-                        "anchor_noun": a.noun,
-                        "link_sentence": None,
-                    }
-                )
-
-        for link in self.links:
-            for attr in link.attributes:
-                attrs.append(
-                    {
-                        "name": attr.name,
-                        "description": attr.description,
-                        "example": attr.example,
-                        "query": attr.query,
-                        "dtype": attr.dtype,
-                        "embeddable": attr.embeddable,
-                        "embed_threshold": attr.embed_threshold,
-                        "anchor_noun": None,
-                        "link_sentence": link.sentence,
-                    }
-                )
-
-        queries = [{"name": q.name, "example": q.example} for q in self.queries]
-        conversation_lifecycle = [{"event": cl.event, "text": cl.text} for cl in self.conversation_lifecycle]
-        prompts = [{"name": p.name, "text": p.text} for p in self.prompts]
-
-        return {
-            "anchors": anchors,
-            "links": links,
-            "attrs": attrs,
-            "queries": queries,
-            "conversation_lifecycle": conversation_lifecycle,
-            "prompts": prompts,
-        }
-
-    def to_json(self) -> str:
-        return json.dumps(self.to_dict(), ensure_ascii=False)
-
-    @classmethod
-    def from_dict(cls, d: dict) -> "DataModel":
-        """Reconstruct DataModel"""
-
-        # 1. Anchors
-        anchors_map: dict[str, Anchor] = {}
-        for a in d.get("anchors", []):
-            anchor = Anchor(
-                noun=a["noun"],
-                description=a.get("description", ""),
-                id_example=a.get("id_example", ""),
-                query=a.get("query", ""),
-                attributes=[],
-            )
-            anchors_map[anchor.noun] = anchor
-
-        # 2. Links
-        links_map: dict[str, Link] = {}
-        for link in d.get("links", []):
-            af_noun = link["anchor_from"]
-            at_noun = link["anchor_to"]
-            link_obj = Link(
-                anchor_from=anchors_map[af_noun],
-                anchor_to=anchors_map[at_noun],
-                sentence=link["sentence"],
-                description=link.get("description", ""),
-                query=link.get("query", ""),
-                attributes=[],
-                has_direction=link.get("has_direction", False),
-                anchor_from_link_attr_name=link.get("anchor_from_link_attr_name", ""),
-                anchor_to_link_attr_name=link.get("anchor_to_link_attr_name", ""),
-            )
-            # Use sentence as unique key for quick lookup
-            links_map[link_obj.sentence] = link_obj
-
-        # 3. Attributes – create objects, attach to correct anchor / link
-        attrs: list[Attribute] = []
-        for a in d.get("attrs", []):
-            attr_obj = Attribute(
-                name=a["name"],
-                description=a.get("description", ""),
-                example=a.get("example", ""),
-                query=a.get("query", ""),
-                dtype=a.get("dtype", "str"),
-                embeddable=a.get("embeddable", False),
-                embed_threshold=a.get("embed_threshold", 0),
-                meta={},
-            )
-            attrs.append(attr_obj)
-            anchor_noun = a.get("anchor_noun")
-            link_sentence = a.get("link_sentence")
-            if anchor_noun and anchor_noun in anchors_map:
-                anchors_map[anchor_noun].attributes.append(attr_obj)
-            elif link_sentence and link_sentence in links_map:
-                links_map[link_sentence].attributes.append(attr_obj)
-
-        # 4. Queries
-        queries = [Query(q["name"], q.get("example", "")) for q in d.get("queries", [])]
-
-        # 5. ConversationLifecycle
-        cl = [ConversationLifecycleEvent(c["event"], c.get("text", "")) for c in d.get("conversation_lifecycle", [])]
-
-        # 6. Prompts
-        prompts = [Prompt(c["name"], c.get("text", "")) for c in d.get("prompts", [])]
-
-        return cls(
-            anchors=list(anchors_map.values()),
-            links=list(links_map.values()),
-            attrs=attrs,
-            queries=queries,
-            conversation_lifecycle=cl,
-            prompts=prompts,
-        )
-
-    @classmethod
-    def from_json(cls, json_str: str) -> "DataModel":
-        return cls.from_dict(json.loads(json_str))
-
-    async def update_data_model_node(self, graph: "Graph") -> None:
-        try:
-            await graph.run_cypher(
-                "MERGE (dm:DataModel {id: 'data_model'}) SET dm.content = $content, dm.updated_at = datetime()",
-                {"content": self.to_json()},
-            )
-            logger.debug("DataModel node updated in graph")
-        except Exception as exc:
-            logger.exception("Failed to update DataModel node: %s", exc)
-
-    @classmethod
-    async def load_from_graph(cls, graph: "Graph") -> "DataModel | None":
-        try:
-            res = list(
-                await graph.execute_ro_cypher_query(
-                    "MATCH (dm:DataModel {id: 'data_model'}) RETURN dm.content AS content LIMIT 1"
-                )
-            )
-        except Exception:
-            return None
-        if not res:
-            return None
-        content = res[0].get("content")
-        if not content:
-            return None
-        return cls.from_json(content)
-
 
 dm_descr_template = """\
 ## Узлы:
@@ -498,208 +292,3 @@ dm_link_attr_descr_template = (
     "- {link.sentence}.{attr.name}: {attr.description}; пример: {attr.example}; запрос для получения: {attr.query}"
 )
 dm_query_descr_template = "- {query.name}\n{query.example}"
-
-
-class SqliteDataModelLoader(DataModelLoader):
-    def __init__(self, db_path: Path) -> None:
-        super().__init__()
-        self._conn = sqlite3.connect(db_path)
-
-    def iter_anchors(self) -> Iterable[tuple]:
-        yield from self._conn.execute("SELECT id, noun, description, id_example, query FROM anchors where noun != ''")
-
-    def iter_links(self) -> Iterable[tuple]:
-        yield from self._conn.execute(
-            "SELECT id, anchor1, anchor2, sentence, description, query,"
-            " anchor1_link_column_name, anchor2_link_column_name, has_direction"
-            " FROM Links WHERE Sentence != ''"
-        )
-
-    def iter_attrs(self) -> Iterable[tuple]:
-        yield from self._conn.execute(
-            "SELECT id, Anchor, Link, Attribute_Name, description,"
-            " Data_example, Query, Embeddable FROM Attributes2"
-            " where Attribute_Name != ''"
-        )
-
-    def iter_queries(self) -> Iterable[tuple]:
-        yield from self._conn.execute("SELECT query_name, query_example FROM Queries WHERE query_name != ''")
-
-    def close(self) -> None:
-        self._conn.close()
-
-
-class GristOnlineDataModelLoader(DataModelLoader):
-    def __init__(self, grist_server: str, doc_id: str, api_key: str | None = None) -> None:
-        super().__init__()
-        self._client = grist_api.GristDocAPI(doc_id, server=grist_server, api_key=api_key)
-
-    def iter_anchors(self) -> Iterable[tuple]:
-        anchors_df = self.get_table("Anchors")
-        anchors_df = anchors_df[["id", "noun", "description", "id_example", "query"]]
-        for row in anchors_df.itertuples(index=False):
-            if row.noun:
-                yield row
-
-    def iter_links(self) -> Iterable[tuple]:
-        anchors_df = self.get_table("Anchors")
-        anchors_ser = anchors_df.set_index("id")["noun"]  # get id <--> noun mapping for resolving links
-        assert isinstance(anchors_ser, pd.Series)
-
-        df = self.get_table("Links")
-        df = df[
-            [
-                "id",
-                "anchor1",
-                "anchor2",
-                "sentence",
-                "description",
-                "query",
-                "anchor1_link_column_name",
-                "anchor2_link_column_name",
-                "has_direction",
-            ]
-        ]
-        df["anchor1"] = df["anchor1"].apply(lambda x: anchors_ser.get(x, x))
-        df["anchor2"] = df["anchor2"].apply(lambda x: anchors_ser.get(x, x))
-        for row in df.itertuples(index=False):
-            if all([row.sentence, row.anchor1, row.anchor2]):
-                yield row
-
-    def iter_attrs(self) -> Iterable[tuple]:
-        anchors_df = self.get_table("Anchors")
-        anchors_ser = anchors_df.set_index("id")["noun"]  # get id <--> noun mapping for resolving links
-        assert isinstance(anchors_ser, pd.Series)
-
-        df = self.get_table("Attributes")
-        df = df[
-            [
-                "id",
-                "anchor",
-                "link",
-                "attribute_name",
-                "description",
-                "data_example",
-                "query",
-                "dtype",
-                "embeddable",
-                "embed_threshold",
-            ]
-        ]
-        df["anchor"] = df["anchor"].apply(lambda x: anchors_ser.get(x, x))
-        for row in df.itertuples(index=False):
-            if row.attribute_name:
-                yield row
-
-    def iter_queries(self) -> Iterable[tuple]:
-        df = self.get_table("Queries")
-        df = df[["query_name", "query_example"]]
-        for row in df.itertuples(index=False):
-            yield row
-
-    def iter_conversation_lifecycle_events(self) -> Iterable[tuple]:
-        try:
-            df = self.get_table("ConversationLifecycle")
-            df = df[["event", "text"]]
-            for row in df.dropna().itertuples(index=False):
-                yield row
-        except requests.exceptions.HTTPError:
-            logger.warning("ConversationLifecycle table not found in Grist document")
-
-    def iter_prompts(self) -> Iterable[tuple]:
-        try:
-            df = self.get_table("Prompts")
-            df = df[["name", "text"]]
-            for row in df.dropna().itertuples(index=False):
-                yield row
-        except requests.exceptions.HTTPError:
-            logger.warning("Prompts table not found in Grist document")
-
-    def _list_table_columns(self, table_name: str) -> list[str]:
-        resp = self._client.columns(table_name)
-        if not resp:
-            return []
-        return [column["id"] for column in resp.json()["columns"]]
-
-    def get_table(self, table_name: str) -> pd.DataFrame:
-        columns = self._list_table_columns(table_name) + ["id"]
-        rows = self._client.fetch_table(table_name)
-
-        if len(rows) == 0:
-            return pd.DataFrame(columns=columns)
-
-        df = pd.DataFrame(data=rows)
-        df = cast(pd.DataFrame, df[columns])
-        df.columns = pd.Index([col.lower() for col in df.columns])
-        return df
-
-
-class CsvDataModelLoader(DataModelLoader):
-    def __init__(self, csv_dir: Path) -> None:
-        super().__init__()
-        self.csv_dir = Path(csv_dir)
-        self._anchors = pd.read_csv(self.csv_dir / "anchors.csv")
-        self._links = pd.read_csv(self.csv_dir / "links.csv")
-        self._attrs = pd.read_csv(self.csv_dir / "attributes.csv")
-        self._queries = pd.read_csv(self.csv_dir / "queries.csv")
-
-    def iter_anchors(self) -> Iterable[tuple]:
-        for row in self._anchors.itertuples(index=False):
-            yield (
-                getattr(row, "id", None),
-                getattr(row, "noun", None),
-                getattr(row, "description", None),
-                getattr(row, "id_example", None),
-                getattr(row, "query", None),
-            )
-
-    def iter_links(self) -> Iterable[tuple]:
-        for row in self._links.itertuples(index=False):
-            yield (
-                getattr(row, "id", None),
-                getattr(row, "anchor1", None),
-                getattr(row, "anchor2", None),
-                getattr(row, "sentence", None),
-                getattr(row, "description", None),
-                getattr(row, "query", None),
-                getattr(row, "anchor1_link_column_name", None),
-                getattr(row, "anchor2_link_column_name", None),
-                getattr(row, "has_direction", None),
-            )
-
-    def iter_attrs(self) -> Iterable[tuple]:
-        for row in self._attrs.itertuples(index=False):
-            yield (
-                getattr(row, "id", None),
-                getattr(row, "anchor", None),
-                getattr(row, "link", None),
-                getattr(row, "attribute_name", None),
-                getattr(row, "description", None),
-                getattr(row, "data_example", None),
-                getattr(row, "query", None),
-                getattr(row, "embeddable", None),
-            )
-
-    def iter_queries(self) -> Iterable[tuple]:
-        for row in self._queries.itertuples(index=False):
-            yield (
-                getattr(row, "query_name", None),
-                getattr(row, "query_example", None),
-            )
-
-    def close(self) -> None:
-        pass
-
-
-def main():
-    from vedana_core.settings import settings as S
-
-    data_model2 = DataModel.load_grist_online(
-        S.grist_data_model_doc_id, api_key=S.grist_api_key, grist_server=S.grist_server_url
-    )
-    print("DataModel from grist:")
-    print(data_model2.to_text_descr())
-
-
-if __name__ == "__main__":
-    sys.exit(main())
