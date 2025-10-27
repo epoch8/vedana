@@ -77,13 +77,10 @@ class RagAgent:
         self.graph = graph
         self.llm = llm
         self.logger = logger or logging.getLogger(__name__)
-        self.set_data_model(data_model)
-        self.ctx = ctx
-
-    def set_data_model(self, data_model: DataModel) -> None:
         self._data_model = data_model
         self._graph_descr = data_model.to_text_descr()
         self._vts_args = self._build_vts_arg_model()
+        self.ctx = ctx
 
     def _build_vts_arg_model(self) -> Type[VTSArgs]:
         """Create a Pydantic model with Enum-constrained fields for the VTS tool."""
