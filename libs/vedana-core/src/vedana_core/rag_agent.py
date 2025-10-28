@@ -154,8 +154,13 @@ class RagAgent:
         return "\n\n".join(self.result_to_text(str(q), r) for q, r in all_results)
 
     async def text_to_answer_with_vts_and_cypher(
-        self, text_query: str, threshold: float, temperature: float | None = None, top_n: int = 5
-    ) -> tuple[str, list[VTSQuery], list[CypherQuery]]:
+        self,
+        text_query: str,
+        threshold: float,
+        temperature: float | None = None,
+        top_n: int = 5,
+        generate_no_answer: bool = True,  # determines whether we generate a message saying there's no answer
+    ) -> tuple[str, list[ChatCompletionMessageParam], list[VTSQuery], list[CypherQuery]]:
         vts_queries: list[VTSQuery] = []
         cypher_queries: list[CypherQuery] = []
 
@@ -192,18 +197,18 @@ class RagAgent:
 
         tools: list[Tool] = [vts_tool, cypher_tool]
 
-        msgs, answer = await self.llm.generate_cypher_query_with_tools(
+        all_query_events, answer = await self.llm.generate_cypher_query_with_tools(
             data_descr=self._graph_descr,
-            messages=self.ctx.history[-settings.pipeline_history_length :],
+            messages=self.ctx.history[-settings.pipeline_history_length:],
             tools=tools,
             temperature=temperature,
         )
 
-        if not answer:
+        if not answer and generate_no_answer:
             self.logger.warning(f"No answer found for {text_query}. Generating empty answer...")
             answer = await self.llm.generate_no_answer(self.ctx.history[-settings.pipeline_history_length :])
 
-        return answer, vts_queries, cypher_queries
+        return answer, all_query_events, vts_queries, cypher_queries
 
 
 def _remove_embeddings(val: Any):
