@@ -1,5 +1,3 @@
-import os
-
 import pytest
 import pytest_asyncio
 import sqlalchemy.ext.asyncio as sa_aio
@@ -8,8 +6,6 @@ from jims_core.thread.thread_context import ThreadContext
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from pydantic import BaseModel
-
-os.environ["OPENAI_API_KEY"] = "test"
 
 
 @pytest_asyncio.fixture(scope="session")
