@@ -3,6 +3,10 @@ name = "vedana-core"
 version = "0.5.0"
 description = "Semantic Graph RAG App"
 readme = "README.md"
+authors = [
+    { name = "Andrey Tatarinov", email = "a@tatarinov.co" },
+    { name = "Timur Sheydaev", email = "tsheyd@epoch8.co" },
+]
 requires-python = ">=3.12"
 dependencies = [
     "grist-api>=0.1.1",

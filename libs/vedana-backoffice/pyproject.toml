@@ -4,6 +4,10 @@ version = "0.1.1"
 description = "Reflex-based admin/backoffice UI for Vedana"
 readme = "README.md"
 requires-python = ">=3.12"
+authors = [
+    { name = "Andrey Tatarinov", email = "a@tatarinov.co" },
+    { name = "Timur Sheydaev", email = "tsheyd@epoch8.co" },
+]
 
 dependencies = [
     "reflex>=0.8.0,<0.9.0",
