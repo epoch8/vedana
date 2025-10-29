@@ -6,12 +6,16 @@ from uuid import UUID
 from jims_core.llms.llm_provider import LLMProvider
 from jims_core.thread.schema import CommunicationEvent, EventEnvelope
 from jims_core.util import uuid7
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class StatusUpdater:
     async def update_status(self, status: str) -> None:
         pass
+
+
+class ThreadState(BaseModel):
+    current_pipeline: str = Field(description="ThreadContext.current_pipeline, for persisting in db")
 
 
 @dataclass
