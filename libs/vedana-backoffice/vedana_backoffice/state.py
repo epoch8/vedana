@@ -1099,10 +1099,12 @@ class ChatState(rx.State):
             existing = None
 
         if existing is None:
+            thread_id = uuid7()
             ctl = await ThreadController.new_thread(
                 vedana_app.sessionmaker,
-                uuid7(),
-                {"interface": "reflex-chat", "created_at": time.time()},
+                contact_id=f"reflex:{thread_id}",
+                thread_id=thread_id,
+                thread_config={"interface": "reflex"},
             )
             return str(ctl.thread.thread_id)
 
@@ -1117,7 +1119,13 @@ class ChatState(rx.State):
 
         ctl = await ThreadController.from_thread_id(vedana_app.sessionmaker, tid)
         if ctl is None:
-            ctl = await ThreadController.new_thread(vedana_app.sessionmaker, uuid7(), {"interface": "reflex"})
+            thr_id = uuid7()
+            ctl = await ThreadController.new_thread(
+                vedana_app.sessionmaker,
+                contact_id=f"reflex:{thr_id}",
+                thread_id=thr_id,
+                thread_config={"interface": "reflex"},
+            )
 
         await ctl.store_user_message(uuid7(), user_text)
         events = await ctl.run_pipeline_with_context(vedana_app.pipeline)
