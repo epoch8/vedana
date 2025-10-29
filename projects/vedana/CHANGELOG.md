@@ -1,3 +1,11 @@
+# 2025.09.29-dev.24
+
+* (jims-core, vedana-core) Remove `temperature` argument from LLM calls (GPT-5
+  compatibility)
+* (jims-core) Add `contact_id` to thread
+* (jims-telegram) `/start` command resets thread
+* (vedana-backoffice) Add feedback processing flow, UI updates
+
 # 2025.09.26-dev.23
 
 * (vedana) Add backoffice app
