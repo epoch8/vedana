@@ -153,9 +153,7 @@ class TelegramController:
 
             from_id = message.from_user.id  # type: ignore[union-attr]
 
-            ctl = await ThreadController.latest_thread_from_contact_id(
-                self.app.sessionmaker, f"telegram:{from_id}"
-            )
+            ctl = await ThreadController.latest_thread_from_contact_id(self.app.sessionmaker, f"telegram:{from_id}")
             if ctl is None:
                 logger.warning(f"Thread with id {message.chat.id} not found, recreating")
                 thread_id = uuid7()

@@ -1,4 +1,4 @@
-# 2025.10.23
+# 2025.10.23 - 0.3.0
 
 * Add `contact_id` field to threads
 

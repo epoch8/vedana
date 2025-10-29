@@ -14,8 +14,8 @@ class Base(sa_orm.DeclarativeBase):
 class ThreadDB(Base):
     __tablename__ = "threads"
 
-    contact_id: sa_orm.Mapped[str] = sa_orm.mapped_column(sa_types.String, nullable=True, index=True)
     thread_id: sa_orm.Mapped[UUID] = sa_orm.mapped_column(sa_types.UUID, primary_key=True)
+    contact_id: sa_orm.Mapped[str] = sa_orm.mapped_column(sa_types.String, nullable=True, index=True)
     created_at: sa_orm.Mapped[datetime] = sa_orm.mapped_column(sa_types.DateTime, nullable=False)
 
     thread_config: sa_orm.Mapped[dict] = sa_orm.mapped_column(
