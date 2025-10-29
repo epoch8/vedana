@@ -16,8 +16,8 @@ class Orchestrator:
     def register_pipeline(self, name: str, pipeline: Pipeline) -> None:
         self.pipelines[name] = pipeline
 
-    def route(self, ctx: ThreadContext) -> Pipeline:  # main function
+    def route(self, ctx: ThreadContext) -> Pipeline:  # getter
         pass
 
-    async def __call__(self, ctx: ThreadContext) -> None:  # routing entrypoint
+    async def orchestrate(self, ctx: ThreadContext) -> None:  # entrypoint
         pass
