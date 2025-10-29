@@ -41,7 +41,6 @@ class RagPipeline:
         logger,
         threshold: float = 0.8,
         top_n: int = 5,
-        temperature: float | None = None,
         model: str | None = None,
     ):
         self.graph = graph
@@ -49,7 +48,6 @@ class RagPipeline:
         self.logger = logger or logging.getLogger(__name__)
         self.threshold = threshold
         self.top_n = top_n
-        self.temperature = temperature
         self.model = model or settings.model
 
     async def __call__(self, ctx: ThreadContext) -> None:
@@ -79,7 +77,6 @@ class RagPipeline:
                     "answer": answer,
                     "technical_info": technical_info,
                     "threshold": self.threshold,
-                    "temperature": self.temperature,
                 },
             )
 
@@ -122,7 +119,6 @@ class RagPipeline:
         ) = await agent.text_to_answer_with_vts_and_cypher(
             query,
             threshold=self.threshold,
-            temperature=self.temperature,
             top_n=self.top_n,
         )
 
