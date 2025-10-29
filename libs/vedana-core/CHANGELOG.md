@@ -1,3 +1,7 @@
+# 2025.10.29
+
+* Rm `temperature` parameter from all LLM-related methods
+
 # 2025.09.05
 
 * Add `JimsApp` and `VedanaApp` construction to `vedana_core`, now we can run

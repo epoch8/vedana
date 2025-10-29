@@ -1,6 +1,7 @@
-# 2025.10.23 - 0.3.0
+# 2025.10.29 - 0.3.0
 
 * Add `contact_id` field to threads
+* Rm `temperature` parameter from `LLMProvider` interface
 
 # 2025.09.05
 
