@@ -49,7 +49,11 @@ class ThreadController:
 
     @classmethod
     async def new_thread(
-        cls, sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession], contact_id: str, thread_id: UUID, thread_config: dict
+        cls,
+        sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession],
+        contact_id: str,
+        thread_id: UUID,
+        thread_config: dict,
     ) -> "ThreadController":
         """
         Create a new thread with the given ID and configuration.
@@ -68,7 +72,7 @@ class ThreadController:
                 contact_id=contact_id,
                 thread_id=thread_id,
                 created_at=datetime.datetime.now(),
-                thread_config=thread_config
+                thread_config=thread_config,
             )
             session.add(new_thread)
             await session.commit()
