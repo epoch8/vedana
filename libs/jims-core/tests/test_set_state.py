@@ -1,5 +1,3 @@
-import os
-
 import pytest
 import pytest_asyncio
 import sqlalchemy.ext.asyncio as sa_aio
@@ -8,8 +6,6 @@ from jims_core.thread.thread_context import ThreadContext
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from pydantic import BaseModel
-
-os.environ["OPENAI_API_KEY"] = "test"
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -33,7 +29,9 @@ async def sessionmaker() -> sa_aio.async_sessionmaker[sa_aio.AsyncSession]:
 
 @pytest.mark.asyncio
 async def test_set_state(sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession]) -> None:
-    ctl = await ThreadController.new_thread(sessionmaker, uuid7(), {})
+    thread_id = uuid7()
+    contact_id = f"test:{thread_id}"
+    ctl = await ThreadController.new_thread(sessionmaker, contact_id, thread_id, {})
 
     class State(BaseModel):
         key: str

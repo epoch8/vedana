@@ -1,3 +1,8 @@
+# 2025.10.29 - 0.3.0
+
+* Add `contact_id` field to threads
+* Rm `temperature` parameter from `LLMProvider` interface
+
 # 2025.09.05
 
 * Add `jims_core.JimsApp` abstraction
