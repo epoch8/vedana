@@ -53,6 +53,11 @@ def page() -> rx.Component:
                             color_scheme="gray",
                             size="1",
                             on_click=ChatState.reset_session,
+                            disabled=rx.cond(
+                                ChatState.chat_thread_id == "",
+                                True,  # no thread_id --> nothing to reset
+                                False,  # thread_id present --> can be reset
+                            ),
                         ),
                         rx.dialog.root(
                             rx.dialog.trigger(
