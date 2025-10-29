@@ -18,6 +18,6 @@ class BasicOrchestrator(Orchestrator):
                 f"No pipeline registered for route '{route_hint}'. Available pipelines: {list(self.pipelines.keys())}"
             )
 
-    async def __call__(self, ctx: ThreadContext) -> None:
+    async def orchestrate(self, ctx: ThreadContext) -> None:
         pipeline = self.route(ctx)
         await pipeline(ctx)

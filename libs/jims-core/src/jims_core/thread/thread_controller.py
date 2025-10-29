@@ -196,7 +196,7 @@ class ThreadController:
 
             # Run the pipeline with the context
             try:
-                await orchestrator(ctx)
+                await orchestrator.orchestrate(ctx)
             except Exception as e:
                 pipeline_duration = time.time() - pipeline_start_time
                 jims_pipeline_run_duration.labels(
