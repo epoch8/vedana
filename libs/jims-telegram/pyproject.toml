@@ -1,9 +1,12 @@
 [project]
 name = "jims-telegram"
-version = "0.1.1"
-description = "Add your description here"
+version = "0.2.0"
+description = "Telegram interface for JIMS applications"
 readme = "README.md"
-authors = [{ name = "Andrey Tatarinov", email = "a@tatarinov.co" }]
+authors = [
+    { name = "Andrey Tatarinov", email = "a@tatarinov.co" },
+    { name = "Timur Sheydaev", email = "tsheyd@epoch8.co" },
+]
 requires-python = ">=3.12"
 dependencies = [
     "aiogram>=3.18",
