@@ -1,5 +1,4 @@
-
-# 0.1.2
+# 0.2.0 - 2025.10.29
 
 * Change thread_id <-> user_id logic: /start command resets thread_id, clearing conversation context.
 
