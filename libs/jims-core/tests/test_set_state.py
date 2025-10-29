@@ -33,7 +33,9 @@ async def sessionmaker() -> sa_aio.async_sessionmaker[sa_aio.AsyncSession]:
 
 @pytest.mark.asyncio
 async def test_set_state(sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession]) -> None:
-    ctl = await ThreadController.new_thread(sessionmaker, uuid7(), {})
+    thread_id = uuid7()
+    contact_id = f"test:{thread_id}"
+    ctl = await ThreadController.new_thread(sessionmaker, contact_id, thread_id, {})
 
     class State(BaseModel):
         key: str

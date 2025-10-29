@@ -2,14 +2,11 @@ import asyncio
 import uuid
 from contextlib import suppress
 from typing import Any, Awaitable, overload
-import sqlalchemy as sa
-import sqlalchemy.ext.asyncio as sa_aio
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 from jims_core.app import JimsApp
-from jims_core.db import ThreadDB
 from jims_core.schema import Pipeline
 from jims_core.thread.thread_context import StatusUpdater
 from jims_core.thread.thread_controller import ThreadController
@@ -90,29 +87,6 @@ class TelegramController:
             app = await app
         return cls(app)
 
-    @classmethod
-    async def thread_from_user_id(
-        cls,
-        sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession],
-        from_user_id: int | None,
-    ) -> "ThreadController | None":
-        """
-        Retrieve the latest thread associated with a given telegram user_id.
-        """
-        if from_user_id:
-            async with sessionmaker() as session:
-                stmt = (
-                    sa.select(ThreadDB)
-                    .where(ThreadDB.thread_config["telegram_user_id"].astext == str(from_user_id))
-                    .order_by(ThreadDB.created_at.desc())
-                    .limit(1)
-                )
-                thread = (await session.execute(stmt)).scalar_one_or_none()
-
-            if thread:
-                return ThreadController(sessionmaker, thread)
-        return None
-
     async def _run_pipeline(self, ctl: ThreadController, chat_id: Any, pipeline: Pipeline) -> None:
         ctx = await ctl.make_context()
         ctx = ctx.with_status_updater(TelegramStatusUpdater(self.bot, chat_id))
@@ -144,14 +118,20 @@ class TelegramController:
 
     async def command_start(self, message: Message) -> None:
         logger.debug(f"Received command start from {message.chat.id}")
+        if not message.from_user:  # messages sent on behalf of chats, channels, or by tg
+            logger.error("from_user.id not found in message")
+            return
 
+        from_id = message.from_user.id  # type: ignore[union-attr]
+
+        thread_id = uuid7()
         ctl = await self.app.new_thread(
-            # uuid_from_int(message.chat.id),  # makes session_id persist for from_user.id
-            uuid7(),
-            {
+            contact_id=f"telegram:{from_id}",
+            thread_id=thread_id,
+            thread_config={
                 "interface": "telegram",
                 "telegram_chat_id": message.chat.id,
-                "telegram_user_id": message.from_user.id if message.from_user else None,
+                "telegram_user_id": from_id,
             },
         )
 
@@ -167,21 +147,24 @@ class TelegramController:
     async def handle_message(self, message: Message) -> None:
         with tracer.start_as_current_span("jims_telegram.handle_message"):
             logger.debug(f"Received message {message.text=} from {message.chat.id=}")
-            ctl = await self.thread_from_user_id(
-                self.app.sessionmaker,
-                message.from_user.id if message.from_user else None,
-            )
+            if not message.from_user:  # messages sent on behalf of chats, channels, or by tg
+                logger.error("from_user.id not found in message")
+                return
 
+            from_id = message.from_user.id  # type: ignore[union-attr]
+
+            ctl = await ThreadController.latest_thread_from_contact_id(self.app.sessionmaker, f"telegram:{from_id}")
             if ctl is None:
                 logger.warning(f"Thread with id {message.chat.id} not found, recreating")
+                thread_id = uuid7()
                 ctl = await ThreadController.new_thread(
                     self.app.sessionmaker,
-                    # uuid_from_int(message.chat.id),  # makes session_id persist for from_user.id
-                    uuid7(),
-                    {
+                    contact_id=f"telegram:{from_id}",
+                    thread_id=thread_id,
+                    thread_config={
                         "interface": "telegram",
                         "telegram_chat_id": message.chat.id,
-                        "telegram_user_id": message.from_user.id if message.from_user else None,
+                        "telegram_user_id": from_id,
                     },
                 )
 
