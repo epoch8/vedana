@@ -44,7 +44,8 @@ class ChatApp(App):
         if isinstance(app, Awaitable):
             app = await app
         thread_id = uuid7()
-        ctl = await app.new_thread(thread_id, {})
+        contact_id = f"tui:{thread_id}"
+        ctl = await app.new_thread(contact_id, thread_id, {})
 
         return cls(app=app, thread_id=thread_id, ctl=ctl)
 

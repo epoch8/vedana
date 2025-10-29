@@ -1,3 +1,7 @@
+# 0.2.0 - 2025.10.29
+
+* JIMS thread viewer - add feedback processing flow, UI updates
+
 # 0.1.0
 
 Initial commit:

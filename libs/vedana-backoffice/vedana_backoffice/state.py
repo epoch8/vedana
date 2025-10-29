@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+from dataclasses import dataclass, field
 from datetime import datetime
 from queue import Empty, Queue
 from typing import Any, Dict, Iterable, Tuple
@@ -9,10 +10,11 @@ from uuid import UUID, uuid4
 import orjson as json
 import pandas as pd
 import reflex as rx
+import sqlalchemy as sa
 from datapipe.compute import run_steps
+from jims_core.db import ThreadEventDB
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
-from jims_core.db import ThreadEventDB
 from vedana_core.app import VedanaApp, make_vedana_app
 from vedana_core.data_model import DataModel
 from vedana_core.settings import settings as core_settings
@@ -21,10 +23,6 @@ from vedana_etl.app import pipeline
 from vedana_etl.config import DBCONN_DATAPIPE
 
 from vedana_backoffice.graph.build import build_canonical, derive_step_edges, derive_table_edges
-from vedana_backoffice.util import datetime_to_age
-
-from dataclasses import dataclass
-import sqlalchemy as sa
 
 vedana_app: VedanaApp | None = None
 
@@ -1066,6 +1064,8 @@ class ChatState(rx.State):
             "is_assistant": role == "assistant",
             "has_tech": False,
             "show_details": False,
+            "tags": [],
+            "comments": [],
         }
 
         if technical_info:
@@ -1099,10 +1099,12 @@ class ChatState(rx.State):
             existing = None
 
         if existing is None:
+            thread_id = uuid7()
             ctl = await ThreadController.new_thread(
                 vedana_app.sessionmaker,
-                uuid7(),
-                {"interface": "reflex-chat", "created_at": time.time()},
+                contact_id=f"reflex:{thread_id}",
+                thread_id=thread_id,
+                thread_config={"interface": "reflex"},
             )
             return str(ctl.thread.thread_id)
 
@@ -1117,7 +1119,13 @@ class ChatState(rx.State):
 
         ctl = await ThreadController.from_thread_id(vedana_app.sessionmaker, tid)
         if ctl is None:
-            ctl = await ThreadController.new_thread(vedana_app.sessionmaker, uuid7(), {"interface": "reflex"})
+            thr_id = uuid7()
+            ctl = await ThreadController.new_thread(
+                vedana_app.sessionmaker,
+                contact_id=f"reflex:{thr_id}",
+                thread_id=thr_id,
+                thread_config={"interface": "reflex"},
+            )
 
         await ctl.store_user_message(uuid7(), user_text)
         events = await ctl.run_with_context(vedana_app.orchestrator)
@@ -1239,7 +1247,6 @@ class ThreadEventVis:
     role: str
     content: str
     tags: list[str]
-    event_age: str
     event_data_list: list[tuple[str, str]]
     technical_vts_queries: list[str]
     technical_cypher_queries: list[str]
@@ -1251,6 +1258,9 @@ class ThreadEventVis:
     has_vts: bool
     has_cypher: bool
     has_models: bool
+    # Aggregated annotations from jims.backoffice.* events
+    visible_tags: list[str] = field(default_factory=list)
+    feedback_comments: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def create(cls, event_id: Any, created_at: datetime, event_type: str, event_data: dict) -> "ThreadEventVis":
@@ -1295,7 +1305,6 @@ class ThreadEventVis:
             role=role,
             content=content,
             tags=tags,
-            event_age=datetime_to_age(created_at),
             event_data_list=[(str(k), str(v)) for k, v in event_data.items()],
             technical_vts_queries=vts_queries,
             technical_cypher_queries=cypher_queries,
@@ -1307,6 +1316,8 @@ class ThreadEventVis:
             has_vts=bool(vts_queries),
             has_cypher=bool(cypher_queries),
             has_models=bool(models_list),
+            visible_tags=list(tags),
+            feedback_comments=[],
         )
 
 
@@ -1325,21 +1336,116 @@ class ThreadViewState(rx.State):
         vedana_app = await make_vedana_app()
 
         async with vedana_app.sessionmaker() as session:
-            stmt = sa.select(ThreadEventDB).where(
-                ThreadEventDB.thread_id == self.selected_thread_id,
-                sa.not_(ThreadEventDB.event_type.like("jims.%")),
+            stmt = (
+                sa.select(ThreadEventDB)
+                .where(
+                    ThreadEventDB.thread_id == self.selected_thread_id,
+                )
+                .order_by(ThreadEventDB.created_at.asc())
             )
-            events = (await session.execute(stmt)).scalars().all()
+            all_events = (await session.execute(stmt)).scalars().all()
 
-        self.events = [
-            ThreadEventVis.create(
-                event_id=event.event_id,
-                created_at=event.created_at,
-                event_type=event.event_type,
-                event_data=event.event_data,
+        # Split base convo events vs backoffice annotations
+        base_events: list[Any] = []
+        backoffice_events: list[Any] = []
+        for ev in all_events:
+            etype = str(getattr(ev, "event_type", ""))
+            if etype.startswith("jims.backoffice."):
+                backoffice_events.append(ev)
+            elif etype.startswith("jims."):
+                # ignore other jims.* noise
+                continue
+            else:
+                base_events.append(ev)
+
+        # Prepare aggregations
+        # 1) Tags per original event
+        tags_by_event: dict[str, set[str]] = {}
+        for ev in base_events:
+            eid = str(getattr(ev, "event_id", ""))
+            try:
+                base_tags = getattr(ev, "event_data", {}).get("tags") or []
+                tags_by_event[eid] = set([str(t) for t in base_tags])
+            except Exception:
+                tags_by_event[eid] = set()
+
+        # Apply tag add/remove in chronological order
+        for ev in backoffice_events:
+            etype = str(getattr(ev, "event_type", ""))
+            edata = dict(getattr(ev, "event_data", {}) or {})
+            if etype == "jims.backoffice.tag_added":
+                tid = str(edata.get("target_event_id", ""))
+                tag = str(edata.get("tag", "")).strip()
+                if tid:
+                    tags_by_event.setdefault(tid, set()).add(tag)
+            elif etype == "jims.backoffice.tag_removed":
+                tid = str(edata.get("target_event_id", ""))
+                tag = str(edata.get("tag", "")).strip()
+                if tid and tag:
+                    try:
+                        tags_by_event.setdefault(tid, set()).discard(tag)
+                    except Exception:
+                        pass
+
+        # 2) Comments per original event + status mapping
+        comments_by_event: dict[str, list[dict[str, Any]]] = {}
+        # status by comment id (event_id of feedback)
+        comment_status: dict[str, str] = {}
+        for ev in backoffice_events:
+            etype = str(getattr(ev, "event_type", ""))
+            if etype == "jims.backoffice.feedback":
+                edata = dict(getattr(ev, "event_data", {}) or {})
+                target = str(edata.get("event_id", ""))
+                if not target:
+                    continue
+                note_text = str(edata.get("note", ""))
+                severity = str(edata.get("severity", "Low"))
+                created_at = getattr(ev, "created_at", datetime.utcnow()).replace(microsecond=0)
+                comments_by_event.setdefault(target, []).append(
+                    {
+                        "id": str(getattr(ev, "event_id", "")),
+                        "note": note_text,
+                        "severity": severity,
+                        "created_at": datetime.strftime(created_at, "%Y-%m-%d %H:%M:%S"),
+                        "status": "open",
+                    }
+                )
+            elif etype in ("jims.backoffice.comment_resolved", "jims.backoffice.comment_closed"):
+                ed = dict(getattr(ev, "event_data", {}) or {})
+                cid = str(ed.get("comment_id", ""))
+                if not cid:
+                    continue
+                comment_status[cid] = "resolved" if etype.endswith("comment_resolved") else "closed"
+
+        # Convert base events into visual items and attach aggregations
+        ev_items: list[ThreadEventVis] = []
+        for bev in base_events:
+            item = ThreadEventVis.create(
+                event_id=bev.event_id,
+                created_at=bev.created_at,
+                event_type=bev.event_type,
+                event_data=bev.event_data,
             )
-            for event in events
-        ]
+            eid = item.event_id
+            try:
+                item.visible_tags = sorted(list(tags_by_event.get(eid, set())))
+            except Exception:
+                item.visible_tags = list(item.tags or [])
+            try:
+                cmts = []
+                for c in comments_by_event.get(eid, []) or []:
+                    c = dict(c)
+                    cid = str(c.get("id", ""))
+                    if cid in comment_status:
+                        c["status"] = comment_status[cid]
+                    cmts.append(c)
+                item.feedback_comments = cmts
+            except Exception:
+                item.feedback_comments = []
+            ev_items.append(item)
+
+        # Present in chronological order as originally shown (created_at asc)
+        self.events = ev_items
         self.loading = False
 
     @rx.event
@@ -1380,7 +1486,7 @@ class ThreadViewState(rx.State):
 
     # Persistence events: we encode admin actions as jims.backoffice.* events for now
     @rx.event
-    async def add_tag(self, event_id: str) -> None:
+    async def add_tag(self, event_id: str):
         if not self.new_tag_text.strip():
             return
         vedana_app = await make_vedana_app()
@@ -1398,9 +1504,16 @@ class ThreadViewState(rx.State):
             await session.commit()
         self.new_tag_text = ""
         await self._reload()
+        try:
+            # local import to avoid cycles todo check
+            from vedana_backoffice.pages.jims_thread_list_page import ThreadListState
+
+            yield ThreadListState.get_data()  # type: ignore[operator]
+        except Exception:
+            pass
 
     @rx.event
-    async def remove_tag(self, event_id: str, tag: str) -> None:
+    async def remove_tag(self, event_id: str, tag: str):
         vedana_app = await make_vedana_app()
         async with vedana_app.sessionmaker() as session:
             from jims_core.util import uuid7
@@ -1414,9 +1527,15 @@ class ThreadViewState(rx.State):
             session.add(tag_event)
             await session.commit()
         await self._reload()
+        try:
+            from vedana_backoffice.pages.jims_thread_list_page import ThreadListState  # local import todo check
+
+            yield ThreadListState.get_data()  # type: ignore[operator]
+        except Exception:
+            pass
 
     @rx.event
-    async def submit_note_for(self, event_id: str) -> None:
+    async def submit_note_for(self, event_id: str):
         text = (self.note_text_by_event.get(event_id) or "").strip()
         if not text:
             return
@@ -1430,6 +1549,7 @@ class ThreadViewState(rx.State):
         async with vedana_app.sessionmaker() as session:
             from jims_core.util import uuid7
 
+            severity_val = self.note_severity_by_event.get(event_id, self.note_severity or "Low")  # todo check
             note_event = ThreadEventDB(
                 thread_id=self.selected_thread_id,
                 event_id=uuid7(),
@@ -1438,6 +1558,7 @@ class ThreadViewState(rx.State):
                     "event_id": event_id,
                     "tags": tags_list,
                     "note": text,
+                    "severity": severity_val,
                 },
             )
             session.add(note_event)
@@ -1451,3 +1572,55 @@ class ThreadViewState(rx.State):
         except Exception:
             pass
         await self._reload()
+        try:
+            # todo check
+            from vedana_backoffice.pages.jims_thread_list_page import ThreadListState  # local import
+
+            yield ThreadListState.get_data()  # type: ignore[operator]
+        except Exception:
+            pass
+
+    # --- Comment status actions ---
+    @rx.event
+    async def mark_comment_resolved(self, comment_id: str):
+        vedana_app = await make_vedana_app()
+        async with vedana_app.sessionmaker() as session:
+            from jims_core.util import uuid7
+
+            ev = ThreadEventDB(
+                thread_id=self.selected_thread_id,
+                event_id=uuid7(),
+                event_type="jims.backoffice.comment_resolved",
+                event_data={"comment_id": comment_id},
+            )
+            session.add(ev)
+            await session.commit()
+        await self._reload()
+        try:
+            from vedana_backoffice.pages.jims_thread_list_page import ThreadListState
+
+            yield ThreadListState.get_data()  # type: ignore[operator]
+        except Exception:
+            pass
+
+    @rx.event
+    async def mark_comment_closed(self, comment_id: str):
+        vedana_app = await make_vedana_app()
+        async with vedana_app.sessionmaker() as session:
+            from jims_core.util import uuid7
+
+            ev = ThreadEventDB(
+                thread_id=self.selected_thread_id,
+                event_id=uuid7(),
+                event_type="jims.backoffice.comment_closed",
+                event_data={"comment_id": comment_id},
+            )
+            session.add(ev)
+            await session.commit()
+        await self._reload()
+        try:
+            from vedana_backoffice.pages.jims_thread_list_page import ThreadListState
+
+            yield ThreadListState.get_data()  # type: ignore[operator]
+        except Exception:
+            pass

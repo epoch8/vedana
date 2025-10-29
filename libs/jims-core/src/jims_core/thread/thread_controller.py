@@ -37,7 +37,11 @@ class ThreadController:
 
     @classmethod
     async def new_thread(
-        cls, sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession], thread_id: UUID, thread_config: dict
+        cls,
+        sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession],
+        contact_id: str,
+        thread_id: UUID,
+        thread_config: dict,
     ) -> "ThreadController":
         """
         Create a new thread with the given ID and configuration.
@@ -52,7 +56,12 @@ class ThreadController:
                 return cls(sessionmaker, existing_thread)
 
             # Create new thread if it doesn't exist
-            new_thread = ThreadDB(thread_id=thread_id, created_at=datetime.datetime.now(), thread_config=thread_config)
+            new_thread = ThreadDB(
+                contact_id=contact_id,
+                thread_id=thread_id,
+                created_at=datetime.datetime.now(),
+                thread_config=thread_config,
+            )
             session.add(new_thread)
             await session.commit()
 
@@ -79,6 +88,28 @@ class ThreadController:
             return cls(sessionmaker, thread)
         else:
             return None
+
+    @classmethod
+    async def latest_thread_from_contact_id(
+        cls,
+        sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession],
+        from_contact_id: str,
+    ) -> "ThreadController | None":
+        """
+        Retrieve the latest thread associated with a given contact_id.
+        """
+        async with sessionmaker() as session:
+            stmt = (
+                sa.select(ThreadDB)
+                .where(ThreadDB.contact_id == from_contact_id)
+                .order_by(ThreadDB.created_at.desc())
+                .limit(1)
+            )
+            thread = (await session.execute(stmt)).scalar_one_or_none()
+
+        if thread:
+            return ThreadController(sessionmaker, thread)
+        return None
 
     async def store_event_dict(self, event_id: UUID, event_type: str, event_data: dict) -> None:
         """
