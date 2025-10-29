@@ -43,10 +43,8 @@ class LLM:
         self,
         llm_provider: LLMProvider,
         prompt_templates: dict[str, str],
-        temperature: float | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
-        self.temperature = temperature
         self.logger = logger or logging.getLogger(__name__)
         self.llm = llm_provider
         self.prompt_templates = prompt_templates
@@ -57,17 +55,15 @@ class LLM:
         data_descr: str,
         messages: Iterable,
         tools: list[Tool],
-        temperature: float | None = None,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
         tool_names = [t.name for t in tools]
         msgs = make_cypher_query_with_tools_dialog(data_descr, self.prompt_templates, messages, tool_names=tool_names)
-        return await self.create_completion_with_tools(msgs, tools=tools, temperature=temperature)
+        return await self.create_completion_with_tools(msgs, tools=tools)
 
     async def create_completion_with_tools(
         self,
         messages: list[ChatCompletionMessageParam],
         tools: Iterable[Tool],
-        temperature: float | None = None,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
         messages = messages.copy()
         tool_defs = [tool.openai_def for tool in tools]
@@ -95,7 +91,6 @@ class LLM:
             msg, tool_calls = await self.llm.chat_completion_with_tools(
                 messages=messages,
                 tools=tool_defs,
-                temperature=temperature,
             )
 
             messages.append(msg.to_dict())  # type: ignore

@@ -306,6 +306,9 @@ class ThreadListState(rx.State):
                     current_tags.update(set(_tags))
                 self.available_tags = sorted(list(current_tags))
 
+            else:
+                thread_tags_by_tid = {}
+
         items: list[ThreadVis] = []
         for thread_obj, last_at in rows:
             try:
@@ -511,7 +514,7 @@ def jims_thread_list_page() -> rx.Component:
                         cursor="pointer",
                         flex_shrink="0",
                         on_click=ThreadListState.toggle_sort,
-                    ),
+                    ),  # type: ignore
                     rx.icon(
                         "arrow-down-0-1",
                         size=28,
@@ -519,7 +522,7 @@ def jims_thread_list_page() -> rx.Component:
                         cursor="pointer",
                         flex_shrink="0",
                         on_click=ThreadListState.toggle_sort,
-                    ),
+                    ),  # type: ignore
                 ),
                 spacing="0",
             ),
