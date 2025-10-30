@@ -155,7 +155,7 @@ class RagAgent:
 
     async def text_to_answer_with_vts_and_cypher(
         self, text_query: str, threshold: float, top_n: int = 5
-    ) -> tuple[str, list[VTSQuery], list[CypherQuery]]:
+    ) -> tuple[str, list, list[VTSQuery], list[CypherQuery]]:
         vts_queries: list[VTSQuery] = []
         cypher_queries: list[CypherQuery] = []
 

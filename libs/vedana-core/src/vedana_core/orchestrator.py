@@ -9,14 +9,11 @@ class BasicOrchestrator(Orchestrator):
     default_route: str = "main"
     start_route: str | None = "start"
 
-    def route(self, ctx: ThreadContext) -> Pipeline:
-        route_hint = ctx.state.current_pipeline
-        if route_hint in self.pipelines.keys():  # "main" --> main, "start" --> start etc
-            return self.pipelines.get(route_hint)
-        else:
-            raise RuntimeError(
-                f"No pipeline registered for route '{route_hint}'. Available pipelines: {list(self.pipelines.keys())}"
-            )
+    def route(self, ctx: ThreadContext):
+        current_pipeline = ctx.state.current_pipeline
+        if current_pipeline in self.pipelines:
+            return self.pipelines[current_pipeline]
+        return self.pipelines[self.default_route]
 
     async def orchestrate(self, ctx: ThreadContext) -> None:
         pipeline = self.route(ctx)
