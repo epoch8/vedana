@@ -94,7 +94,7 @@ class ThreadContext(Generic[TState]):
     def get_or_create_pipeline_state[T: BaseModel](self, state_type: Type[T]) -> T | None:
         """Get the state of the thread and load it as ctx.state, OR create a new one with provided model schema"""
         for event in reversed(self.events):
-            if event.event_type == f"state.set":  # or f"state.set.{state_type.__class__.__name__}"
+            if event.event_type == "state.set":  # or f"state.set.{state_type.__class__.__name__}"
                 state = state_type.model_validate(event.event_data)
                 break
         else:
