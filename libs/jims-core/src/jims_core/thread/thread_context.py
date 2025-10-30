@@ -28,7 +28,7 @@ class ThreadContext(Generic[TState]):
 
     status_updater: StatusUpdater | None = None
 
-    state: TState = field(default_factory=PipelineState)
+    state: TState = field(default_factory=PipelineState)  # type: ignore[assignment]
 
     def with_status_updater(self, status_updater: StatusUpdater) -> "ThreadContext":
         """Set the status updater for this thread context."""
