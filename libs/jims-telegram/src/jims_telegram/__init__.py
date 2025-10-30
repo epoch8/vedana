@@ -94,7 +94,7 @@ class TelegramController:
         ctx = ctx.with_status_updater(TelegramStatusUpdater(self.bot, chat_id))
 
         if pipeline_route:
-            ctx.current_pipeline = pipeline_route
+            ctx.state.current_pipeline = pipeline_route
 
         async def status_updater():
             try:

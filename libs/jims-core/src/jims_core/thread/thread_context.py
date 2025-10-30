@@ -1,12 +1,12 @@
 import datetime
 from dataclasses import dataclass, field
-from typing import Any, Type
+from typing import Any, Type, Generic
 from uuid import UUID
 
 from jims_core.llms.llm_provider import LLMProvider
-from jims_core.thread.schema import CommunicationEvent, EventEnvelope
+from jims_core.thread.schema import CommunicationEvent, EventEnvelope, TState, PipelineState
 from jims_core.util import uuid7
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class StatusUpdater:
@@ -14,12 +14,8 @@ class StatusUpdater:
         pass
 
 
-class ThreadState(BaseModel):
-    current_pipeline: str = Field(description="ThreadContext.current_pipeline, for persisting in db")
-
-
 @dataclass
-class ThreadContext:
+class ThreadContext(Generic[TState]):
     thread_id: UUID
 
     history: list[CommunicationEvent]
@@ -32,7 +28,7 @@ class ThreadContext:
 
     status_updater: StatusUpdater | None = None
 
-    current_pipeline: str = "main"  # used to pass pipeline selection to Orchestrator
+    state: TState = field(default_factory=PipelineState)
 
     def with_status_updater(self, status_updater: StatusUpdater) -> "ThreadContext":
         """Set the status updater for this thread context."""
@@ -72,7 +68,7 @@ class ThreadContext:
             )
         )
 
-    def set_state(self, state: dict | BaseModel) -> None:
+    def set_state(self, state: dict | BaseModel, state_name: str = "") -> None:
         """Send an event to set the state of the thread."""
         if isinstance(state, BaseModel):
             state = state.model_dump()
@@ -82,17 +78,30 @@ class ThreadContext:
                 thread_id=self.thread_id,
                 event_id=uuid7(),
                 created_at=datetime.datetime.now(),
-                event_type="state.set",
+                event_type=f"state.set.{state_name}" if state_name else "state.set",
                 event_data=state,
             )
         )
 
-    def get_state[T: BaseModel](self, state_type: Type[T]) -> T | None:
+    def get_state[T: BaseModel](self, state_type: Type[T], state_name: str = "") -> T | None:
         """Get the state of the thread."""
+        target_state = f"state.set.{state_type}" if state_name else "state.set"
         for event in reversed(self.events):
-            if event.event_type == "state.set":
+            if event.event_type == target_state:
                 return state_type.model_validate(event.event_data)
         return None
+
+    def get_or_create_pipeline_state[T: BaseModel](self, state_type: Type[T]) -> T | None:
+        """Get the state of the thread and load it as ctx.state, OR create a new one with provided model schema"""
+        for event in reversed(self.events):
+            if event.event_type == f"state.set":  # or f"state.set.{state_type.__class__.__name__}"
+                state = state_type.model_validate(event.event_data)
+                break
+        else:
+            print(f"passing state from orchestrator to ctx: {state_type}")
+            state = state_type.model_construct()  # pass state from orchestrator to ctx
+        self.state = state
+        return state
 
     async def update_agent_status(self, status: str) -> None:
         """Update the agent status."""
