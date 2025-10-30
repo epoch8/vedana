@@ -25,4 +25,4 @@ class PipelineState(BaseModel):
     current_pipeline: str = Field(default="main")
 
 
-TState = TypeVar("TState", bound=type(PipelineState))
+TState = TypeVar("TState", bound=PipelineState)

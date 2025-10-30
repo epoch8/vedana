@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from jims_core.schema import Orchestrator, Pipeline
 from jims_core.thread.thread_context import ThreadContext
