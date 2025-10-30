@@ -3,8 +3,8 @@ import logging
 from typing import Awaitable, Callable, Iterable
 
 import openai
+from jims_core.llms.llm_provider import LLMProvider
 from jims_core.thread.schema import CommunicationEvent
-from jims_core.thread.thread_context import ThreadContext
 from openai.types.chat import (
     ChatCompletionMessageParam,
     ChatCompletionToolMessageParam,
@@ -41,13 +41,12 @@ class Tool[T: BaseModel]:
 class LLM:
     def __init__(
         self,
-        ctx: ThreadContext,
+        llm_provider: LLMProvider,
         prompt_templates: dict[str, str],
         logger: logging.Logger | None = None,
     ) -> None:
-        self.ctx = ctx
-        self.llm = ctx.llm
         self.logger = logger or logging.getLogger(__name__)
+        self.llm = llm_provider
         self.prompt_templates = prompt_templates
 
     # Current
@@ -66,7 +65,6 @@ class LLM:
         messages: list[ChatCompletionMessageParam],
         tools: Iterable[Tool],
     ) -> tuple[list[ChatCompletionMessageParam], str]:
-        # todo register tool calls as ctx.events instead of returning "messages"
         messages = messages.copy()
         tool_defs = [tool.openai_def for tool in tools]
         tools_map = {tool.name: tool for tool in tools}
