@@ -185,8 +185,9 @@ class ThreadController:
 
         if ctx is None:
             ctx = await self.make_context()
+        ctx.state = ctx.get_or_create_pipeline_state(orchestrator.state)
 
-        current_run_pipeline = ctx.current_pipeline  # fix this run's pipeline variable, as it may change during run
+        current_run_pipeline = ctx.state.current_pipeline
 
         with tracer.start_as_current_span("jims.run_with_context") as span:
             span.set_attribute("jims.thread.id", str(ctx.thread_id))
@@ -215,6 +216,8 @@ class ThreadController:
 
             span.set_status(trace.StatusCode.OK)
             jims_pipeline_runs_total.labels(status="success", pipeline=current_run_pipeline).inc()
+
+        ctx.set_state(ctx.state)
 
         for event in ctx.outgoing_events:
             await self.store_event_dict(
