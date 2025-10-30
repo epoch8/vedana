@@ -100,7 +100,7 @@ class ThreadContext(Generic[TState]):
         else:
             print(f"passing state from orchestrator to ctx: {state_type}")
             state = state_type.model_construct()  # pass state from orchestrator to ctx
-        self.state = state
+        self.state = state  # type: ignore[assignment]
         return state
 
     async def update_agent_status(self, status: str) -> None:

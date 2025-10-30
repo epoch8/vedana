@@ -13,13 +13,13 @@ class Pipeline(Protocol):
 @dataclass
 class Orchestrator(Generic[TState]):
     pipelines: dict[str, Pipeline] = field(default_factory=dict)
-    state: TState = field(default_factory=PipelineState)  # used only for typing / passing model for validation
+    state: TState = field(default_factory=PipelineState)  # type: ignore[assignment]
 
     def register_pipeline(self, name: str, pipeline: Pipeline) -> None:
         self.pipelines[name] = pipeline
 
     def route(self, ctx: ThreadContext) -> Pipeline:  # getter
-        pass
+        return self.pipelines[ctx.state.current_pipeline]
 
     async def orchestrate(self, ctx: ThreadContext) -> None:  # entrypoint
         pass
