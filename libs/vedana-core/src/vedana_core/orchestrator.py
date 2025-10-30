@@ -10,7 +10,7 @@ class BasicOrchestrator(Orchestrator):
     start_route: str | None = "start"
 
     def route(self, ctx: ThreadContext) -> Pipeline:
-        route_hint = ctx.current_pipeline
+        route_hint = ctx.state.current_pipeline
         if route_hint in self.pipelines.keys():  # "main" --> main, "start" --> start etc
             return self.pipelines.get(route_hint)
         else:
