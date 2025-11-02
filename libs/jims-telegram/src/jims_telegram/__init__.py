@@ -91,6 +91,7 @@ class TelegramController:
         self, ctl: ThreadController, chat_id: Any, orchestrator: Orchestrator, pipeline_route: str | None = None
     ) -> None:
         ctx = await ctl.make_context()
+        ctx.get_or_create_pipeline_state(state_type=orchestrator.state)
         ctx = ctx.with_status_updater(TelegramStatusUpdater(self.bot, chat_id))
 
         if pipeline_route:

@@ -185,7 +185,7 @@ class ThreadController:
 
         if ctx is None:
             ctx = await self.make_context()
-        ctx.state = ctx.get_or_create_pipeline_state(orchestrator.state)
+            ctx.state = ctx.get_or_create_pipeline_state(orchestrator.state)  # if just initialized - load last state
 
         current_run_pipeline = ctx.state.current_pipeline
 

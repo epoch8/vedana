@@ -22,13 +22,10 @@ class StartPipeline:
         self.start_response = self.lifecycle_events.get("/start")
 
     async def __call__(self, ctx: ThreadContext) -> None:
-        if not self.start_response:
-            ctx.send_message("Bot online. No response for /start command in LifecycleEvents")
-            return
-
-        # await ctx.update_agent_status("thinking")
-
-        ctx.send_message(self.start_response)
+        message = self.start_response or "Bot online. No response for /start command in LifecycleEvents"
+        ctx.send_message(message)
+        ctx.state.current_pipeline = "main"  # continue to main pipeline
+        return
 
 
 class RagPipeline:
