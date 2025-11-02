@@ -42,6 +42,15 @@ class ThreadContext(Generic[TState]):
                 return event["content"]
         return None
 
+    def get_last_user_action(self):
+        """Get the last user action (message / button click / command / other input in comm. domain) from ctx.events"""
+        for event in reversed(self.events):
+            if event.event_type.startswith("comm."):  # CommunicationEvent
+                if event.event_data["role"] == "user":
+                    event_name = event.event_type.removeprefix("comm.")
+                    return event_name, event.event_data["content"]
+        return None, None
+
     def send_event(self, event_type: str, data: Any) -> None:
         """Send an event to the thread."""
         assert isinstance(data, dict), "Event data must be a dictionary"
