@@ -1186,50 +1186,6 @@ class ChatState(rx.State):
             self.is_refreshing_dm = False  # make the update button available
             yield
 
-    @rx.event(background=True)  # type: ignore[operator]
-    async def refresh_data_model(self):
-        async with self:
-            try:
-                # todo: UI updates are not triggered from async with self, need to fix
-                # https://reflex.dev/blog/2023-09-28-unlocking-new-workflows-with-background-tasks/
-                self.is_refreshing_dm = True
-                yield  # trigger UI update
-
-                # get App
-                va = await get_vedana_app()
-
-                # Get new DM
-                new_dm = DataModel.load_grist_online(
-                    core_settings.grist_data_model_doc_id,
-                    grist_server=core_settings.grist_server_url,
-                    api_key=core_settings.grist_api_key,
-                )
-                await new_dm.update_data_model_node(va.graph)
-
-                # update App
-                va.data_model = new_dm
-                try:
-                    va.pipeline.data_model = new_dm
-                except Exception:
-                    pass
-
-                # update UI
-                self.data_model_text = new_dm.to_text_descr()
-                self.data_model_last_sync = datetime.now().strftime("%Y-%m-%d %H:%M")
-                self.is_refreshing_dm = False
-                try:
-                    yield rx.toast.success("Data model refreshed")  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-            except Exception as e:
-                self.data_model_text = f"Error refreshing DataModel: {e}"
-                self.is_refreshing_dm = False
-                try:
-                    yield rx.toast.error(f"Failed to refresh data model: {e}")  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-
-
 @dataclass
 class ThreadEventVis:
     event_id: str
