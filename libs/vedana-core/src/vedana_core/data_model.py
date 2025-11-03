@@ -1,19 +1,12 @@
-import abc
-import json
 import logging
-import sqlite3
-import sys
-from contextlib import closing
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Iterable, cast
+from typing import Any
 
-import grist_api
-import pandas as pd
-import requests
-import requests.exceptions
+import sqlalchemy as sa
+from sqlalchemy import exc as sa_exc
+from sqlalchemy import select
 
-from vedana_core.graph import Graph
+from vedana_core.db import get_db_engine
 
 logger = logging.getLogger(__name__)
 
@@ -73,136 +66,213 @@ class Prompt:
     text: str
 
 
-class DataModel:  # TODO refer to SQL only for all operations. All ops should get replaced with database read queries.
-    def __init__(
-        self,
-        anchors: list[Anchor],
-        links: list[Link],
-        attrs: list[Attribute],
-        queries: list[Query],
-        conversation_lifecycle: list[ConversationLifecycleEvent],
-        prompts: list[Prompt],
-    ) -> None:
-        self.anchors = anchors
-        self.links = links
-        self.attrs = attrs
-        self.queries = queries
-        self.conversation_lifecycle = conversation_lifecycle
-        self.prompts = prompts
+class DataModel:
+    """
+    DataModel, read from SQL tables at runtime
+    """
+
+    def __init__(self, db_engine: sa.Engine | None = None) -> None:
+        self._db_engine = db_engine or get_db_engine()
 
     @classmethod
-    def _load(cls, loader: DataModelLoader) -> "DataModel":
-        # TODO relpace with reads during func calls
-        anchors = {
-            noun: Anchor(
-                noun=noun,
-                description=description,
-                id_example=id_example,
-                query=query,
-                attributes=[],
-            )
-            for id_, noun, description, id_example, query in loader.iter_anchors()
-        }
+    def create(cls, db_engine: sa.Engine | None = None) -> "DataModel":
+        return cls(db_engine=db_engine)
 
-        links: dict[str, Link] = {}
-        for (
-            id_,
-            id_from,
-            id_to,
-            sentence,
-            description,
-            query,
-            anchor1_link_column_name,
-            anchor2_link_column_name,
-            has_direction,
-        ) in loader.iter_links():
-            anchor_from = anchors.get(id_from)
-            anchor_to = anchors.get(id_to)
-            if anchor_from is None or anchor_to is None:
-                logger.error(f'Link {sentence} has invalid connection "{anchor_from} - {anchor_to}"')
-                continue
-
-            links[id_] = Link(
-                anchor_from=anchor_from,
-                anchor_to=anchor_to,
-                anchor_from_link_attr_name=anchor1_link_column_name,
-                anchor_to_link_attr_name=anchor2_link_column_name,
-                sentence=sentence,
-                description=description,
-                query=query,
-                has_direction=has_direction,
-                attributes=[],
-            )
-
-        attrs: list[Attribute] = []
-        for (
-            id_,
-            a_id,
-            l_id,
-            name,
-            description,
-            example,
-            query,
-            dtype,
-            embeddable,
-            embed_threshold,
-        ) in loader.iter_attrs():
-            attr = Attribute(
-                name=name,
-                description=description,
-                example=example,
-                query=query,
-                dtype=dtype,
-                embeddable=embeddable,
-                embed_threshold=embed_threshold,
-                meta={"db_id": id_},
-            )
-            attrs.append(attr)
-            if a_id:
-                anchor = anchors.get(a_id)
-                if anchor:
-                    anchor.attributes.append(attr)
-                    if not attr.name.startswith(anchor.noun):
-                        logger.warning(f"Violation of naming convention: anchor {anchor.noun} has attr {attr.name}")
-                else:
-                    logger.error(f"Anchor {a_id} for attr {attr.name} not found")
-
-            if l_id:
-                link = links.get(l_id)
-                if link:
-                    link.attributes.append(attr)
-                else:
-                    logger.error(f"Link {l_id} for attr {attr.name} not found")
-
-        queries = [Query(name, example) for name, example in loader.iter_queries()]
-
-        conversation_lifecycle = [
-            ConversationLifecycleEvent(event, text) for event, text in loader.iter_conversation_lifecycle_events()
-        ]
-
-        prompts = [Prompt(name, text) for name, text in loader.iter_prompts()]
-
-        return cls(
-            anchors=list(anchors.values()),
-            links=list(links.values()),
-            attrs=attrs,
-            queries=queries,
-            conversation_lifecycle=conversation_lifecycle,
-            prompts=prompts,
+    def _get_anchors(self) -> list[Anchor]:
+        """Read anchors from dm_anchors table."""
+        anchors_table = sa.Table(
+            "dm_anchors",
+            sa.MetaData(),
+            autoload_with=self._db_engine,
         )
 
+        with self._db_engine.connect() as conn:
+            result = conn.execute(select(anchors_table))
+            anchors = []
+            for row in result:
+                anchors.append(
+                    Anchor(
+                        noun=row.noun,
+                        description=row.description,
+                        id_example=row.id_example,
+                        query=row.query,
+                        attributes=[],  # Attributes are loaded separately
+                    )
+                )
+            return anchors
+
+    def _get_links(self, anchors_dict: dict[str, Anchor] | None = None) -> list[Link]:
+        """Read links from dm_links table."""
+        links_table = sa.Table(
+            "dm_links",
+            sa.MetaData(),
+            autoload_with=self._db_engine,
+        )
+
+        if anchors_dict is None:
+            anchors_dict = {anchor.noun: anchor for anchor in self._get_anchors()}
+
+        with self._db_engine.connect() as conn:
+            result = conn.execute(select(links_table))
+            links = []
+            for row in result:
+                anchor_from = anchors_dict.get(row.anchor1)
+                anchor_to = anchors_dict.get(row.anchor2)
+                if anchor_from is None or anchor_to is None:
+                    logger.error(f'Link {row.sentence} has invalid connection "{row.anchor1} - {row.anchor2}"')
+                    continue
+
+                links.append(
+                    Link(
+                        anchor_from=anchor_from,
+                        anchor_to=anchor_to,
+                        anchor_from_link_attr_name=row.anchor1_link_column_name,
+                        anchor_to_link_attr_name=row.anchor2_link_column_name,
+                        sentence=row.sentence,
+                        description=row.description,
+                        query=row.query,
+                        has_direction=bool(row.has_direction) if row.has_direction is not None else False,
+                        attributes=[],  # Attributes are loaded separately
+                    )
+                )
+            return links
+
+    def _get_attributes(
+        self, anchors_dict: dict[str, Anchor] | None = None, links_dict: dict[str, Link] | None = None
+    ) -> list[Attribute]:
+        """Read attributes from dm_attributes_v2 or dm_attributes table."""
+        # Try dm_attributes_v2 first, fallback to dm_attributes
+        try:
+            attrs_table = sa.Table(
+                "dm_attributes_v2",
+                sa.MetaData(),
+                autoload_with=self._db_engine,
+            )
+        except sa_exc.NoSuchTableError:
+            attrs_table = sa.Table(
+                "dm_attributes",
+                sa.MetaData(),
+                autoload_with=self._db_engine,
+            )
+
+        if anchors_dict is None:
+            anchors_dict = {anchor.noun: anchor for anchor in self._get_anchors()}
+        if links_dict is None:
+            links_dict = {}
+            for link in self._get_links(anchors_dict):
+                # Use sentence as key for links
+                links_dict[link.sentence] = link
+
+        with self._db_engine.connect() as conn:
+            result = conn.execute(select(attrs_table))
+            attrs = []
+            for row in result:
+                attr = Attribute(
+                    name=row.attribute_name,
+                    description=row.description,
+                    example=row.data_example,
+                    query=row.query,
+                    dtype=row.dtype,
+                    embeddable=bool(row.embeddable) if row.embeddable is not None else False,
+                    embed_threshold=float(row.embed_threshold) if row.embed_threshold is not None else 0.0,
+                    meta={"db_id": row.attribute_name},
+                )
+                attrs.append(attr)
+
+                # Associate with anchor if specified
+                if row.anchor:
+                    anchor = anchors_dict.get(row.anchor)
+                    if anchor:
+                        anchor.attributes.append(attr)
+                        if not attr.name.startswith(anchor.noun):
+                            logger.warning(f"Violation of naming convention: anchor {anchor.noun} has attr {attr.name}")
+                    else:
+                        logger.error(f"Anchor {row.anchor} for attr {attr.name} not found")
+
+                # Associate with link if specified
+                if row.link:
+                    link_obj: Link | None = links_dict.get(row.link)
+                    if link_obj is not None:
+                        link_obj.attributes.append(attr)
+                    else:
+                        logger.error(f"Link {row.link} for attr {attr.name} not found")
+
+            return attrs
+
+    @property
+    def anchors(self) -> list[Anchor]:
+        return self._get_anchors()
+
+    @property
+    def links(self) -> list[Link]:
+        return self._get_links()
+
+    @property
+    def attrs(self) -> list[Attribute]:
+        return self._get_attributes()
+
+    @property
+    def queries(self) -> list[Query]:
+        try:
+            queries_table = sa.Table(
+                "dm_queries",
+                sa.MetaData(),
+                autoload_with=self._db_engine,
+            )
+            with self._db_engine.connect() as conn:
+                result = conn.execute(select(queries_table))
+                return [Query(name=row.name, example=row.example) for row in result]
+        except sa_exc.NoSuchTableError:
+            return []
+
+    @property
+    def conversation_lifecycle(self) -> list[ConversationLifecycleEvent]:
+        try:
+            lifecycle_table = sa.Table(
+                "dm_conversation_lifecycle",
+                sa.MetaData(),
+                autoload_with=self._db_engine,
+            )
+            with self._db_engine.connect() as conn:
+                result = conn.execute(select(lifecycle_table))
+                return [ConversationLifecycleEvent(event=row.event, text=row.text) for row in result]
+        except sa_exc.NoSuchTableError:
+            return []
+
+    @property
+    def prompts(self) -> list[Prompt]:
+        try:
+            prompts_table = sa.Table(
+                "dm_prompts",
+                sa.MetaData(),
+                autoload_with=self._db_engine,
+            )
+            with self._db_engine.connect() as conn:
+                result = conn.execute(select(prompts_table))
+                return [Prompt(name=row.name, text=row.text) for row in result]
+        except sa_exc.NoSuchTableError:
+            return []
+
     def embeddable_attributes(self) -> dict[str, dict]:
-        return {
+        # todo anchors / edges
+        anchors = self.anchors
+        links = self.links
+
+        result = {
             attr.name: {"noun": anchor.noun, "th": attr.embed_threshold}
-            for anchor in self.anchors
+            for anchor in anchors
             for attr in anchor.attributes
             if attr.embeddable
-        } | {
-            attr.name: {"link": link.sentence, "th": attr.embed_threshold}
-            for link in self.links
-            for attr in link.attributes
-            if attr.embeddable
         }
+        result.update(
+            {
+                attr.name: {"link": link.sentence, "th": attr.embed_threshold}
+                for link in links
+                for attr in link.attributes
+                if attr.embeddable
+            }
+        )
+        return result
 
     def conversation_lifecycle_events(self) -> dict[str, str]:
         return {cl.event: cl.text for cl in self.conversation_lifecycle}
@@ -211,46 +281,52 @@ class DataModel:  # TODO refer to SQL only for all operations. All ops should ge
         return {p.name: p.text for p in self.prompts}
 
     def vector_indices(self) -> list[tuple[str, str]]:
-        a_i = [(anchor.noun, attr.name) for anchor in self.anchors for attr in anchor.attributes if attr.embeddable]
-        l_i = [(link.sentence, attr.name) for link in self.links for attr in link.attributes if attr.embeddable]
+        anchors = self.anchors
+        links = self.links
         # todo links as well
+        a_i = [(anchor.noun, attr.name) for anchor in anchors for attr in anchor.attributes if attr.embeddable]
+        l_i = [(link.sentence, attr.name) for link in links for attr in link.attributes if attr.embeddable]
         return a_i + l_i
 
     def anchor_links(self, anchor_noun: str) -> list[Link]:
+        links = self.links
         return [
             link
-            for link in self.links
+            for link in links
             if (link.anchor_from.noun == anchor_noun and link.anchor_from_link_attr_name)
             or (link.anchor_to.noun == anchor_noun and link.anchor_to_link_attr_name)
         ]
 
     def to_text_descr(self) -> str:
+        anchors = self.anchors
+        links = self.links
+        queries = self.queries
         dm_templates = self.prompt_templates()
 
         anchor_descr = "\n".join(
             dm_templates.get("dm_anchor_descr_template", dm_anchor_descr_template).format(anchor=anchor)
-            for anchor in self.anchors
+            for anchor in anchors
         )
 
         anchor_attrs_descr = "\n".join(
             dm_templates.get("dm_attr_descr_template", dm_attr_descr_template).format(anchor=anchor, attr=attr)
-            for anchor in self.anchors
+            for anchor in anchors
             for attr in anchor.attributes
         )
 
         link_descr = "\n".join(
-            dm_templates.get("dm_link_descr_template", dm_link_descr_template).format(link=link) for link in self.links
+            dm_templates.get("dm_link_descr_template", dm_link_descr_template).format(link=link) for link in links
         )
 
         link_attrs_descr = "\n".join(
             dm_templates.get("dm_link_attr_descr_template", dm_link_attr_descr_template).format(link=link, attr=attr)
-            for link in self.links
+            for link in links
             for attr in link.attributes
         )
 
         queries_descr = "\n".join(
             dm_templates.get("dm_query_descr_template", dm_query_descr_template).format(query=query)
-            for query in self.queries
+            for query in queries
         )
 
         dm_template = dm_templates.get("dm_descr_template", dm_descr_template)
@@ -264,6 +340,7 @@ class DataModel:  # TODO refer to SQL only for all operations. All ops should ge
         )
 
 
+# default templates
 dm_descr_template = """\
 ## Узлы:
 {anchors}
