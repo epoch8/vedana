@@ -81,23 +81,6 @@ def page() -> rx.Component:
                                         scrollbars="vertical",
                                         style={"height": "50vh"},
                                     ),
-                                    rx.hstack(
-                                        rx.box(
-                                            rx.text(
-                                                rx.cond(
-                                                    ChatState.data_model_last_sync != "",
-                                                    "Last sync: " + ChatState.data_model_last_sync,
-                                                    "Last sync: —",
-                                                ),
-                                                size="1",
-                                                color="gray",
-                                            ),
-                                            width="100%",
-                                        ),
-                                        justify="end",
-                                        align="center",
-                                        width="100%",
-                                    ),
                                     spacing="3",
                                     width="100%",
                                 ),

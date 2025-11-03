@@ -140,20 +140,12 @@ class DataModel:
     def _get_attributes(
         self, anchors_dict: dict[str, Anchor] | None = None, links_dict: dict[str, Link] | None = None
     ) -> list[Attribute]:
-        """Read attributes from dm_attributes_v2 or dm_attributes table."""
-        # Try dm_attributes_v2 first, fallback to dm_attributes
-        try:
-            attrs_table = sa.Table(
-                "dm_attributes_v2",
-                sa.MetaData(),
-                autoload_with=self._db_engine,
-            )
-        except sa_exc.NoSuchTableError:
-            attrs_table = sa.Table(
-                "dm_attributes",
-                sa.MetaData(),
-                autoload_with=self._db_engine,
-            )
+        """Read attributes from dm_attributes_v2 table."""
+        attrs_table = sa.Table(
+            "dm_attributes_v2",
+            sa.MetaData(),
+            autoload_with=self._db_engine,
+        )
 
         if anchors_dict is None:
             anchors_dict = {anchor.noun: anchor for anchor in self._get_anchors()}

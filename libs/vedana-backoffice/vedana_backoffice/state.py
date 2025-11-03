@@ -14,7 +14,6 @@ from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from jims_core.db import ThreadEventDB
 from vedana_core.app import VedanaApp, make_vedana_app
-from vedana_core.data_model import DataModel
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.app import pipeline
@@ -1025,7 +1024,6 @@ class ChatState(rx.State):
     messages: list[dict[str, Any]] = []
     chat_thread_id: str = ""
     data_model_text: str = ""
-    data_model_last_sync: str = ""
     is_refreshing_dm: bool = True
     model = core_settings.model
 
@@ -1033,7 +1031,6 @@ class ChatState(rx.State):
         global vedana_app
         if vedana_app is None:
             vedana_app = await make_vedana_app()
-        self.data_model_last_sync: str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     def set_input(self, value: str) -> None:
         self.input_text = value
