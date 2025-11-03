@@ -137,60 +137,6 @@ class DataModel:
                 )
             return links
 
-    def _get_attributes(
-        self, anchors_dict: dict[str, Anchor] | None = None, links_dict: dict[str, Link] | None = None
-    ) -> list[Attribute]:
-        """Read attributes from dm_attributes_v2 table."""
-        attrs_table = sa.Table(
-            "dm_attributes_v2",
-            sa.MetaData(),
-            autoload_with=self._db_engine,
-        )
-
-        if anchors_dict is None:
-            anchors_dict = {anchor.noun: anchor for anchor in self._get_anchors()}
-        if links_dict is None:
-            links_dict = {}
-            for link in self._get_links(anchors_dict):
-                # Use sentence as key for links
-                links_dict[link.sentence] = link
-
-        with self._db_engine.connect() as conn:
-            result = conn.execute(select(attrs_table))
-            attrs = []
-            for row in result:
-                attr = Attribute(
-                    name=row.attribute_name,
-                    description=row.description,
-                    example=row.data_example,
-                    query=row.query,
-                    dtype=row.dtype,
-                    embeddable=bool(row.embeddable) if row.embeddable is not None else False,
-                    embed_threshold=float(row.embed_threshold) if row.embed_threshold is not None else 0.0,
-                    meta={"db_id": row.attribute_name},
-                )
-                attrs.append(attr)
-
-                # Associate with anchor if specified
-                if row.anchor:
-                    anchor = anchors_dict.get(row.anchor)
-                    if anchor:
-                        anchor.attributes.append(attr)
-                        if not attr.name.startswith(anchor.noun):
-                            logger.warning(f"Violation of naming convention: anchor {anchor.noun} has attr {attr.name}")
-                    else:
-                        logger.error(f"Anchor {row.anchor} for attr {attr.name} not found")
-
-                # Associate with link if specified
-                if row.link:
-                    link_obj: Link | None = links_dict.get(row.link)
-                    if link_obj is not None:
-                        link_obj.attributes.append(attr)
-                    else:
-                        logger.error(f"Link {row.link} for attr {attr.name} not found")
-
-            return attrs
-
     @property
     def anchors(self) -> list[Anchor]:
         return self._get_anchors()
@@ -198,10 +144,6 @@ class DataModel:
     @property
     def links(self) -> list[Link]:
         return self._get_links()
-
-    @property
-    def attrs(self) -> list[Attribute]:
-        return self._get_attributes()
 
     @property
     def queries(self) -> list[Query]:
