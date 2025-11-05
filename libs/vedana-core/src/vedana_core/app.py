@@ -26,6 +26,8 @@ class VedanaApp:
 async def make_vedana_app() -> VedanaApp:
     graph = MemgraphGraph(core_settings.memgraph_uri, core_settings.memgraph_user, core_settings.memgraph_pwd)
 
+    data_model = DataModel()
+
     pipeline = RagPipeline(
         graph=graph,
         data_model=data_model,
