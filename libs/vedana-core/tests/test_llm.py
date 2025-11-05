@@ -1,15 +1,10 @@
-import os
-
 import litellm
 import pytest
 from jims_core.llms.llm_provider import LLMProvider
-from litellm.types.caching import LiteLLMCacheType
 from pydantic import BaseModel
 
 from vedana_core.llm import LLM, Tool
 
-litellm_cache_dir = os.path.join(os.path.dirname(__file__), ".litellm_cache")
-litellm.cache = litellm.Cache(type=LiteLLMCacheType.DISK, disk_cache_dir=litellm_cache_dir)
 litellm._turn_on_debug()
 
 
