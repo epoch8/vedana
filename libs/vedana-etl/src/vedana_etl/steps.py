@@ -56,7 +56,9 @@ def clean_str(text: str) -> str:
     return text.strip()
 
 
-def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
+def get_data_model() -> Iterator[
+    tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]
+]:
     loader = GristCsvDataProvider(
         doc_id=core_settings.grist_data_model_doc_id,
         grist_server=core_settings.grist_server_url,
@@ -139,20 +141,31 @@ def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame,
     anchors_df = anchors_df.dropna(subset=["noun"], inplace=False)
     anchors_df = anchors_df.astype(str)
 
-    yield anchors_df, anchor_attrs_df, link_attrs_df, links_df
+    queries_df = loader.get_table("Queries")
+    queries_df = cast(pd.DataFrame, queries_df[["query_name", "query_example"]])
+    queries_df = queries_df.dropna()
+    queries_df = queries_df.astype(str)
+
+    prompts_df = loader.get_table("Prompts")
+    prompts_df = cast(pd.DataFrame, prompts_df[["name", "text"]])
+    prompts_df = prompts_df.dropna()
+    prompts_df = prompts_df.astype(str)
+
+    conversation_lifecycle_df = loader.get_table("ConversationLifecycle")
+    conversation_lifecycle_df = cast(pd.DataFrame, conversation_lifecycle_df[["event", "text"]])
+    conversation_lifecycle_df = conversation_lifecycle_df.dropna()
+    conversation_lifecycle_df = conversation_lifecycle_df.astype(str)
+
+    yield anchors_df, anchor_attrs_df, link_attrs_df, links_df, queries_df, prompts_df, conversation_lifecycle_df
 
 
 def get_data_model_snapshot() -> Iterator[pd.DataFrame]:
     """
-    DataModel.load_grist_online call repeats bc snapshot updates with delete_stale=False (to keep history)
+    DataModel versioning with sha256 hash
     """
-    dm = DataModel.load_grist_online(
-        doc_id=core_settings.grist_data_model_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
-    )
+    dm = DataModel()
 
-    dm_text = dm.to_json()
+    dm_text = dm.to_text_descr()
     dm_text_b = bytearray(dm_text, "utf-8")
     dm_id = sha256(dm_text_b).hexdigest()
 
