@@ -64,7 +64,6 @@ dm_link_attributes = Table(
     ),
 )
 
-
 dm_anchors = Table(
     name="dm_anchors",
     store=TableStoreDB(
@@ -75,6 +74,42 @@ dm_anchors = Table(
             Column("description", String),
             Column("id_example", String),
             Column("query", String),
+        ],
+    ),
+)
+
+dm_queries = Table(
+    name="dm_queries",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="dm_queries",
+        data_sql_schema=[
+            Column("query_name", String, primary_key=True),
+            Column("query_example", String),
+        ],
+    ),
+)
+
+dm_prompts = Table(
+    name="dm_prompts",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="dm_prompts",
+        data_sql_schema=[
+            Column("name", String, primary_key=True),
+            Column("text", String),
+        ],
+    ),
+)
+
+dm_conversation_lifecycle = Table(
+    name="dm_conversation_lifecycle",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="dm_conversation_lifecycle",
+        data_sql_schema=[
+            Column("event", String, primary_key=True),
+            Column("text", String),
         ],
     ),
 )

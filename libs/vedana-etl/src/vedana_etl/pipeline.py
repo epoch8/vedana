@@ -8,6 +8,9 @@ from vedana_etl.catalog import (
     dm_link_attributes,
     dm_anchor_attributes,
     dm_links,
+    dm_queries,
+    dm_prompts,
+    dm_conversation_lifecycle,
     dm_version,
     edges,
     grist_edges,
@@ -30,7 +33,15 @@ from vedana_etl.catalog import (
 data_model_steps = [
     BatchGenerate(
         func=steps.get_data_model,  # Generator with main graph data
-        outputs=[dm_anchors, dm_anchor_attributes, dm_link_attributes, dm_links],
+        outputs=[
+            dm_anchors,
+            dm_anchor_attributes,
+            dm_link_attributes,
+            dm_links,
+            dm_queries,
+            dm_prompts,
+            dm_conversation_lifecycle,
+        ],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "extract"), ("stage", "data-model")],
     ),
     BatchGenerate(
@@ -97,10 +108,7 @@ memgraph_steps = [
     BatchTransform(
         func=steps.ensure_memgraph_edge_indexes,
         inputs=[dm_link_attributes],
-        outputs=[
-            memgraph_link_indexes,
-            memgraph_link_vector_indexes
-        ],
+        outputs=[memgraph_link_indexes, memgraph_link_vector_indexes],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["attribute_name"],
     ),
