@@ -85,21 +85,62 @@ class DataModel:
             sa.MetaData(),
             autoload_with=self._db_engine,
         )
+        anchors_attr_table = sa.Table(
+            "dm_anchor_attributes",
+            sa.MetaData(),
+            autoload_with=self._db_engine,
+        )
 
         with self._db_engine.connect() as conn:
-            result = conn.execute(select(anchors_table))
-            anchors = []
-            for row in result:
-                anchors.append(
-                    Anchor(
-                        noun=row.noun,
-                        description=row.description,
-                        id_example=row.id_example,
-                        query=row.query,
-                        attributes=[],  # Attributes are loaded separately
-                    )
+            join_query = select(
+                anchors_table.c.noun,
+                anchors_table.c.description.label("anchor_description"),
+                anchors_table.c.id_example,
+                anchors_table.c.query.label("anchor_query"),
+                anchors_attr_table.c.attribute_name,
+                anchors_attr_table.c.description.label("attr_description"),
+                anchors_attr_table.c.data_example,
+                anchors_attr_table.c.embeddable,
+                anchors_attr_table.c.query.label("attr_query"),
+                anchors_attr_table.c.dtype,
+                anchors_attr_table.c.embed_threshold,
+            ).select_from(
+                anchors_table.join(  # left join
+                    anchors_attr_table,
+                    anchors_table.c.noun == anchors_attr_table.c.anchor,
+                    isouter=True,
                 )
-            return anchors
+            )
+            result = conn.execute(join_query)
+
+            anchors = {}
+            for row in result:
+                noun = row.noun
+                if noun not in anchors:
+                    anchors[noun] = Anchor(
+                        noun=noun,
+                        description=row.anchor_description,
+                        id_example=row.id_example,
+                        query=row.anchor_query,
+                        attributes=[],
+                    )
+
+                # Add attribute if it exists (attribute_name will be None for anchors without attributes)
+                if row.attribute_name is not None:
+                    anchors[noun].attributes.append(
+                        Attribute(
+                            name=row.attribute_name,
+                            description=row.attr_description if row.attr_description else "",
+                            example=row.data_example if row.data_example else "",
+                            embeddable=row.embeddable if row.embeddable is not None else False,
+                            query=row.attr_query if row.attr_query else "",
+                            dtype=row.dtype if row.dtype else "",
+                            embed_threshold=row.embed_threshold if row.embed_threshold is not None else 0.0,
+                            meta={},
+                        )
+                    )
+
+            return list(anchors.values())
 
     def _get_links(self, anchors_dict: dict[str, Anchor] | None = None) -> list[Link]:
         """Read links from dm_links table."""
@@ -108,34 +149,79 @@ class DataModel:
             sa.MetaData(),
             autoload_with=self._db_engine,
         )
+        links_attr_table = sa.Table(
+            "dm_link_attributes",
+            sa.MetaData(),
+            autoload_with=self._db_engine,
+        )
 
         if anchors_dict is None:
             anchors_dict = {anchor.noun: anchor for anchor in self._get_anchors()}
 
         with self._db_engine.connect() as conn:
-            result = conn.execute(select(links_table))
-            links = []
-            for row in result:
-                anchor_from = anchors_dict.get(row.anchor1)
-                anchor_to = anchors_dict.get(row.anchor2)
-                if anchor_from is None or anchor_to is None:
-                    logger.error(f'Link {row.sentence} has invalid connection "{row.anchor1} - {row.anchor2}"')
-                    continue
+            join_query = select(
+                links_table.c.anchor1,
+                links_table.c.anchor2,
+                links_table.c.sentence,
+                links_table.c.description.label("link_description"),
+                links_table.c.query.label("link_query"),
+                links_table.c.anchor1_link_column_name,
+                links_table.c.anchor2_link_column_name,
+                links_table.c.has_direction,
+                links_attr_table.c.attribute_name,
+                links_attr_table.c.description.label("attr_description"),
+                links_attr_table.c.data_example,
+                links_attr_table.c.embeddable,
+                links_attr_table.c.query.label("attr_query"),
+                links_attr_table.c.dtype,
+                links_attr_table.c.embed_threshold,
+            ).select_from(
+                links_table.join(  # left join
+                    links_attr_table,
+                    links_table.c.sentence == links_attr_table.c.link,
+                    isouter=True,
+                )
+            )
+            result = conn.execute(join_query)
 
-                links.append(
-                    Link(
+            links = {}
+            for row in result:
+                sentence = row.sentence
+                if sentence not in links:
+                    anchor_from = anchors_dict.get(row.anchor1)
+                    anchor_to = anchors_dict.get(row.anchor2)
+                    if anchor_from is None or anchor_to is None:
+                        logger.error(f'Link {sentence} has invalid connection "{row.anchor1} - {row.anchor2}"')
+                        continue
+
+                    links[sentence] = Link(
                         anchor_from=anchor_from,
                         anchor_to=anchor_to,
                         anchor_from_link_attr_name=row.anchor1_link_column_name,
                         anchor_to_link_attr_name=row.anchor2_link_column_name,
-                        sentence=row.sentence,
-                        description=row.description,
-                        query=row.query,
+                        sentence=sentence,
+                        description=row.link_description,
+                        query=row.link_query,
                         has_direction=bool(row.has_direction) if row.has_direction is not None else False,
-                        attributes=[],  # Attributes are loaded separately
+                        attributes=[],
                     )
-                )
-            return links
+
+                # Add attribute if it exists (attribute_name will be None for anchors without attributes)
+                if row.attribute_name is not None:
+                    links[sentence].attributes.append(
+                        Attribute(
+                            name=row.attribute_name,
+                            description=row.attr_description if row.attr_description else "",
+                            example=row.data_example if row.data_example else "",
+                            embeddable=row.embeddable if row.embeddable is not None else False,
+                            query=row.attr_query if row.attr_query else "",
+                            dtype=row.dtype if row.dtype else "",
+                            embed_threshold=row.embed_threshold if row.embed_threshold is not None else 0.0,
+                            meta={},
+                        )
+                    )
+
+            return list(links.values())
 
     @property
     def anchors(self) -> list[Anchor]:
@@ -204,11 +290,15 @@ class DataModel:
         links = self.links
         a_i = [
             ("anchor", anchor.noun, attr.name, attr.embed_threshold)
-            for anchor in anchors for attr in anchor.attributes if attr.embeddable
+            for anchor in anchors
+            for attr in anchor.attributes
+            if attr.embeddable
         ]
         l_i = [
             ("edge", link.sentence, attr.name, attr.embed_threshold)
-            for link in links for attr in link.attributes if attr.embeddable
+            for link in links
+            for attr in link.attributes
+            if attr.embeddable
         ]
         return a_i + l_i
 
