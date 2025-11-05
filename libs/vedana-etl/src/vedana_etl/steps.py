@@ -184,11 +184,7 @@ def get_grist_data(
     Fetch all anchors and links from Grist into node/edge tables
     """
 
-    dm = DataModel.load_grist_online(
-        doc_id=settings.grist_data_model_doc_id,
-        grist_server=settings.grist_server_url,
-        api_key=settings.grist_api_key,
-    )
+    dm = DataModel()
 
     dp = GristAPIDataProvider(
         doc_id=settings.grist_data_doc_id,
@@ -637,11 +633,7 @@ def get_eval_judge_config() -> Iterator[pd.DataFrame]:
     """
     versioning Judge prompt
     """
-    dm = DataModel.load_grist_online(
-        doc_id=core_settings.grist_data_model_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
-    )
+    dm = DataModel()
 
     judge_prompt = dm.prompt_templates().get("eval_judge_prompt", "")
 
