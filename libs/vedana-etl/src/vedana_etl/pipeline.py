@@ -85,12 +85,20 @@ default_custom_steps = [
 
 memgraph_steps = [
     BatchTransform(
-        func=steps.ensure_memgraph_indexes,
-        inputs=[dm_anchor_attributes, dm_link_attributes],
+        func=steps.ensure_memgraph_node_indexes,
+        inputs=[dm_anchor_attributes],
         outputs=[
             memgraph_anchor_indexes,
-            memgraph_link_indexes,
             memgraph_anchor_vector_indexes,
+        ],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
+        transform_keys=["attribute_name"],
+    ),
+    BatchTransform(
+        func=steps.ensure_memgraph_edge_indexes,
+        inputs=[dm_link_attributes],
+        outputs=[
+            memgraph_link_indexes,
             memgraph_link_vector_indexes
         ],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
