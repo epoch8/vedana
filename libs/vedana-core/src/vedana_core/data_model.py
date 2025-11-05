@@ -155,7 +155,7 @@ class DataModel:
             )
             with self._db_engine.connect() as conn:
                 result = conn.execute(select(queries_table))
-                return [Query(name=row.name, example=row.example) for row in result]
+                return [Query(name=row.query_name, example=row.query_example) for row in result]
         except sa_exc.NoSuchTableError:
             return []
 
