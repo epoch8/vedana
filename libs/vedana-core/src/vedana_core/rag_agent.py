@@ -80,6 +80,7 @@ class RagAgent:
         self._data_model = data_model
         self._graph_descr = data_model.to_text_descr()
         self._vts_args = self._build_vts_arg_model()
+        self._vts_meta_args = {}  # stuff not passed through toolcall
         self.ctx = ctx
 
     def _build_vts_arg_model(self) -> Type[VTSArgs]:
@@ -90,11 +91,17 @@ class RagAgent:
         if not _vts_indices:
             return VTSArgs
 
+        # fill in lookup for resolving idx type and getting custom threshold
+        for idx_type, i_name, i_attr, i_th in _vts_indices:
+            if not self._vts_meta_args.get(i_name):
+                self._vts_meta_args[i_name] = {}
+            self._vts_meta_args[i_name][i_attr] = (idx_type, i_th)
+
         # Label Enum – keys of `_vts_indices`
-        LabelEnum = enum.Enum("LabelEnum", {name: name for (name, _) in _vts_indices})  # type: ignore
+        LabelEnum = enum.Enum("LabelEnum", {name: name for (_type, name, _attr, _th) in _vts_indices})  # type: ignore
 
         # Property Enum – unique values of `_vts_indices`
-        unique_props = set(attr for (_, attr) in _vts_indices)
+        unique_props = set(attr for (_type, _name, attr, _th) in _vts_indices)
         prop_member_mapping: dict[str, str] = {}
 
         used_names: set[str] = set()
@@ -109,8 +116,8 @@ class RagAgent:
 
         VTSArgsEnum = create_model(
             "VTSArgsEnum",
-            label=(LabelEnum, Field(description="node label")),
-            property=(PropertyEnum, Field(description="node property to search in")),
+            label=(LabelEnum, Field(description="node or edge label")),
+            property=(PropertyEnum, Field(description="property to search in")),
             text=(str, Field(description="text for semantic search")),
             __base__=VTSArgs,
         )
@@ -120,13 +127,14 @@ class RagAgent:
     async def search_vector_text(
         self,
         label: str,
+        prop_type: str,
         prop_name: str,
         search_value: str,
         threshold: float,
         top_n: int = 5,
     ) -> list[Record]:
         embed = await self.llm.llm.create_embedding(search_value)
-        return await self.graph.vector_search(label, prop_name, embed, threshold=threshold, top_n=top_n)
+        return await self.graph.vector_search(label, prop_type, prop_name, embed, threshold=threshold, top_n=top_n)
 
     @staticmethod
     def result_to_text(query: str, result: list[Record] | Exception) -> str:
@@ -160,11 +168,12 @@ class RagAgent:
             label = args.label.value if isinstance(args.label, enum.Enum) else args.label
             prop = args.property.value if isinstance(args.property, enum.Enum) else args.property
 
-            th = self._data_model.embeddable_attributes().get(prop, {}).get("th") or threshold
-            self.logger.debug(f"vts_fn(label={label}, property={prop}, th={th}, n={top_n})")
+            # defualt fallback treats toolcall as node vector search
+            prop_type, th = self._vts_meta_args.get(label, {}).get(prop, ("node", threshold))
+            self.logger.debug(f"vts_fn(on={prop_type} label={label}, property={prop}, th={th}, n={top_n})")
 
             vts_queries.append(VTSQuery(label, prop, args.text))
-            vts_res = await self.search_vector_text(label, prop, args.text, threshold=th, top_n=top_n)
+            vts_res = await self.search_vector_text(label, prop_type, prop, args.text, threshold=th, top_n=top_n)
             return self.result_to_text(VTS_TOOL_NAME, vts_res)
 
         async def cypher_fn(args: CypherArgs) -> str:
@@ -211,9 +220,9 @@ def _remove_embeddings(val: Any):
     return val
 
 
-def _clear_record_val(val: Any):
+def _clear_record_val(val: Any):  # todo check for edges
     params = _remove_embeddings(val)
-    if isinstance(val, neo4j.graph.Node) and isinstance(params, dict):
+    if isinstance(val, (neo4j.graph.Node, neo4j.graph.Relationship)) and isinstance(params, dict):
         params["labels"] = list(val.labels)
     return params
 
