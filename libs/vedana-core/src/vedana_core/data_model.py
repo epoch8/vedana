@@ -187,42 +187,33 @@ class DataModel:
         except sa_exc.NoSuchTableError:
             return []
 
-    def embeddable_attributes(self) -> dict[str, dict]:
-        # todo anchors / edges
-        anchors = self.anchors
-        links = self.links
-
-        result = {
-            attr.name: {"noun": anchor.noun, "th": attr.embed_threshold}
-            for anchor in anchors
-            for attr in anchor.attributes
-            if attr.embeddable
-        }
-        result.update(
-            {
-                attr.name: {"link": link.sentence, "th": attr.embed_threshold}
-                for link in links
-                for attr in link.attributes
-                if attr.embeddable
-            }
-        )
-        return result
-
     def conversation_lifecycle_events(self) -> dict[str, str]:
         return {cl.event: cl.text for cl in self.conversation_lifecycle}
 
     def prompt_templates(self) -> dict[str, str]:
         return {p.name: p.text for p in self.prompts}
 
-    def vector_indices(self) -> list[tuple[str, str]]:
+    def vector_indices(self) -> list[tuple[str, str, str, float | None]]:
+        """
+        returns list
+        ("anchor", anchor.noun, anchor.attribute, anchor.th) +
+        ("edge", link.sentence, link.attribute, link.th)
+        for all embeddable attributes
+        """
         anchors = self.anchors
         links = self.links
-        # todo links as well
-        a_i = [(anchor.noun, attr.name) for anchor in anchors for attr in anchor.attributes if attr.embeddable]
-        l_i = [(link.sentence, attr.name) for link in links for attr in link.attributes if attr.embeddable]
+        a_i = [
+            ("anchor", anchor.noun, attr.name, attr.embed_threshold)
+            for anchor in anchors for attr in anchor.attributes if attr.embeddable
+        ]
+        l_i = [
+            ("edge", link.sentence, attr.name, attr.embed_threshold)
+            for link in links for attr in link.attributes if attr.embeddable
+        ]
         return a_i + l_i
 
     def anchor_links(self, anchor_noun: str) -> list[Link]:
+        """all links that connect to/from this anchor"""
         links = self.links
         return [
             link
