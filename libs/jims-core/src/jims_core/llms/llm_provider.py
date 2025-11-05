@@ -177,14 +177,12 @@ class LLMProvider:
     async def chat_completion_plain(
         self,
         messages: Iterable,  # we do not type it because litellm does not type it
-        temperature: float | None = None,
         use_cache: bool = False,
     ) -> litellm.Message:
         completion = await litellm.acompletion(
             model=self.model,
             messages=list(messages),
             caching=use_cache,
-            temperature=temperature,
         )
         assert isinstance(completion, litellm.ModelResponse)
 
@@ -202,14 +200,12 @@ class LLMProvider:
         self,
         messages: Iterable,  # we do not type it because litellm does not type it
         tools: list | None = None,  # we do not type it because litellm does not type it
-        temperature: float | None = None,
     ) -> tuple[litellm.Message, list]:
         # todo: validate tools?
         completion = await litellm.acompletion(
             model=self.model,
             messages=list(messages),
             tools=tools,
-            temperature=temperature,
         )
         assert isinstance(completion, litellm.ModelResponse)
 

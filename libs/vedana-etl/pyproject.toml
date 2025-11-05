@@ -3,6 +3,10 @@ name = "vedana-etl"
 version = "0.2.0"
 description = "Pipeline template for Vedana"
 readme = "README.md"
+authors = [
+  { name = "Andrey Tatarinov", email = "a@tatarinov.co" },
+  { name = "Timur Sheydaev", email = "tsheyd@epoch8.co" },
+]
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.16.1",
@@ -20,10 +24,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "mypy>=1.17.1",
-    "pytest>=8.4.1",
-    "ruff>=0.12.9",
-    "types-pyyaml>=6.0.12.20250822",
+  "mypy>=1.17.1",
+  "pytest>=8.4.1",
+  "ruff>=0.12.9",
+  "types-pyyaml>=6.0.12.20250822",
 ]
 
 [tool.ruff]
