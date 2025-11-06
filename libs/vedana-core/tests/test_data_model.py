@@ -73,8 +73,8 @@ def test_db_engine():
         conn.execute(
             sa.text("""
                 CREATE TABLE dm_queries (
-                    name TEXT PRIMARY KEY,
-                    example TEXT
+                    query_name TEXT PRIMARY KEY,
+                    query_example TEXT
                 )
             """)
         )
@@ -163,7 +163,7 @@ def test_data(test_db_engine):
         # Insert queries
         conn.execute(
             sa.text("""
-                INSERT INTO dm_queries (name, example) VALUES
+                INSERT INTO dm_queries (query_name, query_example) VALUES
                 ('ANY QUESTION', 'extract topics, search FAQs, then search consultations')
             """)
         )
@@ -195,10 +195,10 @@ def test_dm_usage(test_db_engine, test_data):
 
     # Vector indices used by agent tools (label, property)
     vis = set(dm.vector_indices())
-    assert ("anchor", "consultation", "consultation_text") in vis
-    assert ("anchor", "faq", "faq_question_text") in vis
-    assert ("anchor", "faq", "faq_answer_text") in vis
-    assert ("edge", "DOCUMENT_CHUNK_has_FAQ", "relevance_score") in vis
+    assert ("anchor", "consultation", "consultation_text", 0.05) in vis
+    assert ("anchor", "faq", "faq_question_text", 0.01) in vis
+    assert ("anchor", "faq", "faq_answer_text", 0.2) in vis
+    assert ("edge", "DOCUMENT_CHUNK_has_FAQ", "relevance_score", 0.1) in vis
 
     # Anchor links (foreign key style hints)
     doc_links = {link.sentence for link in dm.anchor_links("document")}
@@ -372,71 +372,75 @@ def test_dm_conversation_lifecycle(test_db_engine, test_data):
     assert events.get("/start") == "Hello!"
 
 
-def test_dm_empty_optional_tables(test_db_engine):
+def test_dm_empty_optional_tables():
     """Test that optional tables return empty lists if they don't exist or are empty."""
-    # Create only required tables
-    with test_db_engine.connect() as conn:
-        conn.execute(
-            sa.text("""
-                CREATE TABLE dm_anchors (
-                    noun TEXT PRIMARY KEY,
-                    description TEXT,
-                    id_example TEXT,
-                    query TEXT
-                )
-            """)
-        )
-        conn.execute(
-            sa.text("""
-                CREATE TABLE dm_links (
-                    anchor1 TEXT NOT NULL,
-                    anchor2 TEXT NOT NULL,
-                    sentence TEXT NOT NULL,
-                    description TEXT,
-                    query TEXT,
-                    anchor1_link_column_name TEXT,
-                    anchor2_link_column_name TEXT,
-                    has_direction BOOLEAN,
-                    PRIMARY KEY (anchor1, anchor2, sentence)
-                )
-            """)
-        )
-        conn.execute(
-            sa.text("""
-                CREATE TABLE dm_anchor_attributes (
-                    anchor TEXT NOT NULL,
-                    attribute_name TEXT NOT NULL,
-                    description TEXT,
-                    data_example TEXT,
-                    embeddable BOOLEAN,
-                    query TEXT,
-                    dtype TEXT,
-                    embed_threshold REAL,
-                    PRIMARY KEY (anchor, attribute_name)
-                )
-            """)
-        )
+    engine = create_engine("sqlite:///:memory:")
+    try:
+        # Create only required tables
+        with engine.connect() as conn:
+            conn.execute(
+                sa.text("""
+                    CREATE TABLE dm_anchors (
+                        noun TEXT PRIMARY KEY,
+                        description TEXT,
+                        id_example TEXT,
+                        query TEXT
+                    )
+                """)
+            )
+            conn.execute(
+                sa.text("""
+                    CREATE TABLE dm_links (
+                        anchor1 TEXT NOT NULL,
+                        anchor2 TEXT NOT NULL,
+                        sentence TEXT NOT NULL,
+                        description TEXT,
+                        query TEXT,
+                        anchor1_link_column_name TEXT,
+                        anchor2_link_column_name TEXT,
+                        has_direction BOOLEAN,
+                        PRIMARY KEY (anchor1, anchor2, sentence)
+                    )
+                """)
+            )
+            conn.execute(
+                sa.text("""
+                    CREATE TABLE dm_anchor_attributes (
+                        anchor TEXT NOT NULL,
+                        attribute_name TEXT NOT NULL,
+                        description TEXT,
+                        data_example TEXT,
+                        embeddable BOOLEAN,
+                        query TEXT,
+                        dtype TEXT,
+                        embed_threshold REAL,
+                        PRIMARY KEY (anchor, attribute_name)
+                    )
+                """)
+            )
 
-        conn.execute(
-            sa.text("""
-                CREATE TABLE dm_link_attributes (
-                    link TEXT NOT NULL,
-                    attribute_name TEXT NOT NULL,
-                    description TEXT,
-                    data_example TEXT,
-                    embeddable BOOLEAN,
-                    query TEXT,
-                    dtype TEXT,
-                    embed_threshold REAL,
-                    PRIMARY KEY (link, attribute_name)
-                )
-            """)
-        )
-        conn.commit()
+            conn.execute(
+                sa.text("""
+                    CREATE TABLE dm_link_attributes (
+                        link TEXT NOT NULL,
+                        attribute_name TEXT NOT NULL,
+                        description TEXT,
+                        data_example TEXT,
+                        embeddable BOOLEAN,
+                        query TEXT,
+                        dtype TEXT,
+                        embed_threshold REAL,
+                        PRIMARY KEY (link, attribute_name)
+                    )
+                """)
+            )
+            conn.commit()
 
-    dm = DataModel.create(db_engine=test_db_engine)
+        dm = DataModel.create(db_engine=engine)
 
-    # Optional tables should return empty lists
-    assert dm.queries == []
-    assert dm.prompts == []
-    assert dm.conversation_lifecycle == []
+        # Optional tables should return empty lists
+        assert dm.queries == []
+        assert dm.prompts == []
+        assert dm.conversation_lifecycle == []
+    finally:
+        engine.dispose()
