@@ -135,7 +135,7 @@ class DataModel:
                             embeddable=row.embeddable if row.embeddable is not None else False,
                             query=row.attr_query if row.attr_query else "",
                             dtype=row.dtype if row.dtype else "",
-                            embed_threshold=row.embed_threshold if row.embed_threshold is not None else 0.0,
+                            embed_threshold=row.embed_threshold if row.embed_threshold is not None else 1.0,
                             meta={},
                         )
                     )
@@ -216,7 +216,7 @@ class DataModel:
                             embeddable=row.embeddable if row.embeddable is not None else False,
                             query=row.attr_query if row.attr_query else "",
                             dtype=row.dtype if row.dtype else "",
-                            embed_threshold=row.embed_threshold if row.embed_threshold is not None else 0.0,
+                            embed_threshold=row.embed_threshold if row.embed_threshold is not None else 1.0,
                             meta={},
                         )
                     )
@@ -279,7 +279,7 @@ class DataModel:
     def prompt_templates(self) -> dict[str, str]:
         return {p.name: p.text for p in self.prompts}
 
-    def vector_indices(self) -> list[tuple[str, str, str, float | None]]:
+    def vector_indices(self) -> list[tuple[str, str, str, float]]:
         """
         returns list
         ("anchor", anchor.noun, anchor.attribute, anchor.th) +

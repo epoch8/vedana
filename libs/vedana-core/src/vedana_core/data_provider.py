@@ -100,7 +100,7 @@ class CsvDataProvider(DataProvider):
             return []
         df = pd.read_csv(file)
         anchors = []
-        attrs_dtypes = {a.name: a.dtype for a in self.data_model.attrs}
+        attrs_dtypes = {a.name: a.dtype for anchor in self.data_model.anchors for a in anchor.attributes}
         grouped = df.groupby(["node_id", "node_type"])
         for (node_id, node_type), group in grouped:  # type: ignore
             data = {
