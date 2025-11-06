@@ -263,7 +263,7 @@ def test_dm_links(test_db_engine, test_data):
     assert "DOCUMENT_CHUNK_has_FAQ" in link_sentences
 
     # Check link details
-    doc_link = next(l for l in links if l.sentence == "DOCUMENT_has_DOCUMENT_CHUNK")
+    doc_link = next(link for link in links if link.sentence == "DOCUMENT_has_DOCUMENT_CHUNK")
     assert doc_link.anchor_from.noun == "document"
     assert doc_link.anchor_to.noun == "document_chunk"
     assert doc_link.has_direction is False
@@ -274,7 +274,7 @@ def test_dm_links(test_db_engine, test_data):
     assert doc_link.attributes[0].dtype == "int"
 
     # Check second link has attributes
-    faq_link = next(l for l in links if l.sentence == "DOCUMENT_CHUNK_has_FAQ")
+    faq_link = next(link for link in links if link.sentence == "DOCUMENT_CHUNK_has_FAQ")
     assert len(faq_link.attributes) == 1
     assert faq_link.attributes[0].name == "relevance_score"
     assert faq_link.attributes[0].embeddable is True
@@ -326,10 +326,10 @@ def test_dm_attributes(test_db_engine, test_data):
     assert "relevance_score" in link_attr_names
 
     # Verify link attributes are associated with correct links
-    doc_link = next(l for l in links if l.sentence == "DOCUMENT_has_DOCUMENT_CHUNK")
+    doc_link = next(link for link in links if link.sentence == "DOCUMENT_has_DOCUMENT_CHUNK")
     assert any(attr.name == "chunk_order" for attr in doc_link.attributes)
 
-    faq_link = next(l for l in links if l.sentence == "DOCUMENT_CHUNK_has_FAQ")
+    faq_link = next(link for link in links if link.sentence == "DOCUMENT_CHUNK_has_FAQ")
     assert any(attr.name == "relevance_score" for attr in faq_link.attributes)
 
 
