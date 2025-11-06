@@ -80,7 +80,7 @@ class RagAgent:
         self._data_model = data_model
         self._graph_descr = data_model.to_text_descr()
         self._vts_args = self._build_vts_arg_model()
-        self._vts_meta_args = {}  # stuff not passed through toolcall
+        self._vts_meta_args: dict[str, dict[str, tuple[str, float]]] = {}  # stuff not passed through toolcall
         self.ctx = ctx
 
     def _build_vts_arg_model(self) -> Type[VTSArgs]:
@@ -221,7 +221,7 @@ def _remove_embeddings(val: Any):
 
 def _clear_record_val(val: Any):  # todo check for edges
     params = _remove_embeddings(val)
-    if isinstance(val, (neo4j.graph.Node, neo4j.graph.Relationship)) and isinstance(params, dict):
+    if isinstance(val, neo4j.graph.Node) and isinstance(params, dict):
         params["labels"] = list(val.labels)
     return params
 
