@@ -165,7 +165,11 @@ eval_steps = [
 ]
 
 
-def get_pipeline(custom_steps: list):
+def get_data_model_pipeline() -> Pipeline:
+    return Pipeline(data_model_steps)
+
+
+def get_pipeline(custom_steps: list) -> Pipeline:
     pipeline = Pipeline(
         [
             *data_model_steps,

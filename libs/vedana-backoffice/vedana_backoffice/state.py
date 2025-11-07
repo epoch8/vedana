@@ -11,7 +11,7 @@ import orjson as json
 import pandas as pd
 import reflex as rx
 import sqlalchemy as sa
-from datapipe.compute import run_steps
+from datapipe.compute import Catalog, run_steps, run_pipeline
 from jims_core.db import ThreadEventDB
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
@@ -20,6 +20,7 @@ from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.app import pipeline
 from vedana_etl.config import DBCONN_DATAPIPE
+from vedana_etl.pipeline import get_data_model_pipeline
 
 from vedana_backoffice.graph.build import build_canonical, derive_step_edges, derive_table_edges
 
@@ -799,14 +800,6 @@ class EtlState(rx.State):
         self.table_row_counts = counts
         return
 
-    def _run_steps_sync(self, steps_to_run: list[Any]) -> None:
-        # Run each step sequentially to provide granular logs
-        for step in steps_to_run:
-            step_name = getattr(step, "name", type(step).__name__)
-            self._append_log(f"Running step: {step_name}")
-            run_steps(etl_app.ds, [step])  # type: ignore[arg-type]
-            self._append_log(f"Completed step: {step_name}")
-
     def run_selected(self):  # type: ignore[override]
         """Run the ETL for selected labels in background, streaming logs."""
         if self.is_running:
@@ -1190,6 +1183,27 @@ class ChatState(rx.State):
 
             self.is_refreshing_dm = False  # make the update button available
             yield
+
+    @rx.event(background=True)  # type: ignore[operator]
+    async def reload_data_model(self):
+        """Reload the data model by running all data_model_steps from the pipeline."""
+        async with self:
+            self.is_refreshing_dm = True
+            yield
+            try:
+                run_pipeline(etl_app.ds, Catalog({}), get_data_model_pipeline())
+
+                va = await get_vedana_app()
+                self.data_model_text = va.data_model.to_text_descr()
+                yield rx.toast.success("Data model reloaded")
+            except Exception as e:
+                error_msg = str(e)
+                self.data_model_text = f"(error reloading data model: {error_msg})"
+                yield rx.toast.error("Failed to reload data model")
+            finally:
+                self.is_refreshing_dm = False
+                yield
+
 
 @dataclass
 class ThreadEventVis:
