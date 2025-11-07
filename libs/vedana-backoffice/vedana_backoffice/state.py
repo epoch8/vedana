@@ -1359,6 +1359,10 @@ class ThreadViewState(rx.State):
     note_severity_by_event: dict[str, str] = {}
     selected_thread_id: str = ""
     expanded_event_id: str = ""
+    tag_dialog_open_for_event: str = ""
+    selected_tags_for_event: dict[str, list[str]] = {}
+    new_tag_text_for_event: dict[str, str] = {}
+    available_tags: list[str] = []
 
     async def _reload(self) -> None:
         vedana_app = await make_vedana_app()
@@ -1474,6 +1478,33 @@ class ThreadViewState(rx.State):
 
         # Present in chronological order as originally shown (created_at asc)
         self.events = ev_items
+
+        # Collect all available tags from all threads
+        all_tags: set[str] = set()
+        # From current thread
+        for tags_set in tags_by_event.values():
+            all_tags.update(tags_set)
+
+        # From all threads in the database
+        try:
+            async with vedana_app.sessionmaker() as session:
+                # Query all tag_added events to get all tags ever used
+                tag_stmt = sa.select(ThreadEventDB.event_data).where(
+                    ThreadEventDB.event_type == "jims.backoffice.tag_added"
+                )
+                tag_results = (await session.execute(tag_stmt)).scalars().all()
+                for edata in tag_results:
+                    try:
+                        ed = dict(edata or {})
+                        tag = str(ed.get("tag", "")).strip()
+                        if tag:
+                            all_tags.add(tag)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        self.available_tags = sorted(list(all_tags))
         self.loading = False
 
     @rx.event
@@ -1512,30 +1543,113 @@ class ThreadViewState(rx.State):
     def set_note_severity_for(self, value: str, event_id: str) -> None:
         self.note_severity_by_event[event_id] = value
 
-    # Persistence events: we encode admin actions as jims.backoffice.* events for now
+    # Tag dialog management
     @rx.event
-    async def add_tag(self, event_id: str):
-        if not self.new_tag_text.strip():
+    def open_tag_dialog(self, event_id: str) -> None:
+        """Open tag dialog for a specific event and initialize selected tags with current tags."""
+        self.tag_dialog_open_for_event = event_id
+        # Initialize selected tags with current visible tags for this event
+        current_event = next((e for e in self.events if e.event_id == event_id), None)
+        if current_event:
+            self.selected_tags_for_event[event_id] = list(current_event.visible_tags or [])
+        else:
+            self.selected_tags_for_event[event_id] = []
+
+    @rx.event
+    def close_tag_dialog(self) -> None:
+        """Close tag dialog and clear temporary state."""
+        event_id = self.tag_dialog_open_for_event
+        self.tag_dialog_open_for_event = ""
+        # Optionally clear temporary state
+        if event_id in self.new_tag_text_for_event:
+            del self.new_tag_text_for_event[event_id]
+
+    @rx.event
+    def handle_tag_dialog_open_change(self, is_open: bool) -> None:
+        """Handle dialog open/close state changes."""
+        if not is_open:
+            self.close_tag_dialog()
+
+    @rx.event
+    def set_new_tag_text_for_event(self, value: str, event_id: str) -> None:
+        """Set new tag text for a specific event."""
+        self.new_tag_text_for_event[event_id] = value
+
+    @rx.event
+    def toggle_tag_selection_for_event(self, tag: str, event_id: str, checked: bool) -> None:
+        """Toggle tag selection for a specific event."""
+        selected = self.selected_tags_for_event.get(event_id, [])
+        if checked:
+            if tag not in selected:
+                self.selected_tags_for_event[event_id] = [*selected, tag]
+        else:
+            self.selected_tags_for_event[event_id] = [t for t in selected if t != tag]
+
+    @rx.event
+    async def add_new_tag_to_available(self, event_id: str) -> None:
+        """Add a new tag to available tags list."""
+        new_tag = (self.new_tag_text_for_event.get(event_id) or "").strip()
+        if new_tag and new_tag not in self.available_tags:
+            self.available_tags = sorted([*self.available_tags, new_tag])
+            # Also add to selected tags for this event
+            selected = self.selected_tags_for_event.get(event_id, [])
+            if new_tag not in selected:
+                self.selected_tags_for_event[event_id] = [*selected, new_tag]
+            # Clear the input
+            self.new_tag_text_for_event[event_id] = ""
+
+    @rx.event
+    async def apply_tags_to_event(self, event_id: str) -> None:
+        """Apply selected tags to an event by adding/removing tags as needed."""
+        current_event = next((e for e in self.events if e.event_id == event_id), None)
+        if not current_event:
             return
+
+        current_tags = set(current_event.visible_tags or [])
+        selected_tags = set(self.selected_tags_for_event.get(event_id, []))
+
+        tags_to_add = selected_tags - current_tags
+        tags_to_remove = current_tags - selected_tags
+
         vedana_app = await make_vedana_app()
         async with vedana_app.sessionmaker() as session:
-            # Store an auxiliary event carrying tagging info
-            from jims_core.util import uuid7
+            try:
+                thread_uuid = (
+                    UUID(self.selected_thread_id)
+                    if isinstance(self.selected_thread_id, str)
+                    else self.selected_thread_id
+                )
+            except Exception:
+                thread_uuid = self.selected_thread_id
 
-            tag_event = ThreadEventDB(
-                thread_id=self.selected_thread_id,
-                event_id=uuid7(),
-                event_type="jims.backoffice.tag_added",
-                event_data={"target_event_id": event_id, "tag": self.new_tag_text.strip()},
-            )
-            session.add(tag_event)
+            for tag in tags_to_add:
+                tag_event = ThreadEventDB(
+                    thread_id=thread_uuid,
+                    event_id=uuid7(),
+                    event_type="jims.backoffice.tag_added",
+                    event_data={"target_event_id": event_id, "tag": tag},
+                )
+                session.add(tag_event)
+                await session.flush()
+
+            for tag in tags_to_remove:
+                tag_event = ThreadEventDB(
+                    thread_id=thread_uuid,
+                    event_id=uuid7(),
+                    event_type="jims.backoffice.tag_removed",
+                    event_data={"target_event_id": event_id, "tag": tag},
+                )
+                session.add(tag_event)
+                await session.flush()
+
             await session.commit()
-        self.new_tag_text = ""
+
+        # Close dialog and reload
+        self.tag_dialog_open_for_event = ""
         await self._reload()
         try:
-            # local import to avoid cycles todo check
+            # local import to avoid cycles
             from vedana_backoffice.pages.jims_thread_list_page import ThreadListState
-
             yield ThreadListState.get_data()  # type: ignore[operator]
         except Exception:
             pass
@@ -1556,8 +1670,7 @@ class ThreadViewState(rx.State):
             await session.commit()
         await self._reload()
         try:
-            from vedana_backoffice.pages.jims_thread_list_page import ThreadListState  # local import todo check
-
+            from vedana_backoffice.pages.jims_thread_list_page import ThreadListState  # local import to avoid cycles
             yield ThreadListState.get_data()  # type: ignore[operator]
         except Exception:
             pass
