@@ -1015,7 +1015,7 @@ class ChatState(rx.State):
     messages: list[dict[str, Any]] = []
     chat_thread_id: str = ""
     data_model_text: str = ""
-    is_refreshing_dm: bool = True
+    is_refreshing_dm: bool = False
     model = core_settings.model
 
     async def mount(self) -> None:
@@ -1199,7 +1199,7 @@ class ChatState(rx.State):
             except Exception as e:
                 error_msg = str(e)
                 self.data_model_text = f"(error reloading data model: {error_msg})"
-                yield rx.toast.error("Failed to reload data model")
+                yield rx.toast.error(f"Failed to reload data model\n{error_msg}")
             finally:
                 self.is_refreshing_dm = False
                 yield
