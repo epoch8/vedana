@@ -44,11 +44,6 @@ data_model_steps = [
         ],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "extract"), ("stage", "data-model")],
     ),
-    BatchGenerate(
-        func=steps.get_data_model_snapshot,
-        outputs=[dm_version],
-        labels=[("flow", "eval"), ("stage", "extract"), ("stage", "data-model")],
-    ),
 ]
 
 llm_config_steps = [
@@ -135,6 +130,11 @@ memgraph_steps = [
 ]
 
 eval_steps = [
+    BatchGenerate(
+        func=steps.get_data_model_snapshot,
+        outputs=[dm_version],
+        labels=[("flow", "eval"), ("stage", "extract")],
+    ),
     BatchGenerate(
         func=steps.get_eval_judge_config,
         outputs=[judge_config],
