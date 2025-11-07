@@ -689,11 +689,13 @@ def jims_thread_list_page() -> rx.Component:
                     value=ThreadViewState.note_text_by_event.get(ev.event_id, ""),
                     on_change=lambda v: ThreadViewState.set_note_text_for(v, event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
                     width="40%",
+                    size="1",
                 ),
                 rx.select(
                     items=["Low", "Medium", "High"],
                     value=ThreadViewState.note_severity_by_event.get(ev.event_id, "Low"),
                     on_change=lambda v: ThreadViewState.set_note_severity_for(v, event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
+                    size="1",
                 ),
                 rx.button(
                     "Add note",
@@ -703,6 +705,7 @@ def jims_thread_list_page() -> rx.Component:
                 spacing="2",
                 wrap="wrap",
                 width="100%",
+                align="center",
             ),
             rx.box(),
         )
