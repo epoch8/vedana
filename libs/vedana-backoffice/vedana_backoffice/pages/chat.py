@@ -1,8 +1,8 @@
 import reflex as rx
 
+from vedana_backoffice.components.ui_chat import render_message_bubble
 from vedana_backoffice.state import ChatState
 from vedana_backoffice.ui import app_header
-from vedana_backoffice.components.ui_chat import render_message_bubble
 
 
 def _message_row(msg: dict) -> rx.Component:
@@ -72,8 +72,16 @@ def page() -> rx.Component:
                             rx.dialog.content(
                                 rx.vstack(
                                     rx.hstack(
-                                        rx.dialog.title("Current Data Model"),
+                                        rx.dialog.title("Data Model"),
                                         rx.spacer(),
+                                        rx.button(
+                                            "Reload",
+                                            variant="soft",
+                                            color_scheme="blue",
+                                            size="1",
+                                            on_click=ChatState.reload_data_model,
+                                            loading=ChatState.is_refreshing_dm,
+                                        ),
                                         rx.dialog.close(
                                             rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
                                         ),
