@@ -27,10 +27,10 @@ def test_anchor_attributes_formula_type_column() -> None:
     """
 
     # 1) Живой Data Model
-    anchors_df, attrs_df, links_df = next(steps.get_data_model())
-    assert not anchors_df.empty and not attrs_df.empty, "Data Model must not be empty."
+    anchors_df, a_attrs_df, _l_attrs_df, links_df, _q_df, _p_df, _cl_df = next(steps.get_data_model())
+    assert not anchors_df.empty and not a_attrs_df.empty, "Data Model must not be empty (Anchors)."
 
-    dm_attr_names = set(attrs_df["attribute_name"].astype(str))
+    dm_attr_names = set(a_attrs_df["attribute_name"].astype(str))
 
     # В этом кейсе ожидаем, что формульный атрибут описан в Data Model.
     assert "document_filepath" in dm_attr_names, (

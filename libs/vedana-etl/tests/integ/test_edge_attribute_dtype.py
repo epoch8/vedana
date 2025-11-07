@@ -27,7 +27,7 @@ load_dotenv()
 
 def test_edge_attribute_dtype() -> None:
     # 1) Точный label берём из Data Model
-    anchors_df, attrs_df, links_df = next(steps.get_data_model())
+    anchors_df, a_attrs_df, l_attrs_df, links_df, _q_df, _p_df, _cl_df = next(steps.get_data_model())
     assert not links_df.empty, "Data Model Links пуст."
 
     dm = links_df.copy()
