@@ -1,7 +1,7 @@
 """refactor datamodel
 
 Revision ID: e25e64e0008a
-Revises: 7e6b7d0b54d1
+Revises: 74005cd73b8d
 Create Date: 2025-11-05 10:38:42.924255
 
 """
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "e25e64e0008a"
-down_revision: Union[str, None] = "7e6b7d0b54d1"
+down_revision: Union[str, None] = "74005cd73b8d"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
