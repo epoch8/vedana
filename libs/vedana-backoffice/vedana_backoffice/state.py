@@ -1050,6 +1050,33 @@ class ChatState(rx.State):
         self.input_text = ""
         self.chat_thread_id = ""
 
+    @rx.var
+    def total_conversation_cost(self) -> float:
+        """Calculate total cost by summing requests_cost from all assistant messages."""
+        total = 0.0
+        for msg in self.messages:
+            if msg.get("is_assistant") and msg.get("model_stats"):
+                model_stats = msg.get("model_stats", {})
+                if isinstance(model_stats, dict):
+                    # model_stats can be {model_name: {requests_cost: value, ...}}
+                    for model_name, stats in model_stats.items():
+                        if isinstance(stats, dict):
+                            cost = stats.get("requests_cost")
+                            if cost is not None:
+                                try:
+                                    total += float(cost)
+                                except (ValueError, TypeError):
+                                    pass
+        return total
+
+    @rx.var
+    def total_conversation_cost_str(self) -> str:
+        """Formatted string representation of total conversation cost."""
+        cost = self.total_conversation_cost
+        if cost > 0:
+            return f"${cost:.6f}"
+        return ""
+
     def _append_message(
         self,
         role: str,
@@ -1088,6 +1115,7 @@ class ChatState(rx.State):
             message["has_cypher"] = bool(cypher_list)
             message["has_models"] = bool(models_list)
             message["has_tech"] = bool(vts_list or cypher_list or models_list)
+            message["model_stats"] = models_raw
 
         self.messages.append(message)
 
