@@ -152,7 +152,7 @@ class EtlState(rx.State):
             steps_meta.append(
                 {
                     "index": idx,
-                    "name": step.func.__name__,
+                    "name": step.func.__name__,  # type: ignore[attr-defined]
                     "step_type": type(step).__name__,
                     "inputs": list(inputs),
                     "outputs": list(outputs),
