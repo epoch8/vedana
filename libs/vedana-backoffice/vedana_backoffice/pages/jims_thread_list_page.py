@@ -479,7 +479,6 @@ def jims_thread_list_page() -> rx.Component:
                             ),
                             type="always",
                             scrollbars="vertical",
-                            style={"height": "240px", "width": "100%"},
                         ),
                         rx.hstack(
                             rx.button("Apply", on_click=ThreadListState.get_data, size="1"),
@@ -494,7 +493,6 @@ def jims_thread_list_page() -> rx.Component:
                             width="100%",
                         ),
                         spacing="3",
-                        width="480px",
                     )
                 ),
             ),
@@ -613,21 +611,78 @@ def jims_thread_list_page() -> rx.Component:
             "show_details": ThreadViewState.expanded_event_id == ev.event_id,
         }
 
+        tag_dialog = rx.dialog.root(
+            rx.dialog.content(
+                rx.vstack(
+                    rx.hstack(
+                        rx.dialog.title("Add Tags"),
+                        rx.dialog.close(
+                            rx.button("Close", variant="ghost", size="1", on_click=ThreadViewState.close_tag_dialog)
+                        ),
+                        justify="between",
+                        align="center",
+                        width="100%",
+                    ),
+                    rx.hstack(
+                        rx.input(
+                            placeholder="Add new tag...",
+                            value=ThreadViewState.new_tag_text_for_event.get(ev.event_id, ""),
+                            on_change=lambda v: ThreadViewState.set_new_tag_text_for_event(v, event_id=ev.event_id),
+                            width="100%",
+                        ),
+                        rx.button(
+                            "Add",
+                            size="1",
+                            on_click=ThreadViewState.add_new_tag_to_available(event_id=ev.event_id),
+                        ),
+                        spacing="2",
+                        width="100%",
+                    ),
+                    rx.scroll_area(
+                        rx.vstack(
+                            rx.foreach(
+                                ThreadViewState.available_tags,
+                                lambda t: rx.checkbox(
+                                    t,
+                                    checked=ThreadViewState.selected_tags_for_event.get(ev.event_id, []).contains(t),  # type: ignore[attr-defined]
+                                    on_change=lambda v, tag=t: ThreadViewState.toggle_tag_selection_for_event(
+                                        tag=tag, event_id=ev.event_id, checked=v
+                                    ),  # type: ignore[operator]
+                                ),
+                            ),
+                            spacing="2",
+                            width="100%",
+                        ),
+                        type="always",
+                        scrollbars="vertical",
+                        style={"width": "100%", "padding": "0"},
+                    ),
+                    rx.hstack(
+                        rx.button(
+                            "Apply",
+                            size="1",
+                            on_click=ThreadViewState.apply_tags_to_event(event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
+                        ),
+                        spacing="2",
+                        justify="end",
+                        width="100%",
+                    ),
+                    spacing="3",
+                ),
+            ),
+            open=ThreadViewState.tag_dialog_open_for_event == ev.event_id,
+            on_open_change=ThreadViewState.handle_tag_dialog_open_change,  # type: ignore[operator]
+        )
+
         action_line = rx.cond(
             (ev.role == "assistant") & ev.content != "",
             rx.hstack(
-                # Add Tag (only for messages with content)
-                rx.input(
-                    placeholder="Add tag",
-                    value=ThreadViewState.new_tag_text,
-                    on_change=ThreadViewState.set_new_tag_text,
-                    width="20%",
-                ),
                 rx.button(
                     "Add tag",
                     size="1",
-                    on_click=ThreadViewState.add_tag(event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
+                    on_click=ThreadViewState.open_tag_dialog(event_id=ev.event_id),  # type: ignore[call-arg,func-returns-value]
                 ),
+                tag_dialog,
                 # Add Note (single-line input)
                 rx.input(
                     placeholder="Add note...",
