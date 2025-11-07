@@ -35,8 +35,8 @@ load_dotenv()
 
 def test_edge_attribute_filtering() -> None:
     # 1) Data Model: найдём link document -> regulation и его sentence
-    anchors_df, attrs_df, links_df = next(steps.get_data_model())
-    assert not links_df.empty and not attrs_df.empty
+    _anchors_df, a_attrs_df, l_attrs_df, links_df, _q_df, _p_df, _cl_df = next(steps.get_data_model())
+    assert not links_df.empty and not l_attrs_df.empty
 
     dm = links_df.copy()
     a1 = dm["anchor1"].astype(str).str.lower().str.strip()
@@ -48,12 +48,12 @@ def test_edge_attribute_filtering() -> None:
     assert sentence
 
     # 2) Разрешённые edge-атрибуты по DM (Attributes.link == sentence)
-    if "link" in attrs_df.columns:
-        mask = attrs_df["link"].astype(str).str.lower().str.strip() == sentence.lower()
+    if "link" in l_attrs_df.columns:
+        mask = l_attrs_df["link"].astype(str).str.lower().str.strip() == sentence.lower()
     else:
-        mask = pd.Series(False, index=attrs_df.index)
+        mask = pd.Series(False, index=l_attrs_df.index)
 
-    allowed_edge_attrs: Set[str] = set(map(str, attrs_df.loc[mask, "attribute_name"].astype(str).tolist()))
+    allowed_edge_attrs: Set[str] = set(map(str, l_attrs_df.loc[mask, "attribute_name"].astype(str).tolist()))
 
     # 3) Данные → фильтрация рёбер по DM
     nodes_df, edges_df = next(steps.get_grist_data())
