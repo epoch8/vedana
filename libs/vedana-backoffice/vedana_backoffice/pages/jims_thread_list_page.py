@@ -758,13 +758,19 @@ def jims_thread_list_page() -> rx.Component:
     )
 
     # Left panel (thread list with its own scroll)
-    left_panel = rx.vstack(
+    left_panel = rx.box(
         rx.cond(
             ThreadListState.threads_refreshing,
             rx.center("Loading threads..."),
-            rx.scroll_area(table, type="always", scrollbars="vertical", style={"flex": 1, "height": "100%"}),
+            rx.scroll_area(
+                table,
+                type="always",
+                scrollbars="vertical",
+                style={"height": "100%"},
+            ),
         ),
-        spacing="3",
+        flex="1",
+        min_height="0",
         style={"height": "100%", "overflow": "hidden"},
     )
 
@@ -772,15 +778,20 @@ def jims_thread_list_page() -> rx.Component:
     right_panel = rx.cond(
         ThreadViewState.selected_thread_id == "",
         rx.center(rx.text("Select a thread to view conversation"), style={"height": "100%"}),
-        rx.vstack(
-            # rx.heading("Conversation"),
+        rx.box(
             rx.scroll_area(
-                rx.vstack(rx.foreach(ThreadViewState.events, _render_event_as_msg), spacing="3", width="100%"),
+                rx.vstack(
+                    rx.foreach(ThreadViewState.events, _render_event_as_msg),
+                    spacing="3",
+                    width="100%",
+                    padding_bottom="1em",
+                ),
                 type="always",
                 scrollbars="vertical",
-                style={"flex": 1, "height": "100%"},
+                style={"height": "100%"},
             ),
-            spacing="3",
+            flex="1",
+            min_height="0",
             style={"height": "100%", "overflow": "hidden"},
         ),
     )
@@ -788,15 +799,22 @@ def jims_thread_list_page() -> rx.Component:
     return rx.vstack(
         app_header(),
         filters_box,
-        rx.grid(
-            left_panel,
-            right_panel,
-            columns="2",
-            spacing="4",
-            sm_columns="1",
+        rx.box(
+            rx.grid(
+                left_panel,
+                right_panel,
+                columns="2",
+                spacing="4",
+                sm_columns="1",
+                width="100%",
+                style={"height": "100%"},
+            ),
+            flex="1",
+            min_height="0",
             width="100%",
-            style={"flex": 1, "height": "100%"},
         ),
         spacing="4",
-        style={"height": "100vh", "overflow": "hidden"},
+        height="100vh",
+        overflow="hidden",
+        width="100%",
     )
