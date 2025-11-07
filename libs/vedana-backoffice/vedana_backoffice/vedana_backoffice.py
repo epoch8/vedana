@@ -20,6 +20,13 @@ def index() -> rx.Component:
                     rx.link("JIMS", href="/jims"),
                     spacing="4",
                 ),
+                rx.button(
+                    "Reload Data Model",
+                    variant="soft",
+                    color_scheme="blue",
+                    on_click=ChatState.reload_data_model,
+                    loading=ChatState.is_refreshing_dm,
+                ),
                 align="start",
                 spacing="4",
                 width="100%",

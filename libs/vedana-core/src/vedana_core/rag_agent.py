@@ -79,8 +79,8 @@ class RagAgent:
         self.logger = logger or logging.getLogger(__name__)
         self._data_model = data_model
         self._graph_descr = data_model.to_text_descr()
-        self._vts_args = self._build_vts_arg_model()
         self._vts_meta_args: dict[str, dict[str, tuple[str, float]]] = {}  # stuff not passed through toolcall
+        self._vts_args = self._build_vts_arg_model()
         self.ctx = ctx
 
     def _build_vts_arg_model(self) -> Type[VTSArgs]:
