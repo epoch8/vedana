@@ -43,7 +43,7 @@ dev = [
 [tool.ruff]
 line-length = 120
 
-[tool.gh-actions-codegen]
+[tool.uv-workspace-codegen]
 generate = true
 template_type = "lib"
 generate_standard_pytest_step = false
