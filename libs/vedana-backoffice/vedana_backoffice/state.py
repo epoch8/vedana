@@ -34,6 +34,22 @@ async def get_vedana_app():
     return vedana_app
 
 
+@dataclass
+class EtlTableStats:
+    table_name: str
+    process_ts: float  # last process_ts
+    row_count: int  # excluding those with delete_ts != NULL
+
+    last_update_ts: float
+
+
+@dataclass
+class EtlDataTableStats(EtlTableStats):
+    last_update_rows: int  # update_ts = max(update_ts)
+    last_added_rows: int  # create_ts = last_update_ts
+    last_deleted_rows: int  # delete_ts = last_update_ts
+
+
 class EtlState(rx.State):
     """ETL control state and actions."""
 
@@ -59,8 +75,6 @@ class EtlState(rx.State):
 
     # Run status
     is_running: bool = False
-    last_run_started_at: float | None = None
-    last_run_finished_at: float | None = None
     logs: list[str] = []
     max_log_lines: int = 2000
 
@@ -76,15 +90,13 @@ class EtlState(rx.State):
     data_view: bool = False
 
     # Table metadata for data-centric view
-    table_row_counts: dict[str, int] = {}
+    table_meta: dict[str, EtlDataTableStats] = {}
 
     # Table preview panel state
     preview_open: bool = False
     preview_anchor_left: str = "0px"
     preview_anchor_top: str = "0px"
 
-    # Step last-run timestamps (loaded from meta table)
-    steps_last_run: dict[str, str] = {}
     # Step status cache: name -> {total_idx_count, changed_idx_count}
     step_status_by_name: dict[str, dict[str, int]] = {}
     step_status_loading: bool = False
@@ -169,7 +181,9 @@ class EtlState(rx.State):
         tables: set[str] = set()
         flows: set[str] = set()
         stages: set[str] = set()
-        for step in pipeline.steps:  # get tables from pipeline
+
+        # get tables from pipeline
+        for step in pipeline.steps:
             if hasattr(step, "inputs"):
                 for input in step.inputs:
                     tables.add(input.name)
@@ -189,15 +203,7 @@ class EtlState(rx.State):
         self.available_flows = ["all", *sorted(flows)]  # add "all"
         self.available_stages = ["all", *sorted(stages)]
 
-        # Build initial graph
-        try:
-            self._load_last_run_timestamps()
-        except Exception:
-            self.steps_last_run = {}
-        try:
-            self._load_table_row_counts()
-        except Exception:
-            self.table_row_counts = {}
+        self._load_table_stats()
         self._rebuild_graph()
 
     def toggle_sidebar(self) -> None:
@@ -545,9 +551,8 @@ class EtlState(rx.State):
                     x = layer_x(_l)
                     y = y_offsets[r_idx]
                     pos_by[sid] = (x, y)
-                    if not self.data_view:
+                    if not self.data_view:  # transformation view
                         step_name = name_by.get(sid, f"step_{sid}")
-                        last_run_str = self.steps_last_run.get(step_name, "—")
                         nodes.append(
                             {
                                 "index": sid,
@@ -566,17 +571,20 @@ class EtlState(rx.State):
                                 "top": f"{y}px",
                                 "width": f"{w_by.get(sid, MIN_NODE_W)}px",
                                 "height": f"{h_by.get(sid, NODE_H)}px",
-                                "last_run": last_run_str,
+                                # "last_run": ,
                                 "selected": sid in selected_ids,
                                 "border_css": "2px solid #3b82f6" if sid in selected_ids else "1px solid #e5e7eb",
                             }
                         )
-                    else:
-                        # data view: nodes are tables
+                    else:  # data view: nodes are tables
                         table_name = name_by.get(sid, f"table_{sid}")
-                        rc = self.table_row_counts.get(table_name, None)
-                        rc_text = f"rows: {rc}" if rc is not None else "rows: —"
-                        # In data view, use selection to highlight clicked tables
+                        rc = self.table_meta[table_name]
+                        if rc.process_ts:
+                            dt = datetime.fromtimestamp(rc.process_ts)
+                            last_run_str = dt.strftime("%Y-%m-%d %H:%M")
+                        else:
+                            last_run_str = "None"
+
                         nodes.append(
                             {
                                 "index": sid,
@@ -592,7 +600,10 @@ class EtlState(rx.State):
                                 "top": f"{y}px",
                                 "width": f"{w_by.get(sid, MIN_NODE_W)}px",
                                 "height": f"{h_by.get(sid, NODE_H)}px",
-                                "last_run": rc_text,
+                                "last_run": last_run_str,
+                                "row_count": rc.row_count,
+                                "last_add": f"+{rc.last_added_rows}",
+                                "last_rm": f"-{rc.last_deleted_rows}",
                                 "selected": (self.preview_table_name == table_name),
                                 "border_css": (
                                     "2px solid #3b82f6"
@@ -713,15 +724,12 @@ class EtlState(rx.State):
                     anchor_left = "0px"
                     anchor_top = "0px"
                     for n in nodes:
-                        try:
-                            if n.get("node_type") == "table" and str(n.get("name")) == str(self.preview_table_name):
-                                ax = int(n.get("x", 0)) + int(n.get("w", 0)) + 12
-                                ay = int(n.get("y", 0)) + int(int(n.get("h", 0)) / 2)
-                                anchor_left = f"{ax}px"
-                                anchor_top = f"{ay}px"
-                                break
-                        except Exception:
-                            pass
+                        if n.get("node_type") == "table" and str(n.get("name")) == str(self.preview_table_name):
+                            ax = int(n.get("x", 0)) + int(n.get("w", 0)) + 12
+                            ay = int(n.get("y", 0)) + int(int(n.get("h", 0)) / 2)
+                            anchor_left = f"{ax}px"
+                            anchor_top = f"{ay}px"
+                            break
                     self.preview_anchor_left = anchor_left
                     self.preview_anchor_top = anchor_top
                 else:
@@ -731,8 +739,8 @@ class EtlState(rx.State):
             except Exception:
                 self.preview_anchor_left = "24px"
                 self.preview_anchor_top = "24px"
+
         except Exception:
-            # On any error, fall back to empty visuals
             self.graph_nodes = []
             self.graph_edges = []
             self.graph_width_px = 800
@@ -741,64 +749,52 @@ class EtlState(rx.State):
             self.graph_width_css = "800px"
             self.graph_height_css = "400px"
 
-    # --- Meta: last-run timestamps ---
+    def _load_table_stats(self):
+        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        self.table_meta = {}
 
-    def _load_last_run_timestamps(self) -> None:
-        """Load last run timestamps per step from the meta table.
-
-        Tries to query a table named "meta" with columns (step_name, process_ts).
-        If unavailable, silently falls back to empty mapping.
-        """
-        try:
-            engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
-        except Exception:
-            self.steps_last_run = {}
-            return
-
-        try:
-            import pandas as pd  # local import to keep typing hints clean
-
-            df = pd.read_sql(
-                "SELECT step_name, MAX(process_ts) AS last_ts FROM meta GROUP BY step_name",
-                con=engine,
-            )
-            mapping: dict[str, str] = {}
-            for _, row in df.iterrows():
-                name = str(row.get("step_name", ""))
-                ts = row.get("last_ts")
-                try:
-                    if ts is not None:
-                        mapping[name] = str(pd.to_datetime(ts)).replace("T", " ")[:19]
-                except Exception:
-                    mapping[name] = str(ts)
-            self.steps_last_run = mapping
-        except Exception:
-            self.steps_last_run = {}
-
-    def _load_table_row_counts(self) -> None:
-        """Load row counts for available tables for data view."""
-        counts: dict[str, int] = {}
-        try:
-            engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
-        except Exception:
-            self.table_row_counts = {}
-            return
-
-        for name in list(self.available_tables or []):
-            tname = str(name)
+        for tname in list(self.available_tables):
             try:
-                import pandas as pd  # local import
+                meta_table_name = f"{tname}_meta"
+                query = sa.text(f"""
+                    WITH max_update_ts AS (
+                        SELECT MAX(update_ts) AS max_ts FROM "{meta_table_name}"
+                    )
+                    SELECT 
+                        MAX(process_ts) AS process_ts,
+                        COUNT(*) FILTER (WHERE delete_ts IS NULL) AS row_count,
+                        (SELECT max_ts FROM max_update_ts) AS last_update_ts,
+                        COUNT(*) FILTER (WHERE update_ts IS NOT NULL AND update_ts = (SELECT max_ts FROM max_update_ts)) AS last_update_rows,
+                        COUNT(*) FILTER (WHERE create_ts IS NOT NULL AND create_ts = (SELECT max_ts FROM max_update_ts)) AS last_added_rows,
+                        COUNT(*) FILTER (WHERE delete_ts IS NOT NULL AND delete_ts = (SELECT max_ts FROM max_update_ts)) AS last_deleted_rows
+                    FROM "{meta_table_name}", max_update_ts;
+                """)
 
-                df = pd.read_sql(f'SELECT COUNT(*) AS cnt FROM "{tname}"', con=engine)
-                try:
-                    cnt_val = int(df.iloc[0]["cnt"]) if not df.empty else 0
-                except Exception:
-                    cnt_val = 0
-                counts[tname] = cnt_val
-            except Exception:
-                counts[tname] = 0
-        self.table_row_counts = counts
-        return
+                with con.begin() as conn:
+                    result = conn.execute(query)
+                    row = result.fetchone()
+
+                self.table_meta[tname] = EtlDataTableStats(
+                    table_name=tname,
+                    process_ts=float(row[0]) if row[0] is not None else 0.0,
+                    row_count=int(row[1]) if row[1] is not None else 0,
+                    last_update_ts=float(row[2]) if row[2] is not None else 0.0,
+                    last_update_rows=int(row[3]) if row[3] is not None else 0,
+                    last_added_rows=int(row[4]) if row[4] is not None else 0,
+                    last_deleted_rows=int(row[5]) if row[5] is not None else 0,
+                )
+
+            except Exception as e:
+                logging.warning(f"Failed to load stats for table {tname}: {e}", exc_info=True)
+                self.table_meta[tname] = EtlDataTableStats(
+                    table_name=tname,
+                    process_ts=0.0,
+                    row_count=0,
+                    last_update_ts=0.0,
+                    last_update_rows=0,
+                    last_added_rows=0,
+                    last_deleted_rows=0,
+                )
 
     def _run_steps_sync(self, steps_to_run: list[Any]) -> None:
         # Run each step sequentially to provide granular logs
@@ -814,7 +810,6 @@ class EtlState(rx.State):
             return None
 
         self.is_running = True
-        self.last_run_started_at = time.time()
         self.logs = []
         self._append_log("Starting ETL run …")
         yield
@@ -853,7 +848,6 @@ class EtlState(rx.State):
                 self._stop_log_capture(handler, logger)
         finally:
             self.is_running = False
-            self.last_run_finished_at = time.time()
             self._append_log("ETL run finished")
 
     # removed async runner; running synchronously with yields
@@ -877,7 +871,6 @@ class EtlState(rx.State):
         step = etl_app.steps[idx]
         self.is_running = True
         self.logs = []
-        self.last_run_started_at = time.time()
         self._append_log(f"Starting single step {step.name}")
         yield
 
@@ -900,7 +893,6 @@ class EtlState(rx.State):
                 self._stop_log_capture(handler, logger)
         finally:
             self.is_running = False
-            self.last_run_finished_at = time.time()
             self._append_log("Single step finished")
         return None
 
@@ -916,35 +908,24 @@ class EtlState(rx.State):
         self.preview_open = True
         self.has_preview = False
         # Rebuild immediately to reflect selection highlight in data view
-        try:
-            self._rebuild_graph()
-        except Exception:
-            pass
-        try:
-            engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
-        except Exception:
-            self._append_log("DB engine not available")
-            return
+        self._rebuild_graph()
 
-        # Resolve actual SQL table to preview (fallback to meta for non-SQL stores)
-        actual_table = self._resolve_preview_table_name(table_name)
-        try:
-            self.preview_display_name = str(actual_table)
-        except Exception:
-            self.preview_display_name = str(table_name)
+        engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
 
         try:
-            df = pd.read_sql(f'SELECT * FROM "{actual_table}" LIMIT 50', con=engine)
-        except Exception as e:
-            self._append_log(f"Failed to load table {actual_table}: {e}")
-            return
+            df = pd.read_sql(f'SELECT * FROM "{table_name}" LIMIT 50', con=engine)
+        except Exception:
+            try:  # For tables which are stored not in TableStoreDB (not in database) - load _meta table for preview
+                df = pd.read_sql(f'SELECT * FROM "{table_name}_meta" LIMIT 50', con=engine)
+                self.preview_display_name = f"{table_name}_meta"
+            except Exception as e:
+                self._append_log(f"Failed to load table {table_name}: {e}")
+                return
 
         self.preview_columns = [str(c) for c in df.columns]
         records_any: list[dict[Any, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
 
         def _safe_render_value(v: Any) -> str:
-            # if v is None:
-            #     return "—"
             try:
                 s = json.dumps(v).decode() if isinstance(v, (dict, list)) else str(v)
             except Exception:
@@ -977,37 +958,6 @@ class EtlState(rx.State):
             self._rebuild_graph()
         except Exception:
             pass
-
-    def _resolve_preview_table_name(self, table_name: str) -> str:
-        """Return SQL table to use for preview. If the catalog table is backed by
-        a non-SQL store, return '<name>_meta'. If resolution fails, return the
-        original name.
-        """
-        try:
-            import vedana_etl.catalog as catalog  # local import to avoid cycles
-            from datapipe.store.database import TableStoreDB  # type: ignore
-
-            def _iter_tables():
-                for attr in dir(catalog):
-                    try:
-                        obj = getattr(catalog, attr)
-                        if hasattr(obj, "name") and hasattr(obj, "store"):
-                            yield obj
-                    except Exception:
-                        continue
-
-            for tbl in _iter_tables():
-                try:
-                    if str(getattr(tbl, "name", "")) == str(table_name):
-                        store = getattr(tbl, "store", None)
-                        if not isinstance(store, TableStoreDB):
-                            return f"{table_name}_meta"
-                        break
-                except Exception:
-                    continue
-            return str(table_name)
-        except Exception:
-            return str(table_name)
 
     def set_preview_open(self, open: bool) -> None:
         """Handle popover open/close state changes."""
@@ -1614,9 +1564,7 @@ class ThreadViewState(rx.State):
         vedana_app = await make_vedana_app()
         async with vedana_app.sessionmaker() as session:
             thread_uuid = (
-                UUID(self.selected_thread_id)
-                if isinstance(self.selected_thread_id, str)
-                else self.selected_thread_id
+                UUID(self.selected_thread_id) if isinstance(self.selected_thread_id, str) else self.selected_thread_id
             )
 
             for tag in tags_to_add:
