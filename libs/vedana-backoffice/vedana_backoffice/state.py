@@ -1568,7 +1568,7 @@ class ThreadViewState(rx.State):
     def handle_tag_dialog_open_change(self, is_open: bool) -> None:
         """Handle dialog open/close state changes."""
         if not is_open:
-            self.close_tag_dialog()
+            self.close_tag_dialog()  # type: ignore[operator]
 
     @rx.event
     def set_new_tag_text_for_event(self, value: str, event_id: str) -> None:
@@ -1599,7 +1599,7 @@ class ThreadViewState(rx.State):
             self.new_tag_text_for_event[event_id] = ""
 
     @rx.event
-    async def apply_tags_to_event(self, event_id: str) -> None:
+    async def apply_tags_to_event(self, event_id: str):
         """Apply selected tags to an event by adding/removing tags as needed."""
         current_event = next((e for e in self.events if e.event_id == event_id), None)
         if not current_event:
@@ -1613,14 +1613,11 @@ class ThreadViewState(rx.State):
 
         vedana_app = await make_vedana_app()
         async with vedana_app.sessionmaker() as session:
-            try:
-                thread_uuid = (
-                    UUID(self.selected_thread_id)
-                    if isinstance(self.selected_thread_id, str)
-                    else self.selected_thread_id
-                )
-            except Exception:
-                thread_uuid = self.selected_thread_id
+            thread_uuid = (
+                UUID(self.selected_thread_id)
+                if isinstance(self.selected_thread_id, str)
+                else self.selected_thread_id
+            )
 
             for tag in tags_to_add:
                 tag_event = ThreadEventDB(
