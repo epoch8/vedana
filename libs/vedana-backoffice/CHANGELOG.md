@@ -1,7 +1,8 @@
 # 0.2.1
 
-* minor UI improvements - layouts, tags filtering in JIMS thread viewer
-* added total chat cost counter
+* General - UI improvements: layouts, tags filtering in JIMS thread viewer
+* Chat - added total chat cost counter
+* ETL - added row count and last run changes in DataTable view
 
 # 0.2.0 - 2025.10.29
 
