@@ -1,3 +1,8 @@
+# 0.2.1
+
+* minor UI improvements - layouts, tags filtering in JIMS thread viewer
+* added total chat cost counter
+
 # 0.2.0 - 2025.10.29
 
 * JIMS thread viewer - add feedback processing flow, UI updates
