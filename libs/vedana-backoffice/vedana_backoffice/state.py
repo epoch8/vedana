@@ -2041,7 +2041,7 @@ class DashboardState(rx.State):
 
         # Only display data columns; hide change_type and timestamps
         self.changes_preview_columns = [str(c) for c in display_cols]
-        records_any: list[dict[str, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
+        records_any: list[dict] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
 
         def _safe_render_value(v: Any) -> str:
             try:
@@ -2061,7 +2061,7 @@ class DashboardState(rx.State):
         }
         for r in records_any:  # Build display row with only data columns, coercing values to safe strings
             row_disp: dict[str, Any] = {k: _safe_render_value(r.get(k)) for k in self.changes_preview_columns}
-            row_disp["row_style"] = row_styling.get(r.get("change_type"), {})
+            row_disp["row_style"] = row_styling.get(r.get("change_type"), {})  # type: ignore[arg-type]
             styled.append(row_disp)
 
         self.changes_preview_rows = styled

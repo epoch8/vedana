@@ -297,7 +297,7 @@ def _ingest_card() -> rx.Component:
                             rx.table.cell(rx.text(r.get("added", 0))),  # type: ignore[arg-type]
                             rx.table.cell(rx.text(r.get("updated", 0))),  # type: ignore[arg-type]
                             rx.table.cell(rx.text(r.get("deleted", 0))),  # type: ignore[arg-type]
-                            on_click=DashboardState.open_changes_preview(table_name=r.get("table", "")),  # type: ignore[arg-type]
+                            on_click=DashboardState.open_changes_preview(table_name=r.get("table", "")),  # type: ignore
                             style={"cursor": "pointer"},
                         ),
                     )
