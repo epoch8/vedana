@@ -1,5 +1,6 @@
 # 0.2.1
 
+* ETL - added monitoring dashboard on the main page
 * General - UI improvements: layouts, tags filtering in JIMS thread viewer
 * Chat - added total chat cost counter
 * ETL - added row count and last run changes in DataTable view
