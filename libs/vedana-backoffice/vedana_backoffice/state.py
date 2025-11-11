@@ -124,11 +124,11 @@ class EtlState(rx.State):
                     pass
 
         handler = _QueueHandler(q)
-        handler.setLevel(logging.DEBUG)
+        handler.setLevel(logging.INFO)
         handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
 
         logger = logging.getLogger("datapipe")
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(logging.INFO)
         logger.addHandler(handler)
 
         return q, handler, logger
