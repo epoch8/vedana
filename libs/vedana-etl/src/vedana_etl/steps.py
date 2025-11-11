@@ -404,10 +404,6 @@ def get_grist_data(
             subset=["from_node_id", "to_node_id", "edge_label"]
         )
 
-    # add DataModel node
-    dm_node = {"content": dm.to_json(), "id": "data_model", "updated_at": str(datetime.now())}
-    nodes_df.loc[nodes_df.shape[0]] = {"node_id": "data_model", "node_type": "DataModel", "attributes": dm_node}  # type: ignore
-
     yield nodes_df, edges_df
 
 
