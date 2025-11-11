@@ -416,7 +416,7 @@ def ensure_memgraph_node_indexes(dm_anchor_attrs: pd.DataFrame) -> tuple[pd.Data
     anchor_types: set[str] = set(dm_anchor_attrs["anchor"].dropna().unique())
 
     # embeddable attrs for vector indices
-    vec_a_attr_rows = dm_anchor_attrs[(dm_anchor_attrs["embeddable"]) & (dm_anchor_attrs["dtype"].str.lower() == "str")]
+    vec_a_attr_rows = dm_anchor_attrs[dm_anchor_attrs["embeddable"]]  #  & (dm_anchor_attrs["dtype"].str.lower() == "str")]
 
     driver = GraphDatabase.driver(
         uri=core_settings.memgraph_uri,
@@ -475,7 +475,7 @@ def ensure_memgraph_edge_indexes(dm_link_attrs: pd.DataFrame) -> tuple[pd.DataFr
     link_types: set[str] = set(dm_link_attrs["link"].dropna().unique())
 
     # embeddable attrs for vector indices
-    vec_l_attr_rows = dm_link_attrs[(dm_link_attrs["embeddable"]) & (dm_link_attrs["dtype"].str.lower() == "str")]
+    vec_l_attr_rows = dm_link_attrs[dm_link_attrs["embeddable"]]  # & (dm_link_attrs["dtype"].str.lower() == "str")]
 
     driver = GraphDatabase.driver(
         uri=core_settings.memgraph_uri,
