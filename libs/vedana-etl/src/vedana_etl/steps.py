@@ -835,7 +835,7 @@ def run_tests(
 
     # configs
     dm_id = str(dm_version.get("dm_id"))
-    dm = DataModel.from_json(dm_version.get("dm_description"))  # todo replace
+    dm = DataModel()  # todo versioning data model
     embeddings_model = str(llm_embeddings_config.get("embeddings_model"))
     embeddings_dim = int(llm_embeddings_config.get("embeddings_dim"))
 
