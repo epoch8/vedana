@@ -21,7 +21,6 @@ def _node_card(node: dict) -> rx.Component:
                 width="100%",
             ),
             rx.text(node.get("labels_str", ""), size="1", color="gray"),
-
             rx.cond(
                 is_table,
                 rx.hstack(

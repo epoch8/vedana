@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from queue import Empty, Queue
@@ -23,6 +24,7 @@ from vedana_etl.app import pipeline
 from vedana_etl.config import DBCONN_DATAPIPE
 
 from vedana_backoffice.graph.build import build_canonical, derive_step_edges, derive_table_edges
+from vedana_backoffice.util import safe_render_value
 
 vedana_app: VedanaApp | None = None
 
@@ -164,7 +166,7 @@ class EtlState(rx.State):
             steps_meta.append(
                 {
                     "index": idx,
-                    "name": step.func.__name__,
+                    "name": step.func.__name__,  # type: ignore[attr-defined]
                     "step_type": type(step).__name__,
                     "inputs": list(inputs),
                     "outputs": list(outputs),
@@ -376,7 +378,6 @@ class EtlState(rx.State):
 
                 # Initialize layers
                 layer_by: dict[int, int] = {sid: 0 for sid in unique_ids}
-                from collections import deque
 
                 q: deque[int] = deque([sid for sid in unique_ids if indeg.get(sid, 0) == 0])
                 visited: set[int] = set()
@@ -451,7 +452,6 @@ class EtlState(rx.State):
                     indeg2[t2] = indeg2.get(t2, 0) + 1
                     children2.setdefault(s2, []).append(t2)
                 layer_by2: dict[int, int] = {sid: 0 for sid in unique_ids}
-                from collections import deque
 
                 q2: deque[int] = deque([sid for sid in unique_ids if indeg2.get(sid, 0) == 0])
                 visited2: set[int] = set()
@@ -925,20 +925,10 @@ class EtlState(rx.State):
         self.preview_columns = [str(c) for c in df.columns]
         records_any: list[dict[Any, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
 
-        def _safe_render_value(v: Any) -> str:
-            try:
-                s = json.dumps(v).decode() if isinstance(v, (dict, list)) else str(v)
-            except Exception:
-                try:
-                    s = repr(v)
-                except Exception:
-                    s = "<error rendering value>"
-            return s
-
         coerced: list[dict[str, Any]] = []
         for r in records_any:
             try:
-                coerced.append({str(k): _safe_render_value(v) for k, v in dict(r).items()})
+                coerced.append({str(k): safe_render_value(v) for k, v in dict(r).items()})
             except Exception:
                 coerced.append({})
 
@@ -1242,8 +1232,6 @@ class ThreadEventVis:
 
     @classmethod
     def create(cls, event_id: Any, created_at: datetime, event_type: str, event_data: dict) -> "ThreadEventVis":
-        import json
-
         # Parse technical_info if present
         tech: dict = event_data.get("technical_info", {})
         has_technical_info = bool(tech)
@@ -1604,8 +1592,6 @@ class ThreadViewState(rx.State):
     async def remove_tag(self, event_id: str, tag: str):
         vedana_app = await make_vedana_app()
         async with vedana_app.sessionmaker() as session:
-            from jims_core.util import uuid7
-
             tag_event = ThreadEventDB(
                 thread_id=self.selected_thread_id,
                 event_id=uuid7(),
@@ -1635,8 +1621,6 @@ class ThreadViewState(rx.State):
             tags_list = []
         vedana_app = await make_vedana_app()
         async with vedana_app.sessionmaker() as session:
-            from jims_core.util import uuid7
-
             severity_val = self.note_severity_by_event.get(event_id, self.note_severity or "Low")  # todo check
             note_event = ThreadEventDB(
                 thread_id=self.selected_thread_id,
@@ -1673,8 +1657,6 @@ class ThreadViewState(rx.State):
     async def mark_comment_resolved(self, comment_id: str):
         vedana_app = await make_vedana_app()
         async with vedana_app.sessionmaker() as session:
-            from jims_core.util import uuid7
-
             ev = ThreadEventDB(
                 thread_id=self.selected_thread_id,
                 event_id=uuid7(),
@@ -1695,8 +1677,6 @@ class ThreadViewState(rx.State):
     async def mark_comment_closed(self, comment_id: str):
         vedana_app = await make_vedana_app()
         async with vedana_app.sessionmaker() as session:
-            from jims_core.util import uuid7
-
             ev = ThreadEventDB(
                 thread_id=self.selected_thread_id,
                 event_id=uuid7(),
@@ -1914,14 +1894,18 @@ class DashboardState(rx.State):
         con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
 
         since_ts = float(time.time() - self.time_window_days * 86400)
-        # todo определять таблицы ingest по лейблам или чему-то такому.
-        tables = ["dm_anchors", "dm_attributes_v2", "dm_links", "grist_nodes", "grist_edges"]
+
+        tables = [
+            (tt.name, tt.meta_table.name)
+            for t in etl_app.steps
+            if ("stage", "extract") in t.labels
+            for tt in t.output_dts
+        ]
 
         breakdown: list[dict[str, Any]] = []
         total_a = total_u = total_d = 0
 
-        for t in tables:
-            meta = f"{t}_meta"
+        for t, meta in tables:
             q_added = sa.text(f'SELECT COUNT(*) FROM "{meta}" WHERE delete_ts IS NULL AND create_ts >= {since_ts}')
             q_updated = sa.text(
                 f'SELECT COUNT(*) FROM "{meta}" '
@@ -2043,16 +2027,6 @@ class DashboardState(rx.State):
         self.changes_preview_columns = [str(c) for c in display_cols]
         records_any: list[dict] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
 
-        def _safe_render_value(v: Any) -> str:
-            try:
-                s = json.dumps(v).decode() if isinstance(v, (dict, list)) else str(v)
-            except Exception:
-                try:
-                    s = repr(v)
-                except Exception:
-                    s = "<error rendering value>"
-            return s
-
         styled: list[dict[str, Any]] = []
         row_styling = {
             "added": {"backgroundColor": "rgba(34,197,94,0.08)"},
@@ -2060,7 +2034,7 @@ class DashboardState(rx.State):
             "deleted": {"backgroundColor": "rgba(239,68,68,0.08)"},
         }
         for r in records_any:  # Build display row with only data columns, coercing values to safe strings
-            row_disp: dict[str, Any] = {k: _safe_render_value(r.get(k)) for k in self.changes_preview_columns}
+            row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}
             row_disp["row_style"] = row_styling.get(r.get("change_type"), {})  # type: ignore[arg-type]
             styled.append(row_disp)
 
