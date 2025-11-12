@@ -89,29 +89,29 @@ def _graph_stats_card() -> rx.Component:
             ),
             rx.grid(
                 _stat_tile(
-                    "Total Nodes (Graph)",
+                    "Total Nodes",
                     DashboardState.graph_total_nodes,  # type: ignore[arg-type]
                     subtitle=rx.cond(  # type: ignore[arg-type]
                         DashboardState.nodes_total_diff == 0,  # type: ignore[operator]
-                        "Matches staging",
+                        "Matches pipeline",
                         rx.cond(  # type: ignore[arg-type]
                             DashboardState.nodes_total_diff > 0,
                             rx.text(f"+{DashboardState.nodes_total_diff} vs ETL", color_scheme="red", weight="bold"),
-                            rx.text(f"-{DashboardState.nodes_total_diff} vs ETL", color_scheme="red", weight="bold"),
+                            rx.text(f"{DashboardState.nodes_total_diff} vs ETL", color_scheme="red", weight="bold"),
                         ),
                     ),
                     color="green",
                 ),
                 _stat_tile(
-                    "Total Edges (Graph)",
+                    "Total Edges",
                     DashboardState.graph_total_edges,  # type: ignore[arg-type]
                     subtitle=rx.cond(  # type: ignore[arg-type]
                         DashboardState.edges_total_diff == 0,  # type: ignore[operator]
-                        "Matches staging",
+                        "Matches pipeline",
                         rx.cond(  # type: ignore[operator]
                             DashboardState.edges_total_diff > 0,
                             rx.text(f"+{DashboardState.edges_total_diff} vs ETL", color_scheme="red", weight="bold"),
-                            rx.text(f"-{DashboardState.edges_total_diff} vs ETL", color_scheme="red", weight="bold"),
+                            rx.text(f"{DashboardState.edges_total_diff} vs ETL", color_scheme="red", weight="bold"),
                         ),
                     ),
                     color="green",
@@ -122,12 +122,12 @@ def _graph_stats_card() -> rx.Component:
             ),
             rx.grid(
                 _stat_tile("Nodes Added", DashboardState.new_nodes, color="indigo"),  # type: ignore[arg-type]
-                _stat_tile("Nodes Updated", DashboardState.updated_nodes, color="amber"),  # type: ignore[arg-type]
-                _stat_tile("Nodes Deleted", DashboardState.deleted_nodes, color="red"),  # type: ignore[arg-type]
                 _stat_tile("Edges Added", DashboardState.new_edges, color="indigo"),  # type: ignore[arg-type]
+                _stat_tile("Nodes Updated", DashboardState.updated_nodes, color="amber"),  # type: ignore[arg-type]
                 _stat_tile("Edges Updated", DashboardState.updated_edges, color="amber"),  # type: ignore[arg-type]
+                _stat_tile("Nodes Deleted", DashboardState.deleted_nodes, color="red"),  # type: ignore[arg-type]
                 _stat_tile("Edges Deleted", DashboardState.deleted_edges, color="red"),  # type: ignore[arg-type]
-                columns="3",
+                columns="2",
                 spacing="4",
                 width="100%",
             ),
