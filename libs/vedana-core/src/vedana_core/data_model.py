@@ -18,7 +18,6 @@ class Attribute:
     example: str
     dtype: str
     query: str
-    meta: dict[str, Any]
     embeddable: bool = False
     embed_threshold: float = 0
 
@@ -136,7 +135,6 @@ class DataModel:
                             query=row.attr_query if row.attr_query else "",
                             dtype=row.dtype if row.dtype else "",
                             embed_threshold=row.embed_threshold if row.embed_threshold is not None else 1.0,
-                            meta={},
                         )
                     )
 
@@ -217,7 +215,6 @@ class DataModel:
                             query=row.attr_query if row.attr_query else "",
                             dtype=row.dtype if row.dtype else "",
                             embed_threshold=row.embed_threshold if row.embed_threshold is not None else 1.0,
-                            meta={},
                         )
                     )
 
