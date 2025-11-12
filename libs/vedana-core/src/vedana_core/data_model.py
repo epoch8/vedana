@@ -1,6 +1,5 @@
 import logging
 from dataclasses import dataclass
-from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy import exc as sa_exc
