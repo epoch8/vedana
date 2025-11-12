@@ -26,6 +26,8 @@ class ThreadContext(Generic[TState]):
 
     outgoing_events: list[EventEnvelope] = field(default_factory=list)
 
+    thread_config: dict = field(default_factory=dict)
+
     status_updater: StatusUpdater | None = None
 
     state: TState = field(default_factory=PipelineState)  # type: ignore[assignment]
