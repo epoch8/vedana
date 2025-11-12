@@ -170,6 +170,7 @@ class ThreadController:
             history=history,
             events=events,
             llm=LLMProvider(),
+            thread_config=self.thread.thread_config,
         )
 
     async def run_with_context(
