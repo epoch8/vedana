@@ -154,6 +154,7 @@ class TelegramController:
                 "interface": "telegram",
                 "telegram_chat_id": message.chat.id,
                 "telegram_user_id": from_id,
+                "telegram_user_name": message.from_user.username,  # type: ignore[union-attr]
             },
         )
 
@@ -187,6 +188,7 @@ class TelegramController:
                         "interface": "telegram",
                         "telegram_chat_id": message.chat.id,
                         "telegram_user_id": from_id,
+                        "telegram_user_name": message.from_user.username,  # type: ignore[union-attr]
                     },
                 )
 
@@ -214,6 +216,7 @@ class TelegramController:
                     "interface": "telegram",
                     "telegram_chat_id": callback.message.chat.id if callback.message else None,
                     "telegram_user_id": from_id,
+                    "telegram_user_name": message.from_user.username,  # type: ignore[union-attr]
                 },
             )
 
