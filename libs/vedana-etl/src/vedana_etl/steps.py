@@ -2,7 +2,7 @@ import asyncio
 import logging
 import re
 import secrets
-from datetime import date, datetime
+from datetime import date
 from hashlib import sha256
 from typing import Any, Hashable, Iterator, cast
 from unicodedata import normalize
