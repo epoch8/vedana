@@ -216,7 +216,7 @@ class TelegramController:
                     "interface": "telegram",
                     "telegram_chat_id": callback.message.chat.id if callback.message else None,
                     "telegram_user_id": from_id,
-                    "telegram_user_name": message.from_user.username,  # type: ignore[union-attr]
+                    "telegram_user_name": callback.message.from_user.username,  # type: ignore[union-attr]
                 },
             )
 
