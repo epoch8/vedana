@@ -47,7 +47,6 @@ custom_steps = """
 
 - name: Run unit + integration tests
   env:
-    DB_CONN_URI: "postgresql://postgres:postgres@localhost:5432"
     GRIST_SERVER_URL: "http://0.0.0.0:8484"
     GRIST_API_KEY: "e30d2f274a538c05fecd14510887f8a3b7eab718"
     GRIST_DATA_MODEL_DOC_ID: "wEEmPY3UiwMD"

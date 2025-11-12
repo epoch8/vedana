@@ -15,11 +15,10 @@ from jims_core.thread.thread_context import ThreadContext
 from jims_core.util import uuid7
 from neo4j import GraphDatabase
 from pydantic import BaseModel, Field
-from vedana_core.data_model import DataModel
+from vedana_core.data_model import DataModel, Attribute, Anchor, Link
 from vedana_core.data_provider import GristAPIDataProvider, GristCsvDataProvider
 from vedana_core.graph import MemgraphGraph
 from vedana_core.rag_pipeline import RagPipeline
-from vedana_core.settings import VedanaCoreSettings
 from vedana_core.settings import settings as core_settings
 
 from vedana_etl.settings import settings as etl_settings
@@ -177,19 +176,88 @@ def get_data_model_snapshot() -> Iterator[pd.DataFrame]:
     yield pd.DataFrame([dm_version_snapshot])
 
 
-def get_grist_data(
-    settings: VedanaCoreSettings = core_settings,
-) -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
+def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
     """
     Fetch all anchors and links from Grist into node/edge tables
     """
 
-    dm = DataModel()
+    # Build necessary DataModel elements from input tables
+    dm_anchors_df, dm_anchor_attrs_df, dm_link_attrs_df, dm_links_df, _q, _p, _cl = next(get_data_model())
+
+    # Anchors
+    dm_anchors: dict[str, Anchor] = {}
+    for _, a_row in dm_anchors_df.iterrows():
+        noun = str(a_row.get("noun")).strip()
+        if not noun:
+            continue
+        dm_anchors[noun] = Anchor(
+            noun=noun,
+            description=a_row.get("description", ""),
+            id_example=a_row.get("id_example", ""),
+            query=a_row.get("query", ""),
+            attributes=[],
+        )
+
+    # Anchor attributes
+    for _, attr_row in dm_anchor_attrs_df.iterrows():
+        noun = str(attr_row.get("anchor")).strip()
+        if not noun or noun not in dm_anchors:
+            continue
+        dm_anchors[noun].attributes.append(
+            Attribute(
+                name=attr_row.get("attribute_name", ""),
+                description=attr_row.get("description", ""),
+                example=attr_row.get("data_example", ""),
+                dtype=attr_row.get("dtype", ""),
+                query=attr_row.get("query", ""),
+                embeddable=bool(attr_row.get("embeddable", False)),
+                embed_threshold=float(attr_row.get("embed_threshold", 1.0)),
+            )
+        )
+
+    # Links
+    dm_links: dict[str, Link] = {}
+    for _, l_row in dm_links_df.iterrows():
+        a1 = str(l_row.get("anchor1")).strip()
+        a2 = str(l_row.get("anchor2")).strip()
+        if not a1 or not a2 or a1 not in dm_anchors or a2 not in dm_anchors:
+            logger.error(f'Link type has invalid anchors "{a1} - {a2}", skipping')
+            continue
+        dm_links[l_row.get("sentence")] = Link(
+            anchor_from=dm_anchors[a1],
+            anchor_to=dm_anchors[a2],
+            sentence=l_row.get("sentence"),
+            description=l_row.get("description", ""),
+            query=l_row.get("query", ""),
+            attributes=[],
+            has_direction=bool(l_row.get("has_direction", False)),
+            anchor_from_link_attr_name=l_row.get("anchor1_link_column_name", ""),
+            anchor_to_link_attr_name=l_row.get("anchor2_link_column_name", ""),
+        )
+
+    # Link attributes
+    for _, lattr_row in dm_link_attrs_df.iterrows():
+        sent = str(lattr_row.get("link")).strip()
+        if sent not in dm_links:
+            continue
+        dm_links[sent].attributes.append(
+            Attribute(
+                name=str(lattr_row.get("attribute_name")),
+                description=str(lattr_row.get("description", "")),
+                example=str(lattr_row.get("data_example", "")),
+                dtype=str(lattr_row.get("dtype", "")),
+                query=str(lattr_row.get("query", "")),
+                embeddable=bool(lattr_row.get("embeddable", False)),
+                embed_threshold=float(lattr_row.get("embed_threshold", 1.0)),
+            )
+        )
+
+    # Get data from Grist
 
     dp = GristAPIDataProvider(
-        doc_id=settings.grist_data_doc_id,
-        grist_server=settings.grist_server_url,
-        api_key=settings.grist_api_key,
+        doc_id=core_settings.grist_data_doc_id,
+        grist_server=core_settings.grist_server_url,
+        api_key=core_settings.grist_api_key,
     )
 
     # Foreign key type links
@@ -203,21 +271,16 @@ def get_grist_data(
 
     for anchor_type in anchor_types:
         # check anchor's existence in data model
-        dm_anchor_list = [a for a in dm.anchors if a.noun == anchor_type]
-        if not dm_anchor_list:
+        dm_anchor = dm_anchors.get(anchor_type)
+        if not dm_anchor:
             logger.error(f'Anchor "{anchor_type}" not described in data model, skipping')
             continue
-        dm_anchor = dm_anchor_list[0]
         dm_anchor_attrs = [attr.name for attr in dm_anchor.attributes]
 
         # get anchor's links
         # todo check link column directions
-        anchor_from_link_cols = [
-            link for link in dm.links if link.anchor_from.noun == anchor_type and link.anchor_from_link_attr_name
-        ]
-        anchor_to_link_cols = [
-            link for link in dm.links if link.anchor_to.noun == anchor_type and link.anchor_to_link_attr_name
-        ]
+        anchor_from_link_cols = [link for link in dm_links.values() if link.anchor_from.noun == anchor_type and link.anchor_from_link_attr_name]
+        anchor_to_link_cols = [link for link in dm_links.values() if link.anchor_to.noun == anchor_type and link.anchor_to_link_attr_name]
 
         try:
             anchors = dp.get_anchors(anchor_type, dm_attrs=dm_anchor.attributes, dm_anchor_links=anchor_from_link_cols)
@@ -326,8 +389,9 @@ def get_grist_data(
         # check link's existence in data model (dm_link is used from anchor_from / to references only)
         dm_link_list = [
             link
-            for link in dm.links
-            if link.sentence.lower() == link_type.lower() or link_type.lower() == f"{link.anchor_from}_{link.anchor_to}"
+            for link in dm_links.values()
+            if link.sentence.lower() == link_type.lower()
+            or link_type.lower() == f"{link.anchor_from.noun}_{link.anchor_to.noun}".lower()
         ]
         if not dm_link_list:
             logger.error(f'Link type "{link_type}" not described in data model, skipping')
@@ -367,7 +431,7 @@ def get_grist_data(
     edges_df = pd.concat([edges_df, fk_df], ignore_index=True)
 
     # add reverse links (if already provided in data, duplicates will be removed later)
-    for link in dm.links:
+    for link in dm_links.values():
         if not link.has_direction:
             rev_edges = cast(
                 pd.DataFrame,
