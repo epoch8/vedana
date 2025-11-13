@@ -380,7 +380,7 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
     fk_df["attributes"] = [dict()] * fk_df.shape[0]
     fk_df = fk_df[["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label", "attributes"]]
 
-    # keep only links with both nodes present; todo add test for this case
+    # keep only links with both nodes present (+done in the end on edges_df); todo add test for this case
     fk_df = fk_df.loc[(fk_df["from_node_id"].isin(nodes_df["node_id"]) & fk_df["to_node_id"].isin(nodes_df["node_id"]))]
 
     # Edges
@@ -430,6 +430,9 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
             )
 
     edges_df = pd.DataFrame(edge_records)
+    edges_df = edges_df.loc[
+        (edges_df["from_node_id"].isin(nodes_df["node_id"]) & edges_df["to_node_id"].isin(nodes_df["node_id"]))
+    ]
 
     edges_df = pd.concat([edges_df, fk_df], ignore_index=True)
 
@@ -470,7 +473,6 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
         edges_df = edges_df.dropna(subset=["from_node_id", "to_node_id", "edge_label"]).drop_duplicates(
             subset=["from_node_id", "to_node_id", "edge_label"]
         )
-
     yield nodes_df, edges_df
 
 
