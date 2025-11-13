@@ -341,6 +341,15 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
                 "attributes": {k: v for k, v in a.data.items() if k in dm_anchor_attrs} or {},
             }
 
+    nodes_df = pd.DataFrame(
+        [
+            {"node_id": rec.get("node_id"), "node_type": rec.get("node_type"), "attributes": rec.get("attributes", {})}
+            for a in node_records.values()
+            for rec in a.values()
+        ],
+        columns=["node_id", "node_type", "attributes"],
+    )
+    
     # Resolve links (database id <-> our id), if necessary
     for lk in fk_link_records_to:
         if isinstance(lk["from_node_dp_id"], int):
@@ -371,14 +380,8 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
     fk_df["attributes"] = [dict()] * fk_df.shape[0]
     fk_df = fk_df[["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label", "attributes"]]
 
-    nodes_df = pd.DataFrame(
-        [
-            {"node_id": rec.get("node_id"), "node_type": rec.get("node_type"), "attributes": rec.get("attributes", {})}
-            for a in node_records.values()
-            for rec in a.values()
-        ],
-        columns=["node_id", "node_type", "attributes"],
-    )
+    # keep only links with both nodes present; todo add test for this case
+    fk_df = fk_df.loc[(fk_df["from_node_id"].isin(nodes_df["node_id"]) & fk_df["to_node_id"].isin(nodes_df["node_id"]))]
 
     # Edges
     edge_records = []
