@@ -20,51 +20,6 @@ def _stat_tile(title: str, value: rx.Var | str, subtitle: str = "", color: str =
     )
 
 
-def _per_label_table(title: str, rows: rx.Var | list[dict]) -> rx.Component:
-    return rx.vstack(
-        rx.hstack(rx.heading(title, size="3"), align="center", justify="between", width="100%"),
-        rx.box(
-            rx.scroll_area(
-                rx.table.root(
-                    rx.table.header(
-                        rx.table.row(
-                            rx.table.column_header_cell("Label"),
-                            rx.table.column_header_cell("Count", justify="end"),
-                        )
-                    ),
-                    rx.table.body(
-                        rx.foreach(
-                            rows,
-                            lambda r: rx.table.row(
-                                rx.table.cell(rx.text(r.get("label", ""))),
-                                rx.table.cell(rx.text(r.get("count", 0))),  # type: ignore[arg-type]
-                            ),
-                        )
-                    ),
-                    variant="surface",
-                ),
-                type="always",
-                scrollbars="vertical",
-                style={
-                    "position": "absolute",
-                    "top": 0,
-                    "bottom": 0,
-                    "left": 0,
-                    "right": 0,
-                },
-            ),
-            style={
-                "position": "relative",
-                "flex": "1 1 0",
-                "minHeight": 0,
-                "width": "100%",
-            },
-        ),
-        spacing="2",
-        style={"height": "100%", "display": "flex", "flexDirection": "column"},
-    )
-
-
 def _graph_stats_card() -> rx.Component:
     return rx.card(
         rx.vstack(
@@ -242,15 +197,9 @@ def _changes_preview_popover() -> rx.Component:
 def _graph_stats_expanded_card() -> rx.Component:
     return rx.card(
         rx.grid(
-            _per_label_table(
-                "Graph Nodes by Label",
-                DashboardState.graph_nodes_by_label,  # type: ignore[arg-type]
-            ),
-            _per_label_table(
-                "Graph Edges by Type",
-                DashboardState.graph_edges_by_type,  # type: ignore[arg-type]
-            ),
-            columns="2",  # type: ignore[arg-type]
+            _per_label_stats_table("Graph Nodes by Label", DashboardState.graph_nodes_by_label, "nodes"),  # type: ignore[arg-type]
+            _per_label_stats_table("Graph Edges by Type", DashboardState.graph_edges_by_type, "edges"),  # type: ignore[arg-type]
+            columns="1",  # type: ignore[arg-type]
             spacing="4",  # type: ignore[arg-type]
             width="100%",
             style={"height": "100%"},
@@ -314,6 +263,67 @@ def _ingest_card() -> rx.Component:
     )
 
 
+def _per_label_stats_table(title: str, rows: rx.Var | list[dict], kind: str) -> rx.Component:
+    def _row(r: dict) -> rx.Component:
+        label = r.get("label", "")
+        return rx.table.row(
+            rx.table.cell(rx.text(label)),
+            rx.table.cell(rx.text(r.get("graph_count", 0))),
+            rx.table.cell(rx.text(r.get("etl_count", 0))),
+            rx.table.cell(rx.text(r.get("diff", 0))),
+            rx.table.cell(rx.text(r.get("added", 0))),
+            rx.table.cell(rx.text(r.get("updated", 0))),
+            rx.table.cell(rx.text(r.get("deleted", 0))),
+            on_click=rx.cond(
+                kind == "nodes",
+                DashboardState.open_graph_per_label_changes_preview(kind="nodes", label=label),  # type: ignore
+                DashboardState.open_graph_per_label_changes_preview(kind="edges", label=label),  # type: ignore
+            ),
+            style={"cursor": "pointer"},
+        )
+
+    return rx.vstack(
+        rx.hstack(rx.heading(title, size="3"), align="center", justify="between", width="100%"),
+        rx.box(
+            rx.scroll_area(
+                rx.table.root(
+                    rx.table.header(
+                        rx.table.row(
+                            rx.table.column_header_cell("Label"),
+                            rx.table.column_header_cell("Graph"),
+                            rx.table.column_header_cell("ETL"),
+                            rx.table.column_header_cell("Diff"),
+                            rx.table.column_header_cell("Added"),
+                            rx.table.column_header_cell("Updated"),
+                            rx.table.column_header_cell("Deleted"),
+                        )
+                    ),
+                    rx.table.body(rx.foreach(rows, _row)),
+                    variant="surface",
+                    style={"width": "100%", "tableLayout": "fixed"},
+                ),
+                type="always",
+                scrollbars="vertical",
+                style={
+                    "position": "absolute",
+                    "top": 0,
+                    "bottom": 0,
+                    "left": 0,
+                    "right": 0,
+                },
+            ),
+            style={
+                "position": "relative",
+                "flex": "1 1 0",
+                "minHeight": 0,
+                "width": "100%",
+            },
+        ),
+        spacing="2",
+        style={"height": "100%", "display": "flex", "flexDirection": "column"},
+    )
+
+
 def page() -> rx.Component:
     return rx.vstack(
         app_header(),
@@ -353,7 +363,7 @@ def page() -> rx.Component:
                     spacing="4",
                     width="100%",
                     align="start",
-                    style={"gridTemplateColumns": "3fr 2fr 5fr", "height": "60vh", "align-items": "stretch"},
+                    style={"gridTemplateColumns": "3fr 2fr 5fr", "height": "90vh", "align-items": "stretch"},
                 ),
             ),
             padding="1em",
