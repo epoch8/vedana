@@ -290,11 +290,21 @@ class MemgraphGraph(CypherGraph):
             span.set_attribute("memgraph.top_n", top_n)
             span.set_attribute("memgraph.threshold", threshold)
 
-            query = (
-                f"CALL vector_search.search{'_edges' if prop_type == 'edge' else ''}($idx_name, $top_n, $embedding) "
-                f"YIELD similarity, node "
-                f"WITH similarity, node WHERE similarity > $threshold RETURN *"
-            )
+            if prop_type == "edge":
+                query = (
+                    f"CALL vector_search.search_edges($idx_name, $top_n, $embedding) "
+                    f"YIELD similarity, edge "
+                    f"WITH similarity, edge "
+                    f"WHERE similarity > $threshold "
+                    f"RETURN similarity, edge, startNode(edge) AS start, endNode(edge) AS end;"
+                )
+            else:  # node
+                query = (
+                    f"CALL vector_search.search($idx_name, $top_n, $embedding) "
+                    f"YIELD similarity, node "
+                    f"WITH similarity, node WHERE similarity > $threshold RETURN *"
+                )
+
             span.set_attribute("memgraph.query", query)
 
             idx_name = f"{label}_{prop_name}_embed_idx"
