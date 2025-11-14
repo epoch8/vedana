@@ -1836,20 +1836,20 @@ class DashboardState(rx.State):
                     f"SELECT COALESCE(node_type, '') AS label, COUNT(*) "
                     f'FROM "nodes_meta" WHERE delete_ts IS NULL AND create_ts >= {since_ts} GROUP BY label'
                 )
-                nodes_added_by_label = {str(l): int(c or 0) for l, c in conn.execute(q).fetchall()}
+                nodes_added_by_label = {str(i): int(c or 0) for i, c in conn.execute(q).fetchall()}
                 # Updated nodes
                 q = sa.text(
                     f"SELECT COALESCE(node_type, '') AS label, COUNT(*) "
                     f'FROM "nodes_meta" WHERE delete_ts IS NULL AND update_ts >= {since_ts} '
                     f"AND update_ts > create_ts AND create_ts < {since_ts} GROUP BY label"
                 )
-                nodes_updated_by_label = {str(l): int(c or 0) for l, c in conn.execute(q).fetchall()}
+                nodes_updated_by_label = {str(i): int(c or 0) for i, c in conn.execute(q).fetchall()}
                 # Deleted nodes
                 q = sa.text(
                     f"SELECT COALESCE(node_type, '') AS label, COUNT(*) "
                     f'FROM "nodes_meta" WHERE delete_ts IS NOT NULL AND delete_ts >= {since_ts} GROUP BY label'
                 )
-                nodes_deleted_by_label = {str(l): int(c or 0) for l, c in conn.execute(q).fetchall()}
+                nodes_deleted_by_label = {str(i): int(c or 0) for i, c in conn.execute(q).fetchall()}
         except Exception:
             nodes_added_by_label = {}
             nodes_updated_by_label = {}
@@ -1862,20 +1862,20 @@ class DashboardState(rx.State):
                     f"SELECT COALESCE(edge_label, '') AS label, COUNT(*) "
                     f'FROM "edges_meta" WHERE delete_ts IS NULL AND create_ts >= {since_ts} GROUP BY label'
                 )
-                edges_added_by_label = {str(l): int(c or 0) for l, c in conn.execute(q).fetchall()}
+                edges_added_by_label = {str(i): int(c or 0) for i, c in conn.execute(q).fetchall()}
                 # Updated edges
                 q = sa.text(
                     f"SELECT COALESCE(edge_label, '') AS label, COUNT(*) "
                     f'FROM "edges_meta" WHERE delete_ts IS NULL AND update_ts >= {since_ts} '
                     f"AND update_ts > create_ts AND create_ts < {since_ts} GROUP BY label"
                 )
-                edges_updated_by_label = {str(l): int(c or 0) for l, c in conn.execute(q).fetchall()}
+                edges_updated_by_label = {str(i): int(c or 0) for i, c in conn.execute(q).fetchall()}
                 # Deleted edges
                 q = sa.text(
                     f"SELECT COALESCE(edge_label, '') AS label, COUNT(*) "
                     f'FROM "edges_meta" WHERE delete_ts IS NOT NULL AND delete_ts >= {since_ts} GROUP BY label'
                 )
-                edges_deleted_by_label = {str(l): int(c or 0) for l, c in conn.execute(q).fetchall()}
+                edges_deleted_by_label = {str(i): int(c or 0) for i, c in conn.execute(q).fetchall()}
         except Exception:
             edges_added_by_label = {}
             edges_updated_by_label = {}
