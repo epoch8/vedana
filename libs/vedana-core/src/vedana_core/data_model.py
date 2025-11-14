@@ -300,44 +300,40 @@ class DataModel:
 
     def anchor_links(self, anchor_noun: str) -> list[Link]:
         """all links that connect to/from this anchor"""
-        links = self.links
         return [
             link
-            for link in links
+            for link in self.links
             if (link.anchor_from.noun == anchor_noun and link.anchor_from_link_attr_name)
             or (link.anchor_to.noun == anchor_noun and link.anchor_to_link_attr_name)
         ]
 
     def to_text_descr(self) -> str:
-        anchors = self.anchors
-        links = self.links
-        queries = self.queries
         dm_templates = self.prompt_templates()
 
         anchor_descr = "\n".join(
             dm_templates.get("dm_anchor_descr_template", dm_anchor_descr_template).format(anchor=anchor)
-            for anchor in anchors
+            for anchor in self.anchors
         )
 
         anchor_attrs_descr = "\n".join(
             dm_templates.get("dm_attr_descr_template", dm_attr_descr_template).format(anchor=anchor, attr=attr)
-            for anchor in anchors
+            for anchor in self.anchors
             for attr in anchor.attributes
         )
 
         link_descr = "\n".join(
-            dm_templates.get("dm_link_descr_template", dm_link_descr_template).format(link=link) for link in links
+            dm_templates.get("dm_link_descr_template", dm_link_descr_template).format(link=link) for link in self.links
         )
 
         link_attrs_descr = "\n".join(
             dm_templates.get("dm_link_attr_descr_template", dm_link_attr_descr_template).format(link=link, attr=attr)
-            for link in links
+            for link in self.links
             for attr in link.attributes
         )
 
         queries_descr = "\n".join(
             dm_templates.get("dm_query_descr_template", dm_query_descr_template).format(query=query)
-            for query in queries
+            for query in self.queries
         )
 
         dm_template = dm_templates.get("dm_descr_template", dm_descr_template)
