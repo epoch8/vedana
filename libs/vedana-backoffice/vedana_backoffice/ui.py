@@ -1,10 +1,24 @@
-import os
-
 import reflex as rx
 
+from vedana_backoffice.state import AppVersionState, TelegramBotState  # type: ignore[attr-defined]
 
-class AppVersionState(rx.State):
-    version: str = f"`{os.environ.get('VERSION', 'unspecified_version')}`"  # md-formatted
+
+def telegram_link_box() -> rx.Component:
+    return rx.box(
+        rx.cond(
+            TelegramBotState.has_bot,
+            rx.link(
+                rx.hstack(
+                    rx.text("Telegram", font_size="1.1em"),
+                    # rx.icon("external-link", stroke_width=1, size=10),
+                    # spacing="1",
+                ),
+                href=TelegramBotState.bot_url,
+                is_external=True,
+            ),
+        ),
+        on_mount=TelegramBotState.load_bot_info,
+    )
 
 
 def app_header() -> rx.Component:
@@ -20,6 +34,7 @@ def app_header() -> rx.Component:
                 rx.link("ETL", href="/etl", font_size="1.1em"),
                 rx.link("Chat", href="/chat", font_size="1.1em"),
                 rx.link("JIMS", href="/jims", font_size="1.1em"),
+                telegram_link_box(),
                 # built-in theme styling
                 rx.color_mode.button(),  # type: ignore[attr-defined]
                 spacing="6",
