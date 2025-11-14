@@ -154,7 +154,7 @@ def _changes_preview_popover() -> rx.Component:
                                                             "whiteSpace": "nowrap",
                                                             "textOverflow": "ellipsis",
                                                             "overflow": "hidden",
-                                                            "maxWidth": "420px",
+                                                            "maxWidth": "400px",
                                                         },
                                                     )
                                                 ),
@@ -184,7 +184,7 @@ def _changes_preview_popover() -> rx.Component:
                 collision_padding=20,
                 style={
                     "width": "fit-content",
-                    "maxWidth": "70vw",
+                    "maxWidth": "85vw",
                 },
             ),
             open=True,
@@ -231,6 +231,7 @@ def _ingest_card() -> rx.Component:
                 rx.table.header(
                     rx.table.row(
                         rx.table.column_header_cell("Table"),
+                        rx.table.column_header_cell("Total"),
                         rx.table.column_header_cell("Added"),
                         rx.table.column_header_cell("Updated"),
                         rx.table.column_header_cell("Deleted"),
@@ -241,8 +242,8 @@ def _ingest_card() -> rx.Component:
                         DashboardState.ingest_breakdown,  # type: ignore[arg-type]
                         lambda r: rx.table.row(
                             rx.table.cell(rx.text(r.get("table", ""))),
-                            # todo add total row count column
                             # todo order by ?
+                            rx.table.cell(rx.text(r.get("total", 0))),  # type: ignore[arg-type]
                             rx.table.cell(rx.text(r.get("added", 0))),  # type: ignore[arg-type]
                             rx.table.cell(rx.text(r.get("updated", 0))),  # type: ignore[arg-type]
                             rx.table.cell(rx.text(r.get("deleted", 0))),  # type: ignore[arg-type]
@@ -270,7 +271,6 @@ def _per_label_stats_table(title: str, rows: rx.Var | list[dict], kind: str) -> 
             rx.table.cell(rx.text(label)),
             rx.table.cell(rx.text(r.get("graph_count", 0))),
             rx.table.cell(rx.text(r.get("etl_count", 0))),
-            rx.table.cell(rx.text(r.get("diff", 0))),
             rx.table.cell(rx.text(r.get("added", 0))),
             rx.table.cell(rx.text(r.get("updated", 0))),
             rx.table.cell(rx.text(r.get("deleted", 0))),
@@ -292,7 +292,6 @@ def _per_label_stats_table(title: str, rows: rx.Var | list[dict], kind: str) -> 
                             rx.table.column_header_cell("Label"),
                             rx.table.column_header_cell("Graph"),
                             rx.table.column_header_cell("ETL"),
-                            rx.table.column_header_cell("Diff"),
                             rx.table.column_header_cell("Added"),
                             rx.table.column_header_cell("Updated"),
                             rx.table.column_header_cell("Deleted"),
