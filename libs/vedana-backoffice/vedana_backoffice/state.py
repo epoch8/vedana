@@ -1886,50 +1886,15 @@ class DashboardState(rx.State):
         edge_labels = set(graph_edges_count_by_label.keys()) | set(db_edges_by_label.keys())
 
         node_stats: list[dict[str, Any]] = []
-        MAX_NODE_IDS_PER_LABEL = 10000  # todo <--
         for lab in sorted(node_labels):
             g = int(graph_nodes_count_by_label.get(lab, 0))
             d = int(db_nodes_by_label.get(lab, 0))
-            try:
-                if 0 <= d <= MAX_NODE_IDS_PER_LABEL:
-                    # Exact symmetric difference based on node_id set from ETL
-                    with con.begin() as conn:
-                        etl_ids = [
-                            str(r[0])
-                            for r in conn.execute(
-                                sa.text('SELECT node_id FROM "nodes" WHERE node_type = :lab'),
-                                {"lab": lab},
-                            ).fetchall()
-                            if r and r[0] is not None
-                        ]
-                    va = await get_vedana_app()
-                    # Count matched by label
-                    matched_recs = await va.graph.execute_ro_cypher_query(
-                        "UNWIND $ids AS id MATCH (n:`" + lab.replace("`", "``") + "` {id: id}) RETURN count(n) AS cnt",
-                        {"ids": etl_ids},
-                    )
-                    matched = int(next(iter(matched_recs))["cnt"]) if matched_recs else 0
-                    etl_only = max(0, d - matched)
-                    # Graph-only relative to ETL ids
-                    graph_only_recs = await va.graph.execute_ro_cypher_query(
-                        "WITH $ids AS ids MATCH (n:`" + lab.replace("`", "``") + "`) "
-                        "WHERE NOT n.id IN ids RETURN count(n) AS cnt",
-                        {"ids": etl_ids},
-                    )
-                    graph_only = int(next(iter(graph_only_recs))["cnt"]) if graph_only_recs else max(0, g - matched)
-                    diff_value = etl_only + graph_only
-                else:
-                    diff_value = abs(g - d)
-                    # diff_value = "(too large)"
-            except Exception:  # rougher and not necessarily true diff
-                diff_value = abs(g - d)
 
             node_stats.append(
                 {
                     "label": lab,
                     "graph_count": g,
                     "etl_count": d,
-                    "diff": diff_value,
                     "added": nodes_added_by_label.get(lab),
                     "updated": nodes_updated_by_label.get(lab),
                     "deleted": nodes_deleted_by_label.get(lab),
@@ -1937,53 +1902,15 @@ class DashboardState(rx.State):
             )
         edge_stats: list[dict[str, Any]] = []
 
-        # todo review
-        MAX_EDGE_PAIRS_PER_LABEL = 1000
-
         for lab in sorted(edge_labels):
             g = int(graph_edges_count_by_label.get(lab, 0))
             d = int(db_edges_by_label.get(lab, 0))
-            try:
-                if 0 <= d <= MAX_EDGE_PAIRS_PER_LABEL:
-                    # Fetch ETL edge pairs for label
-                    with con.begin() as conn:
-                        pairs_rows = conn.execute(
-                            sa.text('SELECT from_node_id, to_node_id FROM "edges" WHERE edge_label = :lab'),
-                            {"lab": lab},
-                        ).fetchall()
-                    etl_pairs = [{"from_id": str(fr), "to_id": str(to)} for fr, to in pairs_rows if fr and to]
-                    va = await get_vedana_app()
-                    # Count matched relationships by label
-                    match_query = (
-                        "UNWIND $pairs AS p "
-                        "MATCH (f {id: p.from_id})-[r:`" + lab.replace("`", "``") + "`]->(t {id: p.to_id}) "
-                        "RETURN count(r) AS cnt"
-                    )
-                    matched_recs = await va.graph.execute_ro_cypher_query(match_query, {"pairs": etl_pairs})
-                    matched = int(next(iter(matched_recs))["cnt"]) if matched_recs else 0
-                    etl_only = max(0, d - matched)
-                    # Graph-only: all rels of label not among provided pairs
-                    graph_only_query = (
-                        "WITH $pairs AS pairs "
-                        "MATCH (f)-[r:`" + lab.replace("`", "``") + "`]->(t) "
-                        "WHERE NOT [f.id, t.id] IN [p IN pairs | [p.from_id, p.to_id]] "
-                        "RETURN count(r) AS cnt"
-                    )
-                    graph_only_recs = await va.graph.execute_ro_cypher_query(graph_only_query, {"pairs": etl_pairs})
-                    graph_only = int(next(iter(graph_only_recs))["cnt"]) if graph_only_recs else max(0, g - matched)
-                    diff_value = etl_only + graph_only
-                else:
-                    diff_value = abs(g - d)
-                    # diff_value = "(too large)"
-            except Exception:
-                diff_value = abs(g - d)
 
             edge_stats.append(
                 {
                     "label": lab,
                     "graph_count": g,
                     "etl_count": d,
-                    "diff": diff_value,
                     "added": edges_added_by_label.get(lab),
                     "updated": edges_updated_by_label.get(lab),
                     "deleted": edges_deleted_by_label.get(lab),
@@ -2073,17 +2000,14 @@ class DashboardState(rx.State):
 
         since_ts = float(time.time() - self.time_window_days * 86400)
 
-        tables = [
-            (tt.name, tt.meta_table.name)
-            for t in etl_app.steps
-            if ("stage", "extract") in t.labels
-            for tt in t.output_dts
-        ]
+        tables = [tt.name for t in etl_app.steps if ("stage", "extract") in t.labels for tt in t.output_dts]
 
         breakdown: list[dict[str, Any]] = []
         total_a = total_u = total_d = 0
 
-        for t, meta in tables:
+        for t in tables:
+            meta = f"{t}_meta"
+            q_total = sa.text(f'SELECT COUNT(*) FROM "{meta}" WHERE delete_ts IS NULL')
             q_added = sa.text(f'SELECT COUNT(*) FROM "{meta}" WHERE delete_ts IS NULL AND create_ts >= {since_ts}')
             q_updated = sa.text(
                 f'SELECT COUNT(*) FROM "{meta}" '
@@ -2097,13 +2021,15 @@ class DashboardState(rx.State):
             )
             try:
                 with con.begin() as conn:
-                    a = int(conn.execute(q_added).scalar() or 0)
-                    u = int(conn.execute(q_updated).scalar() or 0)
-                    d = int(conn.execute(q_deleted).scalar() or 0)
-            except Exception:
-                a = u = d = 0
+                    c = int(conn.execute(q_total).scalar())
+                    a = int(conn.execute(q_added).scalar())
+                    u = int(conn.execute(q_updated).scalar())
+                    d = int(conn.execute(q_deleted).scalar())
+            except Exception as e:
+                logging.error(f"error collecting counters: {e}")
+                c = a = u = d = 0
 
-            breakdown.append({"table": t, "added": a, "updated": u, "deleted": d})
+            breakdown.append({"table": t, "total": c, "added": a, "updated": u, "deleted": d})
             total_a += a
             total_u += u
             total_d += d
