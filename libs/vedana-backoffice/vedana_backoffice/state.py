@@ -1128,7 +1128,7 @@ class ChatState(rx.State):
             )
 
         await ctl.store_user_message(uuid7(), user_text)
-        events = await ctl.run_with_context(vedana_app.orchestrator)
+        events = await ctl.run_pipeline_with_context(vedana_app.pipeline)
 
         answer: str = ""
         tech: dict[str, Any] = {}

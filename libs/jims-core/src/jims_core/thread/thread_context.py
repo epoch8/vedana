@@ -1,10 +1,10 @@
 import datetime
 from dataclasses import dataclass, field
-from typing import Any, Type, Generic
+from typing import Any, Type
 from uuid import UUID
 
 from jims_core.llms.llm_provider import LLMProvider
-from jims_core.thread.schema import CommunicationEvent, EventEnvelope, TState, PipelineState
+from jims_core.thread.schema import CommunicationEvent, EventEnvelope
 from jims_core.util import uuid7
 from pydantic import BaseModel
 
@@ -15,7 +15,7 @@ class StatusUpdater:
 
 
 @dataclass
-class ThreadContext(Generic[TState]):
+class ThreadContext:
     thread_id: UUID
 
     history: list[CommunicationEvent]
@@ -30,8 +30,6 @@ class ThreadContext(Generic[TState]):
 
     status_updater: StatusUpdater | None = None
 
-    state: TState = field(default_factory=PipelineState)  # type: ignore[assignment]
-
     def with_status_updater(self, status_updater: StatusUpdater) -> "ThreadContext":
         """Set the status updater for this thread context."""
         self.status_updater = status_updater
@@ -40,8 +38,8 @@ class ThreadContext(Generic[TState]):
     def get_last_user_message(self) -> str | None:
         """Get the last user message from the history."""
         for event in reversed(self.history):
-            if event["role"] == "user":
-                return event["content"]
+            if event["role"] == "user":  # type: ignore
+                return event["content"]  # type: ignore
         return None
 
     def get_last_user_action(self):
@@ -70,7 +68,7 @@ class ThreadContext(Generic[TState]):
     def send_message(self, message: str) -> None:
         """Send a message to the thread."""
         self.outgoing_events.append(
-            EventEnvelope(
+            EventEnvelope[CommunicationEvent](
                 thread_id=self.thread_id,
                 event_id=uuid7(),
                 created_at=datetime.datetime.now(),
@@ -79,40 +77,27 @@ class ThreadContext(Generic[TState]):
             )
         )
 
-    def set_state(self, state: dict | BaseModel, state_name: str = "") -> None:
+    def set_state(self, state_name: str, state: dict | BaseModel) -> None:
         """Send an event to set the state of the thread."""
-        if isinstance(state, BaseModel):
-            state = state.model_dump()
+        state_data = state.model_dump() if isinstance(state, BaseModel) else state
 
         self.outgoing_events.append(
             EventEnvelope(
                 thread_id=self.thread_id,
                 event_id=uuid7(),
                 created_at=datetime.datetime.now(),
-                event_type=f"state.set.{state_name}" if state_name else "state.set",
-                event_data=state,
+                event_type=f"state.set.{state_name}",
+                event_data=state_data,
             )
         )
 
-    def get_state[T: BaseModel](self, state_type: Type[T], state_name: str = "") -> T | None:
+    def get_state[T: BaseModel](self, state_name: str, state_type: Type[T]) -> T | None:
         """Get the state of the thread."""
-        target_state = f"state.set.{state_type}" if state_name else "state.set"
+        target_state = f"state.set.{state_name}"
         for event in reversed(self.events):
             if event.event_type == target_state:
                 return state_type.model_validate(event.event_data)
         return None
-
-    def get_or_create_pipeline_state[T: BaseModel](self, state_type: Type[T]) -> T | None:
-        """Get the state of the thread and load it as ctx.state, OR create a new one with provided model schema"""
-        for event in reversed(self.events):
-            if event.event_type == "state.set":  # or f"state.set.{state_type.__class__.__name__}"
-                state = state_type.model_validate(event.event_data)
-                break
-        else:
-            print(f"passing state from orchestrator to ctx: {state_type}")
-            state = state_type.model_construct()  # pass state from orchestrator to ctx
-        self.state = state  # type: ignore[assignment]
-        return state
 
     async def update_agent_status(self, status: str) -> None:
         """Update the agent status."""
