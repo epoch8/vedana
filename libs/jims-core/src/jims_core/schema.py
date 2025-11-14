@@ -1,25 +1,8 @@
-from typing import Protocol, Generic
-from dataclasses import field, dataclass
+from typing import Protocol
 
 from jims_core.thread.thread_context import ThreadContext
-from jims_core.thread.schema import PipelineState, TState
 
 
 class Pipeline(Protocol):
     async def __call__(self, ctx: ThreadContext) -> None:
-        pass
-
-
-@dataclass
-class Orchestrator(Generic[TState]):
-    pipelines: dict[str, Pipeline] = field(default_factory=dict)
-    state: TState = field(default_factory=PipelineState)  # type: ignore[assignment]
-
-    def register_pipeline(self, name: str, pipeline: Pipeline) -> None:
-        self.pipelines[name] = pipeline
-
-    def route(self, ctx: ThreadContext) -> Pipeline:  # getter
-        return self.pipelines[ctx.state.current_pipeline]
-
-    async def orchestrate(self, ctx: ThreadContext) -> None:  # entrypoint
         pass

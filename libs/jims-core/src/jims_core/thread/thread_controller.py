@@ -6,7 +6,7 @@ import sqlalchemy as sa
 import sqlalchemy.ext.asyncio as sa_aio
 from jims_core.db import ThreadDB, ThreadEventDB
 from jims_core.llms.llm_provider import LLMProvider
-from jims_core.schema import Orchestrator
+from jims_core.schema import Pipeline
 from jims_core.thread.schema import CommunicationEvent, EventEnvelope
 from jims_core.thread.thread_context import ThreadContext
 from jims_core.util import uuid7
@@ -28,6 +28,18 @@ jims_pipeline_runs_total = Counter(
     "Total number of pipeline runs",
     ["status", "pipeline"],
 )
+
+
+def _get_pipeline_name(pipeline: Pipeline) -> str:
+    """
+    Extract the pipeline name from the Pipeline object.
+    """
+    if hasattr(pipeline, "__name__"):
+        return pipeline.__name__  # type: ignore
+    elif hasattr(pipeline, "name"):
+        return pipeline.name  # type: ignore
+    else:
+        return str(pipeline)
 
 
 class ThreadController:
@@ -151,7 +163,9 @@ class ThreadController:
             events_res = (await session.execute(stmt)).scalars().all()
 
         history = [
-            CommunicationEvent(**event.event_data) for event in events_res if event.event_type.startswith("comm.")
+            CommunicationEvent(**event.event_data)  # type: ignore
+            for event in events_res
+            if event.event_type.startswith("comm.")
         ]
 
         events = [
@@ -173,52 +187,49 @@ class ThreadController:
             thread_config=self.thread.thread_config,
         )
 
-    async def run_with_context(
+    async def run_pipeline_with_context(
         self,
-        orchestrator: Orchestrator,
+        pipeline: Pipeline,
         ctx: ThreadContext | None = None,
     ) -> list[EventEnvelope]:
         """
-        Run orchestrator with the current thread context.
+        Run a pipeline with the current thread context.
         """
 
         # Create a new ThreadContext with the current thread
 
         if ctx is None:
             ctx = await self.make_context()
-            ctx.state = ctx.get_or_create_pipeline_state(orchestrator.state)  # if just initialized - load last state
 
-        current_run_pipeline = ctx.state.current_pipeline
-
-        with tracer.start_as_current_span("jims.run_with_context") as span:
+        with tracer.start_as_current_span("jims.run_pipeline_with_context") as span:
             span.set_attribute("jims.thread.id", str(ctx.thread_id))
-            span.set_attribute("jims.pipeline", current_run_pipeline)
+            span.set_attribute("jims.pipeline", _get_pipeline_name(pipeline))
 
             pipeline_start_time = time.time()
 
             # Run the pipeline with the context
             try:
-                await orchestrator.orchestrate(ctx)
+                await pipeline(ctx)
             except Exception as e:
                 pipeline_duration = time.time() - pipeline_start_time
                 jims_pipeline_run_duration.labels(
-                    status="failure", pipeline=current_run_pipeline
+                    status="failure",
+                    pipeline=_get_pipeline_name(pipeline),
                 ).observe(pipeline_duration)
 
                 span.set_status(trace.StatusCode.ERROR, f"Pipeline execution failed: {str(e)}")
-                jims_pipeline_runs_total.labels(status="failure", pipeline=current_run_pipeline).inc()
+                jims_pipeline_runs_total.labels(status="failure", pipeline=_get_pipeline_name(pipeline)).inc()
 
                 raise
 
             pipeline_duration = time.time() - pipeline_start_time
-            jims_pipeline_run_duration.labels(status="success", pipeline=current_run_pipeline).observe(
-                pipeline_duration
-            )
+            jims_pipeline_run_duration.labels(
+                status="success",
+                pipeline=_get_pipeline_name(pipeline),
+            ).observe(pipeline_duration)
 
             span.set_status(trace.StatusCode.OK)
-            jims_pipeline_runs_total.labels(status="success", pipeline=current_run_pipeline).inc()
-
-        ctx.set_state(ctx.state)
+            jims_pipeline_runs_total.labels(status="success", pipeline=_get_pipeline_name(pipeline)).inc()
 
         for event in ctx.outgoing_events:
             await self.store_event_dict(

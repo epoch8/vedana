@@ -5,9 +5,9 @@ from typing import Any, Awaitable, overload
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import CommandStart
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from jims_core.app import JimsApp
-from jims_core.schema import Orchestrator
+from jims_core.schema import Pipeline
 from jims_core.thread.thread_context import StatusUpdater
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
@@ -29,7 +29,7 @@ class TelegramSettings(BaseSettings):
         extra="ignore",
     )
 
-    bot_token: str = "7680711745:AAFO7SDh_SCqe1tPl42yh9Dotj3utGbrEsE"
+    bot_token: str
 
 
 settings = TelegramSettings()  # type: ignore
@@ -94,15 +94,9 @@ class TelegramController:
             app = await app
         return cls(app)
 
-    async def _run_pipeline(
-        self, ctl: ThreadController, chat_id: Any, orchestrator: Orchestrator, pipeline_route: str | None = None
-    ) -> None:
+    async def _run_pipeline(self, ctl: ThreadController, chat_id: Any, pipeline: Pipeline) -> None:
         ctx = await ctl.make_context()
-        ctx.get_or_create_pipeline_state(state_type=orchestrator.state)
         ctx = ctx.with_status_updater(TelegramStatusUpdater(self.bot, chat_id))
-
-        if pipeline_route:
-            ctx.state.current_pipeline = pipeline_route
 
         async def status_updater():
             try:
@@ -115,7 +109,7 @@ class TelegramController:
         updater_task = asyncio.create_task(status_updater())
 
         try:
-            events = await ctl.run_with_context(orchestrator, ctx)
+            events = await ctl.run_pipeline_with_context(pipeline, ctx)
         finally:
             updater_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -164,8 +158,8 @@ class TelegramController:
                 content=message.text,
             )
 
-        # Explicit start route via context
-        await self._run_pipeline(ctl, message.chat.id, self.app.orchestrator, pipeline_route="start")
+        if self.app.conversation_start_pipeline is not None:
+            await self._run_pipeline(ctl, message.chat.id, self.app.conversation_start_pipeline)
 
     async def handle_message(self, message: Message) -> None:
         with tracer.start_as_current_span("jims_telegram.handle_message"):
@@ -198,7 +192,7 @@ class TelegramController:
                     content=message.text,
                 )
 
-            await self._run_pipeline(ctl, message.chat.id, self.app.orchestrator)
+            await self._run_pipeline(ctl, message.chat.id, self.app.pipeline)
 
     async def handle_callback(self, callback: CallbackQuery) -> None:
         if not callback.from_user:
@@ -238,7 +232,7 @@ class TelegramController:
             await callback.answer()
 
         chat_id = callback.message.chat.id if callback.message else from_id
-        await self._run_pipeline(ctl, chat_id, self.app.orchestrator)
+        await self._run_pipeline(ctl, chat_id, self.app.pipeline)
 
     @staticmethod
     def _build_inline_keyboard(

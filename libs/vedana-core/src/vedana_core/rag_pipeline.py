@@ -24,8 +24,6 @@ class StartPipeline:
     async def __call__(self, ctx: ThreadContext) -> None:
         message = self.start_response or "Bot online. No response for /start command in LifecycleEvents"
         ctx.send_message(message)
-        ctx.state.current_pipeline = "main"  # continue to main pipeline
-        return
 
 
 class RagPipeline:
