@@ -168,7 +168,7 @@ class RagAgent:
             label = args.label.value if isinstance(args.label, enum.Enum) else args.label
             prop = args.property.value if isinstance(args.property, enum.Enum) else args.property
 
-            # defualt fallback treats toolcall as node vector search
+            # default fallback treats toolcall as node vector search
             prop_type, th = self._vts_meta_args.get(label, {}).get(prop, ("node", threshold))
             self.logger.debug(f"vts_fn(on={prop_type} label={label}, property={prop}, th={th}, n={top_n})")
 
