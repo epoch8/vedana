@@ -18,17 +18,17 @@ class StartPipeline:
     """
 
     def __init__(self, data_model: DataModel) -> None:
-        self.lifecycle_events = data_model.conversation_lifecycle_events()
-        self.start_response = self.lifecycle_events.get("/start")
+        self.data_model = data_model
 
     async def __call__(self, ctx: ThreadContext) -> None:
-        if not self.start_response:
+        lifecycle_events = self.data_model.conversation_lifecycle_events()
+        start_response = lifecycle_events.get("/start")
+
+        if not start_response:
             ctx.send_message("Bot online. No response for /start command in LifecycleEvents")
             return
 
-        # await ctx.update_agent_status("thinking")
-
-        ctx.send_message(self.start_response)
+        ctx.send_message(start_response)
 
 
 class RagPipeline:
