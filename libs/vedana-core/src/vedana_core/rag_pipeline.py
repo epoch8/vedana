@@ -21,7 +21,7 @@ class StartPipeline:
         self.data_model = data_model
 
     async def __call__(self, ctx: ThreadContext) -> None:
-        lifecycle_events = self.data_model.conversation_lifecycle_events()
+        lifecycle_events = await self.data_model.conversation_lifecycle_events()
         start_response = lifecycle_events.get("/start")
 
         if not start_response:
@@ -98,14 +98,20 @@ class RagPipeline:
     async def _process_rag_query(self, query: str, ctx: ThreadContext) -> tuple[str, dict[str, Any]]:
         """Process a RAG query and return human answer and technical info"""
 
-        llm = LLM(ctx.llm, prompt_templates=self.data_model.prompt_templates(), logger=self.logger)
+        # Read required DataModel properties
+        prompt_templates = await self.data_model.prompt_templates()
+        data_model_description = await self.data_model.to_text_descr()
+        data_model_vector_search_indices = await self.data_model.vector_indices()
+
+        llm = LLM(ctx.llm, prompt_templates=prompt_templates, logger=self.logger)
 
         if self.model != llm.llm.model and settings.debug:  # settings.model = env
             llm.llm.set_model(self.model)
 
         agent = RagAgent(
             graph=self.graph,
-            data_model=self.data_model,
+            data_model_description=data_model_description,
+            data_model_vts_indices=data_model_vector_search_indices,
             llm=llm,
             ctx=ctx,
             logger=self.logger,

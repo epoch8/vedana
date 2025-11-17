@@ -11,7 +11,6 @@ import neo4j.graph
 from jims_core.thread.thread_context import ThreadContext
 from pydantic import BaseModel, Field, create_model
 
-from vedana_core.data_model import DataModel
 from vedana_core.graph import Graph, Record
 from vedana_core.llm import LLM, Tool
 from vedana_core.settings import settings
@@ -62,14 +61,13 @@ CYPHER_TOOL_NAME = "cypher"
 
 
 class RagAgent:
-    _data_model: DataModel
-    _graph_descr: str
     _vts_args: type[VTSArgs]
 
     def __init__(
         self,
         graph: Graph,
-        data_model: DataModel,
+        data_model_description: str,
+        data_model_vts_indices,
         llm: LLM,
         ctx: ThreadContext,
         logger: logging.Logger | None = None,
@@ -77,31 +75,28 @@ class RagAgent:
         self.graph = graph
         self.llm = llm
         self.logger = logger or logging.getLogger(__name__)
-        self._data_model = data_model
-        self._graph_descr = data_model.to_text_descr()
         self._vts_meta_args: dict[str, dict[str, tuple[str, float]]] = {}  # stuff not passed through toolcall
-        self._vts_args = self._build_vts_arg_model()
+        self._vts_args = self._build_vts_arg_model(data_model_vts_indices)
+        self.data_model_description = data_model_description
         self.ctx = ctx
 
-    def _build_vts_arg_model(self) -> Type[VTSArgs]:
+    def _build_vts_arg_model(self, vts_indices) -> Type[VTSArgs]:
         """Create a Pydantic model with Enum-constrained fields for the VTS tool."""
 
-        _vts_indices = self._data_model.vector_indices()
-
-        if not _vts_indices:
+        if not vts_indices:
             return VTSArgs
 
         # fill in lookup for resolving idx type and getting custom threshold
-        for idx_type, i_name, i_attr, i_th in _vts_indices:
+        for idx_type, i_name, i_attr, i_th in vts_indices:
             if not self._vts_meta_args.get(i_name):
                 self._vts_meta_args[i_name] = {}
             self._vts_meta_args[i_name][i_attr] = (idx_type, i_th)
 
-        # Label Enum – keys of `_vts_indices`
-        LabelEnum = enum.Enum("LabelEnum", {name: name for (_type, name, _attr, _th) in _vts_indices})  # type: ignore
+        # Label Enum – keys of `vts_indices`
+        LabelEnum = enum.Enum("LabelEnum", {name: name for (_type, name, _attr, _th) in vts_indices})  # type: ignore
 
-        # Property Enum – unique values of `_vts_indices`
-        unique_props = set(attr for (_type, _name, attr, _th) in _vts_indices)
+        # Property Enum – unique values of `vts_indices`
+        unique_props = set(attr for (_type, _name, attr, _th) in vts_indices)
         prop_member_mapping: dict[str, str] = {}
 
         used_names: set[str] = set()
@@ -199,7 +194,7 @@ class RagAgent:
         tools: list[Tool] = [vts_tool, cypher_tool]
 
         msgs, answer = await self.llm.generate_cypher_query_with_tools(
-            data_descr=self._graph_descr,
+            data_descr=self.data_model_description,
             messages=self.ctx.history[-settings.pipeline_history_length :],
             tools=tools,
         )
