@@ -1253,7 +1253,7 @@ class ThreadEventVis:
             # If nested dict like {model: {...}} flatten to stringified value
             for mk, mv in model_stats.items() if isinstance(model_stats, dict) else []:
                 try:
-                    models_list.append((str(mk), json.dumps(mv)))
+                    models_list.append((str(mk), json.dumps(mv).decode()))
                 except Exception:
                     models_list.append((str(mk), str(mv)))
         except Exception:
@@ -2021,10 +2021,10 @@ class DashboardState(rx.State):
             )
             try:
                 with con.begin() as conn:
-                    c = int(conn.execute(q_total).scalar())
-                    a = int(conn.execute(q_added).scalar())
-                    u = int(conn.execute(q_updated).scalar())
-                    d = int(conn.execute(q_deleted).scalar())
+                    c = conn.execute(q_total).scalar_one()
+                    a = conn.execute(q_added).scalar_one()
+                    u = conn.execute(q_updated).scalar_one()
+                    d = conn.execute(q_deleted).scalar_one()
             except Exception as e:
                 logging.error(f"error collecting counters: {e}")
                 c = a = u = d = 0
@@ -2138,7 +2138,7 @@ class DashboardState(rx.State):
             "deleted": {"backgroundColor": "rgba(239,68,68,0.08)"},
         }
         for r in records_any:  # Build display row with only data columns, coercing values to safe strings
-            row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}
+            row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}  # type: ignore[no-redef]
             row_disp["row_style"] = row_styling.get(r.get("change_type"), {})  # type: ignore[arg-type]
             styled.append(row_disp)
 
@@ -2234,17 +2234,14 @@ class DashboardState(rx.State):
 
         etl_rows_by_key: dict[Any, dict[str, Any]] = {}
         for r in records_any:
-            row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}
-            # presence flags
-            row_disp["etl_present"] = "Yes"
-            row_disp["graph_present"] = "—"
+            row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}  # type: ignore[no-redef]
             # style by change_type
             row_disp["row_style"] = row_styling.get(r.get("change_type"), {})  # type: ignore[arg-type]
             # index by key
             if base_table == "nodes":
                 k = str(r.get("node_id") or "")
             else:
-                k = (str(r.get("from_node_id") or ""), str(r.get("to_node_id") or ""))
+                k = (str(r.get("from_node_id") or ""), str(r.get("to_node_id") or ""))    # type: ignore[assignment]
             etl_rows_by_key[k] = row_disp
             styled.append(row_disp)
 
@@ -2265,10 +2262,8 @@ class DashboardState(rx.State):
                         pass
                     else:
                         # graph-only: create placeholder row with key and presence flags
-                        row_disp: dict[str, Any] = {k: "" for k in self.changes_preview_columns}
+                        row_disp: dict[str, Any] = {k: "" for k in self.changes_preview_columns}  # type: ignore[no-redef]
                         row_disp["node_id"] = gid
-                        # row_disp["etl_present"] = "—"
-                        # row_disp["graph_present"] = "Yes"
                         row_disp["row_style"] = row_styling["g_not_etl"]
                         styled.append(row_disp)
 
@@ -2295,7 +2290,7 @@ class DashboardState(rx.State):
                         present = {str(r.get("id", "")) for r in recs2 if r.get("id")}
                         missing = [eid for eid in candidates if eid not in present]
                         for eid in missing:
-                            row_disp: dict[str, Any] = {k: "" for k in self.changes_preview_columns}
+                            row_disp: dict[str, Any] = {k: "" for k in self.changes_preview_columns}  # type: ignore[no-redef]
                             row_disp["node_id"] = eid
                             row_disp["row_style"] = row_styling["etl_not_g"]
                             styled.append(row_disp)
@@ -2320,12 +2315,10 @@ class DashboardState(rx.State):
                     if key in etl_rows_by_key:
                         pass
                     else:
-                        row_disp: dict[str, Any] = {k: "" for k in self.changes_preview_columns}
+                        row_disp: dict[str, Any] = {k: "" for k in self.changes_preview_columns}  # type: ignore[no-redef]
                         fr, to = key
                         row_disp["from_node_id"] = fr
                         row_disp["to_node_id"] = to
-                        # row_disp["etl_present"] = "—"
-                        # row_disp["graph_present"] = "Yes"
                         row_disp["row_style"] = {"backgroundColor": "rgba(59,130,246,0.08)"}
                         styled.append(row_disp)
 
@@ -2354,7 +2347,7 @@ class DashboardState(rx.State):
                         present_pairs = {(str(r.get("from_id", "")), str(r.get("to_id", ""))) for r in recs2}
                         missing_pairs = [p for p in add_candidates if p not in present_pairs]
                         for fr, to in missing_pairs:
-                            row_disp: dict[str, Any] = {k: "" for k in self.changes_preview_columns}
+                            row_disp: dict[str, Any] = {k: "" for k in self.changes_preview_columns}  # type: ignore[no-redef]
                             row_disp["from_node_id"] = fr
                             row_disp["to_node_id"] = to
                             row_disp["row_style"] = {"backgroundColor": "rgba(139,92,246,0.10)"}  # violet-ish
