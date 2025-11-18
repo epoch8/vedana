@@ -1303,7 +1303,7 @@ class ThreadViewState(rx.State):
     available_tags: list[str] = []
 
     async def _reload(self) -> None:
-        vedana_app = await make_vedana_app()
+        vedana_app = await get_vedana_app()
 
         async with vedana_app.sessionmaker() as session:
             stmt = (
@@ -1549,7 +1549,7 @@ class ThreadViewState(rx.State):
         tags_to_add = selected_tags - current_tags
         tags_to_remove = current_tags - selected_tags
 
-        vedana_app = await make_vedana_app()
+        vedana_app = await get_vedana_app()
         async with vedana_app.sessionmaker() as session:
             thread_uuid = (
                 UUID(self.selected_thread_id) if isinstance(self.selected_thread_id, str) else self.selected_thread_id
@@ -1590,7 +1590,7 @@ class ThreadViewState(rx.State):
 
     @rx.event
     async def remove_tag(self, event_id: str, tag: str):
-        vedana_app = await make_vedana_app()
+        vedana_app = await get_vedana_app()
         async with vedana_app.sessionmaker() as session:
             tag_event = ThreadEventDB(
                 thread_id=self.selected_thread_id,
@@ -1619,7 +1619,7 @@ class ThreadViewState(rx.State):
             tags_list = list(getattr(target, "tags", []) or []) if target is not None else []
         except Exception:
             tags_list = []
-        vedana_app = await make_vedana_app()
+        vedana_app = await get_vedana_app()
         async with vedana_app.sessionmaker() as session:
             severity_val = self.note_severity_by_event.get(event_id, self.note_severity or "Low")  # todo check
             note_event = ThreadEventDB(
@@ -1655,7 +1655,7 @@ class ThreadViewState(rx.State):
     # --- Comment status actions ---
     @rx.event
     async def mark_comment_resolved(self, comment_id: str):
-        vedana_app = await make_vedana_app()
+        vedana_app = await get_vedana_app()
         async with vedana_app.sessionmaker() as session:
             ev = ThreadEventDB(
                 thread_id=self.selected_thread_id,
@@ -1675,7 +1675,7 @@ class ThreadViewState(rx.State):
 
     @rx.event
     async def mark_comment_closed(self, comment_id: str):
-        vedana_app = await make_vedana_app()
+        vedana_app = await get_vedana_app()
         async with vedana_app.sessionmaker() as session:
             ev = ThreadEventDB(
                 thread_id=self.selected_thread_id,
