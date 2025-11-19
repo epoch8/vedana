@@ -2,7 +2,12 @@ import asyncio
 
 import click
 from aiohttp import web
-from jims_core.util import load_jims_app, setup_monitoring_and_tracing_with_sentry, setup_verbose_logging
+from jims_core.util import (
+    load_jims_app,
+    setup_monitoring_and_tracing_with_sentry,
+    setup_prometheus_metrics,
+    setup_verbose_logging,
+)
 from loguru import logger
 
 from jims_telegram import TelegramController
@@ -27,12 +32,21 @@ async def healthcheck(host: str = "0.0.0.0", port: int = 8000):
 @click.option("--app", type=click.STRING, default="app")
 @click.option("--enable-sentry", is_flag=True, help="Enable tracing to Sentry", default=False)
 @click.option("--enable-healthcheck", is_flag=True, help="Enable healthcheck endpoint", default=True)
-@click.option("--host", type=click.STRING, default="0.0.0.0")
-@click.option("--port", type=click.INT, default=8000)
+@click.option("--healthcheck-port", type=click.INT, default=9000)
+@click.option("--metrics-port", type=click.INT, default=8000)
 @click.option("--verbose", is_flag=True, default=False)
-def cli(app: str, enable_sentry: bool, enable_healthcheck: bool, host: str, port: int, verbose: bool) -> None:
+def cli(
+    app: str,
+    enable_sentry: bool,
+    enable_healthcheck: bool,
+    healthcheck_port: int,
+    metrics_port: int,
+    verbose: bool,
+) -> None:
     if verbose:
         setup_verbose_logging()
+
+    setup_prometheus_metrics(port=metrics_port)
 
     if enable_sentry:
         setup_monitoring_and_tracing_with_sentry()
@@ -41,7 +55,7 @@ def cli(app: str, enable_sentry: bool, enable_healthcheck: bool, host: str, port
 
     async def run_telegram_bot():
         if enable_healthcheck:
-            await healthcheck(host=host, port=port)
+            await healthcheck(port=healthcheck_port)
 
         telegram_controller = await TelegramController.create(jims_app)
         await telegram_controller.run()

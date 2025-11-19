@@ -49,11 +49,10 @@ def setup_monitoring_and_tracing_with_sentry() -> None:
     set_global_textmap(SentryPropagator())
 
 
-# TODO make the port configurable
-def setup_prometheus_metrics() -> None:
+def setup_prometheus_metrics(port: int = 8080) -> None:
     from prometheus_client import start_http_server
 
-    start_http_server(8000)
+    start_http_server(port)
 
 
 def load_jims_app(app_name: str) -> Union["JimsApp", Awaitable["JimsApp"]]:
