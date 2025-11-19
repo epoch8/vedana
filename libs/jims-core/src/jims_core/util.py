@@ -35,8 +35,6 @@ def setup_monitoring_and_tracing_with_sentry() -> None:
     except ImportError:
         raise ImportError("install sentry sdk")
 
-    from prometheus_client import start_http_server
-
     sentry_sdk.init(
         send_default_pii=True,
         traces_sample_rate=1.0,
@@ -49,6 +47,11 @@ def setup_monitoring_and_tracing_with_sentry() -> None:
     LiteLLMInstrumentor().instrument(tracer_provider=provider)
 
     set_global_textmap(SentryPropagator())
+
+
+# TODO make the port configurable
+def setup_prometheus_metrics() -> None:
+    from prometheus_client import start_http_server
 
     start_http_server(8000)
 
