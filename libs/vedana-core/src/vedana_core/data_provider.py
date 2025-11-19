@@ -11,7 +11,7 @@ import grist_api
 import pandas as pd
 import requests
 
-from vedana_core.data_model import Attribute, DataModel, Link
+from vedana_core.data_model import Attribute, Link
 from vedana_core.utils import cast_dtype
 
 
@@ -63,70 +63,6 @@ class DataProvider:
 
     def __exit__(self, *args, **kwargs):
         self.close()
-
-
-class CsvDataProvider(DataProvider):
-    anchor_file_prefix = "anchor_"
-    link_file_prefix = "link_"
-
-    def __init__(self, csv_dir: Path, data_model: DataModel) -> None:
-        self.csv_dir = Path(csv_dir)
-        self.data_model = data_model
-        self._anchor_files: dict[str, Path] = {}
-        self._link_files: dict[str, Path] = {}
-        self._scan_csv_files()
-
-    def _scan_csv_files(self):
-        for file in self.csv_dir.glob("*.csv"):
-            fname = file.name.lower()
-            if fname.startswith(self.anchor_file_prefix):
-                # anchor_type is after prefix and before .csv
-                anchor_type = fname[len(self.anchor_file_prefix) : -4]
-                self._anchor_files[anchor_type] = file
-            elif fname.startswith(self.link_file_prefix):
-                link_type = fname[len(self.link_file_prefix) : -4]
-                self._link_files[link_type] = file
-
-    def list_anchor_tables(self) -> list[str]:
-        return list(self._anchor_files.keys())
-
-    def get_link_tables(self) -> list[str]:
-        # todo: link_files != link types
-        return list(self._link_files.keys())
-
-    async def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[Link]) -> list[AnchorRecord]:
-        file = self._anchor_files.get(type_)
-        if not file:
-            return []
-        df = pd.read_csv(file)
-        anchors = []
-        dm_anchors = await self.data_model.get_anchors()
-        attrs_dtypes = {a.name: a.dtype for anchor in dm_anchors for a in anchor.attributes}
-        grouped = df.groupby(["node_id", "node_type"])
-        for (node_id, node_type), group in grouped:  # type: ignore
-            data = {
-                k: cast_dtype(v, k, dtype=attrs_dtypes.get(k))
-                for k, v in zip(group["attribute_key"], group["attribute_value"])
-            }
-            anchors.append(AnchorRecord(str(node_id), str(node_type), data))
-        return anchors
-
-    def get_links(self, table_name: str, link: Link) -> list[LinkRecord]:
-        file = self._link_files.get(table_name)
-        if not file:
-            return []
-        df = pd.read_csv(file)
-        links = []
-        grouped = df.groupby(["from_node_id", "to_node_id", "edge_label"])
-        for (id_from, id_to, edge_label), group in grouped:  # type: ignore
-            data = {k: v for k, v in zip(group["attribute_key"], group["attribute_value"]) if not pd.isna(k)}
-            links.append(
-                LinkRecord(str(id_from), str(id_to), link.anchor_from.noun, link.anchor_to.noun, str(edge_label), data)
-            )
-        return links
-
-    def close(self) -> None:
-        pass
 
 
 class GristDataProvider(DataProvider):
