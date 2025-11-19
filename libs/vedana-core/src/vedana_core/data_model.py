@@ -80,7 +80,7 @@ class DataModel:
         anchors_table = dm_anchors.store.data_table
         anchors_attr_table = dm_anchor_attributes.store.data_table
 
-        with self.sessionmaker() as session:
+        async with self.sessionmaker() as session:
             join_query = select(
                 anchors_table.c.noun,
                 anchors_table.c.description.label("anchor_description"),
@@ -100,7 +100,7 @@ class DataModel:
                     isouter=True,
                 )
             )
-            result = await session.execute(join_query).fetchall()
+            result = (await session.execute(join_query)).fetchall()
 
             anchors = {}
             for row in result:
@@ -139,7 +139,7 @@ class DataModel:
             anchors = await self.get_anchors()
             anchors_dict = {anchor.noun: anchor for anchor in anchors}
 
-        with self.sessionmaker() as session:
+        async with self.sessionmaker() as session:
             join_query = select(
                 links_table.c.anchor1,
                 links_table.c.anchor2,
@@ -164,7 +164,7 @@ class DataModel:
                 )
             )
 
-            result = await session.execute(join_query).fetchall()
+            result = (await session.execute(join_query)).fetchall()
 
             links = {}
             for row in result:
@@ -207,8 +207,8 @@ class DataModel:
     async def get_queries(self) -> list[Query]:
         try:
             queries_table = dm_queries.store.data_table
-            with self.sessionmaker() as session:
-                result = await session.execute(select(queries_table)).fetchall()
+            async with self.sessionmaker() as session:
+                result = (await session.execute(select(queries_table))).fetchall()
                 return [Query(name=row.query_name, example=row.query_example) for row in result]
         except Exception:
             return []
@@ -216,8 +216,8 @@ class DataModel:
     async def get_conversation_lifecycle_events(self) -> list[ConversationLifecycleEvent]:
         try:
             lifecycle_table = dm_conversation_lifecycle.store.data_table
-            with self.sessionmaker() as session:
-                result = await session.execute(select(lifecycle_table)).fetchall()
+            async with self.sessionmaker() as session:
+                result = (await session.execute(select(lifecycle_table))).fetchall()
                 return [ConversationLifecycleEvent(event=row.event, text=row.text) for row in result]
         except Exception:
             return []
@@ -229,8 +229,8 @@ class DataModel:
     async def get_prompts(self) -> list[Prompt]:
         try:
             prompts_table = dm_prompts.store.data_table
-            with self.sessionmaker() as session:
-                result = await session.execute(select(prompts_table)).fetchall()
+            async with self.sessionmaker() as session:
+                result = (await session.execute(select(prompts_table))).fetchall()
                 return [Prompt(name=row.name, text=row.text) for row in result]
         except Exception:
             return []
