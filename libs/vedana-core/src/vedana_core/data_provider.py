@@ -94,13 +94,14 @@ class CsvDataProvider(DataProvider):
         # todo: link_files != link types
         return list(self._link_files.keys())
 
-    def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[Link]) -> list[AnchorRecord]:
+    async def get_anchors(self, type_: str, dm_attrs: list[Attribute], dm_anchor_links: list[Link]) -> list[AnchorRecord]:
         file = self._anchor_files.get(type_)
         if not file:
             return []
         df = pd.read_csv(file)
         anchors = []
-        attrs_dtypes = {a.name: a.dtype for anchor in self.data_model.anchors for a in anchor.attributes}
+        dm_anchors = await self.data_model.get_anchors()
+        attrs_dtypes = {a.name: a.dtype for anchor in dm_anchors for a in anchor.attributes}
         grouped = df.groupby(["node_id", "node_type"])
         for (node_id, node_type), group in grouped:  # type: ignore
             data = {

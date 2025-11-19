@@ -77,8 +77,9 @@ class DataModel:
 
     async def get_anchors(self) -> list[Anchor]:
         """Read anchors from dm_anchors table."""
-        anchors_table = dm_anchors.store.data_table
-        anchors_attr_table = dm_anchor_attributes.store.data_table
+        # .data_table is TableStoreDB's attribute
+        anchors_table = dm_anchors.store.data_table  # type: ignore[attr-defined]
+        anchors_attr_table = dm_anchor_attributes.store.data_table  # type: ignore[attr-defined]
 
         async with self.sessionmaker() as session:
             join_query = select(
@@ -132,8 +133,8 @@ class DataModel:
 
     async def get_links(self, anchors_dict: dict[str, Anchor] | None = None) -> list[Link]:
         """Read links from dm_links table."""
-        links_table = dm_links.store.data_table
-        links_attr_table = dm_link_attributes.store.data_table
+        links_table = dm_links.store.data_table  # type: ignore[attr-defined]
+        links_attr_table = dm_link_attributes.store.data_table  # type: ignore[attr-defined]
 
         if anchors_dict is None:
             anchors = await self.get_anchors()
@@ -206,7 +207,7 @@ class DataModel:
 
     async def get_queries(self) -> list[Query]:
         try:
-            queries_table = dm_queries.store.data_table
+            queries_table = dm_queries.store.data_table  # type: ignore[attr-defined]
             async with self.sessionmaker() as session:
                 result = (await session.execute(select(queries_table))).fetchall()
                 return [Query(name=row.query_name, example=row.query_example) for row in result]
@@ -215,7 +216,7 @@ class DataModel:
 
     async def get_conversation_lifecycle_events(self) -> list[ConversationLifecycleEvent]:
         try:
-            lifecycle_table = dm_conversation_lifecycle.store.data_table
+            lifecycle_table = dm_conversation_lifecycle.store.data_table  # type: ignore[attr-defined]
             async with self.sessionmaker() as session:
                 result = (await session.execute(select(lifecycle_table))).fetchall()
                 return [ConversationLifecycleEvent(event=row.event, text=row.text) for row in result]
@@ -228,7 +229,7 @@ class DataModel:
 
     async def get_prompts(self) -> list[Prompt]:
         try:
-            prompts_table = dm_prompts.store.data_table
+            prompts_table = dm_prompts.store.data_table  # type: ignore[attr-defined]
             async with self.sessionmaker() as session:
                 result = (await session.execute(select(prompts_table))).fetchall()
                 return [Prompt(name=row.name, text=row.text) for row in result]
