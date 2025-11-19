@@ -1,3 +1,7 @@
+# 2025.11.19-dev.25
+
+* Update LiteLLM and OpenAI dependencies
+
 # 2025.09.29-dev.24
 
 * (jims-core, vedana-core) Remove `temperature` argument from LLM calls (GPT-5
