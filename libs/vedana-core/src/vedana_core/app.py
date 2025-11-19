@@ -26,7 +26,10 @@ class VedanaApp:
 async def make_vedana_app() -> VedanaApp:
     graph = MemgraphGraph(core_settings.memgraph_uri, core_settings.memgraph_user, core_settings.memgraph_pwd)
 
-    data_model = DataModel()
+    # Jims setup
+    sessionmaker = get_sessionmaker()
+
+    data_model = DataModel(sessionmaker=sessionmaker)
 
     pipeline = RagPipeline(
         graph=graph,
@@ -36,9 +39,6 @@ async def make_vedana_app() -> VedanaApp:
     )
 
     start_pipeline = StartPipeline(data_model=data_model)
-
-    # Jims setup
-    sessionmaker = get_sessionmaker()
 
     return VedanaApp(
         sessionmaker=sessionmaker,
