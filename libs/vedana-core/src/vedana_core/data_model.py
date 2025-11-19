@@ -1,11 +1,10 @@
 import logging
 from dataclasses import dataclass
 
-import sqlalchemy as sa
-from sqlalchemy import exc as sa_exc
+import sqlalchemy.ext.asyncio as sa_aio
 from sqlalchemy import select
 
-from vedana_core.db import get_db_engine
+from vedana_etl.catalog import dm_anchors, dm_anchor_attributes, dm_links, dm_link_attributes, dm_prompts, dm_queries, dm_conversation_lifecycle
 
 logger = logging.getLogger(__name__)
 
@@ -69,27 +68,19 @@ class DataModel:
     DataModel, read from SQL tables at runtime
     """
 
-    def __init__(self, db_engine: sa.Engine | None = None) -> None:
-        self._db_engine = db_engine or get_db_engine()
+    def __init__(self, sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession]) -> None:
+        self.sessionmaker = sessionmaker
 
     @classmethod
-    def create(cls, db_engine: sa.Engine | None = None) -> "DataModel":
-        return cls(db_engine=db_engine)
+    def create(cls, sessionmaker) -> "DataModel":
+        return cls(sessionmaker=sessionmaker)
 
-    def _get_anchors(self) -> list[Anchor]:
+    async def get_anchors(self) -> list[Anchor]:
         """Read anchors from dm_anchors table."""
-        anchors_table = sa.Table(
-            "dm_anchors",
-            sa.MetaData(),
-            autoload_with=self._db_engine,
-        )
-        anchors_attr_table = sa.Table(
-            "dm_anchor_attributes",
-            sa.MetaData(),
-            autoload_with=self._db_engine,
-        )
+        anchors_table = dm_anchors.store.data_table
+        anchors_attr_table = dm_anchor_attributes.store.data_table
 
-        with self._db_engine.connect() as conn:
+        async with self.sessionmaker() as session:
             join_query = select(
                 anchors_table.c.noun,
                 anchors_table.c.description.label("anchor_description"),
@@ -109,7 +100,7 @@ class DataModel:
                     isouter=True,
                 )
             )
-            result = conn.execute(join_query)
+            result = (await session.execute(join_query)).fetchall()
 
             anchors = {}
             for row in result:
@@ -139,23 +130,16 @@ class DataModel:
 
             return list(anchors.values())
 
-    def _get_links(self, anchors_dict: dict[str, Anchor] | None = None) -> list[Link]:
+    async def get_links(self, anchors_dict: dict[str, Anchor] | None = None) -> list[Link]:
         """Read links from dm_links table."""
-        links_table = sa.Table(
-            "dm_links",
-            sa.MetaData(),
-            autoload_with=self._db_engine,
-        )
-        links_attr_table = sa.Table(
-            "dm_link_attributes",
-            sa.MetaData(),
-            autoload_with=self._db_engine,
-        )
+        links_table = dm_links.store.data_table
+        links_attr_table = dm_link_attributes.store.data_table
 
         if anchors_dict is None:
-            anchors_dict = {anchor.noun: anchor for anchor in self._get_anchors()}
+            anchors = await self.get_anchors()
+            anchors_dict = {anchor.noun: anchor for anchor in anchors}
 
-        with self._db_engine.connect() as conn:
+        async with self.sessionmaker() as session:
             join_query = select(
                 links_table.c.anchor1,
                 links_table.c.anchor2,
@@ -179,7 +163,8 @@ class DataModel:
                     isouter=True,
                 )
             )
-            result = conn.execute(join_query)
+
+            result = (await session.execute(join_query)).fetchall()
 
             links = {}
             for row in result:
@@ -219,71 +204,51 @@ class DataModel:
 
             return list(links.values())
 
-    @property
-    def anchors(self) -> list[Anchor]:
-        return self._get_anchors()
-
-    @property
-    def links(self) -> list[Link]:
-        return self._get_links()
-
-    @property
-    def queries(self) -> list[Query]:
+    async def get_queries(self) -> list[Query]:
         try:
-            queries_table = sa.Table(
-                "dm_queries",
-                sa.MetaData(),
-                autoload_with=self._db_engine,
-            )
-            with self._db_engine.connect() as conn:
-                result = conn.execute(select(queries_table))
+            queries_table = dm_queries.store.data_table
+            async with self.sessionmaker() as session:
+                result = (await session.execute(select(queries_table))).fetchall()
                 return [Query(name=row.query_name, example=row.query_example) for row in result]
-        except sa_exc.NoSuchTableError:
+        except Exception:
             return []
 
-    @property
-    def conversation_lifecycle(self) -> list[ConversationLifecycleEvent]:
+    async def get_conversation_lifecycle_events(self) -> list[ConversationLifecycleEvent]:
         try:
-            lifecycle_table = sa.Table(
-                "dm_conversation_lifecycle",
-                sa.MetaData(),
-                autoload_with=self._db_engine,
-            )
-            with self._db_engine.connect() as conn:
-                result = conn.execute(select(lifecycle_table))
+            lifecycle_table = dm_conversation_lifecycle.store.data_table
+            async with self.sessionmaker() as session:
+                result = (await session.execute(select(lifecycle_table))).fetchall()
                 return [ConversationLifecycleEvent(event=row.event, text=row.text) for row in result]
-        except sa_exc.NoSuchTableError:
+        except Exception:
             return []
 
-    @property
-    def prompts(self) -> list[Prompt]:
+    async def conversation_lifecycle_events(self) -> dict[str, str]:
+        cl = await self.get_conversation_lifecycle_events()
+        return {c.event: c.text for c in cl}
+
+    async def get_prompts(self) -> list[Prompt]:
         try:
-            prompts_table = sa.Table(
-                "dm_prompts",
-                sa.MetaData(),
-                autoload_with=self._db_engine,
-            )
-            with self._db_engine.connect() as conn:
-                result = conn.execute(select(prompts_table))
+            prompts_table = dm_prompts.store.data_table
+            async with self.sessionmaker() as session:
+                result = (await session.execute(select(prompts_table))).fetchall()
                 return [Prompt(name=row.name, text=row.text) for row in result]
-        except sa_exc.NoSuchTableError:
+        except Exception:
             return []
 
-    def conversation_lifecycle_events(self) -> dict[str, str]:
-        return {cl.event: cl.text for cl in self.conversation_lifecycle}
+    async def prompt_templates(self) -> dict[str, str]:
+        prompts = await self.get_prompts()
+        return {p.name: p.text for p in prompts}
 
-    def prompt_templates(self) -> dict[str, str]:
-        return {p.name: p.text for p in self.prompts}
-
-    def vector_indices(self) -> list[tuple[str, str, str, float]]:
+    async def vector_indices(self) -> list[tuple[str, str, str, float]]:
         """
         returns list
         ("anchor", anchor.noun, anchor.attribute, anchor.th) +
         ("edge", link.sentence, link.attribute, link.th)
         for all embeddable attributes
         """
-        anchors = self.anchors
-        links = self.links
+        anchors = await self.get_anchors()
+        links = await self.get_links(anchors_dict={a.noun: a for a in anchors})
+
         a_i = [
             ("anchor", anchor.noun, attr.name, attr.embed_threshold)
             for anchor in anchors
@@ -298,42 +263,46 @@ class DataModel:
         ]
         return a_i + l_i
 
-    def anchor_links(self, anchor_noun: str) -> list[Link]:
+    async def anchor_links(self, anchor_noun: str) -> list[Link]:
         """all links that connect to/from this anchor"""
+        links = await self.get_links()
         return [
             link
-            for link in self.links
+            for link in links
             if (link.anchor_from.noun == anchor_noun and link.anchor_from_link_attr_name)
             or (link.anchor_to.noun == anchor_noun and link.anchor_to_link_attr_name)
         ]
 
-    def to_text_descr(self) -> str:
-        dm_templates = self.prompt_templates()
+    async def to_text_descr(self) -> str:
+        anchors = await self.get_anchors()
+        links = await self.get_links(anchors_dict={a.noun: a for a in anchors})
+        queries = await self.get_queries()
+        dm_templates = await self.prompt_templates()
 
         anchor_descr = "\n".join(
             dm_templates.get("dm_anchor_descr_template", dm_anchor_descr_template).format(anchor=anchor)
-            for anchor in self.anchors
+            for anchor in anchors
         )
 
         anchor_attrs_descr = "\n".join(
             dm_templates.get("dm_attr_descr_template", dm_attr_descr_template).format(anchor=anchor, attr=attr)
-            for anchor in self.anchors
+            for anchor in anchors
             for attr in anchor.attributes
         )
 
         link_descr = "\n".join(
-            dm_templates.get("dm_link_descr_template", dm_link_descr_template).format(link=link) for link in self.links
+            dm_templates.get("dm_link_descr_template", dm_link_descr_template).format(link=link) for link in links
         )
 
         link_attrs_descr = "\n".join(
             dm_templates.get("dm_link_attr_descr_template", dm_link_attr_descr_template).format(link=link, attr=attr)
-            for link in self.links
+            for link in links
             for attr in link.attributes
         )
 
         queries_descr = "\n".join(
             dm_templates.get("dm_query_descr_template", dm_query_descr_template).format(query=query)
-            for query in self.queries
+            for query in queries
         )
 
         dm_template = dm_templates.get("dm_descr_template", dm_descr_template)
