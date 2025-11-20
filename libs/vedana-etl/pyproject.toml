@@ -1,6 +1,6 @@
 [project]
 name = "vedana-etl"
-version = "0.2.0"
+version = "0.2.1"
 description = "Pipeline template for Vedana"
 readme = "README.md"
 authors = [
@@ -17,7 +17,7 @@ dependencies = [
   "sqlalchemy>=2.0.41",
   "grist-api>=0.1.1",
   "neo4j>=5.28.1",
-  "openai>=1.96.0",
+  "openai>=2.8.0",
   "vedana-core>=0.5.0",
   "pytest>=8.4.1",
 ]
