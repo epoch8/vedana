@@ -1,4 +1,6 @@
-from datetime import datetime  # , timezone
+from datetime import datetime
+import orjson as json
+from typing import Any
 
 
 def datetime_to_age(created_at: datetime, compact: bool = True) -> str:
@@ -55,3 +57,14 @@ def datetime_to_age(created_at: datetime, compact: bool = True) -> str:
     else:
         # Absolute date format
         return created_at.strftime("%Y %b %d %H:%M")
+
+
+def safe_render_value(v: Any) -> str:
+    try:
+        s = json.dumps(v).decode() if isinstance(v, (dict, list)) else str(v)
+    except Exception:
+        try:
+            s = repr(v)
+        except Exception:
+            s = "<error rendering value>"
+    return s

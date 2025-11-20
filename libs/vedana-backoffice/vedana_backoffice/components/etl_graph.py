@@ -4,7 +4,7 @@ from vedana_backoffice.state import EtlState
 
 
 def _node_card(node: dict) -> rx.Component:
-    is_table = node.get("node_type") == "table"
+    is_table = node.get("node_type") == "table"  # step for transform, table for table
     return rx.card(
         rx.vstack(
             rx.hstack(
@@ -21,12 +21,21 @@ def _node_card(node: dict) -> rx.Component:
                 width="100%",
             ),
             rx.text(node.get("labels_str", ""), size="1", color="gray"),
-            rx.hstack(
-                rx.text("last:", size="1", color="gray"),
-                rx.text(node.get("last_run", "—"), size="1", color="gray"),
-                spacing="1",
-                width="100%",
-                align="start",
+            rx.cond(
+                is_table,
+                rx.hstack(
+                    rx.tooltip(rx.text(node.get("last_run", "—"), size="1", color="gray"), content="last update time"),
+                    rx.hstack(
+                        rx.text(node.get("row_count", "—"), size="1", color="gray", weight="bold"),
+                        rx.text(node.get("last_add", "—"), size="1", color="green", weight="bold"),
+                        rx.text("/", size="1", color="gray", weight="bold"),
+                        rx.text(node.get("last_rm", "—"), size="1", color="red", weight="bold"),
+                        spacing="1",
+                    ),
+                    width="100%",
+                    justify="between",
+                ),
+                rx.box(),
             ),
             spacing="2",
             width="100%",
