@@ -15,6 +15,7 @@ from jims_core.thread.thread_context import ThreadContext
 from jims_core.util import uuid7
 from neo4j import GraphDatabase
 from pydantic import BaseModel, Field
+from vedana_core.db import get_sessionmaker
 from vedana_core.data_model import DataModel, Attribute, Anchor, Link
 from vedana_core.data_provider import GristAPIDataProvider, GristCsvDataProvider
 from vedana_core.graph import MemgraphGraph
@@ -162,9 +163,9 @@ def get_data_model_snapshot() -> Iterator[pd.DataFrame]:
     """
     DataModel versioning with sha256 hash
     """
-    dm = DataModel()
+    dm = DataModel(sessionmaker=get_sessionmaker())
 
-    dm_text = dm.to_text_descr()
+    dm_text = asyncio.run(dm.to_text_descr())
     dm_text_b = bytearray(dm_text, "utf-8")
     dm_id = sha256(dm_text_b).hexdigest()
 
@@ -698,9 +699,10 @@ def get_eval_judge_config() -> Iterator[pd.DataFrame]:
     """
     versioning Judge prompt
     """
-    dm = DataModel()
+    dm = DataModel(sessionmaker=get_sessionmaker())
+    prompts = asyncio.run(dm.prompt_templates())
 
-    judge_prompt = dm.prompt_templates().get("eval_judge_prompt", "")
+    judge_prompt = prompts.get("eval_judge_prompt")
 
     if judge_prompt:
         text_b = bytearray(judge_prompt, "utf-8")
@@ -840,7 +842,7 @@ def run_tests(
 
     # configs
     dm_id = str(dm_version.get("dm_id"))
-    dm = DataModel()  # todo versioning data model
+    dm = DataModel(sessionmaker=get_sessionmaker())  # todo versioning data model
     embeddings_model = str(llm_embeddings_config.get("embeddings_model"))
     embeddings_dim = int(llm_embeddings_config.get("embeddings_dim"))
 
