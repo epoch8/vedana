@@ -17,7 +17,7 @@ dependencies = [
     "orjson>=3.11.3",
 ]
 
-[tool.gh-actions-codegen]
+[tool.uv-workspace-codegen]
 generate = true
 template_type = "project"
 generate_standard_pytest_step = false
