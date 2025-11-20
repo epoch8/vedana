@@ -272,6 +272,8 @@ resource "helm_release" "tg" {
       - jims-telegram
       - --enable-sentry
       - --enable-healthcheck
+      - --metrics-port=8080
+      - --healthcheck-port=8000
       - --verbose
 
     resources:
@@ -283,6 +285,10 @@ resource "helm_release" "tg" {
         memory: "1Gi"
 
     port: 8000
+
+    extraPorts:
+      - name: metrics
+        port: 8080
 
     probe:
       path: "/healthz"
