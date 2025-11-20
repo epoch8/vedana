@@ -1,3 +1,7 @@
+# 0.3.0 - 2025.11.20
+
+* Add link to Telegram bot if `TELEGRAM_BOT_TOKEN` env is provided
+
 # 0.2.0 - 2025.10.29
 
 * JIMS thread viewer - add feedback processing flow, UI updates
