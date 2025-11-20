@@ -20,6 +20,7 @@ dependencies = [
     "jims-tui",
     "jims-telegram",
     "jims-backoffice",
+    "vedana-etl",
     "alembic>=1.13.0",
     "asyncpg>=0.29.0",
     "aiosqlite>=0.21.0",
