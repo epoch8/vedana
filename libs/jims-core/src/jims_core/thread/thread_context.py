@@ -35,6 +35,7 @@ class ThreadContext:
         self.status_updater = status_updater
         return self
 
+    # TODO make this methods efficient
     def get_last_user_message(self) -> str | None:
         """Get the last user message from the history."""
         for event in reversed(self.history):
@@ -42,6 +43,7 @@ class ThreadContext:
                 return event["content"]  # type: ignore
         return None
 
+    # TODO make this methods efficient
     def get_last_user_action(self):
         """Get the last user action (message / button click / command / other input in comm. domain) from ctx.events"""
         for event in reversed(self.events):
