@@ -1,13 +1,13 @@
 [project]
 name = "jims-core"
-version = "0.3.0"
+version = "0.3.1"
 description = "Add your description here"
 readme = "README.md"
 authors = [{ name = "Andrey Tatarinov", email = "a@tatarinov.co" }]
 requires-python = ">=3.12"
 dependencies = [
     "backoff>=2.2.1",
-    "litellm>=1.74.8,<1.77.0",
+    "litellm>=1.79.0",
     "opentelemetry-api>=1.34.1",
     "opentelemetry-sdk>=1.34.1",
     "prometheus-client>=0.21.1",
