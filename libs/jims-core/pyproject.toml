@@ -34,7 +34,7 @@ sentry = ["sentry-sdk>=2.35.0"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.gh-actions-codegen]
+[tool.uv-workspace-codegen]
 generate = true
 template_type = "lib"
 generate_standard_pytest_step = true
