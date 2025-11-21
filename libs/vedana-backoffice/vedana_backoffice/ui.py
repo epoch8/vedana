@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 import reflex as rx
 
 from vedana_backoffice.state import AppVersionState, TelegramBotState  # type: ignore[attr-defined]
@@ -51,6 +55,31 @@ def app_header() -> rx.Component:
         top="0",
         style={"backgroundColor": "inherit"},
         z_index="10",
+    )
+
+
+def themed_data_table(
+    *,
+    data: rx.Var | list[Any],
+    columns: rx.Var | list[str],
+    width: str | rx.Var = "fit-content",
+    max_width: str | rx.Var = "100%",
+    **kwargs: Any,
+) -> rx.Component:
+    """Wrap rx.data_table with shared styling so it matches the app theme."""
+
+    default_kwargs = {"pagination": True, "search": True, "sort": True}
+    table_kwargs = {**default_kwargs, **kwargs}
+
+    table_style = table_kwargs.pop("style", {})
+    table_style = {"width": "fit-content", **table_style}
+
+    container_style: dict[str, Any] = {"width": width, "maxWidth": max_width}
+
+    return rx.box(
+        rx.data_table(data=data, columns=columns, style=table_style, **table_kwargs),
+        class_name="datatable-surface",
+        style=container_style,
     )
 
 

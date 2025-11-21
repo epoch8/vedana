@@ -2,7 +2,7 @@ import reflex as rx
 
 from vedana_backoffice.components.etl_graph import etl_graph
 from vedana_backoffice.state import EtlState
-from vedana_backoffice.ui import app_header
+from vedana_backoffice.ui import app_header, themed_data_table
 
 
 def _filters() -> rx.Component:
@@ -150,44 +150,22 @@ def _table_preview_popover() -> rx.Component:
                     rx.cond(
                         EtlState.has_preview,
                         rx.scroll_area(
-                            rx.table.root(
-                                rx.table.header(
-                                    rx.table.row(
-                                        rx.foreach(EtlState.preview_columns, lambda c: rx.table.column_header_cell(c))
-                                    )
-                                ),
-                                rx.table.body(
-                                    rx.foreach(
-                                        EtlState.preview_rows,
-                                        lambda r: rx.table.row(
-                                            rx.foreach(
-                                                EtlState.preview_columns,
-                                                lambda c: rx.table.cell(
-                                                    rx.text(
-                                                        r.get(c, "—"),
-                                                        style={
-                                                            "whiteSpace": "nowrap",
-                                                            "textOverflow": "ellipsis",
-                                                            "overflow": "hidden",
-                                                            "maxWidth": "420px",
-                                                        },
-                                                    )
-                                                ),
-                                            )
-                                        ),
-                                    )
-                                ),
-                                variant="surface",
+                            themed_data_table(
+                                data=EtlState.preview_rows,
+                                columns=EtlState.preview_columns,
+                                width="fit-content",
+                                max_width="85vw",
                             ),
                             type="always",
-                            scrollbars="both",
-                            style={"height": "50vh", "width": "100%"},
+                            scrollbars="vertical",
+                            style={"maxHeight": "70vh", "width": "fit-content", "maxWidth": "85vw"},
                         ),
                         rx.box(rx.text("No data")),
                     ),
                     spacing="2",
                     padding="1em",
                     width="fit-content",
+                    max_width="85vw",
                     min_width="400px",
                     # allow width to be defined by inner table content
                 ),
@@ -198,7 +176,7 @@ def _table_preview_popover() -> rx.Component:
                 collision_padding=20,
                 style={
                     "width": "fit-content",
-                    "maxWidth": "60vw",
+                    "maxWidth": "85vw",
                 },
             ),
             open=True,

@@ -1,0 +1,72 @@
+.datatable-surface {
+  width: 100%;
+}
+
+.datatable-surface .gridjs-container {
+  width: 100%;
+  background-color: var(--gray-2);
+  border: 1px solid var(--gray-5);
+  border-radius: 12px;
+  padding: 0.75rem;
+  color: var(--gray-12);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.datatable-surface .gridjs-wrapper {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.datatable-surface .gridjs-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: transparent;
+}
+
+.datatable-surface .gridjs-th,
+.datatable-surface .gridjs-td {
+  border-color: var(--gray-5);
+  color: var(--gray-12);
+}
+
+.datatable-surface .gridjs-th {
+  background-color: var(--gray-3);
+  font-weight: 600;
+}
+
+.datatable-surface .gridjs-tr:nth-child(odd) .gridjs-td {
+  background-color: var(--gray-1);
+}
+
+.datatable-surface .gridjs-tr:nth-child(even) .gridjs-td {
+  background-color: var(--gray-2);
+}
+
+.datatable-surface .gridjs-tr:hover .gridjs-td {
+  background-color: var(--accent-3);
+  transition: background-color 0.2s ease-in-out;
+}
+
+.datatable-surface .gridjs-search-input,
+.datatable-surface .gridjs-pagination button {
+  background-color: var(--gray-1);
+  color: var(--gray-12);
+  border: 1px solid var(--gray-5);
+  border-radius: 6px;
+  padding: 0.35rem 0.65rem;
+}
+
+.datatable-surface .gridjs-pagination .gridjs-currentPage {
+  background-color: var(--accent-4);
+  color: var(--accent-12);
+  border-color: transparent;
+}
+
+.datatable-surface .gridjs-pagination button:disabled {
+  opacity: 0.6;
+}
+
+.datatable-surface .gridjs-search-input::placeholder {
+  color: var(--gray-10);
+}
+
