@@ -7,7 +7,7 @@ from vedana_backoffice.pages.main_dashboard import page as main_dashboard_page
 from vedana_backoffice.state import EtlState, ChatState, DashboardState
 
 
-app = rx.App()
+app = rx.App(stylesheets=["/styles.css"])
 app.add_page(main_dashboard_page, route="/", title="Vedana Backoffice", on_load=DashboardState.load_dashboard)
 app.add_page(etl_page, route="/etl", title="ETL", on_load=EtlState.load_pipeline_metadata)
 app.add_page(chat_page, route="/chat", title="Chat", on_load=ChatState.reset_session)
