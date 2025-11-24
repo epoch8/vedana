@@ -25,7 +25,7 @@ from vedana_etl.app import app as etl_app
 from vedana_etl.app import pipeline
 from vedana_etl.config import DBCONN_DATAPIPE
 
-from vedana_backoffice.graph.build import build_canonical, derive_step_edges, derive_table_edges
+from vedana_backoffice.graph.build import build_canonical, derive_step_edges, derive_table_edges, refine_layer_orders
 from vedana_backoffice.util import safe_render_value
 
 vedana_app: VedanaApp | None = None
@@ -509,9 +509,11 @@ class EtlState(rx.State):
                 # Compute indegrees for Kahn layering
                 indeg: dict[int, int] = {sid: 0 for sid in unique_ids}
                 children: dict[int, list[int]] = {sid: [] for sid in unique_ids}
+                parents: dict[int, list[int]] = {sid: [] for sid in unique_ids}
                 for s, t, _ in edges:
                     indeg[t] = indeg.get(t, 0) + 1
                     children.setdefault(s, []).append(t)
+                    parents.setdefault(t, []).append(s)
 
                 # Initialize layers
                 layer_by: dict[int, int] = {sid: 0 for sid in unique_ids}
@@ -541,12 +543,14 @@ class EtlState(rx.State):
                 for layer, arr in list(layers.items()):
 
                     def _barycenter(node_id: int) -> float:
-                        parents = [s for s, t, _ in edges if t == node_id]
-                        if not parents:
+                        parent_ids = [s for s, t, _ in edges if t == node_id]
+                        if not parent_ids:
                             return float(layer)
-                        return sum([layer_by.get(p, 0) for p in parents]) / float(len(parents))
+                        return sum([layer_by.get(p, 0) for p in parent_ids]) / float(len(parent_ids))
 
                     layers[layer] = sorted(arr, key=lambda i: (_barycenter(i), name_by.get(i, "")))
+
+                refine_layer_orders(layers, parents, children, max_layer)
 
                 # Pre-compute content-based widths/heights per node
                 w_by: dict[int, int] = {}
@@ -585,9 +589,11 @@ class EtlState(rx.State):
                     edges_dv.append((s_id, t_id, []))
                 indeg2: dict[int, int] = {sid: 0 for sid in unique_ids}
                 children2: dict[int, list[int]] = {sid: [] for sid in unique_ids}
+                parents2: dict[int, list[int]] = {sid: [] for sid in unique_ids}
                 for s2, t2, _ in edges_dv:
                     indeg2[t2] = indeg2.get(t2, 0) + 1
                     children2.setdefault(s2, []).append(t2)
+                    parents2.setdefault(t2, []).append(s2)
                 layer_by2: dict[int, int] = {sid: 0 for sid in unique_ids}
 
                 q2: deque[int] = deque([sid for sid in unique_ids if indeg2.get(sid, 0) == 0])
@@ -610,12 +616,14 @@ class EtlState(rx.State):
                 for layer, arr in list(layers2.items()):
 
                     def _barycenter(node_id: int) -> float:
-                        parents = [s for s, t, _ in edges_dv if t == node_id]
-                        if not parents:
+                        parent_ids = [s for s, t, _ in edges_dv if t == node_id]
+                        if not parent_ids:
                             return float(layer)
-                        return sum([layer_by2.get(p, 0) for p in parents]) / float(len(parents))
+                        return sum([layer_by2.get(p, 0) for p in parent_ids]) / float(len(parent_ids))
 
                     layers2[layer] = sorted(arr, key=lambda i: (_barycenter(i), name_by.get(i, "")))
+
+                refine_layer_orders(layers2, parents2, children2, max_layer)
                 # Sizes for tables
                 w_by = {}
                 h_by = {}
