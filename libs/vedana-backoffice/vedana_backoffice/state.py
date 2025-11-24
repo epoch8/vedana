@@ -558,7 +558,7 @@ class EtlState(rx.State):
                 for sid in unique_ids:
                     nlen = len(name_by.get(sid, "")) + 15  # + 15 from the step type label (BatchTransform etc.)
                     llen = len(labels_str_by.get(sid, ""))
-                    w = min(max(nlen * 8 + 40, llen * 6 + 20, MIN_NODE_W), MAX_NODE_W)
+                    w = min(max(nlen * 8 + 40, llen * 6 + 10, MIN_NODE_W), MAX_NODE_W)
                     w_by[sid] = w
                     chars_per_line = max(10, int((w - 40) / 7))
                     lines = 1
@@ -859,27 +859,23 @@ class EtlState(rx.State):
             self.graph_width_css = f"{int(width_px)}px"
             self.graph_height_css = f"{int(height_px)}px"
 
+            # Default somewhere inside the card; not used if preview is closed
+            self.preview_anchor_left = "24px"
+            self.preview_anchor_top = "24px"
+
             # Update preview anchor position (place trigger near the selected table in data view)
-            try:
-                if self.data_view and self.preview_table_name:
-                    anchor_left = "0px"
-                    anchor_top = "0px"
-                    for n in nodes:
-                        if n.get("node_type") == "table" and str(n.get("name")) == str(self.preview_table_name):
-                            ax = int(n.get("x", 0)) + int(n.get("w", 0)) + 12
-                            ay = int(n.get("y", 0)) + int(int(n.get("h", 0)) / 2)
-                            anchor_left = f"{ax}px"
-                            anchor_top = f"{ay}px"
-                            break
-                    self.preview_anchor_left = anchor_left
-                    self.preview_anchor_top = anchor_top
-                else:
-                    # Default somewhere inside the card; not used if preview is closed
-                    self.preview_anchor_left = "24px"
-                    self.preview_anchor_top = "24px"
-            except Exception:
-                self.preview_anchor_left = "24px"
-                self.preview_anchor_top = "24px"
+            if self.data_view and self.preview_table_name:
+                anchor_left = "0px"
+                anchor_top = "0px"
+                for n in nodes:
+                    if n.get("node_type") == "table" and str(n.get("name")) == str(self.preview_table_name):
+                        ax = int(n.get("x", 0)) + int(n.get("w", 0)) + 12
+                        ay = int(n.get("y", 0)) + int(int(n.get("h", 0)) / 2)
+                        anchor_left = f"{ax}px"
+                        anchor_top = f"{ay}px"
+                        break
+                self.preview_anchor_left = anchor_left
+                self.preview_anchor_top = anchor_top
 
         except Exception:
             self.graph_nodes = []
