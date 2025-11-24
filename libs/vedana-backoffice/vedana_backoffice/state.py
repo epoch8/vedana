@@ -85,9 +85,12 @@ class EtlDataTableStats(EtlTableStats):
 class EtlState(rx.State):
     """ETL control state and actions."""
 
+    default_pipeline_name = "main"
+
     # Selections
     selected_flow: str = ""
     selected_stage: str = ""
+    selected_pipeline: str = default_pipeline_name
 
     # Derived from pipeline
     all_steps: list[dict[str, Any]] = []  # [{name, type, inputs, outputs, labels}]
@@ -95,6 +98,10 @@ class EtlState(rx.State):
     available_tables: list[str] = []
     available_flows: list[str] = []
     available_stages: list[str] = []
+    available_pipelines: list[str] = [default_pipeline_name]
+    pipeline_steps: dict[str, list[dict[str, Any]]] = {}
+    pipeline_flows: dict[str, list[str]] = {}
+    pipeline_stages: dict[str, list[str]] = {}
 
     # Graph view state
     graph_nodes: list[dict[str, Any]] = []  # [{index, name, x, y, w, h, labels_str}]
@@ -186,57 +193,157 @@ class EtlState(rx.State):
         self.logs = self.logs[-self.max_log_lines :]
 
     def load_pipeline_metadata(self) -> None:
-        """Populate all_steps and available_tables by introspecting vedana_etl pipeline and catalog."""
+        """Populate metadata by introspecting the ETL pipeline definition."""
 
-        steps_meta: list[dict[str, Any]] = []
+        pipeline_buckets: dict[str, dict[str, Any]] = {}
+        pipeline_order: list[str] = []
+        tables: set[str] = set()
+
+        def get_bucket(name: str) -> dict[str, Any]:
+            key = str(name).strip() or self.default_pipeline_name
+            if key not in pipeline_buckets:
+                pipeline_buckets[key] = {"steps": [], "flows": set(), "stages": set()}
+                pipeline_order.append(key)
+            return pipeline_buckets[key]
+
         for idx, step in enumerate(pipeline.steps):
             inputs = [el.name for el in getattr(step, "inputs", [])]
             outputs = [el.name for el in getattr(step, "outputs", [])]
             labels = getattr(step, "labels", []) or []
-            steps_meta.append(
-                {
-                    "index": idx,
-                    "name": step.func.__name__,  # type: ignore[attr-defined]
-                    "step_type": type(step).__name__,
-                    "inputs": list(inputs),
-                    "outputs": list(outputs),
-                    "labels": list(labels),
-                    "inputs_str": ", ".join([str(x) for x in list(inputs)]),
-                    "outputs_str": ", ".join([str(x) for x in list(outputs)]),
-                    "labels_str": ", ".join([f"{k}:{v}" for k, v in list(labels)]),
-                }
-            )
 
-        self.all_steps = steps_meta
-        self._update_filtered_steps()
+            meta = {
+                "index": idx,
+                "name": step.func.__name__,  # type: ignore[attr-defined]
+                "step_type": type(step).__name__,
+                "inputs": list(inputs),
+                "outputs": list(outputs),
+                "labels": list(labels),
+                "inputs_str": ", ".join([str(x) for x in list(inputs)]),
+                "outputs_str": ", ".join([str(x) for x in list(outputs)]),
+                "labels_str": ", ".join([f"{k}:{v}" for k, v in list(labels)]),
+            }
 
-        tables: set[str] = set()
-        flows: set[str] = set()
-        stages: set[str] = set()
+            for input_name in inputs:
+                tables.add(input_name)
+            for output_name in outputs:
+                tables.add(output_name)
 
-        # get tables from pipeline
-        for step in pipeline.steps:
-            if hasattr(step, "inputs"):
-                for input in step.inputs:
-                    tables.add(input.name)
-            if hasattr(step, "outputs"):
-                for output in step.outputs:
-                    tables.add(output.name)
-            if hasattr(step, "labels"):
-                for key, value in step.labels:
-                    k = str(key)
-                    v = str(value)
-                    if k == "flow" and v:
-                        flows.add(v)
-                    if k == "stage" and v:
-                        stages.add(v)
+            normalized_labels: list[tuple[str, str]] = []
+            for key, value in labels:
+                k = str(key)
+                v = str(value)
+                if v == "":
+                    continue
+                normalized_labels.append((k, v))
 
+            pipeline_names = {v for k, v in normalized_labels if k == "pipeline"}
+            flow_labels = {v for k, v in normalized_labels if k == "flow"}
+            stage_labels = {v for k, v in normalized_labels if k == "stage"}
+
+            if not pipeline_names:
+                pipeline_names = {self.default_pipeline_name}
+
+            for pipeline_name in pipeline_names:
+                bucket = get_bucket(pipeline_name)
+                bucket["steps"].append(meta)
+                bucket["flows"].update(flow_labels)
+                bucket["stages"].update(stage_labels)
+
+        # Ensure default pipeline is always available even if no explicit labels exist.
+        get_bucket(self.default_pipeline_name)
+
+        self.pipeline_steps = {name: list(bucket["steps"]) for name, bucket in pipeline_buckets.items()}
+        self.pipeline_flows = {name: sorted(bucket["flows"]) for name, bucket in pipeline_buckets.items()}
+        self.pipeline_stages = {name: sorted(bucket["stages"]) for name, bucket in pipeline_buckets.items()}
+
+        ordered_pipelines: list[str] = []
+        seen: set[str] = set()
+        default_name = self.default_pipeline_name
+
+        if default_name in pipeline_buckets:
+            ordered_pipelines.append(default_name)
+            seen.add(default_name)
+
+        for name in pipeline_order:
+            if name in seen:
+                continue
+            ordered_pipelines.append(name)
+            seen.add(name)
+
+        for name in pipeline_buckets.keys():
+            if name in seen:
+                continue
+            ordered_pipelines.append(name)
+            seen.add(name)
+
+        if not ordered_pipelines:
+            ordered_pipelines = [default_name]
+
+        self.available_pipelines = ordered_pipelines
         self.available_tables = sorted(tables)
-        self.available_flows = ["all", *sorted(flows)]  # add "all"
-        self.available_stages = ["all", *sorted(stages)]
 
         self._load_table_stats()
-        self._rebuild_graph()
+        self._apply_pipeline_selection(
+            target_pipeline=self.selected_pipeline,
+            preserve_filters=True,
+            preserve_selection=True,
+        )
+
+    def set_pipeline(self, pipeline_name: str) -> None:
+        """Switch active pipeline tab."""
+        desired = str(pipeline_name).strip() or self.default_pipeline_name
+        if desired not in self.pipeline_steps:
+            desired = self.default_pipeline_name
+        if desired == self.selected_pipeline:
+            return
+        self._apply_pipeline_selection(target_pipeline=desired)
+
+    def _apply_pipeline_selection(
+        self,
+        target_pipeline: str | None = None,
+        preserve_filters: bool = False,
+        preserve_selection: bool = False,
+    ) -> None:
+        previous_pipeline = getattr(self, "selected_pipeline", self.default_pipeline_name)
+        prev_flow = self.selected_flow
+        prev_stage = self.selected_stage
+        prev_selection = list(self.selected_node_ids)
+        prev_selection_source = self.selection_source
+
+        active_name = target_pipeline or previous_pipeline or self.default_pipeline_name
+        if active_name not in self.pipeline_steps:
+            active_name = self.default_pipeline_name
+        if active_name not in self.pipeline_steps and self.pipeline_steps:
+            active_name = next(iter(self.pipeline_steps.keys()))
+
+        self.selected_pipeline = active_name
+
+        current_steps = self.pipeline_steps.get(active_name, [])
+        self.all_steps = list(current_steps)
+
+        flow_values = self.pipeline_flows.get(active_name, [])
+        stage_values = self.pipeline_stages.get(active_name, [])
+        self.available_flows = ["all", *flow_values]
+        self.available_stages = ["all", *stage_values]
+
+        if preserve_filters and (not prev_flow or prev_flow in flow_values):
+            self.selected_flow = prev_flow
+        else:
+            self.selected_flow = ""
+
+        if preserve_filters and (not prev_stage or prev_stage in stage_values):
+            self.selected_stage = prev_stage
+        else:
+            self.selected_stage = ""
+
+        if preserve_selection and previous_pipeline == active_name:
+            self.selected_node_ids = prev_selection
+            self.selection_source = prev_selection_source
+        else:
+            self.selected_node_ids = []
+            self.selection_source = "filter"
+
+        self._update_filtered_steps()
 
     def toggle_sidebar(self) -> None:
         self.sidebar_open = not self.sidebar_open

@@ -93,6 +93,42 @@ def _graph_card() -> rx.Component:
     )
 
 
+def _pipeline_panel() -> rx.Component:
+    return rx.vstack(
+        _graph_card(),
+        rx.cond(EtlState.logs_open, _logs_bottom(), rx.box(width="100%")),
+        spacing="1",
+        width="100%",
+    )
+
+
+def _pipeline_tabs() -> rx.Component:
+    return rx.tabs.root(
+        rx.tabs.list(
+            rx.foreach(
+                EtlState.available_pipelines,
+                lambda name: rx.tabs.trigger(
+                    rx.cond(name, name, EtlState.default_pipeline_name),
+                    value=name,
+                ),
+            ),
+            style={"gap": "0.75rem"},
+        ),
+        rx.foreach(
+            EtlState.available_pipelines,
+            lambda name: rx.tabs.content(
+                _pipeline_panel(),
+                value=name,
+                style={"width": "100%"},
+            ),
+        ),
+        value=EtlState.selected_pipeline,
+        on_change=EtlState.set_pipeline,
+        default_value=EtlState.default_pipeline_name,
+        style={"width": "100%"},
+    )
+
+
 def _logs_bottom() -> rx.Component:
     return rx.card(
         rx.hstack(
@@ -189,8 +225,7 @@ def _table_preview_popover() -> rx.Component:
 def page() -> rx.Component:
     return rx.vstack(
         app_header(),
-        _graph_card(),
-        rx.cond(EtlState.logs_open, _logs_bottom(), rx.box()),
+        _pipeline_tabs(),
         _table_preview_popover(),
         align="start",
         spacing="1",
