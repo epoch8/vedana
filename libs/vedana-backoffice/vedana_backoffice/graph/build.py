@@ -118,3 +118,52 @@ def derive_table_edges(cg: CanonicalGraph) -> List[Tuple[int, int, str]]:
                 for ot in out_ids:
                     edges.append((it, ot, sm.name))
     return edges
+
+
+def refine_layer_orders(
+        layers_dict: dict[int, list[int]],
+        parent_map: dict[int, list[int]],
+        child_map: dict[int, list[int]],
+        max_layer_idx: int,
+        passes: int = 2,
+):
+    """Apply iterative barycentric ordering to reduce edge length."""
+
+    if not layers_dict:
+        return
+
+    order_map: dict[int, float] = {}
+
+    def _snapshot_layer(layer_idx: int) -> None:
+        nodes_in_layer = layers_dict.get(layer_idx, [])
+        for pos, node_id in enumerate(nodes_in_layer):
+            order_map[node_id] = float(pos)
+
+    def _barycenter(nodes: list[int]) -> float | None:
+        valid = [order_map[n] for n in nodes if n in order_map]
+        if not valid:
+            return None
+        return sum(valid) / len(valid)
+
+    def _sort_layer(layer_idx: int, neighbor_map: dict[int, list[int]]) -> None:
+        nodes_in_layer = layers_dict.get(layer_idx)
+        if not nodes_in_layer:
+            return
+
+        def _key(node_id: int) -> tuple[float, float]:
+            bc = _barycenter(neighbor_map.get(node_id, []))
+            fallback = order_map.get(node_id, 0.0)
+            return bc if bc is not None else fallback, fallback
+
+        nodes_in_layer.sort(key=_key)
+        for pos, node_id in enumerate(nodes_in_layer):
+            order_map[node_id] = float(pos)
+
+    for layer_idx in range(0, max_layer_idx + 1):
+        _snapshot_layer(layer_idx)
+
+    for _ in range(max(1, passes)):
+        for layer_idx in range(1, max_layer_idx + 1):
+            _sort_layer(layer_idx, parent_map)
+        for layer_idx in range(max_layer_idx - 1, -1, -1):
+            _sort_layer(layer_idx, child_map)
