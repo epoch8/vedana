@@ -556,10 +556,9 @@ class EtlState(rx.State):
                 w_by: dict[int, int] = {}
                 h_by: dict[int, int] = {}
                 for sid in unique_ids:
-                    nlen = len(name_by.get(sid, ""))
+                    nlen = len(name_by.get(sid, "")) + 15  # + 15 from the step type label (BatchTransform etc.)
                     llen = len(labels_str_by.get(sid, ""))
-                    est = max(nlen * 8 + 60, llen * 6 + 40, MIN_NODE_W)
-                    w = min(max(int(est), MIN_NODE_W), MAX_NODE_W)
+                    w = min(max(nlen * 8 + 40, llen * 6 + 20, MIN_NODE_W), MAX_NODE_W)
                     w_by[sid] = w
                     chars_per_line = max(10, int((w - 40) / 7))
                     lines = 1
