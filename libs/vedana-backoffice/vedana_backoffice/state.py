@@ -831,15 +831,12 @@ class EtlState(rx.State):
             svg_parts.append(
                 f'<svg width="{width_px}" height="{height_px}" viewBox="0 0 {width_px} {height_px}" preserveAspectRatio="xMinYMin meet" xmlns="http://www.w3.org/2000/svg">'
             )
-            svg_parts.append(
-                '<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af" /></marker></defs>'
-            )
             for e in edge_objs:
                 stroke = "#3b82f6" if e.get("selected") else "#9ca3af"
                 width = "2.5" if e.get("selected") else "2"
                 opacity = "1.0" if e.get("selected") else "0.6"
                 svg_parts.append(
-                    f'<path d="{e["path"]}" stroke="{stroke}" stroke-width="{width}" opacity="{opacity}" fill="none" marker-end="url(#arrow)" />'
+                    f'<path d="{e["path"]}" stroke="{stroke}" stroke-width="{width}" opacity="{opacity}" fill="none" />'
                 )
                 if e.get("label"):
                     svg_parts.append(
