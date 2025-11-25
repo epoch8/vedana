@@ -1,6 +1,6 @@
 [project]
 name = "vedana-core"
-version = "0.5.0"
+version = "0.5.1"
 description = "Semantic Graph RAG App"
 readme = "README.md"
 authors = [
@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 dependencies = [
     "grist-api>=0.1.1",
     "neo4j>=5.28.1",
-    "openai>=1.75.0",
+    "openai>=2.8.0",
     "pandas>=2.2.3",
     "psycopg2-binary>=2.9.10",
     "pydantic-settings>=2.9.1",
@@ -25,7 +25,7 @@ dependencies = [
     "aiosqlite>=0.21.0",
     "aiohttp>=3.11.18",
     "sentry-sdk[fastapi,opentelemetry]>=2.32.0",
-    "litellm>=1.74.14",
+    "litellm>=1.79.0",
     "aioitertools>=0.12.0",
     "async-lru>=2.0.5",
 ]
@@ -54,7 +54,7 @@ dev = [
 [tool.ruff]
 line-length = 120
 
-[tool.gh-actions-codegen]
+[tool.uv-workspace-codegen]
 generate = true
 template_type = "lib"
 generate_standard_pytest_step = true

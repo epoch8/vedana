@@ -1,4 +1,4 @@
-# 2025.11.25-dev.24
+# 2025.11.25-dev.26
 
 * (jims-core)`ThreadContext`: Add `thread_config` field
 * (jims-core)`ThreadContext`: Add `get_last_user_action` method
@@ -12,6 +12,18 @@
 * (vedana-core) `RagPipeline`: Return `agent_query_events` from
   `process_rag_query`
 * (vedana-core) `LifecycleEvents`: Simplify `/start` command response logic
+
+# 2025.11.19-dev.25
+
+* Update LiteLLM and OpenAI dependencies
+
+# 2025.09.29-dev.24
+
+* (jims-core, vedana-core) Remove `temperature` argument from LLM calls (GPT-5
+  compatibility)
+* (jims-core) Add `contact_id` to thread
+* (jims-telegram) `/start` command resets thread
+* (vedana-backoffice) Add feedback processing flow, UI updates
 
 # 2025.09.26-dev.23
 
