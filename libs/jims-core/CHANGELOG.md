@@ -1,4 +1,4 @@
-# WIP: 2025.11.25 - 0.3.1
+# 2025.11.25 - 0.3.1
 
 * `ThreadContext`: Add `thread_config` field
 * `ThreadContext`: Add `get_last_user_action` method
