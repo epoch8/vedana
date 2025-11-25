@@ -62,6 +62,41 @@
   border-color: transparent;
 }
 
+.datatable-surface .gridjs-footer {
+  background-color: var(--gray-2);
+  border-top: 1px solid var(--gray-5);
+  padding: 0.5rem 0.75rem;
+  color: var(--gray-12);
+  border-radius: 0 0 8px 8px;
+}
+
+.datatable-surface .gridjs-footer .gridjs-pages {
+  gap: 0.25rem;
+}
+
+.datatable-surface .gridjs-footer .gridjs-pagination button {
+  background-color: var(--gray-1);
+  border-color: var(--gray-5);
+  color: var(--gray-12);
+}
+
+.datatable-surface .gridjs-footer .gridjs-pagination button:disabled {
+  background-color: var(--gray-4);
+  color: var(--gray-9);
+  border-color: var(--gray-6);
+}
+
+.datatable-surface .gridjs-footer .gridjs-pagination .gridjs-currentPage {
+  background-color: var(--accent-4);
+  color: var(--accent-12);
+  border-color: transparent;
+}
+
+.datatable-surface .gridjs-th:hover {
+  background-color: var(--gray-4);
+  color: var(--gray-12);
+}
+
 .datatable-surface .gridjs-pagination button:disabled {
   opacity: 0.6;
 }
