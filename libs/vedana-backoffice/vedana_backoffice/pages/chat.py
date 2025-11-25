@@ -1,8 +1,8 @@
 import reflex as rx
 
+from vedana_backoffice.components.ui_chat import render_message_bubble
 from vedana_backoffice.state import ChatState
 from vedana_backoffice.ui import app_header
-from vedana_backoffice.components.ui_chat import render_message_bubble
 
 
 def _message_row(msg: dict) -> rx.Component:
@@ -133,6 +133,14 @@ def page() -> rx.Component:
                                 ),
                             ),
                             rx.text(f"model: {ChatState.model}", size="1", color="gray"),
+                            rx.cond(
+                                ChatState.total_conversation_cost > 0,
+                                rx.text(
+                                    "total cost: " + ChatState.total_conversation_cost_str,
+                                    size="1",
+                                    color="gray",
+                                ),
+                            ),
                             spacing="2",
                         ),
                         align="end",

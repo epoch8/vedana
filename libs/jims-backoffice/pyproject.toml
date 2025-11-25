@@ -31,7 +31,7 @@ jims-backoffice = "jims_backoffice.app:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.gh-actions-codegen]
+[tool.uv-workspace-codegen]
 generate = true
 template_type = "lib"
 generate_standard_pytest_step = false

@@ -35,8 +35,6 @@ def setup_monitoring_and_tracing_with_sentry() -> None:
     except ImportError:
         raise ImportError("install sentry sdk")
 
-    from prometheus_client import start_http_server
-
     sentry_sdk.init(
         send_default_pii=True,
         traces_sample_rate=1.0,
@@ -50,7 +48,11 @@ def setup_monitoring_and_tracing_with_sentry() -> None:
 
     set_global_textmap(SentryPropagator())
 
-    start_http_server(8000)
+
+def setup_prometheus_metrics(port: int = 8080) -> None:
+    from prometheus_client import start_http_server
+
+    start_http_server(port)
 
 
 def load_jims_app(app_name: str) -> Union["JimsApp", Awaitable["JimsApp"]]:
