@@ -5,32 +5,6 @@ from vedana_backoffice.state import EtlState
 from vedana_backoffice.ui import app_header, themed_data_table
 
 
-def _filters() -> rx.Component:
-    return rx.vstack(
-        rx.heading("Filters", size="3"),
-        rx.text("Flow"),
-        rx.select(
-            items=EtlState.available_flows,
-            value=EtlState.selected_flow,
-            on_change=EtlState.set_flow,
-            width="16em",
-        ),
-        rx.text("Stage"),
-        rx.select(
-            items=EtlState.available_stages,
-            value=EtlState.selected_stage,
-            on_change=EtlState.set_stage,
-            width="16em",
-        ),
-        rx.hstack(
-            rx.button("Run Selected", on_click=EtlState.run_selected, loading=EtlState.is_running),
-            rx.button("Reload Metadata", on_click=EtlState.load_pipeline_metadata),
-            spacing="3",
-        ),
-        spacing="3",
-    )
-
-
 def _graph_card() -> rx.Component:
     return rx.card(
         rx.hstack(
