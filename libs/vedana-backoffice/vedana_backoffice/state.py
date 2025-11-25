@@ -88,8 +88,8 @@ class EtlState(rx.State):
     default_pipeline_name = "main"
 
     # Selections
-    selected_flow: str = ""
-    selected_stage: str = ""
+    selected_flow: str = "all"
+    selected_stage: str = "all"
     selected_pipeline: str = default_pipeline_name
 
     # Derived from pipeline
@@ -329,12 +329,12 @@ class EtlState(rx.State):
         if preserve_filters and (not prev_flow or prev_flow in flow_values):
             self.selected_flow = prev_flow
         else:
-            self.selected_flow = ""
+            self.selected_flow = "all"
 
         if preserve_filters and (not prev_stage or prev_stage in stage_values):
             self.selected_stage = prev_stage
         else:
-            self.selected_stage = ""
+            self.selected_stage = "all"
 
         if preserve_selection and previous_pipeline == active_name:
             self.selected_node_ids = prev_selection
@@ -352,19 +352,19 @@ class EtlState(rx.State):
         self.logs_open = not self.logs_open
 
     def set_flow(self, flow: str) -> None:
-        self.selected_flow = "" if str(flow).lower() == "all" else flow
+        self.selected_flow = flow
         self.selection_source = "filter"
         self._update_filtered_steps()
 
     def set_stage(self, stage: str) -> None:
-        self.selected_stage = "" if str(stage).lower() == "all" else stage
+        self.selected_stage = stage
         self.selection_source = "filter"
         self._update_filtered_steps()
 
     def reset_filters(self) -> None:
         """Reset flow and stage selections and rebuild the graph."""
-        self.selected_flow = ""
-        self.selected_stage = ""
+        self.selected_flow = "all"
+        self.selected_stage = "all"
         self.selected_node_ids = []
         self.selection_source = "filter"
         self._update_filtered_steps()
@@ -425,11 +425,8 @@ class EtlState(rx.State):
         self._rebuild_graph()
 
     def _filter_steps_by_labels(self, steps: Iterable[Any]) -> list[Any]:
-        if not self.selected_flow and not self.selected_stage:
+        if self.selected_flow == "all" and self.selected_stage == "all":
             return list(steps)
-
-        flow_val = self.selected_flow
-        stage_val = self.selected_stage
 
         def matches(step: Any) -> bool:
             labels = getattr(step, "labels", []) or []
@@ -437,9 +434,9 @@ class EtlState(rx.State):
             for key, value in labels:
                 label_map.setdefault(str(key), set()).add(str(value))
 
-            if flow_val and flow_val not in label_map.get("flow", set()):
+            if self.selected_flow != "all" and self.selected_flow not in label_map.get("flow", set()):
                 return False
-            if stage_val and stage_val not in label_map.get("stage", set()):
+            if self.selected_stage != "all" and self.selected_stage not in label_map.get("stage", set()):
                 return False
             return True
 
@@ -447,8 +444,6 @@ class EtlState(rx.State):
 
     def _update_filtered_steps(self) -> None:
         """Update filtered_steps used for UI from all_steps based on current filters."""
-        flow_val = self.selected_flow
-        stage_val = self.selected_stage
 
         def matches_meta(meta: dict[str, Any]) -> bool:
             labels = meta.get("labels", []) or []
@@ -456,11 +451,11 @@ class EtlState(rx.State):
             for key, value in labels:
                 label_map.setdefault(str(key), set()).add(str(value))
             # Both conditions must match (additive filtering)
-            flow_match = not flow_val or flow_val in label_map.get("flow", set())
-            stage_match = not stage_val or stage_val in label_map.get("stage", set())
+            flow_match = self.selected_flow == "all" or self.selected_flow in label_map.get("flow", set())
+            stage_match = self.selected_stage == "all" or self.selected_stage in label_map.get("stage", set())
             return flow_match and stage_match
 
-        if not flow_val and not stage_val:
+        if self.selected_flow == "all" and self.selected_stage == "all":
             self.filtered_steps = list(self.all_steps)
         else:
             self.filtered_steps = [m for m in self.all_steps if matches_meta(m)]
