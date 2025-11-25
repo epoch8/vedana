@@ -1,8 +1,9 @@
-# 0.2.1 - WIP
+# 2025.11.25 - 0.3.0
 
-* Add support for InlineKeyboardMarkup, along with distinguishing various "comm.*" events
+* Add support for InlineKeyboardMarkup, along with distinguishing various
+  "comm.*" events
 
-# 0.2.0 - 2025.10.29
+# 2025.10.29 - 0.2.0
 
 * Change thread_id <-> user_id logic: /start command resets thread_id, clearing conversation context.
 

@@ -1,3 +1,18 @@
+# 2025.11.25-dev.24
+
+* (jims-core)`ThreadContext`: Add `thread_config` field
+* (jims-core)`ThreadContext`: Add `get_last_user_action` method
+* (jims-core)`ThreadContext`: Update `send_message` to use
+  `EventEnvelope[CommunicationEvent]`
+* (jims-core)`ThreadContext`: Update `set_state` and `get_state` to support
+  named states
+* (jims-core)`Pipeline` protocol: Change return type to `Any`
+* (jims-telegram) Add support for InlineKeyboardMarkup, along with
+  distinguishing various "comm.*" events
+* (vedana-core) `RagPipeline`: Return `agent_query_events` from
+  `process_rag_query`
+* (vedana-core) `LifecycleEvents`: Simplify `/start` command response logic
+
 # 2025.09.26-dev.23
 
 * (vedana) Add backoffice app
