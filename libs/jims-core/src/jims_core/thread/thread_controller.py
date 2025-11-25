@@ -163,7 +163,9 @@ class ThreadController:
             events_res = (await session.execute(stmt)).scalars().all()
 
         history = [
-            CommunicationEvent(**event.event_data) for event in events_res if event.event_type.startswith("comm.")
+            CommunicationEvent(**event.event_data)  # type: ignore
+            for event in events_res
+            if event.event_type.startswith("comm.")
         ]
 
         events = [
@@ -182,6 +184,7 @@ class ThreadController:
             history=history,
             events=events,
             llm=LLMProvider(),
+            thread_config=self.thread.thread_config,
         )
 
     async def run_pipeline_with_context(
