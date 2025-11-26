@@ -138,7 +138,14 @@ def _judge_card() -> rx.Component:
             ),
             rx.text(f"Prompt id: {EvalState.judge_prompt_id}", size="2", color="gray"),
             rx.box(
-                rx.text(EvalState.selected_judge_prompt, size="1"),
+                rx.text(
+                    rx.cond(
+                        EvalState.selected_judge_prompt != "",
+                        EvalState.selected_judge_prompt,
+                        "Prompt not loaded",
+                    ),
+                    size="1",
+                ),
                 padding="0.75em",
                 border="1px solid var(--gray-6)",
                 border_radius="8px",

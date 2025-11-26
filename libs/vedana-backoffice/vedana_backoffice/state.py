@@ -2547,15 +2547,25 @@ class EvalState(rx.State):
         self.eval_gds_rows = rows
         self._prune_selection()
 
-    def _load_judge_config(self) -> None:
-        provider = self._make_grist_provider()
-        df = provider.get_table("Judge_config")
-        if df is None or df.empty:
+    async def _load_judge_config(self) -> None:
+        vedana_app = await get_vedana_app()
+        query = sa.text(
+            'SELECT judge_model, judge_prompt_id, judge_prompt FROM "eval_judge_config" ORDER BY judge_model'
+        )
+        try:
+            async with vedana_app.sessionmaker() as session:
+                result = await session.execute(query)
+                rows = result.mappings().all()
+        except Exception as exc:
+            logging.warning("Failed to load eval_judge_config: %s", exc, exc_info=True)
+            rows = []
+        if not rows:
             self.judge_configs = []
             self.selected_judge_model = ""
             self.judge_prompt_id = ""
             self.selected_judge_prompt = ""
             return
+        df = pd.DataFrame(rows)
         df = df.astype(object).where(pd.notna(df), None)
         configs: list[dict[str, Any]] = []
         for rec in df.to_dict(orient="records"):
@@ -2581,27 +2591,44 @@ class EvalState(rx.State):
             self.judge_prompt_id = current.get("judge_prompt_id", "")
             self.selected_judge_prompt = current.get("judge_prompt", "")
 
-    def _load_pipeline_config(self) -> None:
-        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
-        with con.begin() as conn:
-            llm_df = pd.read_sql(sa.text('SELECT pipeline_model FROM "llm_pipeline_config"'), conn)
-            emb_df = pd.read_sql(sa.text('SELECT embeddings_model, embeddings_dim FROM "llm_embeddings_config"'), conn)
-        if not llm_df.empty:
-            self.pipeline_model = self._safe_value(llm_df.tail(1).iloc[0].get("pipeline_model"))
-        if not emb_df.empty:
-            last = emb_df.tail(1).iloc[0]
+    async def _load_pipeline_config(self) -> None:
+        vedana_app = await get_vedana_app()
+        pipeline_stmt = sa.text('SELECT pipeline_model FROM "llm_pipeline_config"')
+        embeddings_stmt = sa.text('SELECT embeddings_model, embeddings_dim FROM "llm_embeddings_config"')
+        dm_stmt = sa.text(
+            """
+            SELECT snap.dm_id, snap.dm_description, meta.process_ts
+            FROM "dm_snapshot" AS snap
+            JOIN "dm_snapshot_meta" AS meta USING (dm_id)
+            ORDER BY meta.process_ts DESC
+            LIMIT 1
+            """
+        )
+        async with vedana_app.sessionmaker() as session:
+            pipeline_rows = (await session.execute(pipeline_stmt)).scalars().all()
+            embedding_rows = (await session.execute(embeddings_stmt)).mappings().all()
+            dm_row = (await session.execute(dm_stmt)).mappings().first()
+
+        if pipeline_rows:
+            self.pipeline_model = self._safe_value(pipeline_rows[-1])
+        if embedding_rows:
+            last = embedding_rows[-1]
             self.embeddings_model = self._safe_value(last.get("embeddings_model"))
             try:
                 self.embeddings_dim = int(last.get("embeddings_dim") or 0)
             except Exception:
                 self.embeddings_dim = 0
-        provider = self._make_grist_provider()
-        dm_df = provider.get_table("Dm_version")
-        if dm_df is not None and not dm_df.empty:
-            dm_df = dm_df.astype(object).where(pd.notna(dm_df), None)
-            row = dm_df.tail(1).iloc[0].to_dict()
-            self.dm_id = self._safe_value(row.get("dm_id"))
-            self.dm_snapshot_updated = datetime.now().strftime("%Y-%m-%d %H:%M")
+        if dm_row:
+            self.dm_id = self._safe_value(dm_row.get("dm_id"))
+            ts = dm_row.get("process_ts")
+            if ts:
+                try:
+                    dt = datetime.fromtimestamp(float(ts))
+                    self.dm_snapshot_updated = dt.strftime("%Y-%m-%d %H:%M")
+                except Exception:
+                    self.dm_snapshot_updated = datetime.now().strftime("%Y-%m-%d %H:%M")
+            else:
+                self.dm_snapshot_updated = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     def _status_color(self, status: str) -> str:
         val = str(status or "").lower()
@@ -2738,8 +2765,8 @@ class EvalState(rx.State):
             yield
             try:
                 self._load_eval_questions()
-                self._load_judge_config()
-                self._load_pipeline_config()
+                await self._load_judge_config()
+                await self._load_pipeline_config()
                 self._load_tests()
             except Exception as e:
                 self.error_message = f"Failed to load eval data: {e}"
