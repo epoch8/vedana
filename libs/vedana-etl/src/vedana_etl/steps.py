@@ -794,7 +794,7 @@ def judge_tests(
 ) -> pd.DataFrame:
     """
     Judge model answers and return rows in tests format.
-    Inputs: eval_llm_answers, judge_config
+    Inputs: eval_llm_answers, eval_judge_config
     """
 
     if eval_llm_answers.empty or judge_config.empty:

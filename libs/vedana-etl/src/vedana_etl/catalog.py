@@ -144,13 +144,11 @@ memgraph_edges = Table(
 
 # --- Eval pipeline ---
 
-dm_version = Table(
-    name="dm_version",
-    store=GristStore(
-        server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
-        doc_id=settings.grist_test_set_doc_id,
-        table="Dm_version",
+dm_snapshot = Table(
+    name="dm_snapshot",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="dm_snapshot",
         data_sql_schema=[
             Column("dm_id", String, primary_key=True),
             Column("dm_description", String),
@@ -194,13 +192,11 @@ eval_gds = Table(
     ),
 )
 
-judge_config = Table(
-    name="judge_config",
-    store=GristStore(
-        server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
-        doc_id=settings.grist_test_set_doc_id,
-        table="Judge_config",
+eval_judge_config = Table(
+    name="eval_judge_config",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="eval_judge_config",
         data_sql_schema=[
             Column("judge_model", String, primary_key=True),
             Column("judge_prompt_id", String, primary_key=True),
