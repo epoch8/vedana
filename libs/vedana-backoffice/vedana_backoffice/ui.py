@@ -39,7 +39,6 @@ def app_header() -> rx.Component:
                 rx.link("Chat", href="/chat", font_size="1.1em"),
                 rx.link("JIMS", href="/jims", font_size="1.1em"),
                 telegram_link_box(),
-                # built-in theme styling
                 rx.color_mode.button(),  # type: ignore[attr-defined]
                 spacing="6",
                 align="center",
@@ -49,11 +48,14 @@ def app_header() -> rx.Component:
             width="100%",
         ),
         width="100%",
-        padding="""0.75em 1.25em""",
+        padding="0.5em 1.25em",
         border_bottom="1px solid #e5e7eb",
         position="sticky",
         top="0",
-        style={"backgroundColor": "inherit"},
+        background_color=rx.color_mode_cond(light="white", dark="black"),
+        style={
+            "backdrop-filter": "blur(10px)",  # enables non-transparent background
+        },
         z_index="10",
     )
 
