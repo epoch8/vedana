@@ -27,28 +27,31 @@ async def sessionmaker() -> sa_aio.async_sessionmaker[sa_aio.AsyncSession]:
     )
 
 
+class TestState(BaseModel):
+    some_value: str
+
+
+async def pipeline_set_state(ctx: ThreadContext) -> None:
+    ctx.set_state("test", TestState(some_value="test"))
+
+
 @pytest.mark.asyncio
-async def test_set_state(sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession]) -> None:
+async def test_pipeline_state_write_and_load(
+    sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession],
+) -> None:
     thread_id = uuid7()
     contact_id = f"test:{thread_id}"
     ctl = await ThreadController.new_thread(sessionmaker, contact_id, thread_id, {})
 
-    class State(BaseModel):
-        key: str
+    ctx_1 = await ctl.make_context()
 
-    async def expect_no_state(ctx: ThreadContext) -> None:
-        state = ctx.get_state(State)
-        assert state is None, "Expected no state to be set"
+    # Initially, no state
+    assert ctx_1.get_state("test", TestState) is None
 
-    await ctl.run_pipeline_with_context(expect_no_state)
+    await ctl.run_pipeline_with_context(pipeline_set_state, ctx_1)
 
-    async def set_state(ctx: ThreadContext) -> None:
-        ctx.set_state(State(key="value"))
+    ctx_2 = await ctl.make_context()
 
-    await ctl.run_pipeline_with_context(set_state)
-
-    async def get_state(ctx: ThreadContext) -> None:
-        state = ctx.get_state(State)
-        assert state == State(key="value")
-
-    await ctl.run_pipeline_with_context(get_state)
+    state = ctx_2.get_state("test", TestState)
+    assert state is not None
+    assert state.some_value == "test"

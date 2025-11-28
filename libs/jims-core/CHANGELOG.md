@@ -1,3 +1,11 @@
+# 2025.11.25 - 0.3.1
+
+* `ThreadContext`: Add `thread_config` field
+* `ThreadContext`: Add `get_last_user_action` method
+* `ThreadContext`: Update `send_message` to use `EventEnvelope[CommunicationEvent]`
+* `ThreadContext`: Update `set_state` and `get_state` to support named states
+* `Pipeline` protocol: Change return type to `Any`
+
 # 2025.10.29 - 0.3.0
 
 * Add `contact_id` field to threads

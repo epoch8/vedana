@@ -26,6 +26,8 @@ class ThreadContext:
 
     outgoing_events: list[EventEnvelope] = field(default_factory=list)
 
+    thread_config: dict = field(default_factory=dict)
+
     status_updater: StatusUpdater | None = None
 
     def with_status_updater(self, status_updater: StatusUpdater) -> "ThreadContext":
@@ -33,12 +35,23 @@ class ThreadContext:
         self.status_updater = status_updater
         return self
 
+    # TODO make this methods efficient
     def get_last_user_message(self) -> str | None:
         """Get the last user message from the history."""
         for event in reversed(self.history):
-            if event["role"] == "user":
-                return event["content"]
+            if event["role"] == "user":  # type: ignore
+                return event["content"]  # type: ignore
         return None
+
+    # TODO make this methods efficient
+    def get_last_user_action(self):
+        """Get the last user action (message / button click / command / other input in comm. domain) from ctx.events"""
+        for event in reversed(self.events):
+            if event.event_type.startswith("comm."):  # CommunicationEvent
+                if event.event_data["role"] == "user":
+                    event_name = event.event_type.removeprefix("comm.")
+                    return event_name, event.event_data["content"]
+        return None, None
 
     def send_event(self, event_type: str, data: Any) -> None:
         """Send an event to the thread."""
@@ -57,7 +70,7 @@ class ThreadContext:
     def send_message(self, message: str) -> None:
         """Send a message to the thread."""
         self.outgoing_events.append(
-            EventEnvelope(
+            EventEnvelope[CommunicationEvent](
                 thread_id=self.thread_id,
                 event_id=uuid7(),
                 created_at=datetime.datetime.now(),
@@ -66,25 +79,25 @@ class ThreadContext:
             )
         )
 
-    def set_state(self, state: dict | BaseModel) -> None:
+    def set_state(self, state_name: str, state: dict | BaseModel) -> None:
         """Send an event to set the state of the thread."""
-        if isinstance(state, BaseModel):
-            state = state.model_dump()
+        state_data = state.model_dump() if isinstance(state, BaseModel) else state
 
         self.outgoing_events.append(
             EventEnvelope(
                 thread_id=self.thread_id,
                 event_id=uuid7(),
                 created_at=datetime.datetime.now(),
-                event_type="state.set",
-                event_data=state,
+                event_type=f"state.set.{state_name}",
+                event_data=state_data,
             )
         )
 
-    def get_state[T: BaseModel](self, state_type: Type[T]) -> T | None:
+    def get_state[T: BaseModel](self, state_name: str, state_type: Type[T]) -> T | None:
         """Get the state of the thread."""
+        target_state = f"state.set.{state_name}"
         for event in reversed(self.events):
-            if event.event_type == "state.set":
+            if event.event_type == target_state:
                 return state_type.model_validate(event.event_data)
         return None
 

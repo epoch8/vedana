@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing_extensions import TypedDict
 
 
-class EventEnvelope[T: dict](BaseModel):
+class EventEnvelope[T](BaseModel):
     thread_id: UUID
     event_id: UUID
 
