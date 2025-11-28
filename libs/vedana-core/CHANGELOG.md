@@ -1,3 +1,8 @@
+# 2025.11.25
+
+* `RagPipeline`: Return `agent_query_events` from `process_rag_query`
+* `LifecycleEvents`: Simplify `/start` command response logic
+
 # 2025.10.29
 
 * Rm `temperature` parameter from all LLM-related methods
