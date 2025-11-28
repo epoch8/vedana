@@ -24,11 +24,8 @@ class StartPipeline:
         lifecycle_events = await self.data_model.conversation_lifecycle_events()
         start_response = lifecycle_events.get("/start")
 
-        if not start_response:
-            ctx.send_message("Bot online. No response for /start command in LifecycleEvents")
-            return
-
-        ctx.send_message(start_response)
+        message = self.start_response or "Bot online. No response for /start command in LifecycleEvents"
+        ctx.send_message(message)
 
 
 class RagPipeline:
@@ -64,7 +61,7 @@ class RagPipeline:
             await ctx.update_agent_status("Processing your question...")
 
             # Process the query using RAG
-            answer, technical_info = await self._process_rag_query(user_query, ctx)
+            answer, agent_query_events, technical_info = await self.process_rag_query(user_query, ctx)
 
             # Send the answer
             ctx.send_message(answer)
@@ -95,7 +92,7 @@ class RagPipeline:
                 },
             )
 
-    async def _process_rag_query(self, query: str, ctx: ThreadContext) -> tuple[str, dict[str, Any]]:
+    async def process_rag_query(self, query: str, ctx: ThreadContext) -> tuple[str, list, dict[str, Any]]:
         """Process a RAG query and return human answer and technical info"""
 
         # Read required DataModel properties
@@ -117,9 +114,9 @@ class RagPipeline:
             logger=self.logger,
         )
 
-        # Use the most comprehensive RAG method that provides human-readable answers
         (
             answer,
+            agent_query_events,
             vts_queries,
             cypher_queries,
         ) = await agent.text_to_answer_with_vts_and_cypher(
@@ -138,4 +135,4 @@ class RagPipeline:
             "model_stats": {m: asdict(u) for m, u in ctx.llm.usage.items()},
         }
 
-        return answer, technical_info
+        return answer, agent_query_events, technical_info

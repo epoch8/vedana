@@ -155,7 +155,7 @@ class RagAgent:
 
     async def text_to_answer_with_vts_and_cypher(
         self, text_query: str, threshold: float, top_n: int = 5
-    ) -> tuple[str, list[VTSQuery], list[CypherQuery]]:
+    ) -> tuple[str, list, list[VTSQuery], list[CypherQuery]]:
         vts_queries: list[VTSQuery] = []
         cypher_queries: list[CypherQuery] = []
 
@@ -193,9 +193,9 @@ class RagAgent:
 
         tools: list[Tool] = [vts_tool, cypher_tool]
 
-        msgs, answer = await self.llm.generate_cypher_query_with_tools(
-            data_descr=self.data_model_description,
-            messages=self.ctx.history[-settings.pipeline_history_length :],
+        all_query_events, answer = await self.llm.generate_cypher_query_with_tools(
+            data_descr=self._graph_descr,
+            messages=self.ctx.history[-settings.pipeline_history_length:],
             tools=tools,
         )
 
@@ -203,7 +203,7 @@ class RagAgent:
             self.logger.warning(f"No answer found for {text_query}. Generating empty answer...")
             answer = await self.llm.generate_no_answer(self.ctx.history[-settings.pipeline_history_length :])
 
-        return answer, vts_queries, cypher_queries
+        return answer, all_query_events, vts_queries, cypher_queries
 
 
 def _remove_embeddings(val: Any):
