@@ -194,7 +194,7 @@ class RagAgent:
         tools: list[Tool] = [vts_tool, cypher_tool]
 
         all_query_events, answer = await self.llm.generate_cypher_query_with_tools(
-            data_descr=self._graph_descr,
+            data_descr=self.data_model_description,
             messages=self.ctx.history[-settings.pipeline_history_length:],
             tools=tools,
         )
