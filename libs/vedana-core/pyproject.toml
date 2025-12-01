@@ -64,11 +64,11 @@ custom_steps = """
 - name: Run tests
   env:
     DB_CONN_URI: "sqlite:///:memory:"
-    GRIST_SERVER_URL: ""
+    GRIST_SERVER_URL: "http://0.0.0.0:8484"
     GRIST_API_KEY: ""
     GRIST_DATA_MODEL_DOC_ID: ""
     GRIST_DATA_DOC_ID: ""
-    MEMGRAPH_URI: ""
+    MEMGRAPH_URI: "bolt://localhost:7687"
     MEMGRAPH_USER: ""
     MEMGRAPH_PWD: ""
     EMBEDDINGS_DIM: "1024"
