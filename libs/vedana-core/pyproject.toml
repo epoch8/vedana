@@ -72,6 +72,7 @@ custom_steps = """
     MEMGRAPH_USER: ""
     MEMGRAPH_PWD: ""
     EMBEDDINGS_DIM: "1024"
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   run: |
     uv run pytest libs/vedana-core/
 """
