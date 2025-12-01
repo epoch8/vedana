@@ -58,5 +58,20 @@ line-length = 120
 [tool.uv-workspace-codegen]
 generate = true
 template_type = "lib"
-generate_standard_pytest_step = true
+generate_standard_pytest_step = false
 typechecker = "mypy"
+custom_steps = """
+- name: Run tests
+  env:
+    DB_CONN_URI: ""
+    GRIST_SERVER_URL: ""
+    GRIST_API_KEY: ""
+    GRIST_DATA_MODEL_DOC_ID: ""
+    GRIST_DATA_DOC_ID: ""
+    MEMGRAPH_URI: ""
+    MEMGRAPH_USER: ""
+    MEMGRAPH_PWD: ""
+    EMBEDDINGS_DIM: ""
+  run: |
+    uv run pytest libs/vedana-core/
+"""
