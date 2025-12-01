@@ -24,7 +24,7 @@ class StartPipeline:
         lifecycle_events = await self.data_model.conversation_lifecycle_events()
         start_response = lifecycle_events.get("/start")
 
-        message = self.start_response or "Bot online. No response for /start command in LifecycleEvents"
+        message = start_response or "Bot online. No response for /start command in LifecycleEvents"
         ctx.send_message(message)
 
 
