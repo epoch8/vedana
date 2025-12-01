@@ -4,7 +4,7 @@ from typing import Any
 
 import reflex as rx
 
-from vedana_backoffice.state import AppVersionState, TelegramBotState  # type: ignore[attr-defined]
+from vedana_backoffice.states.common import AppVersionState, TelegramBotState
 
 
 def telegram_link_box() -> rx.Component:

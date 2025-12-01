@@ -1,6 +1,6 @@
 import reflex as rx
 
-from vedana_backoffice.state import DashboardState
+from vedana_backoffice.states.main_dashboard import DashboardState
 from vedana_backoffice.ui import app_header
 
 

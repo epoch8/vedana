@@ -1,6 +1,6 @@
 import reflex as rx
 
-from vedana_backoffice.state import EtlState
+from vedana_backoffice.states.etl import EtlState
 
 
 def _node_card(node: dict) -> rx.Component:

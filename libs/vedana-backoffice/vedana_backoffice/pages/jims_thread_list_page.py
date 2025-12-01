@@ -7,7 +7,7 @@ from jims_core.db import ThreadDB, ThreadEventDB
 from vedana_core.app import make_vedana_app
 
 from vedana_backoffice.components.ui_chat import render_message_bubble
-from vedana_backoffice.state import ThreadViewState
+from vedana_backoffice.states.jims import ThreadViewState
 from vedana_backoffice.ui import app_header
 from vedana_backoffice.util import datetime_to_age
 
