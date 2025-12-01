@@ -1,7 +1,7 @@
 import reflex as rx
 
 from vedana_backoffice.components.etl_graph import etl_graph
-from vedana_backoffice.state import EtlState
+from vedana_backoffice.states.etl import EtlState
 from vedana_backoffice.ui import app_header, themed_data_table
 
 
