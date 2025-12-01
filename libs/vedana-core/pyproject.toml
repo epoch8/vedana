@@ -63,7 +63,7 @@ typechecker = "mypy"
 custom_steps = """
 - name: Run tests
   env:
-    DB_CONN_URI: ""
+    DB_CONN_URI: "sqlite:///:memory:"
     GRIST_SERVER_URL: ""
     GRIST_API_KEY: ""
     GRIST_DATA_MODEL_DOC_ID: ""
