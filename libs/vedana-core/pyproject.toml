@@ -71,7 +71,7 @@ custom_steps = """
     MEMGRAPH_URI: ""
     MEMGRAPH_USER: ""
     MEMGRAPH_PWD: ""
-    EMBEDDINGS_DIM: ""
+    EMBEDDINGS_DIM: "1024"
   run: |
     uv run pytest libs/vedana-core/
 """
