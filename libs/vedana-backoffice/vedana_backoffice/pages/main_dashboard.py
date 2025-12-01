@@ -170,7 +170,7 @@ def _changes_preview_popover() -> rx.Component:
                             scrollbars="vertical",
                             style={"maxHeight": "70vh", "width": "100%"},
                         ),
-                        rx.box(rx.text("No data")),
+                        rx.box(rx.text("No updates in selected span")),
                     ),
                     spacing="2",
                     padding="1em",
