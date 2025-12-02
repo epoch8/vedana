@@ -121,11 +121,11 @@ def derive_table_edges(cg: CanonicalGraph) -> List[Tuple[int, int, str]]:
 
 
 def refine_layer_orders(
-        layers_dict: dict[int, list[int]],
-        parent_map: dict[int, list[int]],
-        child_map: dict[int, list[int]],
-        max_layer_idx: int,
-        passes: int = 2,
+    layers_dict: dict[int, list[int]],
+    parent_map: dict[int, list[int]],
+    child_map: dict[int, list[int]],
+    max_layer_idx: int,
+    passes: int = 2,
 ):
     """Apply iterative barycentric ordering to reduce edge length."""
 
