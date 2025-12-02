@@ -145,16 +145,67 @@ def _table_preview_dialog() -> rx.Component:
                 ),
                 rx.cond(
                     EtlState.has_preview,
-                    rx.scroll_area(
-                        themed_data_table(
-                            data=EtlState.preview_rows,
-                            columns=EtlState.preview_columns,
-                            width="fit-content",
-                            max_width="calc(90vw - 3em)",  # Account for dialog padding
+                    rx.vstack(
+                        rx.scroll_area(
+                            themed_data_table(
+                                data=EtlState.preview_rows,
+                                columns=EtlState.preview_columns,
+                                width="fit-content",
+                                max_width="calc(90vw - 3em)",  # Account for dialog padding
+                                pagination=False,  # Disable client-side pagination, server-side instead
+                                search=False,  # unused for now since searches within page only
+                            ),
+                            type="always",
+                            scrollbars="both",
+                            style={"maxHeight": "68vh", "maxWidth": "calc(90vw - 3em)"},
                         ),
-                        type="always",
-                        scrollbars="both",
-                        style={"maxHeight": "75vh", "maxWidth": "calc(90vw - 3em)"},
+                        # Server-side pagination controls
+                        rx.hstack(
+                            rx.text(EtlState.preview_rows_display, size="2", color="gray"),
+                            rx.spacer(),
+                            rx.hstack(
+                                rx.button(
+                                    "⏮",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=EtlState.preview_first_page,
+                                    disabled=~EtlState.preview_has_prev,
+                                ),
+                                rx.button(
+                                    "← Prev",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=EtlState.preview_prev_page,
+                                    disabled=~EtlState.preview_has_prev,
+                                ),
+                                rx.text(
+                                    EtlState.preview_page_display,
+                                    size="2",
+                                    style={"minWidth": "100px", "textAlign": "center"},
+                                ),
+                                rx.button(
+                                    "Next →",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=EtlState.preview_next_page,
+                                    disabled=~EtlState.preview_has_next,
+                                ),
+                                rx.button(
+                                    "⏭",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=EtlState.preview_last_page,
+                                    disabled=~EtlState.preview_has_next,
+                                ),
+                                spacing="2",
+                                align="center",
+                            ),
+                            width="100%",
+                            align="center",
+                            padding_top="0.5em",
+                        ),
+                        width="100%",
+                        spacing="2",
                     ),
                     rx.box(rx.text("No data")),
                 ),

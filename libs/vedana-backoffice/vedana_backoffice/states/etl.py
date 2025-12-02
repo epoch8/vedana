@@ -121,6 +121,12 @@ class EtlState(rx.State):
     preview_columns: list[str] = []
     has_preview: bool = False
 
+    # Server-side pagination for preview
+    preview_page: int = 0  # 0-indexed current page
+    preview_page_size: int = 100  # rows per page
+    preview_total_rows: int = 0  # total count
+    preview_is_meta_table: bool = False  # whether we're viewing _meta table
+
     def _start_log_capture(self) -> tuple[Queue[str], logging.Handler, logging.Logger]:
         q: Queue[str] = Queue()
 
@@ -1180,7 +1186,7 @@ class EtlState(rx.State):
         return None
 
     def preview_table(self, table_name: str) -> None:
-        """Load a small preview from the datapipe DB for a selected table."""
+        """Load a paginated preview from the datapipe DB for a selected table."""
 
         # Toggle preview: if same table clicked, close; otherwise open new table
         if self.preview_table_name == table_name and self.preview_open:
@@ -1188,22 +1194,54 @@ class EtlState(rx.State):
             return
 
         self.preview_table_name = table_name
+        self.preview_display_name = ""
         self.preview_open = True
         self.has_preview = False
+        self.preview_page = 0  # Reset to first page
+        self.preview_is_meta_table = False
         # Rebuild immediately to reflect selection highlight in data view
         self._rebuild_graph()
 
+        self._load_preview_page()
+
+    def _load_preview_page(self) -> None:
+        """Load the current page of preview data from the database."""
+        if not self.preview_table_name:
+            return
+
         engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        table_name = self.preview_table_name
+        actual_table = table_name if not self.preview_is_meta_table else f"{table_name}_meta"
+
+        offset = self.preview_page * self.preview_page_size
 
         try:
-            df = pd.read_sql(f'SELECT * FROM "{table_name}" LIMIT 50', con=engine)
-        except Exception:
-            try:  # For tables which are stored not in TableStoreDB (not in database) - load _meta table for preview
-                df = pd.read_sql(f'SELECT * FROM "{table_name}_meta" LIMIT 50', con=engine)
-                self.preview_display_name = f"{table_name}_meta"
-            except Exception as e:
-                self._append_log(f"Failed to load table {table_name}: {e}")
-                return
+            # Try main table first (only on first load)
+            if self.preview_page == 0 and not self.preview_is_meta_table:
+                try:
+                    # Get total count
+                    count_result = pd.read_sql(f'SELECT COUNT(*) as cnt FROM "{table_name}"', con=engine)
+                    self.preview_total_rows = int(count_result["cnt"].iloc[0])
+                    actual_table = table_name
+                except Exception:
+                    # Fall back to _meta table
+                    count_result = pd.read_sql(f'SELECT COUNT(*) as cnt FROM "{table_name}_meta"', con=engine)
+                    self.preview_total_rows = int(count_result["cnt"].iloc[0])
+                    self.preview_display_name = f"{table_name}_meta"
+                    self.preview_is_meta_table = True
+                    actual_table = f"{table_name}_meta"
+            elif self.preview_is_meta_table:
+                actual_table = f"{table_name}_meta"
+
+            # Load page data
+            df = pd.read_sql(
+                f'SELECT * FROM "{actual_table}" LIMIT {self.preview_page_size} OFFSET {offset}',
+                con=engine,
+            )
+
+        except Exception as e:
+            self._append_log(f"Failed to load table {table_name}: {e}")
+            return
 
         self.preview_columns = [str(c) for c in df.columns]
         records_any: list[dict[Any, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
@@ -1223,10 +1261,68 @@ class EtlState(rx.State):
         except Exception:
             pass
 
+    def preview_next_page(self) -> None:
+        """Load the next page of preview data."""
+        max_page = (self.preview_total_rows - 1) // self.preview_page_size if self.preview_total_rows > 0 else 0
+        if self.preview_page < max_page:
+            self.preview_page += 1
+            self._load_preview_page()
+
+    def preview_prev_page(self) -> None:
+        """Load the previous page of preview data."""
+        if self.preview_page > 0:
+            self.preview_page -= 1
+            self._load_preview_page()
+
+    def preview_first_page(self) -> None:
+        """Jump to the first page."""
+        if self.preview_page != 0:
+            self.preview_page = 0
+            self._load_preview_page()
+
+    def preview_last_page(self) -> None:
+        """Jump to the last page."""
+        max_page = (self.preview_total_rows - 1) // self.preview_page_size if self.preview_total_rows > 0 else 0
+        if self.preview_page != max_page:
+            self.preview_page = max_page
+            self._load_preview_page()
+
+    @rx.var
+    def preview_page_display(self) -> str:
+        """Current page display (1-indexed for users)."""
+        total_pages = (self.preview_total_rows - 1) // self.preview_page_size + 1 if self.preview_total_rows > 0 else 1
+        return f"Page {self.preview_page + 1} of {total_pages}"
+
+    @rx.var
+    def preview_rows_display(self) -> str:
+        """Display range of rows being shown."""
+        if self.preview_total_rows == 0:
+            return "No rows"
+        start = self.preview_page * self.preview_page_size + 1
+        end = min(start + self.preview_page_size - 1, self.preview_total_rows)
+        return f"Rows {start}-{end} of {self.preview_total_rows}"
+
+    @rx.var
+    def preview_has_next(self) -> bool:
+        """Whether there's a next page."""
+        max_page = (self.preview_total_rows - 1) // self.preview_page_size if self.preview_total_rows > 0 else 0
+        return self.preview_page < max_page
+
+    @rx.var
+    def preview_has_prev(self) -> bool:
+        """Whether there's a previous page."""
+        return self.preview_page > 0
+
     def close_preview(self) -> None:
         self.preview_open = False
         self.preview_table_name = None
         self.preview_display_name = ""
+        self.preview_page = 0
+        self.preview_total_rows = 0
+        self.preview_is_meta_table = False
+        self.preview_rows = []
+        self.preview_columns = []
+        self.has_preview = False
         try:
             self._rebuild_graph()
         except Exception:
