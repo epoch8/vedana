@@ -499,7 +499,7 @@ class DashboardState(rx.State):
         }
         for r in records_any:  # Build display row with only data columns, coercing values to safe strings
             row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}
-            row_disp["row_style"] = row_styling.get(r.get("change_type"), {})
+            row_disp["row_style"] = row_styling.get(r.get("change_type", ""), {})
             styled.append(row_disp)
 
         self.changes_preview_rows = styled
@@ -630,7 +630,7 @@ class DashboardState(rx.State):
 
         for r in records_any:
             row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}
-            row_disp["row_style"] = row_styling.get(r.get("change_type"), {})
+            row_disp["row_style"] = row_styling.get(r.get("change_type", ""), {})
             styled.append(row_disp)
 
         self.changes_preview_rows = styled
