@@ -34,6 +34,24 @@ class EtlDataTableStats(EtlTableStats):
     last_deleted_rows: int  # delete_ts = last_update_ts
 
 
+@dataclass
+class EtlStepRunStats:
+    """Stats for a pipeline step's last run (grouped batch execution)."""
+
+    step_name: str
+    meta_table_name: str  # The transform's meta table name
+    last_run_start: float  # Start of the last run window (earliest process_ts in the run)
+    last_run_end: float  # End of the last run window (latest process_ts in the run)
+    rows_processed: int  # Total rows processed in the last run
+    rows_success: int  # Rows with is_success=True in last run
+    rows_failed: int  # Rows with is_success=False in last run
+
+
+# Threshold in seconds to group consecutive process_ts values into a single "run"
+# If gap between consecutive process_ts > threshold, it's a new run
+RUN_GAP_THRESHOLD_SECONDS = 300  # 5 minutes
+
+
 class EtlState(rx.State):
     """ETL control state and actions."""
 
@@ -82,6 +100,7 @@ class EtlState(rx.State):
 
     # Table metadata for data-centric view
     table_meta: dict[str, EtlDataTableStats] = {}
+    step_meta: dict[int, EtlStepRunStats] = {}  # for step-centric view as well (keys=index)
 
     # Table preview panel state
     preview_open: bool = False
@@ -235,6 +254,7 @@ class EtlState(rx.State):
         self.available_tables = sorted(tables)
 
         self._load_table_stats()
+        self._load_step_stats()
         self._apply_pipeline_selection(
             target_pipeline=self.selected_pipeline,
             preserve_filters=True,
@@ -644,6 +664,21 @@ class EtlState(rx.State):
                     pos_by[sid] = (x, y)
                     if not self.data_view:  # transformation view
                         step_name = name_by.get(sid, f"step_{sid}")
+
+                        # Get step stats from step_meta
+                        step_stats = self.step_meta.get(sid)
+                        if step_stats and step_stats.last_run_end > 0:
+                            dt = datetime.fromtimestamp(step_stats.last_run_end)
+                            last_run_str = dt.strftime("%Y-%m-%d %H:%M")
+                            rows_processed = step_stats.rows_processed
+                            rows_success = step_stats.rows_success
+                            rows_failed = step_stats.rows_failed
+                        else:
+                            last_run_str = "—"
+                            rows_processed = 0
+                            rows_success = 0
+                            rows_failed = 0
+
                         nodes.append(
                             {
                                 "index": sid,
@@ -662,7 +697,13 @@ class EtlState(rx.State):
                                 "top": f"{y}px",
                                 "width": f"{w_by.get(sid, MIN_NODE_W)}px",
                                 "height": f"{h_by.get(sid, NODE_H)}px",
-                                # "last_run": ,
+                                # Step run stats
+                                "last_run": last_run_str,
+                                "rows_processed": rows_processed,
+                                "rows_success": rows_success,
+                                "rows_failed": rows_failed,
+                                "has_failed": rows_failed > 0,  # Pre-computed for Reflex rx.cond
+                                "rows_failed_str": f"({rows_failed} ✗)" if rows_failed > 0 else "",
                                 "selected": sid in selected_ids,
                                 "border_css": "2px solid #3b82f6" if sid in selected_ids else "1px solid #e5e7eb",
                             }
@@ -834,25 +875,60 @@ class EtlState(rx.State):
             self.graph_height_css = "400px"
 
     def _load_table_stats(self):
+        """
+        Load stats for each data table using run-based grouping.
+
+        A "run" is a group of consecutive timestamps where gaps are < RUN_GAP_THRESHOLD_SECONDS.
+        This accounts for batch processing where each batch has different timestamps.
+        """
         con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
         self.table_meta = {}
 
         for tname in list(self.available_tables):
             try:
                 meta_table_name = f"{tname}_meta"
-                query = sa.text(f"""
-                    WITH max_update_ts AS (
-                        SELECT MAX(update_ts) AS max_ts FROM "{meta_table_name}"
-                    )
-                    SELECT 
-                        MAX(process_ts) AS process_ts,
-                        COUNT(*) FILTER (WHERE delete_ts IS NULL) AS row_count,
-                        (SELECT max_ts FROM max_update_ts) AS last_update_ts,
-                        COUNT(*) FILTER (WHERE update_ts IS NOT NULL AND update_ts = (SELECT max_ts FROM max_update_ts)) AS last_update_rows,
-                        COUNT(*) FILTER (WHERE create_ts IS NOT NULL AND create_ts = (SELECT max_ts FROM max_update_ts)) AS last_added_rows,
-                        COUNT(*) FILTER (WHERE delete_ts IS NOT NULL AND delete_ts = (SELECT max_ts FROM max_update_ts)) AS last_deleted_rows
-                    FROM "{meta_table_name}", max_update_ts;
+
+                # Get all distinct update_ts values to detect runs
+                ts_query = sa.text(f"""
+                    SELECT DISTINCT update_ts FROM "{meta_table_name}" 
+                    WHERE update_ts IS NOT NULL 
+                    ORDER BY update_ts DESC 
+                    LIMIT 1000
                 """)
+
+                with con.begin() as conn:
+                    result = conn.execute(ts_query)
+                    timestamps = [float(row[0]) for row in result.fetchall() if row[0] is not None]
+
+                run_start, run_end = self._detect_last_run_window(timestamps)
+
+                # Now query stats using the run window
+                if run_start > 0.0:
+                    query = sa.text(f"""
+                        SELECT 
+                            MAX(process_ts) AS process_ts,
+                            COUNT(*) FILTER (WHERE delete_ts IS NULL) AS row_count,
+                            {run_end} AS last_update_ts,
+                            COUNT(*) FILTER (WHERE update_ts IS NOT NULL AND update_ts >= {run_start} AND update_ts <= {run_end}) AS last_update_rows,
+                            COUNT(*) FILTER (WHERE create_ts IS NOT NULL AND create_ts >= {run_start} AND create_ts <= {run_end}) AS last_added_rows,
+                            COUNT(*) FILTER (WHERE delete_ts IS NOT NULL AND delete_ts >= {run_start} AND delete_ts <= {run_end}) AS last_deleted_rows
+                        FROM "{meta_table_name}";
+                    """)
+                else:
+                    # Fallback to original query if no timestamps found
+                    query = sa.text(f"""
+                        WITH max_update_ts AS (
+                            SELECT MAX(update_ts) AS max_ts FROM "{meta_table_name}"
+                        )
+                        SELECT 
+                            MAX(process_ts) AS process_ts,
+                            COUNT(*) FILTER (WHERE delete_ts IS NULL) AS row_count,
+                            (SELECT max_ts FROM max_update_ts) AS last_update_ts,
+                            COUNT(*) FILTER (WHERE update_ts IS NOT NULL AND update_ts = (SELECT max_ts FROM max_update_ts)) AS last_update_rows,
+                            COUNT(*) FILTER (WHERE create_ts IS NOT NULL AND create_ts = (SELECT max_ts FROM max_update_ts)) AS last_added_rows,
+                            COUNT(*) FILTER (WHERE delete_ts IS NOT NULL AND delete_ts = (SELECT max_ts FROM max_update_ts)) AS last_deleted_rows
+                        FROM "{meta_table_name}", max_update_ts;
+                    """)
 
                 with con.begin() as conn:
                     result = conn.execute(query)
@@ -878,6 +954,107 @@ class EtlState(rx.State):
                     last_update_rows=0,
                     last_added_rows=0,
                     last_deleted_rows=0,
+                )
+
+    def _detect_last_run_window(self, timestamps: list[float]) -> tuple[float, float]:
+        """Detect the last "run" window from a list of timestamps.
+
+        A run is a group of consecutive timestamps where gaps are < RUN_GAP_THRESHOLD_SECONDS.
+        Returns (run_start, run_end) for the most recent run, or (0.0, 0.0) if no timestamps.
+        """
+        if not timestamps:
+            return 0.0, 0.0
+
+        # Sort descending (most recent first)
+        sorted_ts = sorted(timestamps, reverse=True)
+
+        # Find the last run by walking backwards until gap exceeds threshold
+        run_end = sorted_ts[0]
+        run_start = sorted_ts[0]
+
+        for i in range(1, len(sorted_ts)):
+            gap = run_start - sorted_ts[i]
+            if gap > RUN_GAP_THRESHOLD_SECONDS:
+                # Gap too large - we've found the boundary of the last run
+                break
+            run_start = sorted_ts[i]
+
+        return run_start, run_end
+
+    def _load_step_stats(self) -> None:
+        """Load stats for each pipeline step by querying their transform meta tables."""
+        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        self.step_meta = {}
+
+        for idx, step in enumerate(etl_app.steps):
+            try:
+                # Only BaseBatchTransformStep has meta_table
+                if not isinstance(step, BaseBatchTransformStep):
+                    continue
+
+                # Get the meta table name from the step
+                meta_table = step.meta_table
+                meta_table_name = str(meta_table.sql_table.name)
+
+                # Query all distinct process_ts values to detect runs
+                ts_query = sa.text(
+                    f'SELECT DISTINCT process_ts FROM "{meta_table_name}" WHERE process_ts IS NOT NULL ORDER BY process_ts DESC LIMIT 1000'
+                )
+
+                with con.begin() as conn:
+                    result = conn.execute(ts_query)
+                    timestamps = [float(row[0]) for row in result.fetchall() if row[0] is not None]
+
+                run_start, run_end = self._detect_last_run_window(timestamps)
+
+                if run_start == 0.0 and run_end == 0.0:
+                    # No data
+                    self.step_meta[idx] = EtlStepRunStats(
+                        step_name=step.name,
+                        meta_table_name=meta_table_name,
+                        last_run_start=0.0,
+                        last_run_end=0.0,
+                        rows_processed=0,
+                        rows_success=0,
+                        rows_failed=0,
+                    )
+                    continue
+
+                # Query rows in the last run window
+                stats_query = sa.text(f"""
+                    SELECT 
+                        COUNT(*) AS total,
+                        COUNT(*) FILTER (WHERE is_success = TRUE) AS success,
+                        COUNT(*) FILTER (WHERE is_success = FALSE) AS failed
+                    FROM "{meta_table_name}"
+                    WHERE process_ts >= {run_start} AND process_ts <= {run_end}
+                """)
+
+                with con.begin() as conn:
+                    result = conn.execute(stats_query)
+                    row = result.fetchone()
+
+                self.step_meta[idx] = EtlStepRunStats(
+                    step_name=step.name,
+                    meta_table_name=meta_table_name,
+                    last_run_start=run_start,
+                    last_run_end=run_end,
+                    rows_processed=int(row[0]) if row and row[0] else 0,
+                    rows_success=int(row[1]) if row and row[1] else 0,
+                    rows_failed=int(row[2]) if row and row[2] else 0,
+                )
+
+            except Exception as e:
+                logging.warning(f"Failed to load step stats for step {idx}: {e}", exc_info=True)
+                step_name = getattr(step, "name", f"step_{idx}")
+                self.step_meta[idx] = EtlStepRunStats(
+                    step_name=step_name,
+                    meta_table_name="",
+                    last_run_start=0.0,
+                    last_run_end=0.0,
+                    rows_processed=0,
+                    rows_success=0,
+                    rows_failed=0,
                 )
 
     def _run_steps_sync(self, steps_to_run: list[Any]) -> None:
