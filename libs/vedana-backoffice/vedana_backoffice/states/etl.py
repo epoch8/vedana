@@ -4,7 +4,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
-from queue import Queue, Empty
+from queue import Empty, Queue
 from typing import Any, Iterable
 
 import pandas as pd
