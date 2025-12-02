@@ -26,10 +26,22 @@ def _node_card(node: dict) -> rx.Component:
                 rx.hstack(
                     rx.tooltip(rx.text(node.get("last_run", "—"), size="1", color="gray"), content="last update time"),
                     rx.hstack(
-                        rx.text(node.get("row_count", "—"), size="1", color="gray", weight="bold"),
-                        rx.text(node.get("last_add", "—"), size="1", color="green", weight="bold"),
-                        rx.text("/", size="1", color="gray", weight="bold"),
-                        rx.text(node.get("last_rm", "—"), size="1", color="red", weight="bold"),
+                        rx.tooltip(
+                            rx.text(node.get("row_count", "—"), size="1", color="gray", weight="bold"),
+                            content="rows total",
+                        ),
+                        rx.tooltip(
+                            rx.text(node.get("last_add", "—"), size="1", color="green"), content="added during last run"
+                        ),
+                        rx.text("/", size="1", color="gray"),
+                        rx.tooltip(
+                            rx.text(node.get("last_upd", "—"), size="1", color="gray"),
+                            content="updated during last run",
+                        ),
+                        rx.text("/", size="1", color="gray"),
+                        rx.tooltip(
+                            rx.text(node.get("last_rm", "—"), size="1", color="red"), content="deleted during last run"
+                        ),
                         spacing="1",
                     ),
                     width="100%",

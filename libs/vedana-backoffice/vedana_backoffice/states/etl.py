@@ -715,7 +715,7 @@ class EtlState(rx.State):
                             dt = datetime.fromtimestamp(rc.process_ts)
                             last_run_str = dt.strftime("%Y-%m-%d %H:%M")
                         else:
-                            last_run_str = "None"
+                            last_run_str = "—"
 
                         nodes.append(
                             {
@@ -735,6 +735,7 @@ class EtlState(rx.State):
                                 "last_run": last_run_str,
                                 "row_count": rc.row_count,
                                 "last_add": f"+{rc.last_added_rows}",
+                                "last_upd": f"{rc.last_update_rows}",
                                 "last_rm": f"-{rc.last_deleted_rows}",
                                 "selected": (self.preview_table_name == table_name),
                                 "border_css": (
@@ -909,7 +910,7 @@ class EtlState(rx.State):
                             MAX(process_ts) AS process_ts,
                             COUNT(*) FILTER (WHERE delete_ts IS NULL) AS row_count,
                             {run_end} AS last_update_ts,
-                            COUNT(*) FILTER (WHERE update_ts IS NOT NULL AND update_ts >= {run_start} AND update_ts <= {run_end}) AS last_update_rows,
+                            COUNT(*) FILTER (WHERE update_ts IS NOT NULL AND update_ts != create_ts AND update_ts >= {run_start} AND update_ts <= {run_end}) AS last_update_rows,
                             COUNT(*) FILTER (WHERE create_ts IS NOT NULL AND create_ts >= {run_start} AND create_ts <= {run_end}) AS last_added_rows,
                             COUNT(*) FILTER (WHERE delete_ts IS NOT NULL AND delete_ts >= {run_start} AND delete_ts <= {run_end}) AS last_deleted_rows
                         FROM "{meta_table_name}";
@@ -924,7 +925,7 @@ class EtlState(rx.State):
                             MAX(process_ts) AS process_ts,
                             COUNT(*) FILTER (WHERE delete_ts IS NULL) AS row_count,
                             (SELECT max_ts FROM max_update_ts) AS last_update_ts,
-                            COUNT(*) FILTER (WHERE update_ts IS NOT NULL AND update_ts = (SELECT max_ts FROM max_update_ts)) AS last_update_rows,
+                            COUNT(*) FILTER (WHERE update_ts IS NOT NULL AND update_ts != create_ts AND update_ts = (SELECT max_ts FROM max_update_ts)) AS last_update_rows,
                             COUNT(*) FILTER (WHERE create_ts IS NOT NULL AND create_ts = (SELECT max_ts FROM max_update_ts)) AS last_added_rows,
                             COUNT(*) FILTER (WHERE delete_ts IS NOT NULL AND delete_ts = (SELECT max_ts FROM max_update_ts)) AS last_deleted_rows
                         FROM "{meta_table_name}", max_update_ts;
