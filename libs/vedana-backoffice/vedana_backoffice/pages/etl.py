@@ -123,76 +123,53 @@ def _logs_bottom() -> rx.Component:
     )
 
 
-def _table_preview_popover() -> rx.Component:
-    return rx.cond(
-        EtlState.preview_open,
-        rx.popover.root(
-            rx.popover.trigger(
-                rx.box(
-                    style={
-                        "position": "absolute",
-                        "left": EtlState.preview_anchor_left,
-                        "top": EtlState.preview_anchor_top,
-                        "width": "1px",
-                        "height": "1px",
-                        "pointerEvents": "none",
-                    }
-                ),  # Invisible trigger anchored near the selected node
-            ),
-            rx.popover.content(
-                rx.vstack(
-                    rx.hstack(
-                        rx.heading(
-                            rx.cond(
-                                EtlState.preview_display_name,
-                                EtlState.preview_display_name,
-                                rx.cond(EtlState.preview_table_name, EtlState.preview_table_name, ""),
-                            ),
-                            size="3",
+def _table_preview_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                rx.hstack(
+                    rx.dialog.title(
+                        rx.cond(
+                            EtlState.preview_display_name,
+                            EtlState.preview_display_name,
+                            rx.cond(EtlState.preview_table_name, EtlState.preview_table_name, ""),
                         ),
-                        rx.spacer(),
-                        rx.popover.close(
-                            rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
-                        ),
-                        align="center",
-                        width="100%",
+                        size="4",
                     ),
-                    rx.cond(
-                        EtlState.has_preview,
-                        rx.scroll_area(
-                            themed_data_table(
-                                data=EtlState.preview_rows,
-                                columns=EtlState.preview_columns,
-                                width="fit-content",
-                                max_width="85vw",
-                            ),
-                            type="always",
-                            scrollbars="vertical",
-                            style={"maxHeight": "70vh", "width": "fit-content", "maxWidth": "85vw"},
-                        ),
-                        rx.box(rx.text("No data")),
+                    rx.spacer(),
+                    rx.dialog.close(
+                        rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
                     ),
-                    spacing="2",
-                    padding="1em",
-                    width="fit-content",
-                    max_width="85vw",
-                    min_width="400px",
-                    # allow width to be defined by inner table content
+                    align="center",
+                    width="100%",
                 ),
-                side="right",
-                align="center",
-                size="3",
-                avoid_collisions=True,
-                collision_padding=20,
-                style={
-                    "width": "fit-content",
-                    "maxWidth": "85vw",
-                },
+                rx.cond(
+                    EtlState.has_preview,
+                    rx.scroll_area(
+                        themed_data_table(
+                            data=EtlState.preview_rows,
+                            columns=EtlState.preview_columns,
+                            width="fit-content",
+                            max_width="calc(90vw - 3em)",  # Account for dialog padding
+                        ),
+                        type="always",
+                        scrollbars="both",
+                        style={"maxHeight": "75vh", "maxWidth": "calc(90vw - 3em)"},
+                    ),
+                    rx.box(rx.text("No data")),
+                ),
+                spacing="3",
+                width="100%",
             ),
-            open=True,
-            on_open_change=EtlState.set_preview_open,
+            style={
+                "maxWidth": "90vw",
+                "maxHeight": "85vh",
+                "width": "fit-content",
+                "minWidth": "400px",
+            },
         ),
-        rx.box(),
+        open=EtlState.preview_open,
+        on_open_change=EtlState.set_preview_open,
     )
 
 
@@ -200,7 +177,7 @@ def page() -> rx.Component:
     return rx.vstack(
         app_header(),
         _pipeline_tabs(),
-        _table_preview_popover(),
+        _table_preview_dialog(),
         align="start",
         spacing="1",
         padding="1em",

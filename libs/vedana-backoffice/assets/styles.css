@@ -1,9 +1,11 @@
 .datatable-surface {
-  width: 100%;
+  /* Width is controlled by inline styles or parent container */
+  display: block;
 }
 
 .datatable-surface .gridjs-container {
-  width: 100%;
+  width: fit-content;
+  min-width: 100%;
   background-color: var(--gray-2);
   border: 1px solid var(--gray-5);
   border-radius: 12px;
@@ -14,7 +16,7 @@
 
 .datatable-surface .gridjs-wrapper {
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .datatable-surface .gridjs-table {

@@ -74,9 +74,13 @@ def themed_data_table(
     table_kwargs = {**default_kwargs, **kwargs}
 
     table_style = table_kwargs.pop("style", {})
-    table_style = {"width": "fit-content", **table_style}
+    table_style = {"width": "fit-content", "minWidth": "100%", **table_style}
 
-    container_style: dict[str, Any] = {"width": width, "maxWidth": max_width}
+    container_style: dict[str, Any] = {
+        "width": width,
+        "maxWidth": max_width,
+        "minWidth": "fit-content",
+    }
 
     return rx.box(
         rx.data_table(data=data, columns=columns, style=table_style, **table_kwargs),
