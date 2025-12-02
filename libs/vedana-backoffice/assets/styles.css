@@ -105,3 +105,14 @@
   color: var(--gray-10);
 }
 
+.datatable-surface .gridjs-pagination .gridjs-pages button.gridjs-spread {
+  background-color: var(--gray-1) !important;
+  color: var(--gray-12) !important;
+  border-color: var(--gray-5) !important;
+  cursor: default;
+}
+
+.datatable-surface .gridjs-pagination .gridjs-pages button.gridjs-spread:hover {
+  background-color: var(--gray-3) !important;
+  border-color: var(--gray-6) !important;
+}
