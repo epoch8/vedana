@@ -200,57 +200,57 @@ def _table_preview_dialog() -> rx.Component:
                             scrollbars="both",
                             style={"maxHeight": "68vh", "maxWidth": "calc(90vw - 3em)"},
                         ),
-                        # Legend for changes view
-                        rx.cond(
-                            EtlState.preview_changes_only,
-                            rx.hstack(
-                                rx.hstack(
-                                    rx.box(
-                                        style={
-                                            "width": "12px",
-                                            "height": "12px",
-                                            "backgroundColor": "rgba(34,197,94,0.3)",
-                                            "borderRadius": "2px",
-                                        }
-                                    ),
-                                    rx.text("Added", size="1", color="gray"),
-                                    spacing="1",
-                                    align="center",
-                                ),
-                                rx.hstack(
-                                    rx.box(
-                                        style={
-                                            "width": "12px",
-                                            "height": "12px",
-                                            "backgroundColor": "rgba(245,158,11,0.3)",
-                                            "borderRadius": "2px",
-                                        }
-                                    ),
-                                    rx.text("Updated", size="1", color="gray"),
-                                    spacing="1",
-                                    align="center",
-                                ),
-                                rx.hstack(
-                                    rx.box(
-                                        style={
-                                            "width": "12px",
-                                            "height": "12px",
-                                            "backgroundColor": "rgba(239,68,68,0.3)",
-                                            "borderRadius": "2px",
-                                        }
-                                    ),
-                                    rx.text("Deleted", size="1", color="gray"),
-                                    spacing="1",
-                                    align="center",
-                                ),
-                                spacing="4",
-                                padding_top="0.25em",
-                            ),
-                            rx.box(),
-                        ),
-                        # Server-side pagination controls
+                        # Server-side pagination controls with legend
                         rx.hstack(
                             rx.text(EtlState.preview_rows_display, size="2", color="gray"),
+                            # Color legend (only shown in changes view)
+                            rx.cond(
+                                EtlState.preview_changes_only,
+                                rx.hstack(
+                                    rx.hstack(
+                                        rx.box(
+                                            style={
+                                                "width": "12px",
+                                                "height": "12px",
+                                                "backgroundColor": "rgba(34,197,94,0.12)",
+                                                "borderRadius": "2px",
+                                            }
+                                        ),
+                                        rx.text("Added", size="1", color="gray"),
+                                        spacing="1",
+                                        align="center",
+                                    ),
+                                    rx.hstack(
+                                        rx.box(
+                                            style={
+                                                "width": "12px",
+                                                "height": "12px",
+                                                "backgroundColor": "rgba(245,158,11,0.12)",
+                                                "borderRadius": "2px",
+                                            }
+                                        ),
+                                        rx.text("Updated", size="1", color="gray"),
+                                        spacing="1",
+                                        align="center",
+                                    ),
+                                    rx.hstack(
+                                        rx.box(
+                                            style={
+                                                "width": "12px",
+                                                "height": "12px",
+                                                "backgroundColor": "rgba(239,68,68,0.12)",
+                                                "borderRadius": "2px",
+                                            }
+                                        ),
+                                        rx.text("Deleted", size="1", color="gray"),
+                                        spacing="1",
+                                        align="center",
+                                    ),
+                                    spacing="3",
+                                    align="center",
+                                ),
+                                rx.box(),
+                            ),
                             rx.spacer(),
                             rx.hstack(
                                 rx.button(
