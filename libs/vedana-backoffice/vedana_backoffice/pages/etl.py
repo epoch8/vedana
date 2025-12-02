@@ -2,7 +2,7 @@ import reflex as rx
 
 from vedana_backoffice.components.etl_graph import etl_graph
 from vedana_backoffice.states.etl import EtlState
-from vedana_backoffice.ui import app_header, themed_data_table
+from vedana_backoffice.ui import app_header
 
 
 def _graph_card() -> rx.Component:
@@ -123,6 +123,44 @@ def _logs_bottom() -> rx.Component:
     )
 
 
+def _preview_styled_table() -> rx.Component:
+    """Table with row styling for changes view."""
+    return rx.table.root(
+        rx.table.header(
+            rx.table.row(
+                rx.foreach(
+                    EtlState.preview_columns,
+                    lambda c: rx.table.column_header_cell(c),
+                )
+            )
+        ),
+        rx.table.body(
+            rx.foreach(
+                EtlState.preview_rows,
+                lambda r: rx.table.row(
+                    rx.foreach(
+                        EtlState.preview_columns,
+                        lambda c: rx.table.cell(
+                            rx.text(
+                                r.get(c, "—"),
+                                style={
+                                    "whiteSpace": "nowrap",
+                                    "textOverflow": "ellipsis",
+                                    "overflow": "hidden",
+                                    "maxWidth": "400px",
+                                },
+                            )
+                        ),
+                    ),
+                    style=r.get("row_style", {}),
+                ),
+            )
+        ),
+        variant="surface",
+        style={"width": "100%", "tableLayout": "auto"},
+    )
+
+
 def _table_preview_dialog() -> rx.Component:
     return rx.dialog.root(
         rx.dialog.content(
@@ -137,6 +175,16 @@ def _table_preview_dialog() -> rx.Component:
                         size="4",
                     ),
                     rx.spacer(),
+                    rx.hstack(
+                        rx.text("Last run changes", size="1", color="gray"),
+                        rx.switch(
+                            checked=EtlState.preview_changes_only,
+                            on_change=EtlState.toggle_preview_changes_only,
+                            size="1",
+                        ),
+                        spacing="2",
+                        align="center",
+                    ),
                     rx.dialog.close(
                         rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
                     ),
@@ -147,17 +195,58 @@ def _table_preview_dialog() -> rx.Component:
                     EtlState.has_preview,
                     rx.vstack(
                         rx.scroll_area(
-                            themed_data_table(
-                                data=EtlState.preview_rows,
-                                columns=EtlState.preview_columns,
-                                width="fit-content",
-                                max_width="calc(90vw - 3em)",  # Account for dialog padding
-                                pagination=False,  # Disable client-side pagination, server-side instead
-                                search=False,  # unused for now since searches within page only
-                            ),
+                            _preview_styled_table(),
                             type="always",
                             scrollbars="both",
                             style={"maxHeight": "68vh", "maxWidth": "calc(90vw - 3em)"},
+                        ),
+                        # Legend for changes view
+                        rx.cond(
+                            EtlState.preview_changes_only,
+                            rx.hstack(
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(34,197,94,0.3)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Added", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(245,158,11,0.3)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Updated", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(239,68,68,0.3)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Deleted", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                spacing="4",
+                                padding_top="0.25em",
+                            ),
+                            rx.box(),
                         ),
                         # Server-side pagination controls
                         rx.hstack(
@@ -207,7 +296,11 @@ def _table_preview_dialog() -> rx.Component:
                         width="100%",
                         spacing="2",
                     ),
-                    rx.box(rx.text("No data")),
+                    rx.cond(
+                        EtlState.preview_changes_only,
+                        rx.box(rx.text("No changes in last run")),
+                        rx.box(rx.text("No data")),
+                    ),
                 ),
                 spacing="3",
                 width="100%",
