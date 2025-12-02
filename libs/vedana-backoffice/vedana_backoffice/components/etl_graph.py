@@ -57,14 +57,19 @@ def _node_card(node: dict) -> rx.Component:
                         ),
                         rx.hstack(
                             rx.tooltip(
-                                rx.text(node.get("rows_processed", 0), size="1", color="gray", weight="bold"),
+                                rx.text(node.get("rows_processed", 0), size="1", color="white"),
                                 content="rows processed in last run",
                             ),
+                            rx.text("/", size="1", color="gray"),
+                            rx.tooltip(
+                                rx.text(node.get("total_success", 0), size="1", color="gray", weight="bold"),
+                                content="rows processed total",
+                            ),
                             rx.cond(
-                                node.get("has_failed", False),
+                                node.get("has_total_failed", False),
                                 rx.tooltip(
-                                    rx.text(node.get("rows_failed_str", ""), size="1", color="red"),
-                                    content="rows failed",
+                                    rx.text(node.get("total_failed_str", ""), size="1", color="red"),
+                                    content="total failed rows (all time)",
                                 ),
                                 rx.box(),
                             ),

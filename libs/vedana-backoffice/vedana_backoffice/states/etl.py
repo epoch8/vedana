@@ -11,6 +11,7 @@ import pandas as pd
 import reflex as rx
 import sqlalchemy as sa
 from datapipe.compute import run_steps
+from datapipe.step.batch_transform import BaseBatchTransformStep
 
 from vedana_backoffice.graph.build import build_canonical, derive_step_edges, refine_layer_orders, derive_table_edges
 from vedana_backoffice.util import safe_render_value
@@ -45,6 +46,8 @@ class EtlStepRunStats:
     rows_processed: int  # Total rows processed in the last run
     rows_success: int  # Rows with is_success=True in last run
     rows_failed: int  # Rows with is_success=False in last run
+    total_success: int  # All rows with is_success=True (all time)
+    total_failed: int  # All rows with is_success=False (all time)
 
 
 # Threshold in seconds to group consecutive process_ts values into a single "run"
@@ -673,11 +676,15 @@ class EtlState(rx.State):
                             rows_processed = step_stats.rows_processed
                             rows_success = step_stats.rows_success
                             rows_failed = step_stats.rows_failed
+                            total_success = step_stats.total_success
+                            total_failed = step_stats.total_failed
                         else:
                             last_run_str = "—"
                             rows_processed = 0
                             rows_success = 0
                             rows_failed = 0
+                            total_success = 0
+                            total_failed = 0
 
                         nodes.append(
                             {
@@ -704,6 +711,11 @@ class EtlState(rx.State):
                                 "rows_failed": rows_failed,
                                 "has_failed": rows_failed > 0,  # Pre-computed for Reflex rx.cond
                                 "rows_failed_str": f"({rows_failed} ✗)" if rows_failed > 0 else "",
+                                # All-time run stats
+                                "total_success": total_success,
+                                "total_failed": total_failed,
+                                "has_total_failed": total_failed > 0,  # Pre-computed for Reflex rx.cond
+                                "total_failed_str": f"({total_failed} ✗)" if total_failed > 0 else "",
                                 "selected": sid in selected_ids,
                                 "border_css": "2px solid #3b82f6" if sid in selected_ids else "1px solid #e5e7eb",
                             }
@@ -1008,6 +1020,21 @@ class EtlState(rx.State):
 
                 run_start, run_end = self._detect_last_run_window(timestamps)
 
+                # Query all-time totals first
+                totals_query = sa.text(f"""
+                    SELECT 
+                        COUNT(*) FILTER (WHERE is_success = TRUE) AS total_success,
+                        COUNT(*) FILTER (WHERE is_success = FALSE) AS total_failed
+                    FROM "{meta_table_name}"
+                """)
+
+                with con.begin() as conn:
+                    totals_result = conn.execute(totals_query)
+                    totals_row = totals_result.fetchone()
+
+                total_success = int(totals_row[0]) if totals_row and totals_row[0] else 0
+                total_failed = int(totals_row[1]) if totals_row and totals_row[1] else 0
+
                 if run_start == 0.0 and run_end == 0.0:
                     # No data
                     self.step_meta[idx] = EtlStepRunStats(
@@ -1018,6 +1045,8 @@ class EtlState(rx.State):
                         rows_processed=0,
                         rows_success=0,
                         rows_failed=0,
+                        total_success=total_success,
+                        total_failed=total_failed,
                     )
                     continue
 
@@ -1043,6 +1072,8 @@ class EtlState(rx.State):
                     rows_processed=int(row[0]) if row and row[0] else 0,
                     rows_success=int(row[1]) if row and row[1] else 0,
                     rows_failed=int(row[2]) if row and row[2] else 0,
+                    total_success=total_success,
+                    total_failed=total_failed,
                 )
 
             except Exception as e:
@@ -1056,6 +1087,8 @@ class EtlState(rx.State):
                     rows_processed=0,
                     rows_success=0,
                     rows_failed=0,
+                    total_success=0,
+                    total_failed=0,
                 )
 
     def _run_steps_sync(self, steps_to_run: list[Any]) -> None:
