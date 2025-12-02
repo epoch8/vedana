@@ -54,14 +54,19 @@ class DashboardState(rx.State):
     ingest_deleted_total: int = 0
     ingest_breakdown: list[dict[str, Any]] = []  # [{table, added, updated, deleted}]
 
-    # Change preview (dialog/popover) state
+    # Change preview (dialog) state
     changes_preview_open: bool = False
     changes_preview_table_name: str = ""
     changes_preview_columns: list[str] = []
     changes_preview_rows: list[dict[str, Any]] = []
     changes_has_preview: bool = False
-    changes_preview_anchor_left: str = "48px"
-    changes_preview_anchor_top: str = "48px"
+
+    # Server-side pagination for changes preview
+    changes_preview_page: int = 0  # 0-indexed current page
+    changes_preview_page_size: int = 100  # rows per page
+    changes_preview_total_rows: int = 0  # total count
+    changes_preview_kind: str = ""  # "ingest", "nodes", or "edges"
+    changes_preview_label: str = ""  # label for graph previews
 
     def set_time_window_days(self, value: str) -> None:
         try:
@@ -71,6 +76,10 @@ class DashboardState(rx.State):
         except Exception:
             d = 1
         self.time_window_days = d
+
+    def _append_log(self, msg: str) -> None:
+        """Log a message (for consistency with EtlState pattern)."""
+        logging.warning(msg)
 
     @rx.event(background=True)  # type: ignore[operator]
     async def load_dashboard(self):
@@ -365,19 +374,33 @@ class DashboardState(rx.State):
         self.changes_preview_columns = []
         self.changes_preview_rows = []
         self.changes_has_preview = False
+        self.changes_preview_page = 0
+        self.changes_preview_total_rows = 0
+        self.changes_preview_kind = ""
+        self.changes_preview_label = ""
 
     def open_changes_preview(self, table_name: str) -> None:
         """Load changed rows for the given ingest table using *_meta within the selected time window."""
         self.changes_preview_table_name = table_name
         self.changes_preview_open = True
         self.changes_has_preview = False
+        self.changes_preview_page = 0
+        self.changes_preview_kind = "ingest"
+        self.changes_preview_label = ""
+
+        self._load_ingest_changes_page()
+
+    def _load_ingest_changes_page(self) -> None:
+        """Load the current page of ingest changes from the database."""
+        table_name = self.changes_preview_table_name
+        if not table_name:
+            return
 
         con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
 
         since_ts = float(time.time() - self.time_window_days * 86400)
         meta = f"{table_name}_meta"
-
-        LIMIT_ROWS = 100
+        offset = self.changes_preview_page * self.changes_preview_page_size
 
         # Build a join between base table and its _meta on data columns (exclude meta columns).
         meta_exclude = {"hash", "create_ts", "update_ts", "process_ts", "delete_ts"}
@@ -395,6 +418,28 @@ class DashboardState(rx.State):
         display_cols: list[str] = [c for c in (base_cols or []) if c]
         if not display_cols:
             display_cols = list(data_cols)
+
+        # Get total count on first page load
+        if self.changes_preview_page == 0:
+            q_count = sa.text(
+                f"""
+                SELECT COUNT(*)
+                FROM "{meta}" AS m
+                WHERE 
+                    (m.delete_ts IS NOT NULL AND m.delete_ts >= {since_ts})
+                    OR
+                    (m.update_ts IS NOT NULL AND m.update_ts >= {since_ts}
+                        AND (m.create_ts IS NULL OR m.create_ts < m.update_ts)
+                        AND (m.delete_ts IS NULL OR m.delete_ts < m.update_ts))
+                    OR
+                    (m.create_ts IS NOT NULL AND m.create_ts >= {since_ts} AND m.delete_ts IS NULL)
+                """
+            )
+            try:
+                with con.begin() as conn:
+                    self.changes_preview_total_rows = int(conn.execute(q_count).scalar() or 0)
+            except Exception:
+                self.changes_preview_total_rows = 0
 
         # Build SELECT list coalescing base and meta to display base values when present
         select_exprs: list[str] = []
@@ -432,7 +477,7 @@ class DashboardState(rx.State):
                 OR
                 (m.create_ts IS NOT NULL AND m.create_ts >= {since_ts} AND m.delete_ts IS NULL)
             ORDER BY COALESCE(m.update_ts, m.create_ts, m.delete_ts) DESC
-            LIMIT {LIMIT_ROWS}
+            LIMIT {self.changes_preview_page_size} OFFSET {offset}
             """
         )
 
@@ -453,8 +498,8 @@ class DashboardState(rx.State):
             "deleted": {"backgroundColor": "rgba(239,68,68,0.08)"},
         }
         for r in records_any:  # Build display row with only data columns, coercing values to safe strings
-            row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}  # type: ignore[no-redef]
-            row_disp["row_style"] = row_styling.get(r.get("change_type"), {})  # type: ignore[arg-type]
+            row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}
+            row_disp["row_style"] = row_styling.get(r.get("change_type"), {})
             styled.append(row_disp)
 
         self.changes_preview_rows = styled
@@ -462,17 +507,30 @@ class DashboardState(rx.State):
 
     async def open_graph_per_label_changes_preview(self, kind: str, label: str) -> None:
         base_table = "nodes" if str(kind) == "nodes" else "edges"
-        label_col = "node_type" if base_table == "nodes" else "edge_label"
         self.changes_preview_table_name = f"{base_table}:{label}"
         self.changes_preview_open = True
         self.changes_has_preview = False
+        self.changes_preview_page = 0
+        self.changes_preview_kind = kind
+        self.changes_preview_label = label
+
+        await self._load_graph_changes_page()
+
+    async def _load_graph_changes_page(self) -> None:
+        """Load the current page of graph changes from the database."""
+        kind = self.changes_preview_kind
+        label = self.changes_preview_label
+        if not kind or not label:
+            return
+
+        base_table = "nodes" if str(kind) == "nodes" else "edges"
+        label_col = "node_type" if base_table == "nodes" else "edge_label"
 
         con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
 
         since_ts = float(time.time() - self.time_window_days * 86400)
         meta = f"{base_table}_meta"
-
-        LIMIT_ROWS = 100
+        offset = self.changes_preview_page * self.changes_preview_page_size
 
         meta_exclude = {"hash", "create_ts", "update_ts", "process_ts", "delete_ts"}  # not displaying these
 
@@ -480,6 +538,32 @@ class DashboardState(rx.State):
         display_cols = [c["name"] for c in inspector.get_columns(base_table)]
         meta_cols = [c["name"] for c in inspector.get_columns(meta)]
         data_cols: list[str] = [c for c in meta_cols if c not in meta_exclude]
+
+        label_escaped = label.replace("'", "''")
+
+        # Get total count on first page load
+        if self.changes_preview_page == 0:
+            q_count = sa.text(
+                f"""
+                SELECT COUNT(*)
+                FROM "{meta}" AS m
+                WHERE 
+                    m."{label_col}" = '{label_escaped}' AND (
+                        (m.delete_ts IS NOT NULL AND m.delete_ts >= {since_ts})
+                        OR
+                        (m.update_ts IS NOT NULL AND m.update_ts >= {since_ts}
+                            AND (m.create_ts IS NULL OR m.create_ts < m.update_ts)
+                            AND (m.delete_ts IS NULL OR m.delete_ts < m.update_ts))
+                        OR
+                        (m.create_ts IS NOT NULL AND m.create_ts >= {since_ts} AND m.delete_ts IS NULL)
+                    )
+                """
+            )
+            try:
+                with con.begin() as conn:
+                    self.changes_preview_total_rows = int(conn.execute(q_count).scalar() or 0)
+            except Exception:
+                self.changes_preview_total_rows = 0
 
         select_exprs: list[str] = []
         for c in display_cols:
@@ -490,7 +574,6 @@ class DashboardState(rx.State):
         select_cols = ", ".join(select_exprs)
         on_cond = " AND ".join([f'b."{c}" = m."{c}"' for c in data_cols])
 
-        label_escaped = label.replace("'", "''")
         q_join = sa.text(
             f"""
             SELECT
@@ -518,7 +601,7 @@ class DashboardState(rx.State):
                     (m.create_ts IS NOT NULL AND m.create_ts >= {since_ts} AND m.delete_ts IS NULL)
                 )
             ORDER BY COALESCE(m.update_ts, m.create_ts, m.delete_ts) DESC
-            LIMIT {LIMIT_ROWS}
+            LIMIT {self.changes_preview_page_size} OFFSET {offset}
             """
         )
 
@@ -537,140 +620,92 @@ class DashboardState(rx.State):
         self.changes_preview_columns = [str(c) for c in display_cols]
         records_any: list[dict] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
 
-        # Build ETL rows map keyed by PKs
+        # Build styled rows
         styled: list[dict[str, Any]] = []
         row_styling = {
             "added": {"backgroundColor": "rgba(34,197,94,0.08)"},
             "updated": {"backgroundColor": "rgba(245,158,11,0.08)"},
             "deleted": {"backgroundColor": "rgba(239,68,68,0.08)"},
-            "g_not_etl": {"backgroundColor": "rgba(59,130,246,0.08)"},  # record present in graph, not present in ETL
-            "etl_not_g": {"backgroundColor": "rgba(139,92,246,0.10)"},  # record present in ETL, not present in graph
         }
 
-        etl_rows_by_key: dict[Any, dict[str, Any]] = {}
         for r in records_any:
-            row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}  # type: ignore[no-redef]
-            # style by change_type
-            row_disp["row_style"] = row_styling.get(r.get("change_type"), {})  # type: ignore[arg-type]
-            # index by key
-            if base_table == "nodes":
-                k = str(r.get("node_id") or "")
-            else:
-                k = (str(r.get("from_node_id") or ""), str(r.get("to_node_id") or ""))  # type: ignore[assignment]
-            etl_rows_by_key[k] = row_disp
+            row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}
+            row_disp["row_style"] = row_styling.get(r.get("change_type"), {})
             styled.append(row_disp)
-
-        # FULL OUTER JOIN-like merge of keys: ETL-changed keys U graph keys (sampled)
-        try:
-            va = await get_vedana_app()
-            lab_esc = label.replace("`", "``")
-            if base_table == "nodes":
-                # Collect graph node ids for the label
-                q = f"MATCH (n:`{lab_esc}`) RETURN n.id AS node_id LIMIT 300"
-                recs = await va.graph.execute_ro_cypher_query(q)
-                graph_keys: set[str] = {str(r.get("node_id", "")) for r in recs if r.get("node_id")}
-                # Union with ETL keys
-                all_keys: set[str] = set(graph_keys) | {str(k) for k in etl_rows_by_key.keys() if isinstance(k, str)}
-                # Update presence flags; add graph-only rows
-                for gid in all_keys:
-                    if gid in etl_rows_by_key:
-                        pass
-                    else:
-                        # graph-only: create placeholder row with key and presence flags
-                        row_disp: dict[str, Any] = {k: "" for k in self.changes_preview_columns}  # type: ignore[no-redef]
-                        row_disp["node_id"] = gid
-                        row_disp["row_style"] = row_styling["g_not_etl"]
-                        styled.append(row_disp)
-
-                # Also include ETL-only not changed within window: sample more ETL ids for this label
-                try:
-                    with con.begin() as conn:
-                        etl_more = [
-                            str(r[0])
-                            for r in conn.execute(
-                                sa.text('SELECT node_id FROM "nodes" WHERE node_type = :lab LIMIT 300'),
-                                {"lab": label},
-                            ).fetchall()
-                            if r and r[0] is not None
-                        ]
-                    # Exclude keys already present in styled (changed keys)
-                    known_keys = {str(k) for k in etl_rows_by_key.keys() if isinstance(k, str)}
-                    candidates = [eid for eid in etl_more if eid not in known_keys]
-                    if candidates:
-                        # Check presence in graph for candidates
-                        recs2 = await va.graph.execute_ro_cypher_query(
-                            "UNWIND $ids AS id MATCH (n {id: id}) RETURN id(n) AS id",
-                            {"ids": candidates},
-                        )
-                        present = {str(r.get("id", "")) for r in recs2 if r.get("id")}
-                        missing = [eid for eid in candidates if eid not in present]
-                        for eid in missing:
-                            row_disp: dict[str, Any] = {k: "" for k in self.changes_preview_columns}  # type: ignore[no-redef]
-                            row_disp["node_id"] = eid
-                            row_disp["row_style"] = row_styling["etl_not_g"]
-                            styled.append(row_disp)
-                except Exception:
-                    pass
-
-            else:
-                # Edges: collect from->to pairs for this label
-                q = f"MATCH (f)-[r:`{lab_esc}`]->(t) RETURN f.id AS from_id, t.id AS to_id LIMIT 300"
-                recs = await va.graph.execute_ro_cypher_query(q)
-                graph_pairs: set[tuple[str, str]] = set()
-                for r in recs:
-                    fr = str(r.get("from_id", "") or "")
-                    to = str(r.get("to_id", "") or "")
-                    if fr and to:
-                        graph_pairs.add((fr, to))
-                etl_pairs: set[tuple[str, str]] = {
-                    k for k in etl_rows_by_key.keys() if isinstance(k, tuple) and len(k) == 2
-                }
-                all_pairs = graph_pairs | etl_pairs
-                for key in all_pairs:
-                    if key in etl_rows_by_key:
-                        pass
-                    else:
-                        row_disp: dict[str, Any] = {k: "" for k in self.changes_preview_columns}  # type: ignore[no-redef]
-                        fr, to = key
-                        row_disp["from_node_id"] = fr
-                        row_disp["to_node_id"] = to
-                        row_disp["row_style"] = {"backgroundColor": "rgba(59,130,246,0.08)"}
-                        styled.append(row_disp)
-
-                # Include ETL-only not changed within window for edges
-                try:
-                    with con.begin() as conn:
-                        etl_more_pairs = [
-                            (str(fr), str(to))
-                            for fr, to in conn.execute(
-                                sa.text(
-                                    'SELECT from_node_id, to_node_id FROM "edges" WHERE edge_label = :lab LIMIT 300'
-                                ),
-                                {"lab": label},
-                            ).fetchall()
-                            if fr and to
-                        ]
-                    known_pairs = {k for k in etl_rows_by_key.keys() if isinstance(k, tuple) and len(k) == 2}
-                    add_candidates = [p for p in etl_more_pairs if p not in known_pairs]
-                    if add_candidates:
-                        recs2 = await va.graph.execute_ro_cypher_query(
-                            "UNWIND $pairs AS p "
-                            "MATCH (f {id: p.from_id})-[r]->(t {id: p.to_id}) "
-                            "RETURN p.from_id AS from_id, p.to_id AS to_id",
-                            {"pairs": [{"from_id": fr, "to_id": to} for fr, to in add_candidates]},
-                        )
-                        present_pairs = {(str(r.get("from_id", "")), str(r.get("to_id", ""))) for r in recs2}
-                        missing_pairs = [p for p in add_candidates if p not in present_pairs]
-                        for fr, to in missing_pairs:
-                            row_disp: dict[str, Any] = {k: "" for k in self.changes_preview_columns}  # type: ignore[no-redef]
-                            row_disp["from_node_id"] = fr
-                            row_disp["to_node_id"] = to
-                            row_disp["row_style"] = {"backgroundColor": "rgba(139,92,246,0.10)"}  # violet-ish
-                            styled.append(row_disp)
-                except Exception:
-                    pass
-        except Exception:
-            pass
 
         self.changes_preview_rows = styled
         self.changes_has_preview = len(self.changes_preview_rows) > 0
+
+    def changes_preview_next_page(self) -> None:
+        """Load the next page of changes preview data."""
+        max_page = (
+            (self.changes_preview_total_rows - 1) // self.changes_preview_page_size
+            if self.changes_preview_total_rows > 0
+            else 0
+        )
+        if self.changes_preview_page < max_page:
+            self.changes_preview_page += 1
+            if self.changes_preview_kind == "ingest":
+                self._load_ingest_changes_page()
+            # Note: graph changes pagination would need async handling
+
+    def changes_preview_prev_page(self) -> None:
+        """Load the previous page of changes preview data."""
+        if self.changes_preview_page > 0:
+            self.changes_preview_page -= 1
+            if self.changes_preview_kind == "ingest":
+                self._load_ingest_changes_page()
+            # Note: graph changes pagination would need async handling
+
+    def changes_preview_first_page(self) -> None:
+        """Jump to the first page."""
+        if self.changes_preview_page != 0:
+            self.changes_preview_page = 0
+            if self.changes_preview_kind == "ingest":
+                self._load_ingest_changes_page()
+
+    def changes_preview_last_page(self) -> None:
+        """Jump to the last page."""
+        max_page = (
+            (self.changes_preview_total_rows - 1) // self.changes_preview_page_size
+            if self.changes_preview_total_rows > 0
+            else 0
+        )
+        if self.changes_preview_page != max_page:
+            self.changes_preview_page = max_page
+            if self.changes_preview_kind == "ingest":
+                self._load_ingest_changes_page()
+
+    @rx.var
+    def changes_preview_page_display(self) -> str:
+        """Current page display (1-indexed for users)."""
+        total_pages = (
+            (self.changes_preview_total_rows - 1) // self.changes_preview_page_size + 1
+            if self.changes_preview_total_rows > 0
+            else 1
+        )
+        return f"Page {self.changes_preview_page + 1} of {total_pages}"
+
+    @rx.var
+    def changes_preview_rows_display(self) -> str:
+        """Display range of rows being shown."""
+        if self.changes_preview_total_rows == 0:
+            return "No rows"
+        start = self.changes_preview_page * self.changes_preview_page_size + 1
+        end = min(start + self.changes_preview_page_size - 1, self.changes_preview_total_rows)
+        return f"Rows {start}-{end} of {self.changes_preview_total_rows}"
+
+    @rx.var
+    def changes_preview_has_next(self) -> bool:
+        """Whether there's a next page."""
+        max_page = (
+            (self.changes_preview_total_rows - 1) // self.changes_preview_page_size
+            if self.changes_preview_total_rows > 0
+            else 0
+        )
+        return self.changes_preview_page < max_page
+
+    @rx.var
+    def changes_preview_has_prev(self) -> bool:
+        """Whether there's a previous page."""
+        return self.changes_preview_page > 0
