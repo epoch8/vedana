@@ -160,6 +160,50 @@ def _changes_preview_dialog() -> rx.Component:
                         # Server-side pagination controls
                         rx.hstack(
                             rx.text(DashboardState.changes_preview_rows_display, size="2", color="gray"),  # type: ignore[arg-type]
+                            # Color legend
+                            rx.hstack(
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(34,197,94,0.08)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Added", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(245,158,11,0.08)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Updated", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(239,68,68,0.08)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Deleted", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                spacing="3",
+                                align="center",
+                            ),
                             rx.spacer(),
                             rx.hstack(
                                 rx.button(
