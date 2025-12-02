@@ -48,28 +48,32 @@ def _node_card(node: dict) -> rx.Component:
                     justify="between",
                 ),
                 # Step view: show last run time and rows processed
-                rx.hstack(
-                    rx.tooltip(
-                        rx.text(node.get("last_run", "—"), size="1", color="gray"),
-                        content="last run time",
-                    ),
+                rx.cond(
+                    node.get("step_type") != "BatchGenerate",  # BatchGenerate has no meta table
                     rx.hstack(
                         rx.tooltip(
-                            rx.text(node.get("rows_processed", 0), size="1", color="gray", weight="bold"),
-                            content="rows processed in last run",
+                            rx.text(node.get("last_run", "—"), size="1", color="gray"),
+                            content="last run time",
                         ),
-                        rx.cond(
-                            node.get("has_failed", False),
+                        rx.hstack(
                             rx.tooltip(
-                                rx.text(node.get("rows_failed_str", ""), size="1", color="red"),
-                                content="rows failed",
+                                rx.text(node.get("rows_processed", 0), size="1", color="gray", weight="bold"),
+                                content="rows processed in last run",
                             ),
-                            rx.box(),
+                            rx.cond(
+                                node.get("has_failed", False),
+                                rx.tooltip(
+                                    rx.text(node.get("rows_failed_str", ""), size="1", color="red"),
+                                    content="rows failed",
+                                ),
+                                rx.box(),
+                            ),
+                            spacing="1",
                         ),
-                        spacing="1",
+                        width="100%",
+                        justify="between",
                     ),
-                    width="100%",
-                    justify="between",
+                    rx.box(),
                 ),
             ),
             spacing="2",
