@@ -35,7 +35,30 @@ def _node_card(node: dict) -> rx.Component:
                     width="100%",
                     justify="between",
                 ),
-                rx.box(),
+                # Step view: show last run time and rows processed
+                rx.hstack(
+                    rx.tooltip(
+                        rx.text(node.get("last_run", "—"), size="1", color="gray"),
+                        content="last run time",
+                    ),
+                    rx.hstack(
+                        rx.tooltip(
+                            rx.text(node.get("rows_processed", 0), size="1", color="gray", weight="bold"),
+                            content="rows processed in last run",
+                        ),
+                        rx.cond(
+                            node.get("has_failed", False),
+                            rx.tooltip(
+                                rx.text(node.get("rows_failed_str", ""), size="1", color="red"),
+                                content="rows failed",
+                            ),
+                            rx.box(),
+                        ),
+                        spacing="1",
+                    ),
+                    width="100%",
+                    justify="between",
+                ),
             ),
             spacing="2",
             width="100%",
