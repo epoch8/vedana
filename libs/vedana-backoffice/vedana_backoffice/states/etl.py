@@ -127,6 +127,9 @@ class EtlState(rx.State):
     preview_total_rows: int = 0  # total count
     preview_is_meta_table: bool = False  # whether we're viewing _meta table
 
+    # Show only changes from last run (with styling)
+    preview_changes_only: bool = False
+
     def _start_log_capture(self) -> tuple[Queue[str], logging.Handler, logging.Logger]:
         q: Queue[str] = Queue()
 
@@ -1209,10 +1212,19 @@ class EtlState(rx.State):
         if not self.preview_table_name:
             return
 
+        if self.preview_changes_only:
+            self._load_preview_changes_page()
+        else:
+            self._load_preview_all_page()
+
+    def _load_preview_all_page(self) -> None:
+        """Load all records (standard preview mode)."""
         engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
         table_name = self.preview_table_name
-        actual_table = table_name if not self.preview_is_meta_table else f"{table_name}_meta"
+        if not table_name:
+            return
 
+        actual_table = table_name if not self.preview_is_meta_table else f"{table_name}_meta"
         offset = self.preview_page * self.preview_page_size
 
         try:
@@ -1255,11 +1267,184 @@ class EtlState(rx.State):
 
         self.preview_rows = coerced
         self.has_preview = len(self.preview_rows) > 0
-        # Update graph again now that preview is ready (keeps highlight)
         try:
             self._rebuild_graph()
         except Exception:
             pass
+
+    def _load_preview_changes_page(self) -> None:
+        """Load only records changed in the last run (with change type styling)."""
+        table_name = self.preview_table_name
+        if not table_name:
+            return
+
+        engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        meta_table = f"{table_name}_meta"
+        offset = self.preview_page * self.preview_page_size
+
+        # Get the last run window using the same logic as _load_table_stats
+        try:
+            ts_query = sa.text(f"""
+                SELECT DISTINCT update_ts FROM "{meta_table}" 
+                WHERE update_ts IS NOT NULL 
+                ORDER BY update_ts DESC 
+                LIMIT 1000
+            """)
+            with engine.begin() as conn:
+                result = conn.execute(ts_query)
+                timestamps = [float(row[0]) for row in result.fetchall() if row[0] is not None]
+            run_start, run_end = self._detect_last_run_window(timestamps)
+        except Exception as e:
+            self._append_log(f"Failed to detect last run window for {table_name}: {e}")
+            run_start, run_end = 0.0, 0.0
+
+        if run_start == 0.0:
+            # No run detected, show empty
+            self.preview_columns = []
+            self.preview_rows = []
+            self.preview_total_rows = 0
+            self.has_preview = False
+            return
+
+        # Build query for changed records in the last run window
+        meta_exclude = {"hash", "create_ts", "update_ts", "process_ts", "delete_ts"}
+
+        try:
+            inspector = sa.inspect(engine)
+            try:
+                base_cols = [c.get("name", "") for c in inspector.get_columns(table_name)]
+                base_cols = [str(c) for c in base_cols if c]
+            except Exception:
+                base_cols = []
+            meta_cols = [c.get("name", "") for c in inspector.get_columns(meta_table)]
+            meta_cols = [str(c) for c in meta_cols if c]
+        except Exception as e:
+            self._append_log(f"Failed to inspect columns for {table_name}: {e}")
+            return
+
+        data_cols: list[str] = [c for c in meta_cols if c not in meta_exclude]
+        display_cols: list[str] = [c for c in base_cols if c] if base_cols else list(data_cols)
+
+        # Get total count of changed records on first page
+        if self.preview_page == 0:
+            q_count = sa.text(f"""
+                SELECT COUNT(*)
+                FROM "{meta_table}" AS m
+                WHERE 
+                    (m.delete_ts IS NOT NULL AND m.delete_ts >= {run_start} AND m.delete_ts <= {run_end})
+                    OR
+                    (m.update_ts IS NOT NULL AND m.update_ts >= {run_start} AND m.update_ts <= {run_end}
+                        AND m.update_ts > m.create_ts)
+                    OR
+                    (m.create_ts IS NOT NULL AND m.create_ts >= {run_start} AND m.create_ts <= {run_end} 
+                        AND m.delete_ts IS NULL)
+            """)
+            try:
+                with engine.begin() as conn:
+                    self.preview_total_rows = int(conn.execute(q_count).scalar() or 0)
+            except Exception:
+                self.preview_total_rows = 0
+
+        # Build SELECT with join to base table (if exists) to get full data
+        if base_cols:
+            select_exprs: list[str] = []
+            for c in display_cols:
+                if c in meta_cols:
+                    select_exprs.append(f'COALESCE(b."{c}", m."{c}") AS "{c}"')
+                else:
+                    select_exprs.append(f'b."{c}" AS "{c}"')
+            select_cols = ", ".join(select_exprs)
+            on_cond = " AND ".join([f'b."{c}" = m."{c}"' for c in data_cols])
+
+            q_data = sa.text(f"""
+                SELECT
+                    {select_cols},
+                    CASE 
+                        WHEN m.delete_ts IS NOT NULL AND m.delete_ts >= {run_start} AND m.delete_ts <= {run_end} THEN 'deleted'
+                        WHEN m.update_ts IS NOT NULL AND m.update_ts >= {run_start} AND m.update_ts <= {run_end}
+                             AND m.update_ts > m.create_ts THEN 'updated'
+                        WHEN m.create_ts IS NOT NULL AND m.create_ts >= {run_start} AND m.create_ts <= {run_end}
+                             AND m.delete_ts IS NULL THEN 'added'
+                        ELSE NULL
+                    END AS change_type
+                FROM "{meta_table}" AS m
+                LEFT JOIN "{table_name}" AS b ON {on_cond}
+                WHERE 
+                    (m.delete_ts IS NOT NULL AND m.delete_ts >= {run_start} AND m.delete_ts <= {run_end})
+                    OR
+                    (m.update_ts IS NOT NULL AND m.update_ts >= {run_start} AND m.update_ts <= {run_end}
+                        AND m.update_ts > m.create_ts)
+                    OR
+                    (m.create_ts IS NOT NULL AND m.create_ts >= {run_start} AND m.create_ts <= {run_end}
+                        AND m.delete_ts IS NULL)
+                ORDER BY COALESCE(m.update_ts, m.create_ts, m.delete_ts) DESC
+                LIMIT {self.preview_page_size} OFFSET {offset}
+            """)
+        else:
+            # No base table, query meta only
+            select_cols = ", ".join([f'm."{c}"' for c in display_cols])
+            q_data = sa.text(f"""
+                SELECT
+                    {select_cols},
+                    CASE 
+                        WHEN m.delete_ts IS NOT NULL AND m.delete_ts >= {run_start} AND m.delete_ts <= {run_end} THEN 'deleted'
+                        WHEN m.update_ts IS NOT NULL AND m.update_ts >= {run_start} AND m.update_ts <= {run_end}
+                             AND m.update_ts > m.create_ts THEN 'updated'
+                        WHEN m.create_ts IS NOT NULL AND m.create_ts >= {run_start} AND m.create_ts <= {run_end}
+                             AND m.delete_ts IS NULL THEN 'added'
+                        ELSE NULL
+                    END AS change_type
+                FROM "{meta_table}" AS m
+                WHERE 
+                    (m.delete_ts IS NOT NULL AND m.delete_ts >= {run_start} AND m.delete_ts <= {run_end})
+                    OR
+                    (m.update_ts IS NOT NULL AND m.update_ts >= {run_start} AND m.update_ts <= {run_end}
+                        AND m.update_ts > m.create_ts)
+                    OR
+                    (m.create_ts IS NOT NULL AND m.create_ts >= {run_start} AND m.create_ts <= {run_end}
+                        AND m.delete_ts IS NULL)
+                ORDER BY COALESCE(m.update_ts, m.create_ts, m.delete_ts) DESC
+                LIMIT {self.preview_page_size} OFFSET {offset}
+            """)
+
+        try:
+            df = pd.read_sql(q_data, con=engine)
+        except Exception as e:
+            self._append_log(f"Failed to load changes for {table_name}: {e}")
+            return
+
+        # Set columns (exclude change_type from display columns)
+        self.preview_columns = [str(c) for c in display_cols]
+        records_any: list[dict[Any, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
+
+        # Apply row styling based on change_type
+        row_styling = {
+            "added": {"backgroundColor": "rgba(34,197,94,0.12)"},
+            "updated": {"backgroundColor": "rgba(245,158,11,0.12)"},
+            "deleted": {"backgroundColor": "rgba(239,68,68,0.12)"},
+        }
+
+        styled: list[dict[str, Any]] = []
+        for r in records_any:
+            try:
+                row_disp: dict[str, Any] = {str(k): safe_render_value(r.get(k)) for k in self.preview_columns}
+                row_disp["row_style"] = row_styling.get(r.get("change_type", ""), {})
+                styled.append(row_disp)
+            except Exception:
+                styled.append({})
+
+        self.preview_rows = styled
+        self.has_preview = len(self.preview_rows) > 0
+        try:
+            self._rebuild_graph()
+        except Exception:
+            pass
+
+    def toggle_preview_changes_only(self, checked: bool) -> None:
+        """Toggle between showing all records or only changes from last run."""
+        self.preview_changes_only = bool(checked)
+        self.preview_page = 0  # Reset to first page
+        self._load_preview_page()
 
     def preview_next_page(self) -> None:
         """Load the next page of preview data."""
@@ -1320,6 +1505,7 @@ class EtlState(rx.State):
         self.preview_page = 0
         self.preview_total_rows = 0
         self.preview_is_meta_table = False
+        self.preview_changes_only = False
         self.preview_rows = []
         self.preview_columns = []
         self.has_preview = False
