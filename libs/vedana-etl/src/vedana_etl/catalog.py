@@ -224,8 +224,32 @@ eval_llm_answers = Table(
     ),
 )
 
-tests = Table(
-    name="tests",
+eval_tests = Table(
+    name="eval_tests",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="eval_tests",
+        data_sql_schema=[
+            Column("judge_model", String, primary_key=True),
+            Column("judge_prompt_id", String, primary_key=True),
+            Column("dm_id", String, primary_key=True),
+            Column("pipeline_model", String, primary_key=True),
+            Column("embeddings_model", String, primary_key=True),
+            Column("embeddings_dim", Integer, primary_key=True),
+            Column("gds_question", String, primary_key=True),
+            Column("question_context", String),
+            Column("gds_answer", String),
+            Column("llm_answer", String),
+            Column("tool_calls", String),
+            Column("test_status", String),
+            Column("eval_judge_comment", String),
+            Column("test_date", String),
+        ],
+    ),
+)
+
+tests_grist = Table(
+    name="tests_grist",
     store=GristStore(
         server=core_settings.grist_server_url,
         api_key=core_settings.grist_api_key,
