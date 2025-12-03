@@ -81,11 +81,39 @@ def _questions_card() -> rx.Component:
                     color="gray",
                 )
             ),
+            rx.table.cell(
+                rx.cond(
+                    row.get("question_scenario", "") != "",
+                    rx.badge(
+                        row.get("question_scenario", ""),
+                        variant="soft",
+                        size="1",
+                        color_scheme=row.get("scenario_color", "gray"),
+                    ),
+                    rx.box(),
+                )
+            ),
         )
 
     return rx.card(
         rx.vstack(
-            rx.heading("Golden QA Dataset", size="4"),
+            rx.hstack(
+                rx.heading("Golden QA Dataset", size="4"),
+                rx.spacer(),
+                rx.hstack(
+                    rx.text("Scenario", size="1", color="gray"),
+                    rx.select(
+                        items=EvalState.available_scenarios,
+                        value=EvalState.selected_scenario,
+                        on_change=EvalState.set_scenario,
+                        width="12em",
+                    ),
+                    spacing="2",
+                    align="center",
+                ),
+                align="center",
+                width="100%",
+            ),
             rx.scroll_area(
                 rx.table.root(
                     rx.table.header(
@@ -99,6 +127,7 @@ def _questions_card() -> rx.Component:
                             rx.table.column_header_cell("Question"),
                             rx.table.column_header_cell("Golden answer"),
                             rx.table.column_header_cell("Context"),
+                            rx.table.column_header_cell("Scenario"),
                         )
                     ),
                     rx.table.body(rx.foreach(EvalState.eval_gds_rows_with_selection, _row)),
@@ -128,18 +157,13 @@ def _judge_card() -> rx.Component:
                 placeholder="No judge models",
                 on_change=EvalState.set_judge_model,
             ),
-            rx.link(
-                rx.text(
-                    rx.cond(
-                        EvalState.judge_prompt_id != "",
-                        f"Prompt id: {EvalState.judge_prompt_id}",
-                        "No prompt id",
-                    ),
-                    size="2",
-                    color="gray",
-                ),
+            rx.button(
+                "View Judge Prompt",
+                variant="soft",
+                size="1",
                 on_click=EvalState.open_judge_prompt_dialog,
-                style={"cursor": "pointer", "textDecoration": "underline"},
+                disabled=rx.cond(EvalState.judge_prompt_id != "", False, True),  # type: ignore[arg-type]
+                width="100%",
             ),
             spacing="3",
             width="100%",
@@ -156,15 +180,16 @@ def _pipeline_card() -> rx.Component:
             rx.vstack(
                 rx.box(
                     rx.text("Data model", weight="medium"),
-                    rx.link(
-                        rx.text(
-                            rx.cond(EvalState.dm_id != "", EvalState.dm_id, "Unknown"),
-                            size="3",
-                        ),
-                        on_click=EvalState.open_data_model_dialog,
-                        style={"cursor": "pointer", "textDecoration": "underline"},
-                    ),
                     rx.text(f"Snapshot @ {EvalState.dm_snapshot_updated}", size="1", color="gray"),
+                    rx.button(
+                        "View Data Model",
+                        variant="soft",
+                        size="1",
+                        on_click=EvalState.open_data_model_dialog,
+                        disabled=rx.cond(EvalState.dm_id != "", False, True),  # type: ignore[arg-type]
+                        width="100%",
+                        margin_top="0.5em",
+                    ),
                     padding_bottom="0.75em",
                 ),
                 rx.box(
@@ -440,7 +465,7 @@ def page() -> rx.Component:
                 columns="2",
                 spacing="4",
                 width="100%",
-                style={"gridTemplateColumns": "2fr 1fr", "height": "calc(100vh - 200px)", "minHeight": "600px"},
+                style={"gridTemplateColumns": "3fr 1fr", "height": "calc(100vh - 200px)", "minHeight": "600px"},
             ),
             _tests_card(),
             _status_messages(),
