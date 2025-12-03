@@ -22,6 +22,7 @@ class EvalState(rx.State):
     status_message: str = ""
     eval_gds_rows: list[dict[str, Any]] = []
     selected_question_ids: list[str] = []
+    selected_scenario: str = "all"  # Filter by scenario
     judge_configs: list[dict[str, Any]] = []
     selected_judge_model: str = ""
     judge_prompt_id: str = ""
@@ -45,12 +46,30 @@ class EvalState(rx.State):
     tests_total_rows: int = 0  # total count
 
     @rx.var
+    def available_scenarios(self) -> list[str]:
+        """Get unique scenarios from eval_gds_rows."""
+        scenarios = set()
+        for row in self.eval_gds_rows or []:
+            scenario = row.get("question_scenario")
+            if scenario:
+                scenarios.add(str(scenario))
+        return ["all"] + sorted(scenarios)
+
+    @rx.var
     def eval_gds_rows_with_selection(self) -> list[dict[str, Any]]:
         selected = set(self.selected_question_ids or [])
         rows: list[dict[str, Any]] = []
         for row in self.eval_gds_rows or []:
+            # Apply scenario filter
+            if self.selected_scenario != "all":
+                scenario = row.get("question_scenario")
+                if str(scenario) != self.selected_scenario:
+                    continue
             enriched = dict(row)
             enriched["selected"] = row.get("id") in selected
+            # Add scenario color for badge display
+            scenario_val = str(row.get("question_scenario", ""))
+            enriched["scenario_color"] = self._scenario_color(scenario_val)
             rows.append(enriched)
         return rows
 
@@ -60,14 +79,14 @@ class EvalState(rx.State):
 
     @rx.var
     def selection_label(self) -> str:
-        total = len(self.eval_gds_rows or [])
+        total = len(self.eval_gds_rows_with_selection)  # Use filtered count
         if total == 0:
             return "No questions available"
         return f"{self.selected_count} / {total} selected"
 
     @rx.var
     def all_selected(self) -> bool:
-        rows = len(self.eval_gds_rows or [])
+        rows = len(self.eval_gds_rows_with_selection)  # Use filtered count
         return 0 < rows == self.selected_count
 
     @rx.var
@@ -116,7 +135,8 @@ class EvalState(rx.State):
         if not checked:
             self.selected_question_ids = []
             return
-        ids = [str(row.get("id", "")) for row in self.eval_gds_rows or [] if row.get("id")]
+        # Only select from filtered rows
+        ids = [str(row.get("id", "")) for row in self.eval_gds_rows_with_selection if row.get("id")]
         self.selected_question_ids = ids
 
     def reset_selection(self) -> None:
@@ -141,6 +161,11 @@ class EvalState(rx.State):
     def set_data_model_dialog_open(self, open: bool) -> None:
         self.data_model_dialog_open = open
 
+    def set_scenario(self, value: str) -> None:
+        """Set the scenario filter and prune invalid selections."""
+        self.selected_scenario = str(value or "all")
+        self._prune_selection()
+
     def set_judge_model(self, value: str) -> None:
         value = str(value or "")
         for cfg in self.judge_configs or []:
@@ -151,6 +176,7 @@ class EvalState(rx.State):
                 break
 
     def _prune_selection(self) -> None:
+        # Validate against all rows (not filtered) to keep selections valid across filter changes
         valid = {str(row.get("id")) for row in self.eval_gds_rows or [] if row.get("id")}
         self.selected_question_ids = [q for q in (self.selected_question_ids or []) if q in valid]
 
@@ -174,7 +200,7 @@ class EvalState(rx.State):
         con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
         stmt = sa.text(
             f"""
-            SELECT gds_question, gds_answer, question_context
+            SELECT gds_question, gds_answer, question_context, question_scenario
             FROM "eval_gds"
             ORDER BY gds_question
             LIMIT {int(self.max_eval_rows)}
@@ -192,6 +218,7 @@ class EvalState(rx.State):
                     "gds_question": question,
                     "gds_answer": safe_render_value(rec.get("gds_answer")),
                     "question_context": safe_render_value(rec.get("question_context")),
+                    "question_scenario": safe_render_value(rec.get("question_scenario")),
                 }
             )
         self.eval_gds_rows = rows
@@ -288,6 +315,32 @@ class EvalState(rx.State):
         if val == "fail":
             return "red"
         return "gray"
+
+    def _scenario_color(self, scenario: str) -> str:
+        """Assign a consistent color to each unique scenario value."""
+        if not scenario:
+            return "gray"
+        color_schemes = [
+            "blue",
+            "green",
+            "purple",
+            "pink",
+            "indigo",
+            "cyan",
+            "amber",
+            "lime",
+            "emerald",
+            "teal",
+            "sky",
+            "violet",
+            "fuchsia",
+            "rose",
+            "orange",
+            "slate",
+        ]
+        hash_val = hash(str(scenario))
+        color_idx = abs(hash_val) % len(color_schemes)
+        return color_schemes[color_idx]
 
     def _load_tests(self) -> None:
         con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]

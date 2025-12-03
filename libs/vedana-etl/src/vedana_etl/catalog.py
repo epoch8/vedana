@@ -187,6 +187,8 @@ eval_gds = Table(
         data_sql_schema=[
             Column("gds_question", String, primary_key=True),
             Column("gds_answer", String),
+            Column("question_scenario", String),
+            Column("question_comment", String),
             Column("question_context", String),
         ],
     ),
