@@ -849,6 +849,11 @@ def judge_tests(
     return pd.DataFrame(out_rows)
 
 
+def upload_tests(df: pd.DataFrame) -> pd.DataFrame:
+    ...  # do nothing
+    return df
+
+
 if __name__ == "__main__":
     # import dotenv
     # dotenv.load_dotenv()

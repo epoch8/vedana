@@ -21,7 +21,8 @@ from vedana_etl.catalog import (
     eval_judge_config,
     eval_gds,
     eval_llm_answers,
-    tests,
+    eval_tests,
+    tests_grist,
 )
 
 data_model_steps = [
@@ -133,10 +134,16 @@ eval_steps = [
     BatchTransform(
         func=steps.judge_tests,
         inputs=[eval_llm_answers, eval_judge_config],
-        outputs=[tests],
+        outputs=[eval_tests],
         labels=[("pipeline", "eval"), ("flow", "eval"), ("stage", "process")],
         transform_keys=["gds_question"],
         chunk_size=5,
+    ),
+    BatchTransform(
+        func=steps.upload_tests,
+        inputs=[eval_tests],
+        outputs=[tests_grist],
+        labels=[("pipeline", "eval"), ("flow", "eval"), ("stage", "load")],
     ),
 ]
 
