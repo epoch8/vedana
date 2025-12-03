@@ -7,7 +7,7 @@ from vedana_etl.catalog import (
     dm_anchors,
     dm_attributes,
     dm_links,
-    dm_snapshot,
+    dm_version,
     edges,
     grist_edges,
     grist_nodes,
@@ -18,7 +18,7 @@ from vedana_etl.catalog import (
     memgraph_nodes,
     memgraph_vector_indexes,
     nodes,
-    eval_judge_config,
+    judge_config,
     eval_gds,
     eval_llm_answers,
     tests,
@@ -32,8 +32,8 @@ data_model_steps = [
     ),
     BatchGenerate(
         func=steps.get_data_model_snapshot,
-        outputs=[dm_snapshot],
-        labels=[("flow", "eval"), ("stage", "extract"), ("stage", "data-model")],
+        outputs=[dm_version],
+        labels=[("pipeline", "eval"), ("flow", "eval"), ("stage", "extract"), ("stage", "data-model")],
     ),
 ]
 
@@ -41,12 +41,12 @@ llm_config_steps = [
     BatchGenerate(
         func=steps.get_llm_pipeline_config,
         outputs=[llm_pipeline_config],
-        labels=[("flow", "eval")],
+        labels=[("pipeline", "eval"), ("flow", "eval")],
     ),
     BatchGenerate(
         func=steps.get_llm_embeddings_config,
         outputs=[llm_embeddings_config],
-        labels=[("flow", "eval")],
+        labels=[("pipeline", "eval"), ("flow", "eval")],
     ),
 ]
 
@@ -113,28 +113,28 @@ memgraph_steps = [
 eval_steps = [
     BatchGenerate(
         func=steps.get_eval_judge_config,
-        outputs=[eval_judge_config],
+        outputs=[judge_config],
         delete_stale=False,
-        labels=[("flow", "eval"), ("stage", "extract")],
+        labels=[("pipeline", "eval"), ("flow", "eval"), ("stage", "extract")],
     ),
     BatchGenerate(
         func=steps.get_eval_gds_from_grist,
         outputs=[eval_gds],
-        labels=[("flow", "eval"), ("stage", "extract")],
+        labels=[("pipeline", "eval"), ("flow", "eval"), ("stage", "extract")],
     ),
     BatchTransform(
         func=steps.run_tests,
-        inputs=[eval_gds, dm_snapshot, llm_pipeline_config, llm_embeddings_config],
+        inputs=[eval_gds, dm_version, llm_pipeline_config, llm_embeddings_config],
         outputs=[eval_llm_answers],
-        labels=[("flow", "eval"), ("stage", "process")],
+        labels=[("pipeline", "eval"), ("flow", "eval"), ("stage", "process")],
         transform_keys=["gds_question"],
         chunk_size=5,
     ),
     BatchTransform(
         func=steps.judge_tests,
-        inputs=[eval_llm_answers, eval_judge_config],
+        inputs=[eval_llm_answers, judge_config],
         outputs=[tests],
-        labels=[("flow", "eval"), ("stage", "process")],
+        labels=[("pipeline", "eval"), ("flow", "eval"), ("stage", "process")],
         transform_keys=["gds_question"],
         chunk_size=5,
     ),
