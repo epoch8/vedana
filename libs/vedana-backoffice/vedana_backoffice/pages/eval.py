@@ -4,59 +4,57 @@ from vedana_backoffice.states.eval import EvalState
 from vedana_backoffice.ui import app_header
 
 
-def _action_bar() -> rx.Component:
-    return rx.card(
-        rx.vstack(
-            rx.hstack(
-                rx.text(EvalState.selection_label, weight="medium"),
-                rx.badge(EvalState.cost_label, color_scheme="gray", variant="soft"),
-                rx.spacer(),
-                rx.button(
-                    "Reset selection",
-                    variant="ghost",
-                    color_scheme="gray",
-                    size="1",
-                    disabled=rx.cond(EvalState.selected_count > 0, False, True),  # type: ignore[arg-type]
-                    on_click=EvalState.reset_selection,
-                ),
-                rx.button(
-                    "Reload data",
-                    variant="soft",
-                    color_scheme="gray",
-                    size="1",
-                    on_click=EvalState.load_eval_data,
-                    loading=EvalState.loading,
-                ),
-                align="center",
-                width="100%",
+def _selection_and_actions() -> rx.Component:
+    """Selection controls and action buttons for the right panel."""
+    return rx.vstack(
+        rx.hstack(
+            rx.text(EvalState.selection_label, weight="medium"),
+            rx.badge(EvalState.cost_label, color_scheme="gray", variant="soft"),
+            rx.spacer(),
+            rx.button(
+                "Reset selection",
+                variant="ghost",
+                color_scheme="gray",
+                size="1",
+                disabled=rx.cond(EvalState.selected_count > 0, False, True),  # type: ignore[arg-type]
+                on_click=EvalState.reset_selection,
             ),
-            rx.hstack(
-                rx.button(
-                    "Run selected",
-                    color_scheme="blue",
-                    on_click=EvalState.run_selected_tests,
-                    loading=EvalState.is_running,
-                    disabled=rx.cond(EvalState.can_run, False, True),  # type: ignore[arg-type]
-                ),
-                rx.button(
-                    "Refresh Data Model",
-                    variant="soft",
-                    on_click=EvalState.refresh_data_model,
-                    loading=EvalState.loading,
-                ),
-                rx.button(
-                    "Refresh Judge Config",
-                    variant="soft",
-                    on_click=EvalState.run_judge_refresh,
-                    loading=EvalState.is_running,
-                ),
-                spacing="3",
-            ),
-            spacing="3",
+            align="center",
             width="100%",
         ),
+        rx.hstack(
+            rx.button(
+                "Run selected",
+                color_scheme="blue",
+                on_click=EvalState.run_selected_tests,
+                loading=EvalState.is_running,
+                disabled=rx.cond(EvalState.can_run, False, True),  # type: ignore[arg-type]
+            ),
+            rx.button(
+                "Refresh Data Model",
+                variant="soft",
+                on_click=EvalState.refresh_data_model,
+                loading=EvalState.loading,
+            ),
+            rx.button(
+                "Refresh Judge Config",
+                variant="soft",
+                on_click=EvalState.run_judge_refresh,
+                loading=EvalState.is_running,
+            ),
+            spacing="3",
+        ),
+        rx.button(
+            "Reload data",
+            variant="soft",
+            color_scheme="gray",
+            size="1",
+            on_click=EvalState.load_eval_data,
+            loading=EvalState.loading,
+            width="100%",
+        ),
+        spacing="3",
         width="100%",
-        padding="1em",
     )
 
 
@@ -87,13 +85,7 @@ def _questions_card() -> rx.Component:
 
     return rx.card(
         rx.vstack(
-            rx.hstack(
-                rx.heading("Golden QA Dataset", size="4"),
-                rx.spacer(),
-                rx.badge(f"Limit: {EvalState.max_eval_rows}", variant="soft"),
-                align="center",
-                width="100%",
-            ),
+            rx.heading("Golden QA Dataset", size="4"),
             rx.scroll_area(
                 rx.table.root(
                     rx.table.header(
@@ -109,20 +101,20 @@ def _questions_card() -> rx.Component:
                             rx.table.column_header_cell("Context"),
                         )
                     ),
-                    rx.table.body(
-                        rx.foreach(EvalState.eval_gds_rows_with_selection, _row)
-                    ),
+                    rx.table.body(rx.foreach(EvalState.eval_gds_rows_with_selection, _row)),
                     variant="surface",
                     style={"width": "100%", "tableLayout": "fixed"},
                 ),
                 type="always",
                 scrollbars="vertical",
-                style={"height": "420px", "width": "100%"},
+                style={"flex": "1", "width": "100%", "minHeight": "0"},
             ),
             spacing="3",
+            style={"height": "100%", "display": "flex", "flexDirection": "column"},
         ),
         padding="1em",
         width="100%",
+        style={"height": "100%", "display": "flex", "flexDirection": "column"},
     )
 
 
@@ -136,20 +128,18 @@ def _judge_card() -> rx.Component:
                 placeholder="No judge models",
                 on_change=EvalState.set_judge_model,
             ),
-            rx.text(f"Prompt id: {EvalState.judge_prompt_id}", size="2", color="gray"),
-            rx.box(
+            rx.link(
                 rx.text(
                     rx.cond(
-                        EvalState.selected_judge_prompt != "",
-                        EvalState.selected_judge_prompt,
-                        "Prompt not loaded",
+                        EvalState.judge_prompt_id != "",
+                        f"Prompt id: {EvalState.judge_prompt_id}",
+                        "No prompt id",
                     ),
-                    size="1",
+                    size="2",
+                    color="gray",
                 ),
-                padding="0.75em",
-                border="1px solid var(--gray-6)",
-                border_radius="8px",
-                style={"maxHeight": "220px", "overflow": "auto", "whiteSpace": "pre-wrap"},
+                on_click=EvalState.open_judge_prompt_dialog,
+                style={"cursor": "pointer", "textDecoration": "underline"},
             ),
             spacing="3",
             width="100%",
@@ -166,9 +156,13 @@ def _pipeline_card() -> rx.Component:
             rx.vstack(
                 rx.box(
                     rx.text("Data model", weight="medium"),
-                    rx.text(
-                        rx.cond(EvalState.dm_id != "", EvalState.dm_id, "Unknown"),
-                        size="3",
+                    rx.link(
+                        rx.text(
+                            rx.cond(EvalState.dm_id != "", EvalState.dm_id, "Unknown"),
+                            size="3",
+                        ),
+                        on_click=EvalState.open_data_model_dialog,
+                        style={"cursor": "pointer", "textDecoration": "underline"},
                     ),
                     rx.text(f"Snapshot @ {EvalState.dm_snapshot_updated}", size="1", color="gray"),
                     padding_bottom="0.75em",
@@ -248,7 +242,6 @@ def _tests_card() -> rx.Component:
             rx.hstack(
                 rx.heading("Latest test results", size="4"),
                 rx.spacer(),
-                rx.text(EvalState.tests_row_count_str, size="2", color="gray"),
                 align="center",
                 width="100%",
             ),
@@ -273,10 +266,121 @@ def _tests_card() -> rx.Component:
                 scrollbars="vertical",
                 style={"height": "360px", "width": "100%"},
             ),
+            # Server-side pagination controls
+            rx.hstack(
+                rx.text(EvalState.tests_rows_display, size="2", color="gray"),  # type: ignore[arg-type]
+                rx.spacer(),
+                rx.hstack(
+                    rx.button(
+                        "⏮",
+                        variant="soft",
+                        size="1",
+                        on_click=EvalState.tests_first_page,
+                        disabled=~EvalState.tests_has_prev,  # type: ignore[operator]
+                    ),
+                    rx.button(
+                        "← Prev",
+                        variant="soft",
+                        size="1",
+                        on_click=EvalState.tests_prev_page,
+                        disabled=~EvalState.tests_has_prev,  # type: ignore[operator]
+                    ),
+                    rx.text(
+                        EvalState.tests_page_display,  # type: ignore[arg-type]
+                        size="2",
+                        style={"minWidth": "100px", "textAlign": "center"},
+                    ),
+                    rx.button(
+                        "Next →",
+                        variant="soft",
+                        size="1",
+                        on_click=EvalState.tests_next_page,
+                        disabled=~EvalState.tests_has_next,  # type: ignore[operator]
+                    ),
+                    rx.button(
+                        "⏭",
+                        variant="soft",
+                        size="1",
+                        on_click=EvalState.tests_last_page,
+                        disabled=~EvalState.tests_has_next,  # type: ignore[operator]
+                    ),
+                    spacing="2",
+                    align="center",
+                ),
+                align="center",
+                width="100%",
+            ),
             spacing="3",
         ),
         padding="1em",
         width="100%",
+    )
+
+
+def _judge_prompt_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title("Judge Prompt"),
+            rx.vstack(
+                rx.text(f"Prompt ID: {EvalState.judge_prompt_id}", size="2", color="gray"),
+                rx.box(
+                    rx.text(
+                        rx.cond(
+                            EvalState.selected_judge_prompt != "",
+                            EvalState.selected_judge_prompt,
+                            "Prompt not loaded",
+                        ),
+                        size="2",
+                    ),
+                    padding="1em",
+                    border="1px solid var(--gray-6)",
+                    border_radius="8px",
+                    style={"maxHeight": "60vh", "overflow": "auto", "whiteSpace": "pre-wrap"},
+                ),
+                rx.dialog.close(
+                    rx.button("Close", variant="soft"),
+                ),
+                spacing="3",
+                width="100%",
+            ),
+            style={"maxWidth": "800px"},
+        ),
+        open=EvalState.judge_prompt_dialog_open,
+        on_open_change=EvalState.set_judge_prompt_dialog_open,
+    )
+
+
+def _data_model_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title("Data Model"),
+            rx.vstack(
+                rx.text(f"Model ID: {EvalState.dm_id}", size="2", color="gray"),
+                rx.text(f"Snapshot @ {EvalState.dm_snapshot_updated}", size="2", color="gray"),
+                rx.box(
+                    rx.text(
+                        rx.cond(
+                            EvalState.dm_description != "",
+                            EvalState.dm_description,
+                            "Description not loaded",
+                        ),
+                        size="2",
+                    ),
+                    padding="1em",
+                    border="1px solid var(--gray-6)",
+                    border_radius="8px",
+                    style={"maxHeight": "60vh", "overflow": "auto", "whiteSpace": "pre-wrap"},
+                ),
+                rx.dialog.close(
+                    rx.button("Close", variant="soft"),
+                ),
+                spacing="3",
+                width="100%",
+            ),
+            style={"maxWidth": "800px"},
+        ),
+        open=EvalState.data_model_dialog_open,
+        on_open_change=EvalState.set_data_model_dialog_open,
     )
 
 
@@ -324,20 +428,27 @@ def page() -> rx.Component:
     return rx.vstack(
         app_header(),
         rx.vstack(
-            _action_bar(),
             rx.grid(
                 _questions_card(),
-                rx.vstack(_judge_card(), _pipeline_card(), spacing="4", width="100%"),
+                rx.vstack(
+                    _judge_card(),
+                    _pipeline_card(),
+                    _selection_and_actions(),
+                    spacing="4",
+                    width="100%",
+                ),
                 columns="2",
                 spacing="4",
                 width="100%",
-                style={"gridTemplateColumns": "2fr 1fr"},
+                style={"gridTemplateColumns": "2fr 1fr", "height": "calc(100vh - 200px)", "minHeight": "600px"},
             ),
             _tests_card(),
             _status_messages(),
             spacing="4",
             width="100%",
         ),
+        _judge_prompt_dialog(),
+        _data_model_dialog(),
         align="start",
         spacing="2",
         padding="1.5em",
