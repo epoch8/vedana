@@ -7,6 +7,8 @@ from vedana_core.app import VedanaApp, make_vedana_app
 
 vedana_app: VedanaApp | None = None
 
+EVAL_ENABLED = bool(os.environ.get("GRIST_TEST_SET_DOC_ID"))
+
 
 async def get_vedana_app():
     global vedana_app
@@ -17,7 +19,7 @@ async def get_vedana_app():
 
 class AppVersionState(rx.State):
     version: str = f"`{os.environ.get('VERSION', 'unspecified_version')}`"  # md-formatted
-    eval_enabled: bool = bool(os.environ.get("GRIST_TEST_SET_DOC_ID"))
+    eval_enabled: bool = EVAL_ENABLED
 
 
 class TelegramBotState(rx.State):
