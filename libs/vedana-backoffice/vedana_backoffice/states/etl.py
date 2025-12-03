@@ -408,11 +408,32 @@ class EtlState(rx.State):
         self.selected_node_ids = []
         self._rebuild_graph()
 
-    def _filter_steps_by_labels(self, steps: Iterable[Any]) -> list[Any]:
-        if self.selected_flow == "all" and self.selected_stage == "all":
-            return list(steps)
+    def _get_current_pipeline_step_indices(self) -> set[int]:
+        """Get the indices of steps that belong to the currently selected pipeline."""
+        return {int(m.get("index", -1)) for m in self.all_steps if m.get("index") is not None}
 
-        def matches(step: Any) -> bool:
+    def _filter_steps_by_labels(self, steps: Iterable[Any], restrict_to_pipeline: bool = True) -> list[Any]:
+        """Filter steps by flow/stage labels.
+        
+        Args:
+            steps: The steps to filter (from etl_app.steps)
+            restrict_to_pipeline: If True, only include steps from the current pipeline
+        """
+        # Get valid step indices for the current pipeline
+        if restrict_to_pipeline:
+            valid_indices = self._get_current_pipeline_step_indices()
+        else:
+            valid_indices = None
+
+        def matches(step: Any, idx: int) -> bool:
+            # Check if step is in the current pipeline
+            if valid_indices is not None and idx not in valid_indices:
+                return False
+            
+            # Check flow/stage labels
+            if self.selected_flow == "all" and self.selected_stage == "all":
+                return True
+                
             labels = getattr(step, "labels", []) or []
             label_map: dict[str, set[str]] = {}
             for key, value in labels:
@@ -424,7 +445,7 @@ class EtlState(rx.State):
                 return False
             return True
 
-        return [s for s in steps if matches(s)]
+        return [s for idx, s in enumerate(steps) if matches(s, idx)]
 
     def _update_filtered_steps(self) -> None:
         """Update filtered_steps used for UI from all_steps based on current filters."""
@@ -1107,14 +1128,18 @@ class EtlState(rx.State):
         yield
 
         try:
+            valid_pipeline_indices = self._get_current_pipeline_step_indices()
+            
             if self.selection_source == "manual" and self.selected_node_ids:
-                selected = [i for i in self.selected_node_ids or [] if isinstance(i, int)]
+                selected = [i for i in self.selected_node_ids or [] if isinstance(i, int) and i in valid_pipeline_indices]
                 steps_to_run = [etl_app.steps[i] for i in sorted(selected) if 0 <= i < len(etl_app.steps)]
             else:
                 steps_to_run = self._filter_steps_by_labels(etl_app.steps)
             if not steps_to_run:
                 self._append_log("No steps match selected filters")
                 return
+
+            self._append_log(f"Steps to execute: {[getattr(s, "name", type(s).__name__) for s in steps_to_run]}")
 
             # stream datapipe logs into UI while each step runs
             q, handler, logger = self._start_log_capture()
