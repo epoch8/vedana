@@ -36,6 +36,13 @@ class EvalState(rx.State):
     is_running: bool = False
     run_progress: list[str] = []
     max_eval_rows: int = 500
+    judge_prompt_dialog_open: bool = False
+    data_model_dialog_open: bool = False
+    dm_description: str = ""
+    # Server-side pagination for tests
+    tests_page: int = 0  # 0-indexed current page
+    tests_page_size: int = 100  # rows per page
+    tests_total_rows: int = 0  # total count
 
     @rx.var
     def eval_gds_rows_with_selection(self) -> list[dict[str, Any]]:
@@ -115,6 +122,24 @@ class EvalState(rx.State):
     def reset_selection(self) -> None:
         self.selected_question_ids = []
         self.status_message = ""
+
+    def open_judge_prompt_dialog(self) -> None:
+        self.judge_prompt_dialog_open = True
+
+    def close_judge_prompt_dialog(self) -> None:
+        self.judge_prompt_dialog_open = False
+
+    def set_judge_prompt_dialog_open(self, open: bool) -> None:
+        self.judge_prompt_dialog_open = open
+
+    def open_data_model_dialog(self) -> None:
+        self.data_model_dialog_open = True
+
+    def close_data_model_dialog(self) -> None:
+        self.data_model_dialog_open = False
+
+    def set_data_model_dialog_open(self, open: bool) -> None:
+        self.data_model_dialog_open = open
 
     def set_judge_model(self, value: str) -> None:
         value = str(value or "")
@@ -245,6 +270,7 @@ class EvalState(rx.State):
                 self.embeddings_dim = 0
         if dm_row:
             self.dm_id = safe_render_value(dm_row.get("dm_id"))
+            self.dm_description = safe_render_value(dm_row.get("dm_description"))
             ts = dm_row.get("process_ts")
             if ts:
                 try:
@@ -265,12 +291,25 @@ class EvalState(rx.State):
 
     def _load_tests(self) -> None:
         con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        offset = self.tests_page * self.tests_page_size
+
+        # Get total count on first page load
+        if self.tests_page == 0:
+            try:
+                count_stmt = sa.text('SELECT COUNT(*) FROM "eval_tests"')
+                with con.begin() as conn:
+                    count_result = conn.execute(count_stmt).scalar()
+                    self.tests_total_rows = int(count_result or 0)
+            except Exception as exc:
+                logging.warning("Failed to get eval_tests count: %s", exc)
+                self.tests_total_rows = 0
+
         stmt = sa.text(
-            """
+            f"""
             SELECT test_date, gds_question, gds_answer, llm_answer, pipeline_model, test_status, eval_judge_comment
             FROM "eval_tests"
             ORDER BY test_date DESC NULLS LAST
-            LIMIT 500
+            LIMIT {self.tests_page_size} OFFSET {offset}
             """
         )
         try:
@@ -303,6 +342,58 @@ class EvalState(rx.State):
             )
         self.tests_rows = rows
         self.tests_cost_total = 0.0
+
+    def tests_next_page(self) -> None:
+        """Load the next page of tests."""
+        max_page = (self.tests_total_rows - 1) // self.tests_page_size if self.tests_total_rows > 0 else 0
+        if self.tests_page < max_page:
+            self.tests_page += 1
+            self._load_tests()
+
+    def tests_prev_page(self) -> None:
+        """Load the previous page of tests."""
+        if self.tests_page > 0:
+            self.tests_page -= 1
+            self._load_tests()
+
+    def tests_first_page(self) -> None:
+        """Jump to the first page."""
+        if self.tests_page != 0:
+            self.tests_page = 0
+            self._load_tests()
+
+    def tests_last_page(self) -> None:
+        """Jump to the last page."""
+        max_page = (self.tests_total_rows - 1) // self.tests_page_size if self.tests_total_rows > 0 else 0
+        if self.tests_page != max_page:
+            self.tests_page = max_page
+            self._load_tests()
+
+    @rx.var
+    def tests_page_display(self) -> str:
+        """Current page display (1-indexed for users)."""
+        total_pages = (self.tests_total_rows - 1) // self.tests_page_size + 1 if self.tests_total_rows > 0 else 1
+        return f"Page {self.tests_page + 1} of {total_pages}"
+
+    @rx.var
+    def tests_rows_display(self) -> str:
+        """Display range of rows being shown."""
+        if self.tests_total_rows == 0:
+            return "No rows"
+        start = self.tests_page * self.tests_page_size + 1
+        end = min(start + self.tests_page_size - 1, self.tests_total_rows)
+        return f"Rows {start}-{end} of {self.tests_total_rows}"
+
+    @rx.var
+    def tests_has_next(self) -> bool:
+        """Whether there's a next page."""
+        max_page = (self.tests_total_rows - 1) // self.tests_page_size if self.tests_total_rows > 0 else 0
+        return self.tests_page < max_page
+
+    @rx.var
+    def tests_has_prev(self) -> bool:
+        """Whether there's a previous page."""
+        return self.tests_page > 0
 
     def _append_progress(self, message: str) -> None:
         stamp = datetime.now().strftime("%H:%M:%S")
@@ -401,6 +492,7 @@ class EvalState(rx.State):
             self.loading = True
             self.error_message = ""
             self.status_message = ""
+            self.tests_page = 0  # Reset to first page
             yield
             try:
                 self._load_eval_questions()
