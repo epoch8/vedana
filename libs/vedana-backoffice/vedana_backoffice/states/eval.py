@@ -7,11 +7,8 @@ import reflex as rx
 import sqlalchemy as sa
 from datapipe.compute import run_steps
 from datapipe.run_config import RunConfig
-from vedana_core.data_provider import GristAPIDataProvider
-from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.config import DBCONN_DATAPIPE
-from vedana_etl.settings import settings as etl_settings
 
 from vedana_backoffice.states.common import get_vedana_app
 from vedana_backoffice.util import safe_render_value
@@ -131,18 +128,27 @@ class EvalState(rx.State):
     def _safe_value(self, value: Any) -> str:
         return str(safe_render_value(value) or "").strip()
 
-    def _make_grist_provider(self) -> GristAPIDataProvider:
-        return GristAPIDataProvider(
-            doc_id=etl_settings.grist_test_set_doc_id,
-            grist_server=core_settings.grist_server_url,
-            api_key=core_settings.grist_api_key,
-        )
-
     def _prune_selection(self) -> None:
         valid = {str(row.get("id")) for row in self.eval_gds_rows or [] if row.get("id")}
         self.selected_question_ids = [q for q in (self.selected_question_ids or []) if q in valid]
 
     def _load_eval_questions(self) -> None:
+        # Run datapipe step to refresh eval_gds from Grist first
+        # todo check / simplify getting the step
+        step = next(
+            (
+                st
+                for st in getattr(etl_app, "steps", [])
+                if getattr(getattr(st, "func", None), "__name__", "") == "get_eval_gds_from_grist"
+            ),
+            None,
+        )
+        if step is not None:
+            try:
+                run_steps(etl_app.ds, [step])
+            except Exception as exc:
+                logging.warning("Failed to run get_eval_gds_from_grist: %s", exc)
+
         con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
         stmt = sa.text(
             f"""
@@ -261,16 +267,28 @@ class EvalState(rx.State):
         return "gray"
 
     def _load_tests(self) -> None:
-        provider = self._make_grist_provider()
-        df = provider.get_table(etl_settings.tests_table_name)
-        if df is None or df.empty:
+        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        stmt = sa.text(
+            """
+            SELECT test_date, gds_question, pipeline_model, test_status, eval_judge_comment
+            FROM "eval_tests"
+            ORDER BY test_date DESC NULLS LAST
+            LIMIT 500
+            """
+        )
+        try:
+            with con.begin() as conn:
+                df = pd.read_sql(stmt, conn)
+        except Exception as exc:
+            logging.warning("Failed to load eval_tests: %s", exc)
+            self.tests_rows = []
+            self.tests_cost_total = 0.0
+            return
+        if df.empty:
             self.tests_rows = []
             self.tests_cost_total = 0.0
             return
         df = df.astype(object).where(pd.notna(df), None)
-        if "test_date" in df.columns:
-            df = df.sort_values(by="test_date", ascending=False)
-        df = df.head(200)
         rows: list[dict[str, Any]] = []
         for rec in df.to_dict(orient="records"):
             status = self._safe_value(rec.get("test_status"))
@@ -361,6 +379,9 @@ class EvalState(rx.State):
             ),
             None,
         )
+        if step is None:
+            self.error_message = "Unable to locate get_eval_judge_config step"
+            return
         self.status_message = "Refreshing judge config…"
         self.error_message = ""
         self.is_running = True

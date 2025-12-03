@@ -3,7 +3,6 @@ import os
 
 import reflex as rx
 import requests
-
 from vedana_core.app import VedanaApp, make_vedana_app
 
 vedana_app: VedanaApp | None = None
@@ -18,6 +17,7 @@ async def get_vedana_app():
 
 class AppVersionState(rx.State):
     version: str = f"`{os.environ.get('VERSION', 'unspecified_version')}`"  # md-formatted
+    eval_enabled: bool = bool(os.environ.get("GRIST_TEST_SET_DOC_ID"))
 
 
 class TelegramBotState(rx.State):
