@@ -1,3 +1,11 @@
+# 0.3.1
+
+* Splitting ETL pipelines into tabs by new pipeline label 
+* Improve data views: server-side pagination, custom styling
+* Add stats to ETL step / data table cards - last run time, row changes, row counts
+* Improve ETL Graph rendering logic
+* Refactor backoffice state.py - split into smaller states per-page 
+
 # 0.3.0 - 2025.11.20
 
 * ETL - added monitoring dashboard on the main page
