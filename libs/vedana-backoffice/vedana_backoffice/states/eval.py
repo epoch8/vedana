@@ -125,9 +125,6 @@ class EvalState(rx.State):
                 self.selected_judge_prompt = cfg.get("judge_prompt", "")
                 break
 
-    def _safe_value(self, value: Any) -> str:
-        return str(safe_render_value(value) or "").strip()
-
     def _prune_selection(self) -> None:
         valid = {str(row.get("id")) for row in self.eval_gds_rows or [] if row.get("id")}
         self.selected_question_ids = [q for q in (self.selected_question_ids or []) if q in valid]
@@ -163,13 +160,13 @@ class EvalState(rx.State):
         df = df.astype(object).where(pd.notna(df), None)
         rows: list[dict[str, Any]] = []
         for rec in df.to_dict(orient="records"):
-            question = self._safe_value(rec.get("gds_question"))
+            question = safe_render_value(rec.get("gds_question"))
             rows.append(
                 {
                     "id": question,
                     "gds_question": question,
-                    "gds_answer": self._safe_value(rec.get("gds_answer")),
-                    "question_context": self._safe_value(rec.get("question_context")),
+                    "gds_answer": safe_render_value(rec.get("gds_answer")),
+                    "question_context": safe_render_value(rec.get("question_context")),
                 }
             )
         self.eval_gds_rows = rows
@@ -199,8 +196,8 @@ class EvalState(rx.State):
         for rec in df.to_dict(orient="records"):
             configs.append(
                 {
-                    "judge_model": self._safe_value(rec.get("judge_model")),
-                    "judge_prompt_id": self._safe_value(rec.get("judge_prompt_id")),
+                    "judge_model": safe_render_value(rec.get("judge_model")),
+                    "judge_prompt_id": safe_render_value(rec.get("judge_prompt_id")),
                     "judge_prompt": rec.get("judge_prompt") or "",
                 }
             )
@@ -238,16 +235,16 @@ class EvalState(rx.State):
             dm_row = (await session.execute(dm_stmt)).mappings().first()
 
         if pipeline_rows:
-            self.pipeline_model = self._safe_value(pipeline_rows[-1])
+            self.pipeline_model = safe_render_value(pipeline_rows[-1])
         if embedding_rows:
             last = embedding_rows[-1]
-            self.embeddings_model = self._safe_value(last.get("embeddings_model"))
+            self.embeddings_model = safe_render_value(last.get("embeddings_model"))
             try:
                 self.embeddings_dim = int(last.get("embeddings_dim") or 0)
             except Exception:
                 self.embeddings_dim = 0
         if dm_row:
-            self.dm_id = self._safe_value(dm_row.get("dm_id"))
+            self.dm_id = safe_render_value(dm_row.get("dm_id"))
             ts = dm_row.get("process_ts")
             if ts:
                 try:
@@ -270,7 +267,7 @@ class EvalState(rx.State):
         con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
         stmt = sa.text(
             """
-            SELECT test_date, gds_question, pipeline_model, test_status, eval_judge_comment
+            SELECT test_date, gds_question, gds_answer, llm_answer, pipeline_model, test_status, eval_judge_comment
             FROM "eval_tests"
             ORDER BY test_date DESC NULLS LAST
             LIMIT 500
@@ -291,12 +288,14 @@ class EvalState(rx.State):
         df = df.astype(object).where(pd.notna(df), None)
         rows: list[dict[str, Any]] = []
         for rec in df.to_dict(orient="records"):
-            status = self._safe_value(rec.get("test_status"))
+            status = safe_render_value(rec.get("test_status"))
             rows.append(
                 {
-                    "test_date": self._safe_value(rec.get("test_date")),
-                    "gds_question": self._safe_value(rec.get("gds_question")),
-                    "pipeline_model": self._safe_value(rec.get("pipeline_model")),
+                    "test_date": safe_render_value(rec.get("test_date")),
+                    "gds_question": safe_render_value(rec.get("gds_question")),
+                    "llm_answer": safe_render_value(rec.get("llm_answer")),
+                    "gds_answer": safe_render_value(rec.get("gds_answer")),
+                    "pipeline_model": safe_render_value(rec.get("pipeline_model")),
                     "test_status": status or "—",
                     "status_color": self._status_color(status),
                     "eval_judge_comment": rec.get("eval_judge_comment") or "",

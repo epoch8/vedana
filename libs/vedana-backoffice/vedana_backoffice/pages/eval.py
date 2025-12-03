@@ -216,6 +216,18 @@ def _tests_card() -> rx.Component:
             ),
             rx.table.cell(rx.text(row.get("pipeline_model", ""))),
             rx.table.cell(
+                rx.text(
+                    row.get("llm_answer", ""),
+                    size="1",
+                )
+            ),
+            rx.table.cell(
+                rx.text(
+                    row.get("gds_answer", ""),
+                    size="1",
+                )
+            ),
+            rx.table.cell(
                 rx.badge(
                     row.get("test_status", ""),
                     color_scheme=row.get("status_color", "gray"),
@@ -247,6 +259,8 @@ def _tests_card() -> rx.Component:
                             rx.table.column_header_cell("Run at"),
                             rx.table.column_header_cell("Question"),
                             rx.table.column_header_cell("Pipeline"),
+                            rx.table.column_header_cell("Answer"),
+                            rx.table.column_header_cell("Golden Answer"),
                             rx.table.column_header_cell("Status"),
                             rx.table.column_header_cell("Judge comment"),
                         )
