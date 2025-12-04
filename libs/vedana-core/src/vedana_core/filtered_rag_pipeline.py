@@ -29,9 +29,9 @@ class DataModelSelection(BaseModel):
         default_factory=list,
         description="List of attribute names needed to answer the question",
     )
-    query_names: list[str] = Field(
+    query_ids: list[str] = Field(
         default_factory=list,
-        description="List of query scenario names that match the user's question type",
+        description="List of query scenario ID's that match the user's question type",
     )
 
 
@@ -201,7 +201,7 @@ class FilteredRagPipeline:
             "selected_anchors": filter_selection.anchor_nouns,
             "selected_links": filter_selection.link_sentences,
             "selected_attributes": filter_selection.attribute_names,
-            "selected_queries": filter_selection.query_names,
+            "selected_queries": filter_selection.query_ids,
             "original_counts": {
                 "anchors": len(self.data_model.anchors),
                 "links": len(self.data_model.links),
@@ -224,13 +224,13 @@ class FilteredRagPipeline:
         ctx: ThreadContext,
     ) -> tuple[DataModel, DataModelSelection]:
         # Get description for filtering
-        compact_descr = self.data_model.to_compact_descr()
+        dm_json = self.data_model.to_compact_json()
 
         # Build the prompt
         system_prompt = self.data_model.prompt_templates().get("dm_filter_prompt", dm_filter_base_system_prompt)
         user_prompt = self.data_model.prompt_templates().get("dm_filter_user_prompt", dm_filter_user_prompt_template).format(
             user_query=query,
-            compact_data_model=compact_descr,
+            compact_data_model=dm_json,
         )
 
         messages: list[dict[str, Any]] = [
@@ -256,12 +256,15 @@ class FilteredRagPipeline:
             if selection is None:
                 raise ValueError("LLM returned empty response")
 
+            # parse query id's to query names - LLM often misspells arbitrary query_names
+            query_names = [dm_json["queries"].get(int(i)) for i in selection.query_ids]
+
             self.logger.debug(
                 f"Data model filter selection: "
                 f"anchors={selection.anchor_nouns}, "
                 f"links={selection.link_sentences}, "
                 f"attrs={selection.attribute_names}, "
-                f"queries={selection.query_names}",
+                f"queries={query_names}",
             )
             self.logger.debug(f"Filter reasoning: {selection.reasoning}")
 
@@ -270,7 +273,7 @@ class FilteredRagPipeline:
                 anchor_nouns=selection.anchor_nouns,
                 link_sentences=selection.link_sentences,
                 attribute_names=selection.attribute_names,
-                query_names=selection.query_names,
+                query_names=query_names,
             )
 
             return filtered_dm, selection

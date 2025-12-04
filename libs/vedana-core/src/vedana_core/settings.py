@@ -19,6 +19,7 @@ class VedanaCoreSettings(BaseSettings):
 
     debug: bool = False
     model: str = "gpt-4.1"
+    filter_model: str = "gpt-5-mini"
     embeddings_model: str = "text-embedding-3-large"
     embeddings_dim: int = 1024
 

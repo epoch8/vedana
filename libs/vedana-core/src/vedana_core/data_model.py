@@ -287,53 +287,21 @@ class DataModel:
             queries=queries_descr,
         )
 
-    def to_compact_descr(self) -> str:
-        """Generate compact data model description without cypher queries.
-
-        Used for data model filtering step to reduce token usage.
-        """
-        dm_templates = self.prompt_templates()
-
-        anchor_descr = "\n".join(
-            dm_templates.get("dm_compact_anchor_descr_template", dm_compact_anchor_descr_template).format(anchor=anchor)
-            for anchor in self.anchors
-        )
-
-        anchor_attrs_descr = "\n".join(
-            dm_templates.get("dm_compact_attr_descr_template", dm_compact_attr_descr_template).format(
-                anchor=anchor, attr=attr
-            )
-            for anchor in self.anchors
-            for attr in anchor.attributes
-        )
-
-        link_descr = "\n".join(
-            dm_templates.get("dm_compact_link_descr_template", dm_compact_link_descr_template).format(link=link)
-            for link in self.links
-        )
-
-        link_attrs_descr = "\n".join(
-            dm_templates.get("dm_compact_link_attr_descr_template", dm_compact_link_attr_descr_template).format(
-                link=link, attr=attr
-            )
-            for link in self.links
-            for attr in link.attributes
-        )
-
-        queries_descr = "\n".join(
-            dm_templates.get("dm_compact_query_descr_template", dm_compact_query_descr_template).format(query=query)
-            for query in self.queries
-        )
-
-        dm_template = dm_templates.get("dm_compact_descr_template", dm_compact_descr_template)
-
-        return dm_template.format(
-            anchors=anchor_descr,
-            anchor_attrs=anchor_attrs_descr,
-            links=link_descr,
-            link_attrs=link_attrs_descr,
-            queries=queries_descr,
-        )
+    def to_compact_json(self) -> dict:
+        descr = {
+            "anchors": [
+                {"name": a.noun, "description": a.description, "example": a.id_example,
+                 "attributes": [{"attr_name": aa.name, "attr_description": aa.description,} for aa in a.attributes]}
+                for a in self.anchors
+            ],
+            "links": [
+                {"from": l.anchor_from, "to": l.anchor_to, "sentence": l.sentence, "description": l.description,
+                 "attributes": [{"attr_name": la.name, "attr_description": la.description,} for la in l.attributes]}
+                for l in self.links
+            ],
+            "queries": {i: q.name for i, q in enumerate(self.queries, start=1)},
+        }
+        return descr
 
     def filter_by_selection(
         self,
