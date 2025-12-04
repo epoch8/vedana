@@ -51,6 +51,10 @@ def render_message_bubble(
             ),
             padding="0.75em",
             variant="surface",
+            style={
+                "maxWidth": "100%",
+                "overflowX": "auto",
+            },
         ),
         rx.box(),
     )
@@ -82,11 +86,20 @@ def render_message_bubble(
 
     body = rx.vstack(
         rx.hstack(header_left, tags_box, justify="between", width="100%", align="center"),  # header
-        rx.text(msg.get("content", "")),
+        rx.text(
+            msg.get("content", ""),
+            style={
+                "whiteSpace": "pre-wrap",
+                "wordBreak": "break-word",
+            },
+        ),
         rx.cond(msg.get("show_details"), tech_block),
         rx.cond(extras is not None, extras or rx.box()),
         spacing="2",
         width="100%",
+        style={
+            "maxWidth": "100%",
+        },
     )
 
     assistant_bubble = rx.card(
@@ -97,6 +110,8 @@ def render_message_bubble(
             "backgroundColor": "#11182714",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
+            "wordBreak": "break-word",
+            "overflowX": "hidden",
         },
     )
     user_bubble = rx.card(
@@ -107,6 +122,8 @@ def render_message_bubble(
             "backgroundColor": "#3b82f614",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
+            "wordBreak": "break-word",
+            "overflowX": "hidden",
         },
     )
 
