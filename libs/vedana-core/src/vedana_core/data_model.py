@@ -287,6 +287,169 @@ class DataModel:
             queries=queries_descr,
         )
 
+    def to_compact_descr(self) -> str:
+        """Generate compact data model description without cypher queries.
+
+        Used for data model filtering step to reduce token usage.
+        """
+        dm_templates = self.prompt_templates()
+
+        anchor_descr = "\n".join(
+            dm_templates.get("dm_compact_anchor_descr_template", dm_compact_anchor_descr_template).format(anchor=anchor)
+            for anchor in self.anchors
+        )
+
+        anchor_attrs_descr = "\n".join(
+            dm_templates.get("dm_compact_attr_descr_template", dm_compact_attr_descr_template).format(
+                anchor=anchor, attr=attr
+            )
+            for anchor in self.anchors
+            for attr in anchor.attributes
+        )
+
+        link_descr = "\n".join(
+            dm_templates.get("dm_compact_link_descr_template", dm_compact_link_descr_template).format(link=link)
+            for link in self.links
+        )
+
+        link_attrs_descr = "\n".join(
+            dm_templates.get("dm_compact_link_attr_descr_template", dm_compact_link_attr_descr_template).format(
+                link=link, attr=attr
+            )
+            for link in self.links
+            for attr in link.attributes
+        )
+
+        queries_descr = "\n".join(
+            dm_templates.get("dm_compact_query_descr_template", dm_compact_query_descr_template).format(query=query)
+            for query in self.queries
+        )
+
+        dm_template = dm_templates.get("dm_compact_descr_template", dm_compact_descr_template)
+
+        return dm_template.format(
+            anchors=anchor_descr,
+            anchor_attrs=anchor_attrs_descr,
+            links=link_descr,
+            link_attrs=link_attrs_descr,
+            queries=queries_descr,
+        )
+
+    def filter_by_selection(
+        self,
+        anchor_nouns: list[str] | None = None,
+        link_sentences: list[str] | None = None,
+        attribute_names: list[str] | None = None,
+        query_names: list[str] | None = None,
+    ) -> "DataModel":
+        """Create a filtered copy of the data model with only selected items.
+
+        Args:
+            anchor_nouns: List of anchor nouns to include. If None, includes all.
+            link_sentences: List of link sentences to include. If None, includes all.
+            attribute_names: List of attribute names to include. If None, includes all.
+            query_names: List of query names to include. If None, includes all.
+
+        Returns:
+            A new DataModel instance with only the selected items.
+        """
+        # Convert to sets for efficient lookup, None means include all
+        anchor_set = set(anchor_nouns) if anchor_nouns is not None else None
+        link_set = set(link_sentences) if link_sentences is not None else None
+        attr_set = set(attribute_names) if attribute_names is not None else None
+        query_set = set(query_names) if query_names is not None else None
+
+        # Filter anchors
+        filtered_anchors: list[Anchor] = []
+        for anchor in self.anchors:
+            if anchor_set is None or anchor.noun in anchor_set:
+                # Filter attributes within the anchor
+                filtered_attrs = [
+                    Attribute(
+                        name=attr.name,
+                        description=attr.description,
+                        example=attr.example,
+                        dtype=attr.dtype,
+                        query=attr.query,
+                        meta=attr.meta.copy(),
+                        embeddable=attr.embeddable,
+                        embed_threshold=attr.embed_threshold,
+                    )
+                    for attr in anchor.attributes
+                    if attr_set is None or attr.name in attr_set
+                ]
+
+                filtered_anchors.append(
+                    Anchor(
+                        noun=anchor.noun,
+                        description=anchor.description,
+                        id_example=anchor.id_example,
+                        query=anchor.query,
+                        attributes=filtered_attrs,
+                    )
+                )
+
+        # Create a map for quick anchor lookup
+        anchors_map = {a.noun: a for a in filtered_anchors}
+
+        # Filter links
+        filtered_links: list[Link] = []
+        for link in self.links:
+            if link_set is None or link.sentence in link_set:
+                # Check if both anchors exist in filtered set
+                anchor_from = anchors_map.get(link.anchor_from.noun)
+                anchor_to = anchors_map.get(link.anchor_to.noun)
+
+                if anchor_from is not None and anchor_to is not None:
+                    # Filter attributes within the link
+                    filtered_link_attrs = [
+                        Attribute(
+                            name=attr.name,
+                            description=attr.description,
+                            example=attr.example,
+                            dtype=attr.dtype,
+                            query=attr.query,
+                            meta=attr.meta.copy(),
+                            embeddable=attr.embeddable,
+                            embed_threshold=attr.embed_threshold,
+                        )
+                        for attr in link.attributes
+                        if attr_set is None or attr.name in attr_set
+                    ]
+
+                    filtered_links.append(
+                        Link(
+                            anchor_from=anchor_from,
+                            anchor_to=anchor_to,
+                            sentence=link.sentence,
+                            description=link.description,
+                            query=link.query,
+                            attributes=filtered_link_attrs,
+                            has_direction=link.has_direction,
+                            anchor_from_link_attr_name=link.anchor_from_link_attr_name,
+                            anchor_to_link_attr_name=link.anchor_to_link_attr_name,
+                        )
+                    )
+
+        # Collect all attributes from filtered anchors and links
+        filtered_attrs: list[Attribute] = []
+        for anchor in filtered_anchors:
+            filtered_attrs.extend(anchor.attributes)
+        for link in filtered_links:
+            filtered_attrs.extend(link.attributes)
+
+        # Filter queries
+        filtered_queries = [q for q in self.queries if query_set is None or q.name in query_set]
+
+        return DataModel(
+            anchors=filtered_anchors,
+            links=filtered_links,
+            attrs=filtered_attrs,
+            queries=filtered_queries,
+            conversation_lifecycle=self.conversation_lifecycle.copy(),
+            prompts=self.prompts.copy(),
+        )
+
     def to_dict(self) -> dict:
         """serialize DataModel"""
 
@@ -498,6 +661,30 @@ dm_link_attr_descr_template = (
     "- {link.sentence}.{attr.name}: {attr.description}; пример: {attr.example}; запрос для получения: {attr.query}"
 )
 dm_query_descr_template = "- {query.name}\n{query.example}"
+
+# Compact templates (without cypher queries)
+dm_compact_descr_template = """\
+## Узлы:
+{anchors}
+
+## Атрибуты узлов:
+{anchor_attrs}
+
+## Связи между узлами:
+{links}
+
+## Атрибуты связей:
+{link_attrs}
+
+## Сценарии вопросов:
+{queries}
+"""
+
+dm_compact_anchor_descr_template = "- {anchor.noun}: {anchor.description}"
+dm_compact_attr_descr_template = "- {anchor.noun}.{attr.name}: {attr.description}"
+dm_compact_link_descr_template = "- {link.sentence}: {link.description}"
+dm_compact_link_attr_descr_template = "- {link.sentence}.{attr.name}: {attr.description}"
+dm_compact_query_descr_template = "- {query.name}"
 
 
 class SqliteDataModelLoader(DataModelLoader):
