@@ -742,7 +742,13 @@ def jims_thread_list_page() -> rx.Component:
                             align="center",
                             width="100%",
                         ),
-                        rx.text(c["note"]),
+                        rx.text(
+                            c["note"],
+                            style={
+                                "whiteSpace": "pre-wrap",
+                                "wordBreak": "break-word",
+                            },
+                        ),
                         # Actions row
                         rx.hstack(
                             rx.button(
@@ -843,10 +849,18 @@ def jims_thread_list_page() -> rx.Component:
                     spacing="3",
                     width="100%",
                     padding_bottom="1em",
+                    style={
+                        "maxWidth": "100%",
+                        "overflowX": "hidden",
+                    },
                 ),
                 type="always",
                 scrollbars="vertical",
-                style={"height": "100%"},
+                style={
+                    "height": "100%",
+                    "maxWidth": "100%",
+                    "overflowX": "hidden",
+                },
             ),
             flex="1",
             min_height="0",
