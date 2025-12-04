@@ -8,7 +8,8 @@ from loguru import logger
 from vedana_core.data_model import DataModel
 from vedana_core.db import get_sessionmaker
 from vedana_core.graph import MemgraphGraph
-from vedana_core.rag_pipeline import RagPipeline, StartPipeline
+from vedana_core.rag_pipeline import RagPipeline
+from vedana_core.start_pipeline import StartPipeline
 from vedana_core.settings import settings as core_settings
 
 
