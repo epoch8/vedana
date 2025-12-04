@@ -2,15 +2,64 @@ import logging
 import traceback
 from dataclasses import asdict
 from typing import Any
+from pydantic import BaseModel, Field
 
 from jims_core.thread.thread_context import ThreadContext
 
 from vedana_core.data_model import DataModel
-from vedana_core.dm_filter import DataModelFilter, DataModelSelection
 from vedana_core.graph import Graph
 from vedana_core.llm import LLM
 from vedana_core.rag_agent import RagAgent
 from vedana_core.settings import settings
+
+
+class DataModelSelection(BaseModel):
+    reasoning: str = Field(
+        description="Brief explanation of why these elements were selected for answering the user's question"
+    )
+    anchor_nouns: list[str] = Field(
+        default_factory=list,
+        description="List of anchor nouns (node types) needed to answer the question",
+    )
+    link_sentences: list[str] = Field(
+        default_factory=list,
+        description="List of link sentences (relationship types) needed to answer the question",
+    )
+    attribute_names: list[str] = Field(
+        default_factory=list,
+        description="List of attribute names needed to answer the question",
+    )
+    query_names: list[str] = Field(
+        default_factory=list,
+        description="List of query scenario names that match the user's question type",
+    )
+
+
+dm_filter_base_system_prompt = """\
+Ты — помощник по анализу структуры графовой базы данных. 
+
+Твоя задача: проанализировать вопрос пользователя и определить, какие элементы модели данных (узлы, связи, атрибуты, сценарии запросов) необходимы для формирования ответа.
+
+**Правила выбора:**
+1. Выбирай только те элементы, которые ДЕЙСТВИТЕЛЬНО нужны для ответа на вопрос
+2. Если вопрос касается связи между сущностями — выбери соответствующие узлы И связь между ними
+3. Выбирай атрибуты, которые могут содержать искомую информацию или использоваться для фильтрации
+4. Выбирай сценарий запроса, который лучше всего соответствует типу вопроса пользователя
+5. Лучше выбрать чуть больше, чем упустить важное — но не выбирай всё подряд
+
+**Формат ответа:**
+Верни JSON с выбранными элементами. Используй ТОЧНЫЕ имена из предоставленной модели данных.
+"""
+
+dm_filter_user_prompt_template = """\
+**Вопрос пользователя:**
+{user_query}
+
+**Модель данных:**
+{compact_data_model}
+
+Проанализируй вопрос и выбери необходимые элементы модели данных для формирования ответа.
+"""
 
 
 class FilteredRagPipeline:
@@ -99,17 +148,13 @@ class FilteredRagPipeline:
     async def process_rag_query(self, query: str, ctx: ThreadContext) -> tuple[str, list, dict[str, Any]]:
         # 1. Filter data model
         await ctx.update_agent_status("Analyzing query structure...")
-        filtered_dm, filter_selection = await self._filter_data_model(query, ctx)
+        filtered_dm, filter_selection = await self.filter_data_model(query, ctx)
         self.logger.info(
-            "Data model filtered: %d/%d anchors, %d/%d links, %d/%d attrs, %d/%d queries",
-            len(filtered_dm.anchors),
-            len(self.data_model.anchors),
-            len(filtered_dm.links),
-            len(self.data_model.links),
-            len(filtered_dm.attrs),
-            len(self.data_model.attrs),
-            len(filtered_dm.queries),
-            len(self.data_model.queries),
+            f"Data model filtered: "
+            f"{len(filtered_dm.anchors)}/{len(self.data_model.anchors)} anchors, "
+            f"{len(filtered_dm.links)}/{len(self.data_model.links)} links, "
+            f"{len(filtered_dm.attrs)}/{len(self.data_model.attrs)} attrs, "
+            f"{len(filtered_dm.queries)}/{len(self.data_model.queries)} queries"
         )
 
         # 2. Create LLM and agent with filtered data model
@@ -173,21 +218,69 @@ class FilteredRagPipeline:
 
         return answer, agent_query_events, technical_info
 
-    async def _filter_data_model(
-        self, query: str, ctx: ThreadContext
+    async def filter_data_model(
+        self,
+        query: str,
+        ctx: ThreadContext,
     ) -> tuple[DataModel, DataModelSelection]:
-        """Filter the data model based on user query."""
+        # Get description for filtering
+        compact_descr = self.data_model.to_compact_descr()
 
-        # Create a separate LLM provider for filtering (can use cheaper model)
-        from jims_core.llms.llm_provider import LLMProvider
-
-        filter_llm = LLMProvider()
-        if self.filter_model:
-            filter_llm.set_model(self.filter_model)
-
-        dm_filter = DataModelFilter(
-            llm_provider=filter_llm,
-            logger=self.logger,
+        # Build the prompt
+        system_prompt = self.data_model.prompt_templates().get("dm_filter_prompt", dm_filter_base_system_prompt)
+        user_prompt = self.data_model.prompt_templates().get("dm_filter_user_prompt", dm_filter_user_prompt_template).format(
+            user_query=query,
+            compact_data_model=compact_descr,
         )
 
-        return await dm_filter.filter_data_model(self.data_model, query)
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        self.logger.debug(f"Filtering data model for query: {query}")
+
+        try:
+            filter_llm = ctx.llm
+
+            base_model = ctx.llm.model
+            if self.filter_model:  # if different model specified for filtering - use it
+                filter_llm.set_model(self.filter_model)
+
+            # Use structured output to get the selection
+            selection = await filter_llm.chat_completion_structured(messages, DataModelSelection)
+
+            if base_model:  # select base model back
+                ctx.llm.set_model(base_model)
+
+            if selection is None:
+                raise ValueError("LLM returned empty response")
+
+            self.logger.debug(
+                f"Data model filter selection: "
+                f"anchors={selection.anchor_nouns}, "
+                f"links={selection.link_sentences}, "
+                f"attrs={selection.attribute_names}, "
+                f"queries={selection.query_names}",
+            )
+            self.logger.debug(f"Filter reasoning: {selection.reasoning}")
+
+            # Create filtered data model
+            filtered_dm = self.data_model.filter_by_selection(
+                anchor_nouns=selection.anchor_nouns,
+                link_sentences=selection.link_sentences,
+                attribute_names=selection.attribute_names,
+                query_names=selection.query_names,
+            )
+
+            return filtered_dm, selection
+
+        except Exception as e:  # return full data_model
+            self.logger.exception(f"Data model filtering failed: {e}. Using full data model.")
+            return self.data_model, DataModelSelection(
+                reasoning=f"Filtering failed: {e}. Using full data model.",
+                anchor_nouns=[],
+                link_sentences=[],
+                attribute_names=[],
+                query_names=[],
+            )
