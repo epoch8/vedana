@@ -37,6 +37,8 @@ class EvalState(rx.State):
     is_running: bool = False
     run_progress: list[str] = []
     max_eval_rows: int = 500
+    current_question_index: int = -1  # Track which question is being processed
+    total_questions_to_run: int = 0  # Total number of questions in current run
     judge_prompt_dialog_open: bool = False
     data_model_dialog_open: bool = False
     dm_description: str = ""
@@ -112,6 +114,14 @@ class EvalState(rx.State):
         return len(self.run_progress or []) > 0
 
     @rx.var
+    def current_question_progress(self) -> str:
+        """Display current question progress."""
+        if self.total_questions_to_run == 0:
+            return ""
+        current = self.current_question_index + 1
+        return f"Processing question {current} of {self.total_questions_to_run}"
+
+    @rx.var
     def embeddings_dim_label(self) -> str:
         return f"{self.embeddings_dim} dims" if self.embeddings_dim > 0 else ""
 
@@ -182,15 +192,7 @@ class EvalState(rx.State):
 
     def _load_eval_questions(self) -> None:
         # Run datapipe step to refresh eval_gds from Grist first
-        # todo check / simplify getting the step
-        step = next(
-            (
-                st
-                for st in getattr(etl_app, "steps", [])
-                if getattr(getattr(st, "func", None), "__name__", "") == "get_eval_gds_from_grist"
-            ),
-            None,
-        )
+        step = next((s for s in etl_app.steps if s._name == "get_eval_gds_from_grist"), None)
         if step is not None:
             try:
                 run_steps(etl_app.ds, [step])
@@ -456,20 +458,14 @@ class EvalState(rx.State):
         target_order = ["run_tests", "judge_tests"]
         resolved: list[Any] = []
         for func_name in target_order:
-            step = next(
-                (
-                    st
-                    for st in getattr(etl_app, "steps", [])
-                    if getattr(getattr(st, "func", None), "__name__", "") == func_name
-                ),
-                None,
-            )
+            step = next((s for s in etl_app.steps if s._name == func_name), None)
             if step is None:
                 raise RuntimeError(f"Unable to locate compute step for {func_name}")
             resolved.append(step)
         return resolved
 
     def _run_eval_for_question(self, question: str, steps: list[Any]) -> None:
+        """Run evaluation steps for a single question. This is a blocking operation."""
         rc = RunConfig(filters={"gds_question": question})
         for step in steps:
             meta_table = getattr(step, "meta_table", None)
@@ -479,49 +475,101 @@ class EvalState(rx.State):
                 except Exception:
                     pass
             run_steps(etl_app.ds, [step], run_config=rc)
-            self._append_progress(f"{question}: {getattr(step, '_name', getattr(step, 'name', ''))} done")
+            step_name = getattr(step, "_name", getattr(step, "name", ""))
+            self._append_progress(f"'{question}': {step_name} completed")
 
-    def run_selected_tests(self):
-        if self.is_running:
-            return
-        selection = [str(q) for q in (self.selected_question_ids or []) if str(q)]
-        if not selection:
-            self.error_message = "Select at least one question to run tests."
-            return
-        try:
-            steps = self._resolve_eval_steps()
-        except Exception as e:
-            self.error_message = str(e)
-            return
-        self.is_running = True
-        self.status_message = "Starting evaluation run…"
-        self.run_progress = []
-        yield
-        try:
-            for question in selection:
-                self._append_progress(f"Running pipeline for '{question}'")
-                self._run_eval_for_question(question, steps)
-            self.status_message = f"Completed {len(selection)} question(s)"
+    @rx.event(background=True)  # type: ignore[operator]
+    async def run_selected_tests(self):  # todo fix async / blocking here.
+        """Run tests one question at a time, yielding between each to allow UI updates."""
+        async with self:
+            if self.is_running:
+                return
+            selection = [str(q) for q in (self.selected_question_ids or []) if str(q)]
+            if not selection:
+                self.error_message = "Select at least one question to run tests."
+                return
+            try:
+                steps = self._resolve_eval_steps()
+            except Exception as e:
+                self.error_message = str(e)
+                return
+
+            # Initialize run state
+            self.is_running = True
+            self.current_question_index = -1
+            self.total_questions_to_run = len(selection)
+            self.status_message = f"Starting evaluation run for {len(selection)} question(s)…"
+            self.run_progress = []
             self.error_message = ""
-            yield EvalState.load_eval_data()
-        except Exception as e:
-            self.error_message = f"Failed to run evaluation: {e}"
-            self.status_message = ""
-        finally:
+            yield
+
+            # Process one question at a time
+            completed = 0
+            for idx, question in enumerate(selection):
+                self.current_question_index = idx
+                self.status_message = f"Processing question {idx + 1} of {len(selection)}: '{question[:50]}...'"
+                self._append_progress(f"Starting: '{question}'")
+                yield  # Yield before starting to update UI
+
+                try:
+                    # This is a blocking call, but we yield before and after
+                    self._run_eval_for_question(question, steps)
+                    completed += 1
+                    self._append_progress(f"Completed: '{question}'")
+                    self.status_message = f"Completed {completed} of {len(selection)} question(s)"
+                except Exception as e:
+                    error_msg = f"Failed for '{question}': {e}"
+                    self._append_progress(error_msg)
+                    logging.error(error_msg, exc_info=True)
+                    # Continue with next question instead of stopping
+
+                yield  # Yield after each question to update UI
+
+            # Finalize
+            self.status_message = f"Evaluation complete: {completed} of {len(selection)} question(s) processed"
+            self.current_question_index = -1
+            self.total_questions_to_run = 0
+
+            # Reload data to show new test results
+            try:
+                yield EvalState.load_eval_data()
+            except Exception as e:
+                logging.warning(f"Failed to reload eval data after test run: {e}")
+
             self.is_running = False
             yield
+
+    @rx.event(background=True)  # type: ignore[operator]
+    async def refresh_golden_dataset(self):
+        """Refresh the golden dataset from Grist."""
+        async with self:
+            if self.is_running:
+                return
+            step = next((s for s in etl_app.steps if s._name == "get_eval_gds_from_grist"), None)
+            if step is None:
+                self.error_message = "Unable to locate get_eval_gds_from_grist step"
+                return
+            self.status_message = "Refreshing golden dataset from Grist…"
+            self.error_message = ""
+            self.is_running = True
+            yield
+            try:
+                run_steps(etl_app.ds, [step])
+                self._append_progress("Golden dataset refreshed from Grist")
+                # Reload the questions after refresh
+                self._load_eval_questions()
+                self.status_message = "Golden dataset refreshed successfully"
+            except Exception as e:
+                self.error_message = f"Failed to refresh golden dataset: {e}"
+                logging.error(f"Failed to refresh golden dataset: {e}", exc_info=True)
+            finally:
+                self.is_running = False
+                yield
 
     def run_judge_refresh(self):
         if self.is_running:
             return
-        step = next(
-            (
-                st
-                for st in getattr(etl_app, "steps", [])
-                if getattr(getattr(st, "func", None), "__name__", "") == "get_eval_judge_config"
-            ),
-            None,
-        )
+        step = next((s for s in etl_app.steps if s._name == "get_eval_judge_config"), None)
         if step is None:
             self.error_message = "Unable to locate get_eval_judge_config step"
             return

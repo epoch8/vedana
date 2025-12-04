@@ -108,6 +108,17 @@ def _questions_card() -> rx.Component:
                         on_change=EvalState.set_scenario,
                         width="12em",
                     ),
+                    rx.tooltip(
+                        rx.button(
+                            "↻",
+                            variant="ghost",
+                            color_scheme="gray",
+                            size="1",
+                            on_click=EvalState.refresh_golden_dataset,
+                            loading=EvalState.is_running,
+                        ),
+                        content="Refresh golden dataset from Grist",
+                    ),
                     spacing="2",
                     align="center",
                 ),
@@ -413,7 +424,19 @@ def _status_messages() -> rx.Component:
     return rx.vstack(
         rx.cond(
             EvalState.status_message != "",
-            rx.callout(EvalState.status_message, color_scheme="green", variant="soft"),
+            rx.callout(
+                rx.vstack(
+                    rx.text(EvalState.status_message, weight="medium"),
+                    rx.cond(
+                        EvalState.current_question_progress != "",
+                        rx.text(EvalState.current_question_progress, size="1", color="gray"),  # type: ignore[arg-type]
+                        rx.box(),
+                    ),
+                    spacing="1",
+                ),
+                color_scheme="green",
+                variant="soft",
+            ),
             rx.box(),
         ),
         rx.cond(
@@ -459,6 +482,7 @@ def page() -> rx.Component:
                     _judge_card(),
                     _pipeline_card(),
                     _selection_and_actions(),
+                    _status_messages(),
                     spacing="4",
                     width="100%",
                 ),
@@ -468,7 +492,6 @@ def page() -> rx.Component:
                 style={"gridTemplateColumns": "3fr 1fr", "height": "calc(100vh - 200px)", "minHeight": "600px"},
             ),
             _tests_card(),
-            _status_messages(),
             spacing="4",
             width="100%",
         ),
