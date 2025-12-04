@@ -80,25 +80,11 @@ def render_message_bubble(
         align="center",
     )
 
-    header = rx.hstack(
-        header_left,
-        tags_box,
-        justify="between",
-        width="100%",
-        align="center",
-    )
-
-    body_children = [
-        header,
+    body = rx.vstack(
+        rx.hstack(header_left, tags_box, justify="between", width="100%", align="center"),  # header
         rx.text(msg.get("content", "")),
         rx.cond(msg.get("show_details"), tech_block),
         rx.cond(extras is not None, extras or rx.box()),
-    ]
-
-    # Comments are appended by caller via `extras`
-
-    body = rx.vstack(
-        *body_children,
         spacing="2",
         width="100%",
     )
