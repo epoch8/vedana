@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+import pprint
 import orjson as json
 import reflex as rx
 import sqlalchemy as sa
@@ -59,14 +60,14 @@ class ThreadEventVis:
             # If nested dict like {model: {...}} flatten to stringified value
             for mk, mv in model_stats.items() if isinstance(model_stats, dict) else []:
                 try:
-                    models_list.append((str(mk), json.dumps(mv).decode()))
+                    models_list.append((f'"{mk}"', json.dumps(mv, option=json.OPT_INDENT_2).decode()))
                 except Exception:
-                    models_list.append((str(mk), str(mv)))
+                    models_list.append((f'"{mk}"', str(mv)))
         except Exception:
             pass
 
         vts_str = "\n".join(vts_queries)
-        cypher_str = "\n".join([str(x) for x in cypher_queries])
+        cypher_str = "\n".join([pprint.pformat(x)[1:-1].replace("'", "") for x in cypher_queries])  # format to fit
         models_str = "\n".join([f"{k}: {v}" for k, v in models_list])
 
         return cls(

@@ -23,7 +23,18 @@ def render_message_bubble(
                     msg.get("has_models"),
                     rx.vstack(
                         rx.text("Models", weight="medium"),
-                        rx.code(msg.get("models_str", ""), font_size="11px"),
+                        rx.code_block(
+                            msg.get("models_str", ""),
+                            font_size="11px",
+                            language="json",
+                            style={
+                                "whiteSpace": "pre-wrap",
+                                "overflowX": "auto",
+                                "display": "block",
+                                "maxWidth": "100%",
+                                "boxSizing": "border-box",
+                            },
+                        ),
                         spacing="1",
                         width="100%",
                     ),
@@ -32,7 +43,18 @@ def render_message_bubble(
                     msg.get("has_vts"),
                     rx.vstack(
                         rx.text("VTS Queries", weight="medium"),
-                        rx.code(msg.get("vts_str", ""), font_size="11px"),
+                        rx.code_block(
+                            msg.get("vts_str", ""),
+                            font_size="11px",
+                            language="python",
+                            style={
+                                "whiteSpace": "wrap",
+                                "overflowX": "auto",
+                                "display": "block",
+                                "maxWidth": "100%",
+                                "boxSizing": "border-box",
+                            },
+                        ),
                         spacing="1",
                         width="100%",
                     ),
@@ -41,7 +63,18 @@ def render_message_bubble(
                     msg.get("has_cypher"),
                     rx.vstack(
                         rx.text("Cypher Queries", weight="medium"),
-                        rx.code(msg.get("cypher_str", ""), font_size="11px"),
+                        rx.code_block(
+                            msg.get("cypher_str", ""),
+                            font_size="11px",
+                            language="cypher",
+                            style={
+                                "whiteSpace": "wrap",
+                                "overflowX": "auto",
+                                "display": "block",
+                                "maxWidth": "100%",
+                                "boxSizing": "border-box",
+                            },
+                        ),
                         spacing="1",
                         width="100%",
                     ),
