@@ -290,13 +290,34 @@ class DataModel:
     def to_compact_json(self) -> dict:
         descr = {
             "anchors": [
-                {"name": a.noun, "description": a.description, "example": a.id_example,
-                 "attributes": [{"attr_name": aa.name, "attr_description": aa.description,} for aa in a.attributes]}
+                {
+                    "name": a.noun,
+                    "description": a.description,
+                    "example": a.id_example,
+                    "attributes": [
+                        {
+                            "attr_name": aa.name,
+                            "attr_description": aa.description,
+                        }
+                        for aa in a.attributes
+                    ],
+                }
                 for a in self.anchors
             ],
             "links": [
-                {"from": l.anchor_from, "to": l.anchor_to, "sentence": l.sentence, "description": l.description,
-                 "attributes": [{"attr_name": la.name, "attr_description": la.description,} for la in l.attributes]}
+                {
+                    "from": l.anchor_from,
+                    "to": l.anchor_to,
+                    "sentence": l.sentence,
+                    "description": l.description,
+                    "attributes": [
+                        {
+                            "attr_name": la.name,
+                            "attr_description": la.description,
+                        }
+                        for la in l.attributes
+                    ],
+                }
                 for l in self.links
             ],
             "queries": {i: q.name for i, q in enumerate(self.queries, start=1)},

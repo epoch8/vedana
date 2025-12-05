@@ -80,6 +80,7 @@ class FilteredRagPipeline:
         top_n: int = 5,
         model: str | None = None,
         filter_model: str | None = None,
+        enable_filtering: bool = True,
     ):
         """Initialize the filtered RAG pipeline.
 
@@ -100,6 +101,7 @@ class FilteredRagPipeline:
         self.top_n = top_n
         self.model = model or settings.model
         self.filter_model = filter_model or self.model
+        self.enable_filtering = enable_filtering
 
     async def __call__(self, ctx: ThreadContext) -> None:
         """Main pipeline execution - implements JIMS Pipeline protocol."""
@@ -147,15 +149,19 @@ class FilteredRagPipeline:
 
     async def process_rag_query(self, query: str, ctx: ThreadContext) -> tuple[str, list, dict[str, Any]]:
         # 1. Filter data model
-        await ctx.update_agent_status("Analyzing query structure...")
-        filtered_dm, filter_selection = await self.filter_data_model(query, ctx)
-        self.logger.info(
-            f"Data model filtered: "
-            f"{len(filtered_dm.anchors)}/{len(self.data_model.anchors)} anchors, "
-            f"{len(filtered_dm.links)}/{len(self.data_model.links)} links, "
-            f"{len(filtered_dm.attrs)}/{len(self.data_model.attrs)} attrs, "
-            f"{len(filtered_dm.queries)}/{len(self.data_model.queries)} queries"
-        )
+        if self.enable_filtering:
+            await ctx.update_agent_status("Analyzing query structure...")
+            filtered_dm, filter_selection = await self.filter_data_model(query, ctx)
+            self.logger.info(
+                f"Data model filtered: "
+                f"{len(filtered_dm.anchors)}/{len(self.data_model.anchors)} anchors, "
+                f"{len(filtered_dm.links)}/{len(self.data_model.links)} links, "
+                f"{len(filtered_dm.attrs)}/{len(self.data_model.attrs)} attrs, "
+                f"{len(filtered_dm.queries)}/{len(self.data_model.queries)} queries"
+            )
+        else:
+            filtered_dm = self.data_model
+            filter_selection = DataModelSelection()
 
         # 2. Create LLM and agent with filtered data model
         await ctx.update_agent_status("Searching knowledge base...")
@@ -194,27 +200,27 @@ class FilteredRagPipeline:
         }
 
         # Add filtering info
-        technical_info["dm_filtering"] = {
-            "enabled": True,
-            "filter_model": self.filter_model,
-            "reasoning": filter_selection.reasoning,
-            "selected_anchors": filter_selection.anchor_nouns,
-            "selected_links": filter_selection.link_sentences,
-            "selected_attributes": filter_selection.attribute_names,
-            "selected_queries": filter_selection.query_ids,
-            "original_counts": {
-                "anchors": len(self.data_model.anchors),
-                "links": len(self.data_model.links),
-                "attrs": len(self.data_model.attrs),
-                "queries": len(self.data_model.queries),
-            },
-            "filtered_counts": {
-                "anchors": len(filtered_dm.anchors),
-                "links": len(filtered_dm.links),
-                "attrs": len(filtered_dm.attrs),
-                "queries": len(filtered_dm.queries),
-            },
-        }
+        if self.enable_filtering:
+            technical_info["dm_filtering"] = {
+                "filter_model": self.filter_model,
+                "reasoning": filter_selection.reasoning,
+                "selected_anchors": filter_selection.anchor_nouns,
+                "selected_links": filter_selection.link_sentences,
+                "selected_attributes": filter_selection.attribute_names,
+                "selected_queries": filter_selection.query_ids,
+                "original_counts": {
+                    "anchors": len(self.data_model.anchors),
+                    "links": len(self.data_model.links),
+                    "attrs": len(self.data_model.attrs),
+                    "queries": len(self.data_model.queries),
+                },
+                "filtered_counts": {
+                    "anchors": len(filtered_dm.anchors),
+                    "links": len(filtered_dm.links),
+                    "attrs": len(filtered_dm.attrs),
+                    "queries": len(filtered_dm.queries),
+                },
+            }
 
         return answer, agent_query_events, technical_info
 
@@ -228,9 +234,13 @@ class FilteredRagPipeline:
 
         # Build the prompt
         system_prompt = self.data_model.prompt_templates().get("dm_filter_prompt", dm_filter_base_system_prompt)
-        user_prompt = self.data_model.prompt_templates().get("dm_filter_user_prompt", dm_filter_user_prompt_template).format(
-            user_query=query,
-            compact_data_model=dm_json,
+        user_prompt = (
+            self.data_model.prompt_templates()
+            .get("dm_filter_user_prompt", dm_filter_user_prompt_template)
+            .format(
+                user_query=query,
+                compact_data_model=dm_json,
+            )
         )
 
         messages: list[dict[str, Any]] = [
