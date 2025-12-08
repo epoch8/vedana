@@ -212,8 +212,9 @@ class EvalState(rx.State):
             except Exception as exc:
                 logging.exception(f"Failed to run get_eval_gds_from_grist: {exc}")
 
-    def _load_eval_questions(self) -> None:
-        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+    async def _load_eval_questions(self) -> None:
+        vedana_app = await get_vedana_app()
+
         stmt = sa.text(
             f"""
             SELECT gds_question, gds_answer, question_context, question_scenario
@@ -222,11 +223,13 @@ class EvalState(rx.State):
             LIMIT {int(self.max_eval_rows)}
             """
         )
-        with con.begin() as conn:
-            df = pd.read_sql(stmt, conn)
-        df = df.astype(object).where(pd.notna(df), None)
+
+        async with vedana_app.sessionmaker() as session:
+            result = await session.execute(stmt)
+            rs = result.mappings().all()
+
         rows: list[dict[str, Any]] = []
-        for rec in df.to_dict(orient="records"):
+        for rec in rs:
             question = safe_render_value(rec.get("gds_question"))
             rows.append(
                 {
@@ -771,7 +774,7 @@ class EvalState(rx.State):
             try:
                 self.get_eval_gds_from_grist()
                 self._append_progress("Golden dataset refreshed from Grist")
-                self._load_eval_questions()
+                await self._load_eval_questions()
                 self.status_message = "Golden dataset refreshed successfully"
             except Exception as e:
                 self.error_message = f"Failed to refresh golden dataset: {e}"
@@ -810,7 +813,7 @@ class EvalState(rx.State):
             self.tests_page = 0  # Reset to first page
             yield
             try:
-                self._load_eval_questions()
+                await self._load_eval_questions()
                 await self._load_judge_config()
                 await self._load_pipeline_config()
                 await self._load_tests()
