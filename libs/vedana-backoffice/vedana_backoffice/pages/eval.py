@@ -279,18 +279,16 @@ def _tests_card() -> rx.Component:
     return rx.card(
         rx.vstack(
             rx.hstack(
-                rx.vstack(
-                    rx.heading("Test results", size="4"),
-                ),
+                rx.heading("Test results", size="4"),
                 rx.spacer(),
                 rx.text(EvalState.pass_fail_summary, size="2", color="gray"),
                 rx.badge(EvalState.cost_label, color_scheme="gray", variant="soft"),
                 rx.select(
                     items=EvalState.run_id_options,
                     value=EvalState.selected_run_id,
-                    placeholder="Select run id",
+                    placeholder="Run id (All)",
                     on_change=EvalState.select_run,
-                    width="16em",
+                    width="18em",
                 ),
                 align="center",
                 width="100%",
