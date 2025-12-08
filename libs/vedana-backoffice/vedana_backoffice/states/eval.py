@@ -1,5 +1,4 @@
 import logging
-import secrets
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -15,7 +14,6 @@ from jims_core.util import uuid7
 from pydantic import BaseModel, Field
 from vedana_etl.app import app as etl_app
 from vedana_etl.config import DBCONN_DATAPIPE
-from vedana_etl.settings import settings as etl_settings
 
 from vedana_backoffice.states.common import get_vedana_app
 from vedana_backoffice.util import safe_render_value
@@ -205,7 +203,7 @@ class EvalState(rx.State):
         valid = {str(row.get("id")) for row in self.eval_gds_rows or [] if row.get("id")}
         self.selected_question_ids = [q for q in (self.selected_question_ids or []) if q in valid]
 
-    def _load_eval_questions(self) -> None:
+    def get_eval_gds_from_grist(self):
         # Run datapipe step to refresh eval_gds from Grist first
         step = next((s for s in etl_app.steps if s._name == "get_eval_gds_from_grist"), None)
         if step is not None:
@@ -214,6 +212,7 @@ class EvalState(rx.State):
             except Exception as exc:
                 logging.exception(f"Failed to run get_eval_gds_from_grist: {exc}")
 
+    def _load_eval_questions(self) -> None:
         con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
         stmt = sa.text(
             f"""
@@ -372,17 +371,11 @@ class EvalState(rx.State):
             t for t in threads_res if isinstance(t.thread_config, dict) and t.thread_config.get("source") == "eval"
         ]
 
-        # Run id: parse date from contact_id
-        run_ids: list[str] = []
-        for t in eval_threads:
-            run_id = t.contact_id
-            if run_id:
-                run_ids.append(run_id)
-
-        # Keep unique order
+        # Run id: parse date from contact_id, keep unique order
         seen = set()
         ordered_run_ids = []
-        for rid in run_ids:
+        for t in eval_threads:
+            rid = t.contact_id
             if rid not in seen:
                 ordered_run_ids.append(rid)
                 seen.add(rid)
@@ -465,7 +458,6 @@ class EvalState(rx.State):
             rows.append(
                 {
                     "test_date": safe_render_value(test_date),
-                    "run_id": safe_render_value(str(thread.contact_id or cfg.get("test_run") or "")),
                     "gds_question": safe_render_value(cfg.get("gds_question")),
                     "llm_answer": safe_render_value(answer),
                     "gds_answer": safe_render_value(cfg.get("gds_answer")),
@@ -558,13 +550,6 @@ class EvalState(rx.State):
         stamp = datetime.now().strftime("%H:%M:%S")
         self.run_progress = [*self.run_progress[-20:], f"[{stamp}] {message}"]
 
-    def _generate_test_run_name(self) -> str:
-        """Build a human-readable identifier for this test run."""
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        slug = secrets.token_hex(3)
-        env = getattr(etl_settings, "test_environment", "local")
-        return f"{stamp}-{env}-{slug}"
-
     def _format_tool_calls(self, technical_info: dict[str, Any]) -> str:
         """Flatten VTS/Cypher info into a text blob for judge/storage."""
         if not isinstance(technical_info, dict):
@@ -578,6 +563,7 @@ class EvalState(rx.State):
     def _build_thread_config(self, question_row: dict[str, Any], test_run_name: str) -> dict[str, Any]:
         """Pack metadata into thread_config so runs are traceable in JIMS."""
         return {
+            "interface": "reflex-eval",
             "source": "eval",
             "test_run": test_run_name,
             "gds_question": question_row.get("gds_question"),
@@ -590,7 +576,6 @@ class EvalState(rx.State):
             "embeddings_model": self.embeddings_model,
             "embeddings_dim": self.embeddings_dim,
             "dm_id": self.dm_id,
-            "interface": "reflex-eval",
         }
 
     async def _run_question_thread(
@@ -698,7 +683,7 @@ class EvalState(rx.State):
                 return
 
             question_map = {str(row.get("id")): row for row in (self.eval_gds_rows or [])}
-            test_run_name = self._generate_test_run_name()
+            test_run_ts = datetime.now().strftime("%Y%m%d-%H%M%S")
 
             # Initialize run state
             self.is_running = True
@@ -724,7 +709,7 @@ class EvalState(rx.State):
                     continue
 
                 try:
-                    thread_id, answer, tech = await self._run_question_thread(row, test_run_name)
+                    thread_id, answer, tech = await self._run_question_thread(row, test_run_ts)
                     tool_calls = self._format_tool_calls(tech)
                     status, comment = await self._judge_answer(row, answer, tool_calls)
 
@@ -742,7 +727,7 @@ class EvalState(rx.State):
                         "tool_calls": tool_calls,
                         "test_status": status,
                         "eval_judge_comment": comment,
-                        "test_date": test_run_name,
+                        "test_date": test_run_ts,
                         "thread_id": thread_id,
                     }
 
@@ -779,18 +764,13 @@ class EvalState(rx.State):
         async with self:
             if self.is_running:
                 return
-            step = next((s for s in etl_app.steps if s._name == "get_eval_gds_from_grist"), None)
-            if step is None:
-                self.error_message = "Unable to locate get_eval_gds_from_grist step"
-                return
             self.status_message = "Refreshing golden dataset from Grist…"
             self.error_message = ""
             self.is_running = True
             yield
             try:
-                run_steps(etl_app.ds, [step])
+                self.get_eval_gds_from_grist()
                 self._append_progress("Golden dataset refreshed from Grist")
-                # Reload the questions after refresh
                 self._load_eval_questions()
                 self.status_message = "Golden dataset refreshed successfully"
             except Exception as e:
@@ -830,7 +810,7 @@ class EvalState(rx.State):
             self.tests_page = 0  # Reset to first page
             yield
             try:
-                self._load_eval_questions()
+                # self._load_eval_questions()
                 await self._load_judge_config()
                 await self._load_pipeline_config()
                 await self._load_tests()
