@@ -2,11 +2,13 @@ import logging
 import secrets
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 import pandas as pd
 import reflex as rx
 import sqlalchemy as sa
 from datapipe.compute import run_steps
+from jims_core.db import ThreadDB, ThreadEventDB
 from jims_core.llms.llm_provider import LLMProvider
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
@@ -349,85 +351,116 @@ class EvalState(rx.State):
         color_idx = abs(hash_val) % len(color_schemes)
         return color_schemes[color_idx]
 
-    def _load_tests(self) -> None:
-        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+    async def _load_tests(self) -> None:
+        """Build test results directly from JIMS threads (source=eval)."""
+        vedana_app = await get_vedana_app()
+
+        # Fetch eval threads (latest first)
+        async with vedana_app.sessionmaker() as session:
+            stmt_threads = sa.select(ThreadDB).order_by(ThreadDB.created_at.desc())
+            threads_res = (await session.execute(stmt_threads)).scalars().all()
+
+        eval_threads = [
+            t for t in threads_res if isinstance(t.thread_config, dict) and t.thread_config.get("source") == "eval"
+        ]
+
+        self.tests_total_rows = len(eval_threads)
         offset = self.tests_page * self.tests_page_size
+        end = offset + self.tests_page_size
+        page_threads = eval_threads[offset:end]
 
-        # Get total count on first page load
-        if self.tests_page == 0:
-            try:
-                count_stmt = sa.text('SELECT COUNT(*) FROM "eval_tests"')
-                with con.begin() as conn:
-                    count_result = conn.execute(count_stmt).scalar()
-                    self.tests_total_rows = int(count_result or 0)
-            except Exception as exc:
-                logging.exception(f"Failed to get eval_tests count: {exc}")
-                self.tests_total_rows = 0
-
-        stmt = sa.text(
-            f"""
-            SELECT test_date, gds_question, gds_answer, llm_answer, pipeline_model, test_status, eval_judge_comment
-            FROM "eval_tests"
-            ORDER BY test_date DESC NULLS LAST
-            LIMIT {self.tests_page_size} OFFSET {offset}
-            """
-        )
-        try:
-            with con.begin() as conn:
-                df = pd.read_sql(stmt, conn)
-        except Exception as exc:
-            logging.exception(f"Failed to load eval_tests: {exc}")
+        if not page_threads:
             self.tests_rows = []
             self.tests_cost_total = 0.0
             return
-        if df.empty:
-            self.tests_rows = []
-            self.tests_cost_total = 0.0
-            return
-        df = df.astype(object).where(pd.notna(df), None)
+
+        thread_ids = [t.thread_id for t in page_threads]
+
+        async with vedana_app.sessionmaker() as session:
+            ev_stmt = (
+                sa.select(ThreadEventDB)
+                .where(ThreadEventDB.thread_id.in_(thread_ids))
+                .order_by(ThreadEventDB.created_at)
+            )
+            events_res = (await session.execute(ev_stmt)).scalars().all()
+
+        events_by_thread: dict[UUID, list[ThreadEventDB]] = {}
+        for ev in events_res:
+            events_by_thread.setdefault(ev.thread_id, []).append(ev)
+
         rows: list[dict[str, Any]] = []
-        for rec in df.to_dict(orient="records"):
-            status = safe_render_value(rec.get("test_status"))
+        for thread in page_threads:
+            evs = events_by_thread.get(thread.thread_id, [])
+            answer = ""
+            status = "—"
+            judge_comment = ""
+            tool_calls = ""
+            test_date = thread.created_at.strftime("%Y-%m-%d %H:%M") if thread.created_at else ""
+
+            for ev in evs:
+                if ev.event_type == "comm.assistant_message":
+                    answer = str(ev.event_data.get("content", ""))
+                elif ev.event_type == "rag.query_processed":
+                    tool_calls = self._format_tool_calls(ev.event_data.get("technical_info", {}))
+                elif ev.event_type == "eval.result":
+                    status = ev.event_data.get("test_status", status)
+                    judge_comment = ev.event_data.get("eval_judge_comment", judge_comment)
+                    test_date = ev.event_data.get("test_date", test_date)
+
+            cfg = thread.thread_config or {}
             rows.append(
                 {
-                    "test_date": safe_render_value(rec.get("test_date")),
-                    "gds_question": safe_render_value(rec.get("gds_question")),
-                    "llm_answer": safe_render_value(rec.get("llm_answer")),
-                    "gds_answer": safe_render_value(rec.get("gds_answer")),
-                    "pipeline_model": safe_render_value(rec.get("pipeline_model")),
+                    "test_date": safe_render_value(test_date),
+                    "gds_question": safe_render_value(cfg.get("gds_question")),
+                    "llm_answer": safe_render_value(answer),
+                    "gds_answer": safe_render_value(cfg.get("gds_answer")),
+                    "pipeline_model": safe_render_value(cfg.get("pipeline_model")),
                     "test_status": status or "—",
                     "status_color": self._status_color(status),
-                    "eval_judge_comment": rec.get("eval_judge_comment") or "",
+                    "eval_judge_comment": safe_render_value(judge_comment),
                 }
             )
+
         self.tests_rows = rows
         self.tests_cost_total = 0.0
 
-    def tests_next_page(self) -> None:
+    @rx.event(background=True)  # type: ignore[operator]
+    async def tests_next_page(self):
         """Load the next page of tests."""
-        max_page = (self.tests_total_rows - 1) // self.tests_page_size if self.tests_total_rows > 0 else 0
-        if self.tests_page < max_page:
-            self.tests_page += 1
-            self._load_tests()
+        async with self:
+            max_page = (self.tests_total_rows - 1) // self.tests_page_size if self.tests_total_rows > 0 else 0
+            if self.tests_page < max_page:
+                self.tests_page += 1
+                await self._load_tests()
+                yield
 
-    def tests_prev_page(self) -> None:
+    @rx.event(background=True)  # type: ignore[operator]
+    async def tests_prev_page(self):
         """Load the previous page of tests."""
-        if self.tests_page > 0:
-            self.tests_page -= 1
-            self._load_tests()
+        async with self:
+            if self.tests_page > 0:
+                self.tests_page -= 1
+                await self._load_tests()
+                yield
 
-    def tests_first_page(self) -> None:
+    @rx.event(background=True)  # type: ignore[operator]
+    async def tests_first_page(self):
         """Jump to the first page."""
-        if self.tests_page != 0:
-            self.tests_page = 0
-            self._load_tests()
+        async with self:
+            if self.tests_page != 0:
+                self.tests_page = 0
+                await self._load_tests()
+                yield
 
-    def tests_last_page(self) -> None:
+    @rx.event(background=True)  # type: ignore[operator]
+    async def tests_last_page(self):
         """Jump to the last page."""
-        max_page = (self.tests_total_rows - 1) // self.tests_page_size if self.tests_total_rows > 0 else 0
-        if self.tests_page != max_page:
-            self.tests_page = max_page
-            self._load_tests()
+        async with self:
+            max_page = (self.tests_total_rows - 1) // self.tests_page_size if self.tests_total_rows > 0 else 0
+            if self.tests_page != max_page:
+                self.tests_page = max_page
+                await self._load_tests()
+                yield
 
     @rx.var
     def tests_page_display(self) -> str:
@@ -568,51 +601,21 @@ class EvalState(rx.State):
             return "fail", ""
         return res.test_status or "fail", res.comment or ""
 
-    def _persist_eval_results(self, result_row: dict[str, Any]) -> None:
-        """Store eval results into eval_llm_answers and eval_tests tables (replace existing row)."""
-        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
-        delete_llm = sa.text(
-            """
-            DELETE FROM "eval_llm_answers"
-            WHERE dm_id=:dm_id
-              AND pipeline_model=:pipeline_model
-              AND embeddings_model=:embeddings_model
-              AND embeddings_dim=:embeddings_dim
-              AND gds_question=:gds_question
-            """
-        )
-        insert_llm = sa.text(
-            """
-            INSERT INTO "eval_llm_answers"
-            (dm_id, pipeline_model, embeddings_model, embeddings_dim, gds_question, question_context, llm_answer, tool_calls, test_date)
-            VALUES (:dm_id, :pipeline_model, :embeddings_model, :embeddings_dim, :gds_question, :question_context, :llm_answer, :tool_calls, :test_date)
-            """
-        )
-        delete_tests = sa.text(
-            """
-            DELETE FROM "eval_tests"
-            WHERE judge_model=:judge_model
-              AND judge_prompt_id=:judge_prompt_id
-              AND dm_id=:dm_id
-              AND pipeline_model=:pipeline_model
-              AND embeddings_model=:embeddings_model
-              AND embeddings_dim=:embeddings_dim
-              AND gds_question=:gds_question
-            """
-        )
-        insert_tests = sa.text(
-            """
-            INSERT INTO "eval_tests"
-            (judge_model, judge_prompt_id, dm_id, pipeline_model, embeddings_model, embeddings_dim, gds_question, question_context, gds_answer, llm_answer, tool_calls, test_status, eval_judge_comment, test_date)
-            VALUES (:judge_model, :judge_prompt_id, :dm_id, :pipeline_model, :embeddings_model, :embeddings_dim, :gds_question, :question_context, :gds_answer, :llm_answer, :tool_calls, :test_status, :eval_judge_comment, :test_date)
-            """
-        )
+    async def _store_eval_result_event(self, thread_id: str, result_row: dict[str, Any]) -> None:
+        """Persist eval result as a thread event for thread-based history. todo why is this needed?"""
+        try:
+            tid = UUID(str(thread_id))
+        except Exception:
+            return
 
-        with con.begin() as conn:
-            conn.execute(delete_llm, result_row)
-            conn.execute(delete_tests, result_row)
-            conn.execute(insert_llm, result_row)
-            conn.execute(insert_tests, result_row)
+        vedana_app = await get_vedana_app()
+        ctl = await ThreadController.from_thread_id(vedana_app.sessionmaker, tid)
+        if ctl is None:
+            return
+
+        data = dict(result_row)
+        data.pop("thread_id", None)
+        await ctl.store_event_dict(uuid7(), "eval.result", data)
 
     @rx.event(background=True)  # type: ignore[operator]
     async def run_selected_tests(self):
@@ -677,7 +680,7 @@ class EvalState(rx.State):
                         "thread_id": thread_id,
                     }
 
-                    self._persist_eval_results(result_row)
+                    await self._store_eval_result_event(thread_id, result_row)
 
                     completed += 1
                     self._append_progress(f"Completed: '{question}' (status: {status})")
@@ -764,7 +767,7 @@ class EvalState(rx.State):
                 self._load_eval_questions()
                 await self._load_judge_config()
                 await self._load_pipeline_config()
-                self._load_tests()
+                await self._load_tests()
             except Exception as e:
                 self.error_message = f"Failed to load eval data: {e}"
             finally:
