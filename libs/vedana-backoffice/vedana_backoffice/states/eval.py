@@ -41,6 +41,10 @@ class EvalState(rx.State):
     dm_snapshot_updated: str = ""
     tests_rows: list[dict[str, Any]] = []
     tests_cost_total: float = 0.0
+    run_passed: int = 0
+    run_failed: int = 0
+    selected_run_id: str = ""
+    run_id_options: list[str] = []
     is_running: bool = False
     run_progress: list[str] = []
     max_eval_rows: int = 500
@@ -119,6 +123,10 @@ class EvalState(rx.State):
     @rx.var
     def has_run_progress(self) -> bool:
         return len(self.run_progress or []) > 0
+
+    @rx.var
+    def pass_fail_summary(self) -> str:
+        return f"{self.run_passed} pass / {self.run_failed} fail"
 
     @rx.var
     def current_question_progress(self) -> str:
@@ -364,6 +372,32 @@ class EvalState(rx.State):
             t for t in threads_res if isinstance(t.thread_config, dict) and t.thread_config.get("source") == "eval"
         ]
 
+        # Run id: parse date from contact_id
+        run_ids: list[str] = []
+        for t in eval_threads:
+            run_id = t.contact_id
+            if run_id:
+                run_ids.append(run_id)
+
+        # Keep unique order
+        seen = set()
+        ordered_run_ids = []
+        for rid in run_ids:
+            if rid not in seen:
+                ordered_run_ids.append(rid)
+                seen.add(rid)
+
+        self.run_id_options = ordered_run_ids
+        if not self.selected_run_id and ordered_run_ids:
+            self.selected_run_id = ordered_run_ids[0]
+
+        if self.selected_run_id:
+            eval_threads = [
+                t
+                for t in eval_threads
+                if str(t.contact_id or t.thread_config.get("test_run") or "").strip() == self.selected_run_id
+            ]
+
         self.tests_total_rows = len(eval_threads)
         offset = self.tests_page * self.tests_page_size
         end = offset + self.tests_page_size
@@ -389,6 +423,9 @@ class EvalState(rx.State):
             events_by_thread.setdefault(ev.thread_id, []).append(ev)
 
         rows: list[dict[str, Any]] = []
+        passed = 0
+        failed = 0
+        cost_total = 0.0
         for thread in page_threads:
             evs = events_by_thread.get(thread.thread_id, [])
             answer = ""
@@ -402,15 +439,33 @@ class EvalState(rx.State):
                     answer = str(ev.event_data.get("content", ""))
                 elif ev.event_type == "rag.query_processed":
                     tool_calls = self._format_tool_calls(ev.event_data.get("technical_info", {}))
+                    # gather model cost if present
+                    tech = ev.event_data.get("technical_info", {}) if isinstance(ev.event_data, dict) else {}
+                    model_stats = tech.get("model_stats") if isinstance(tech, dict) else {}
+                    if isinstance(model_stats, dict):
+                        for stats in model_stats.values():
+                            if isinstance(stats, dict):
+                                cost_val = stats.get("requests_cost")
+                                try:
+                                    if cost_val is not None:
+                                        cost_total += float(cost_val)
+                                except (TypeError, ValueError):
+                                    pass
                 elif ev.event_type == "eval.result":
                     status = ev.event_data.get("test_status", status)
                     judge_comment = ev.event_data.get("eval_judge_comment", judge_comment)
                     test_date = ev.event_data.get("test_date", test_date)
 
+            if str(status).lower() == "pass":
+                passed += 1
+            elif str(status).lower() == "fail":
+                failed += 1
+
             cfg = thread.thread_config or {}
             rows.append(
                 {
                     "test_date": safe_render_value(test_date),
+                    "run_id": safe_render_value(str(thread.contact_id or cfg.get("test_run") or "")),
                     "gds_question": safe_render_value(cfg.get("gds_question")),
                     "llm_answer": safe_render_value(answer),
                     "gds_answer": safe_render_value(cfg.get("gds_answer")),
@@ -422,7 +477,9 @@ class EvalState(rx.State):
             )
 
         self.tests_rows = rows
-        self.tests_cost_total = 0.0
+        self.tests_cost_total = cost_total
+        self.run_passed = passed
+        self.run_failed = failed
 
     @rx.event(background=True)  # type: ignore[operator]
     async def tests_next_page(self):
@@ -461,6 +518,15 @@ class EvalState(rx.State):
                 self.tests_page = max_page
                 await self._load_tests()
                 yield
+
+    @rx.event(background=True)  # type: ignore[operator]
+    async def select_run(self, value: str):
+        """Update selected run id and reload tests."""
+        async with self:
+            self.selected_run_id = str(value or "")
+            self.tests_page = 0
+            await self._load_tests()
+            yield
 
     @rx.var
     def tests_page_display(self) -> str:
