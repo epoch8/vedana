@@ -45,6 +45,8 @@ class EvalState(rx.State):
     selected_run_id: str = ""
     run_id_options: list[str] = []
     run_id_lookup: dict[str, str] = {}
+    selected_tests_scenario: str = "All"
+    tests_scenario_options: list[str] = ["All"]
     is_running: bool = False
     run_progress: list[str] = []
     max_eval_rows: int = 500
@@ -193,7 +195,17 @@ class EvalState(rx.State):
     def set_scenario(self, value: str) -> None:
         """Set the scenario filter and prune invalid selections."""
         self.selected_scenario = str(value or "all")
-        self._prune_selection()
+        if self.selected_scenario == "all":
+            self._prune_selection()
+            return
+
+        # Drop selections that are not in the chosen scenario
+        allowed_ids = {
+            str(row.get("id"))
+            for row in (self.eval_gds_rows or [])
+            if str(row.get("question_scenario", "")) == self.selected_scenario
+        }
+        self.selected_question_ids = [q for q in (self.selected_question_ids or []) if q in allowed_ids]
 
     def set_judge_model(self, value: str) -> None:
         value = str(value or "")
@@ -377,6 +389,15 @@ class EvalState(rx.State):
                 .scalars()
                 .all()
             )
+            scenario_rows = (
+                (
+                    await session.execute(
+                        sa.select(ThreadDB.thread_config).where(ThreadDB.thread_config.contains({"source": "eval"}))
+                    )
+                )
+                .scalars()
+                .all()
+            )
 
             seen = set()
             ordered_run_ids = []
@@ -397,12 +418,32 @@ class EvalState(rx.State):
             if not self.selected_run_id:
                 self.selected_run_id = labels[0] if labels else "All"
 
+            # Scenario options
+            scenarios = [
+                str(cfg.get("question_scenario"))
+                for cfg in scenario_rows
+                if isinstance(cfg, dict) and cfg.get("question_scenario") not in (None, "", "None")
+            ]
+            scen_seen = set()
+            scen_labels = []
+            for sc in scenarios:
+                if sc not in scen_seen:
+                    scen_labels.append(sc)
+                    scen_seen.add(sc)
+            self.tests_scenario_options = ["All", *scen_labels]
+            if self.selected_tests_scenario not in self.tests_scenario_options:
+                self.selected_tests_scenario = "All"
+
             # Base query for eval threads
             base_threads = sa.select(ThreadDB).where(ThreadDB.thread_config.contains({"source": "eval"}))
             if self.selected_run_id and self.selected_run_id != "All":
                 selected_raw = self.run_id_lookup.get(self.selected_run_id)
                 if selected_raw:
                     base_threads = base_threads.where(ThreadDB.contact_id == selected_raw)
+            if self.selected_tests_scenario and self.selected_tests_scenario != "All":
+                base_threads = base_threads.where(
+                    ThreadDB.thread_config.contains({"question_scenario": self.selected_tests_scenario})
+                )
 
             count_q = sa.select(sa.func.count()).select_from(base_threads.subquery())
             self.tests_total_rows = int((await session.execute(count_q)).scalar_one())
@@ -533,6 +574,15 @@ class EvalState(rx.State):
         """Update selected run id and reload tests."""
         async with self:
             self.selected_run_id = str(value or "")
+            self.tests_page = 0
+            await self._load_tests()
+            yield
+
+    @rx.event(background=True)  # type: ignore[operator]
+    async def select_tests_scenario(self, value: str):
+        """Update scenario filter for tests and reload."""
+        async with self:
+            self.selected_tests_scenario = str(value or "All")
             self.tests_page = 0
             await self._load_tests()
             yield
