@@ -43,6 +43,32 @@ def _selection_and_actions() -> rx.Component:
 
 
 def _questions_card() -> rx.Component:
+    def _expandable_text(row: dict[str, rx.Var], key: str, clamp: int = 10) -> rx.Component:
+        """todo reuse _expandable_text in both tables"""
+        row_id = row.get("id", "")
+        return rx.table.cell(
+            rx.box(
+                rx.cond(
+                    row.get("expanded", False),
+                    rx.text(row.get(key, ""), size="1", white_space="pre-wrap"),
+                    rx.text(
+                        row.get(key, ""),
+                        size="1",
+                        white_space="pre-wrap",
+                        style={
+                            "display": "-webkit-box",
+                            "WebkitLineClamp": str(clamp),
+                            "WebkitBoxOrient": "vertical",
+                            "overflow": "hidden",
+                            "textOverflow": "ellipsis",
+                        },
+                    ),
+                ),
+                cursor="pointer",
+                on_click=EvalState.toggle_gds_row(row_id=row_id),  # type: ignore[arg-type]
+            )
+        )
+
     def _row(row: dict[str, rx.Var]) -> rx.Component:
         return rx.table.row(
             rx.table.cell(
@@ -51,20 +77,9 @@ def _questions_card() -> rx.Component:
                     on_change=EvalState.toggle_question_selection(question=row.get("id", "")),  # type: ignore[arg-type]
                 )
             ),
-            rx.table.cell(rx.text(row.get("gds_question", ""), weight="medium")),
-            rx.table.cell(
-                rx.text(
-                    row.get("gds_answer", ""),
-                    size="2",
-                )
-            ),
-            rx.table.cell(
-                rx.text(
-                    row.get("question_context", ""),
-                    size="1",
-                    color="gray",
-                )
-            ),
+            _expandable_text(row, "gds_question"),
+            _expandable_text(row, "gds_answer"),
+            _expandable_text(row, "question_context"),
             rx.table.cell(
                 rx.cond(
                     row.get("question_scenario", "") != "",
@@ -238,28 +253,38 @@ def _pipeline_card() -> rx.Component:
 
 
 def _tests_card() -> rx.Component:
+    def _expandable_text(row: dict[str, rx.Var], key: str, clamp: int = 2) -> rx.Component:
+        row_id = row.get("row_id", "")
+        return rx.table.cell(
+            rx.box(
+                rx.cond(
+                    row.get("expanded", False),
+                    rx.text(row.get(key, ""), size="1", white_space="pre-wrap"),
+                    rx.text(
+                        row.get(key, ""),
+                        size="1",
+                        white_space="pre-wrap",
+                        style={
+                            "display": "-webkit-box",
+                            "WebkitLineClamp": str(clamp),
+                            "WebkitBoxOrient": "vertical",
+                            "overflow": "hidden",
+                            "textOverflow": "ellipsis",
+                        },
+                    ),
+                ),
+                cursor="pointer",
+                on_click=EvalState.toggle_row_expand(row_id=row_id),  # type: ignore[arg-type]
+            )
+        )
+
     def _row(row: dict[str, rx.Var]) -> rx.Component:
         return rx.table.row(
             rx.table.cell(rx.text(row.get("test_date", ""))),
-            rx.table.cell(
-                rx.text(
-                    row.get("gds_question", ""),
-                    weight="medium",
-                )
-            ),
+            _expandable_text(row, "gds_question"),
             rx.table.cell(rx.text(row.get("pipeline_model", ""))),
-            rx.table.cell(
-                rx.text(
-                    row.get("llm_answer", ""),
-                    size="1",
-                )
-            ),
-            rx.table.cell(
-                rx.text(
-                    row.get("gds_answer", ""),
-                    size="1",
-                )
-            ),
+            _expandable_text(row, "llm_answer"),
+            _expandable_text(row, "gds_answer"),
             rx.table.cell(
                 rx.badge(
                     row.get("test_status", ""),
@@ -267,13 +292,7 @@ def _tests_card() -> rx.Component:
                     variant="soft",
                 )
             ),
-            rx.table.cell(
-                rx.text(
-                    row.get("eval_judge_comment", ""),
-                    size="1",
-                    color="gray",
-                )
-            ),
+            _expandable_text(row, "eval_judge_comment"),
         )
 
     return rx.card(

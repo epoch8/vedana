@@ -26,6 +26,7 @@ class EvalState(rx.State):
     error_message: str = ""
     status_message: str = ""
     eval_gds_rows: list[dict[str, Any]] = []
+    gds_expanded_rows: list[str] = []
     selected_question_ids: list[str] = []
     selected_scenario: str = "all"  # Filter by scenario
     judge_configs: list[dict[str, Any]] = []
@@ -43,6 +44,7 @@ class EvalState(rx.State):
     run_failed: int = 0
     selected_run_id: str = ""
     run_id_options: list[str] = []
+    run_id_lookup: dict[str, str] = {}
     is_running: bool = False
     run_progress: list[str] = []
     max_eval_rows: int = 500
@@ -69,6 +71,7 @@ class EvalState(rx.State):
     @rx.var
     def eval_gds_rows_with_selection(self) -> list[dict[str, Any]]:
         selected = set(self.selected_question_ids or [])
+        expanded = set(self.gds_expanded_rows or [])
         rows: list[dict[str, Any]] = []
         for row in self.eval_gds_rows or []:
             # Apply scenario filter
@@ -78,6 +81,7 @@ class EvalState(rx.State):
                     continue
             enriched = dict(row)
             enriched["selected"] = row.get("id") in selected
+            enriched["expanded"] = row.get("id") in expanded
             # Add scenario color for badge display
             scenario_val = str(row.get("question_scenario", ""))
             enriched["scenario_color"] = self._scenario_color(scenario_val)
@@ -243,6 +247,7 @@ class EvalState(rx.State):
                 }
             )
         self.eval_gds_rows = rows
+        self.gds_expanded_rows = []
         self._prune_selection()
 
     async def _load_judge_config(self) -> None:
@@ -360,48 +365,60 @@ class EvalState(rx.State):
         """Build test results directly from JIMS threads (source=eval)."""
         vedana_app = await get_vedana_app()
 
-        # Fetch eval threads (latest first)
         async with vedana_app.sessionmaker() as session:
-            stmt_threads = sa.select(ThreadDB).order_by(ThreadDB.created_at.desc())
-            threads_res = (await session.execute(stmt_threads)).scalars().all()
+            run_rows = (
+                (
+                    await session.execute(
+                        sa.select(ThreadDB.contact_id)
+                        .where(ThreadDB.thread_config.contains({"source": "eval"}))
+                        .order_by(ThreadDB.created_at.desc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
 
-        eval_threads = [
-            t for t in threads_res if isinstance(t.thread_config, dict) and t.thread_config.get("source") == "eval"
-        ]
+            seen = set()
+            ordered_run_ids = []
+            for rid in run_rows:
+                if rid not in seen:
+                    ordered_run_ids.append(rid)
+                    seen.add(rid)
 
-        # Run id: parse date from contact_id, keep unique order
-        seen = set()
-        ordered_run_ids = []
-        for t in eval_threads:
-            rid = t.contact_id
-            if rid not in seen:
-                ordered_run_ids.append(rid)
-                seen.add(rid)
+            lookup: dict[str, str] = {}
+            labels: list[str] = []
+            for rid in ordered_run_ids:
+                label = self._format_run_label(rid)
+                lookup[label] = rid
+                labels.append(label)
 
-        self.run_id_options = ordered_run_ids
-        if not self.selected_run_id and ordered_run_ids:
-            self.selected_run_id = ordered_run_ids[0]
+            self.run_id_lookup = lookup
+            self.run_id_options = ["All", *labels]
+            if not self.selected_run_id:
+                self.selected_run_id = labels[0] if labels else "All"
 
-        if self.selected_run_id:
-            eval_threads = [
-                t
-                for t in eval_threads
-                if str(t.contact_id or t.thread_config.get("test_run") or "").strip() == self.selected_run_id
-            ]
+            # Base query for eval threads
+            base_threads = sa.select(ThreadDB).where(ThreadDB.thread_config.contains({"source": "eval"}))
+            if self.selected_run_id and self.selected_run_id != "All":
+                selected_raw = self.run_id_lookup.get(self.selected_run_id)
+                if selected_raw:
+                    base_threads = base_threads.where(ThreadDB.contact_id == selected_raw)
 
-        self.tests_total_rows = len(eval_threads)
-        offset = self.tests_page * self.tests_page_size
-        end = offset + self.tests_page_size
-        page_threads = eval_threads[offset:end]
+            count_q = sa.select(sa.func.count()).select_from(base_threads.subquery())
+            self.tests_total_rows = int((await session.execute(count_q)).scalar_one())
 
-        if not page_threads:
-            self.tests_rows = []
-            self.tests_cost_total = 0.0
-            return
+            offset = self.tests_page * self.tests_page_size
+            threads_q = base_threads.order_by(ThreadDB.created_at.desc()).limit(self.tests_page_size).offset(offset)
+            page_threads = (await session.execute(threads_q)).scalars().all()
 
-        thread_ids = [t.thread_id for t in page_threads]
+            if not page_threads:
+                self.tests_rows = []
+                self.tests_cost_total = 0.0
+                self.run_passed = 0
+                self.run_failed = 0
+                return
 
-        async with vedana_app.sessionmaker() as session:
+            thread_ids = [t.thread_id for t in page_threads]
             ev_stmt = (
                 sa.select(ThreadEventDB)
                 .where(ThreadEventDB.thread_id.in_(thread_ids))
@@ -455,6 +472,8 @@ class EvalState(rx.State):
             cfg = thread.thread_config or {}
             rows.append(
                 {
+                    "row_id": str(thread.thread_id),
+                    "expanded": False,
                     "test_date": safe_render_value(test_date),
                     "gds_question": safe_render_value(cfg.get("gds_question")),
                     "llm_answer": safe_render_value(answer),
@@ -517,6 +536,33 @@ class EvalState(rx.State):
             self.tests_page = 0
             await self._load_tests()
             yield
+
+    def toggle_gds_row(self, row_id: str) -> None:
+        """Toggle expansion for a golden dataset row."""
+        row_id = str(row_id or "")
+        if not row_id:
+            return
+        current = set(self.gds_expanded_rows or [])
+        if row_id in current:
+            current.remove(row_id)
+        else:
+            current.add(row_id)
+        self.gds_expanded_rows = list(current)
+
+    def toggle_row_expand(self, row_id: str) -> None:
+        """Toggle expansion state for a result row."""
+        row_id = str(row_id or "")
+        if not row_id:
+            return
+        updated = []
+        for row in self.tests_rows or []:
+            if str(row.get("row_id")) == row_id:
+                new_row = dict(row)
+                new_row["expanded"] = not bool(row.get("expanded"))
+                updated.append(new_row)
+            else:
+                updated.append(row)
+        self.tests_rows = updated
 
     @rx.var
     def tests_page_display(self) -> str:
@@ -824,6 +870,7 @@ class EvalState(rx.State):
             yield
             try:
                 await self._load_eval_questions()
+                self.tests_page_size = max(1, len(self.eval_gds_rows) * 2)
                 await self._load_judge_config()
                 await self._load_pipeline_config()
                 await self._load_tests()
