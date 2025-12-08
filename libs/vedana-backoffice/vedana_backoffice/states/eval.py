@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from vedana_etl.app import app as etl_app
 from vedana_etl.config import DBCONN_DATAPIPE
 
+from vedana_core.settings import settings as core_settings
 from vedana_backoffice.states.common import get_vedana_app
 from vedana_backoffice.util import safe_render_value
 
@@ -32,9 +33,9 @@ class EvalState(rx.State):
     selected_judge_model: str = ""
     judge_prompt_id: str = ""
     selected_judge_prompt: str = ""
-    pipeline_model: str = ""
-    embeddings_model: str = ""
-    embeddings_dim: int = 0
+    pipeline_model: str = core_settings.model
+    embeddings_model: str = core_settings.embeddings_model
+    embeddings_dim: int = core_settings.embeddings_dim
     dm_id: str = ""
     dm_snapshot_updated: str = ""
     tests_rows: list[dict[str, Any]] = []
@@ -290,7 +291,6 @@ class EvalState(rx.State):
     async def _load_pipeline_config(self) -> None:
         vedana_app = await get_vedana_app()
         pipeline_stmt = sa.text('SELECT pipeline_model FROM "llm_pipeline_config"')
-        embeddings_stmt = sa.text('SELECT embeddings_model, embeddings_dim FROM "llm_embeddings_config"')
         dm_stmt = sa.text(
             """
             SELECT snap.dm_id, snap.dm_description, meta.process_ts
@@ -302,18 +302,12 @@ class EvalState(rx.State):
         )
         async with vedana_app.sessionmaker() as session:
             pipeline_rows = (await session.execute(pipeline_stmt)).scalars().all()
-            embedding_rows = (await session.execute(embeddings_stmt)).mappings().all()
+
             dm_row = (await session.execute(dm_stmt)).mappings().first()
 
         if pipeline_rows:
             self.pipeline_model = safe_render_value(pipeline_rows[-1])
-        if embedding_rows:
-            last = embedding_rows[-1]
-            self.embeddings_model = safe_render_value(last.get("embeddings_model"))
-            try:
-                self.embeddings_dim = int(last.get("embeddings_dim") or 0)
-            except Exception:
-                self.embeddings_dim = 0
+
         if dm_row:
             self.dm_id = safe_render_value(dm_row.get("dm_id"))
             self.dm_description = safe_render_value(dm_row.get("dm_description"))
@@ -722,7 +716,7 @@ class EvalState(rx.State):
                         "dm_id": self.dm_id,
                         "pipeline_model": self.pipeline_model,
                         "embeddings_model": self.embeddings_model,
-                        "embeddings_dim": int(self.embeddings_dim),
+                        "embeddings_dim": self.embeddings_dim,
                         "gds_question": row.get("gds_question"),
                         "question_context": row.get("question_context"),
                         "gds_answer": row.get("gds_answer"),
