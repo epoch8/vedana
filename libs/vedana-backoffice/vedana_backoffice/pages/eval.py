@@ -283,8 +283,19 @@ def _tests_card() -> rx.Component:
     return rx.card(
         rx.vstack(
             rx.hstack(
-                rx.heading("Test results", size="4"),
+                rx.vstack(
+                    rx.heading("Test results", size="4"),
+                    rx.text(EvalState.pass_fail_summary, size="2", color="gray"),
+                ),
                 rx.spacer(),
+                rx.badge(EvalState.cost_label, color_scheme="gray", variant="soft"),
+                rx.select(
+                    items=EvalState.run_id_options,
+                    value=EvalState.selected_run_id,
+                    placeholder="Select run id",
+                    on_change=EvalState.select_run,
+                    width="16em",
+                ),
                 align="center",
                 width="100%",
             ),
@@ -293,6 +304,7 @@ def _tests_card() -> rx.Component:
                     rx.table.header(
                         rx.table.row(
                             rx.table.column_header_cell("Run at"),
+                            rx.table.column_header_cell("Run id"),
                             rx.table.column_header_cell("Question"),
                             rx.table.column_header_cell("Pipeline"),
                             rx.table.column_header_cell("Answer"),
