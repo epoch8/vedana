@@ -12,10 +12,9 @@ from jims_core.llms.llm_provider import LLMProvider
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from pydantic import BaseModel, Field
-from vedana_etl.app import app as etl_app
-from vedana_etl.config import DBCONN_DATAPIPE
-
 from vedana_core.settings import settings as core_settings
+from vedana_etl.app import app as etl_app
+
 from vedana_backoffice.states.common import get_vedana_app
 from vedana_backoffice.util import safe_render_value
 
@@ -94,7 +93,9 @@ class EvalState(rx.State):
         total = len(self.eval_gds_rows_with_selection)  # Use filtered count
         if total == 0:
             return "No questions available"
-        return f"{self.selected_count} / {total} selected"
+        if self.selected_count == 0:
+            return f"Select tests to run"
+        return f"Run selected ({self.selected_count}/{total})"
 
     @rx.var
     def all_selected(self) -> bool:

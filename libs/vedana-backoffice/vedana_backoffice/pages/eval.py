@@ -8,8 +8,13 @@ def _selection_and_actions() -> rx.Component:
     """Selection controls and action buttons for the right panel."""
     return rx.vstack(
         rx.hstack(
-            rx.text(EvalState.selection_label, weight="medium"),
-            rx.badge(EvalState.cost_label, color_scheme="gray", variant="soft"),
+            rx.button(
+                EvalState.selection_label,
+                color_scheme="blue",
+                on_click=EvalState.run_selected_tests,
+                loading=EvalState.is_running,
+                disabled=rx.cond(EvalState.can_run, False, True),  # type: ignore[arg-type]
+            ),
             rx.spacer(),
             rx.button(
                 "Reset selection",
@@ -19,18 +24,9 @@ def _selection_and_actions() -> rx.Component:
                 disabled=rx.cond(EvalState.selected_count > 0, False, True),  # type: ignore[arg-type]
                 on_click=EvalState.reset_selection,
             ),
+            spacing="2",
             align="center",
             width="100%",
-        ),
-        rx.hstack(
-            rx.button(
-                "Run selected",
-                color_scheme="blue",
-                on_click=EvalState.run_selected_tests,
-                loading=EvalState.is_running,
-                disabled=rx.cond(EvalState.can_run, False, True),  # type: ignore[arg-type]
-            ),
-            spacing="3",
         ),
         rx.button(
             "Reload data",
