@@ -810,7 +810,7 @@ class EvalState(rx.State):
             self.tests_page = 0  # Reset to first page
             yield
             try:
-                # self._load_eval_questions()
+                self._load_eval_questions()
                 await self._load_judge_config()
                 await self._load_pipeline_config()
                 await self._load_tests()
