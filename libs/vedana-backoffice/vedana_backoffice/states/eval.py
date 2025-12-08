@@ -1,4 +1,5 @@
 import logging
+import secrets
 from datetime import datetime
 from typing import Any
 
@@ -6,9 +7,13 @@ import pandas as pd
 import reflex as rx
 import sqlalchemy as sa
 from datapipe.compute import run_steps
-from datapipe.run_config import RunConfig
+from jims_core.llms.llm_provider import LLMProvider
+from jims_core.thread.thread_controller import ThreadController
+from jims_core.util import uuid7
+from pydantic import BaseModel, Field
 from vedana_etl.app import app as etl_app
 from vedana_etl.config import DBCONN_DATAPIPE
+from vedana_etl.settings import settings as etl_settings
 
 from vedana_backoffice.states.common import get_vedana_app
 from vedana_backoffice.util import safe_render_value
@@ -197,7 +202,7 @@ class EvalState(rx.State):
             try:
                 run_steps(etl_app.ds, [step])
             except Exception as exc:
-                logging.warning("Failed to run get_eval_gds_from_grist: %s", exc)
+                logging.exception(f"Failed to run get_eval_gds_from_grist: {exc}")
 
         con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
         stmt = sa.text(
@@ -236,7 +241,7 @@ class EvalState(rx.State):
                 result = await session.execute(query)
                 rows = result.mappings().all()
         except Exception as exc:
-            logging.warning("Failed to load eval_judge_config: %s", exc, exc_info=True)
+            logging.exception(f"Failed to load eval_judge_config: {exc}")
             rows = []
         if not rows:
             self.judge_configs = []
@@ -356,7 +361,7 @@ class EvalState(rx.State):
                     count_result = conn.execute(count_stmt).scalar()
                     self.tests_total_rows = int(count_result or 0)
             except Exception as exc:
-                logging.warning("Failed to get eval_tests count: %s", exc)
+                logging.exception(f"Failed to get eval_tests count: {exc}")
                 self.tests_total_rows = 0
 
         stmt = sa.text(
@@ -371,7 +376,7 @@ class EvalState(rx.State):
             with con.begin() as conn:
                 df = pd.read_sql(stmt, conn)
         except Exception as exc:
-            logging.warning("Failed to load eval_tests: %s", exc)
+            logging.exception(f"Failed to load eval_tests: {exc}")
             self.tests_rows = []
             self.tests_cost_total = 0.0
             return
@@ -454,36 +459,164 @@ class EvalState(rx.State):
         stamp = datetime.now().strftime("%H:%M:%S")
         self.run_progress = [*self.run_progress[-20:], f"[{stamp}] {message}"]
 
-    def _resolve_eval_steps(self) -> list[Any]:
-        target_order = ["run_tests", "judge_tests"]
-        resolved: list[Any] = []
-        for func_name in target_order:
-            step = next((s for s in etl_app.steps if s._name == func_name), None)
-            if step is None:
-                raise RuntimeError(f"Unable to locate compute step for {func_name}")
-            resolved.append(step)
-        return resolved
+    def _generate_test_run_name(self) -> str:
+        """Build a human-readable identifier for this test run."""
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        slug = secrets.token_hex(3)
+        env = getattr(etl_settings, "test_environment", "local")
+        return f"{stamp}-{env}-{slug}"
 
-    def _run_eval_for_question(self, question: str, steps: list[Any]) -> None:
-        # todo replace with ThreadController + launching threads for tests just like chat works.
-        #  Pass configurations and other meta in thread_config.
-        #  Make everything async to achieve non-blocking execution and enable proper parallelism.
-        """Run evaluation steps for a single question. This is a blocking operation."""
-        rc = RunConfig(filters={"gds_question": question})
-        for step in steps:
-            meta_table = getattr(step, "meta_table", None)
-            if meta_table is not None:
-                try:
-                    meta_table.mark_all_rows_unprocessed(run_config=rc)
-                except Exception:
-                    pass
-            run_steps(etl_app.ds, [step], run_config=rc)
-            step_name = getattr(step, "_name", getattr(step, "name", ""))
-            self._append_progress(f"'{question}': {step_name} completed")
+    def _format_tool_calls(self, technical_info: dict[str, Any]) -> str:
+        """Flatten VTS/Cypher info into a text blob for judge/storage."""
+        if not isinstance(technical_info, dict):
+            return ""
+        vts = technical_info.get("vts_queries") or []
+        cypher = technical_info.get("cypher_queries") or []
+        vts_s = "\n".join([str(v) for v in vts]) if isinstance(vts, list) else ""
+        cypher_s = "\n".join([str(c) for c in cypher]) if isinstance(cypher, list) else ""
+        return "\n---\n".join(part for part in [vts_s, cypher_s] if part).strip()
+
+    def _build_thread_config(self, question_row: dict[str, Any], test_run_name: str) -> dict[str, Any]:
+        """Pack metadata into thread_config so runs are traceable in JIMS."""
+        return {
+            "source": "eval",
+            "test_run": test_run_name,
+            "gds_question": question_row.get("gds_question"),
+            "gds_answer": question_row.get("gds_answer"),
+            "question_context": question_row.get("question_context"),
+            "question_scenario": question_row.get("question_scenario"),
+            "judge_model": self.selected_judge_model,
+            "judge_prompt_id": self.judge_prompt_id,
+            "pipeline_model": self.pipeline_model,
+            "embeddings_model": self.embeddings_model,
+            "embeddings_dim": self.embeddings_dim,
+            "dm_id": self.dm_id,
+            "interface": "reflex-eval",
+        }
+
+    async def _run_question_thread(
+        self,
+        question_row: dict[str, Any],
+        test_run_name: str,
+    ) -> tuple[str, str, dict[str, Any]]:
+        """Create a JIMS thread, post the question, run pipeline, return answer + tech info."""
+        vedana_app = await get_vedana_app()
+        thread_id = uuid7()
+        ctl = await ThreadController.new_thread(
+            vedana_app.sessionmaker,
+            contact_id=f"eval:{test_run_name}",
+            thread_id=thread_id,
+            thread_config=self._build_thread_config(question_row, test_run_name),
+        )
+
+        question_text = str(question_row.get("gds_question", "") or "")
+        q_ctx = str(question_row.get("question_context", "") or "").strip()
+        user_query = f"{question_text} {q_ctx}".strip()
+
+        await ctl.store_user_message(uuid7(), user_query)
+        events = await ctl.run_pipeline_with_context(vedana_app.pipeline)
+
+        answer: str = ""
+        technical_info: dict[str, Any] = {}
+        for ev in events:
+            if ev.event_type == "comm.assistant_message":
+                answer = str(ev.event_data.get("content", ""))
+            elif ev.event_type == "rag.query_processed":
+                technical_info = dict(ev.event_data.get("technical_info", {}))
+
+        return str(thread_id), answer, technical_info
+
+    async def _judge_answer(self, question_row: dict[str, Any], answer: str, tool_calls: str) -> tuple[str, str]:
+        """Judge model answer with current judge prompt/model."""
+        judge_prompt = self.selected_judge_prompt
+        if not judge_prompt:
+            return "fail", "Judge prompt not loaded"
+
+        provider = LLMProvider()  # todo use single LLMProvider per-thread
+        judge_model = self.selected_judge_model
+        if judge_model:
+            try:
+                provider.set_model(judge_model)
+            except Exception:
+                logging.warning(f"Failed to set judge model {judge_model}")
+
+        class JudgeResult(BaseModel):
+            test_status: str = Field(description="pass / fail")
+            comment: str = Field(description="justification and hints")
+            errors: str | list[str] | None = Field(default=None, description="Text description of errors found")
+
+        user_msg = (
+            f"Golden answer:\n{question_row.get('gds_answer', '')}\n\n"
+            f"Expected context (if any):\n{question_row.get('question_context', '')}\n\n"
+            f"Model answer:\n{answer}\n\n"
+            f"Technical info (for reference):\n{tool_calls}"
+        )
+
+        try:
+            res = await provider.chat_completion_structured(
+                [
+                    {"role": "system", "content": judge_prompt},
+                    {"role": "user", "content": user_msg},
+                ],
+                JudgeResult,
+            )  # type: ignore[arg-type]
+        except Exception as e:
+            logging.exception(f"Judge failed for question '{question_row.get('gds_question')}': {e}")
+            return "fail", f"Judge failed: {e}"
+
+        if res is None:
+            return "fail", ""
+        return res.test_status or "fail", res.comment or ""
+
+    def _persist_eval_results(self, result_row: dict[str, Any]) -> None:
+        """Store eval results into eval_llm_answers and eval_tests tables (replace existing row)."""
+        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        delete_llm = sa.text(
+            """
+            DELETE FROM "eval_llm_answers"
+            WHERE dm_id=:dm_id
+              AND pipeline_model=:pipeline_model
+              AND embeddings_model=:embeddings_model
+              AND embeddings_dim=:embeddings_dim
+              AND gds_question=:gds_question
+            """
+        )
+        insert_llm = sa.text(
+            """
+            INSERT INTO "eval_llm_answers"
+            (dm_id, pipeline_model, embeddings_model, embeddings_dim, gds_question, question_context, llm_answer, tool_calls, test_date)
+            VALUES (:dm_id, :pipeline_model, :embeddings_model, :embeddings_dim, :gds_question, :question_context, :llm_answer, :tool_calls, :test_date)
+            """
+        )
+        delete_tests = sa.text(
+            """
+            DELETE FROM "eval_tests"
+            WHERE judge_model=:judge_model
+              AND judge_prompt_id=:judge_prompt_id
+              AND dm_id=:dm_id
+              AND pipeline_model=:pipeline_model
+              AND embeddings_model=:embeddings_model
+              AND embeddings_dim=:embeddings_dim
+              AND gds_question=:gds_question
+            """
+        )
+        insert_tests = sa.text(
+            """
+            INSERT INTO "eval_tests"
+            (judge_model, judge_prompt_id, dm_id, pipeline_model, embeddings_model, embeddings_dim, gds_question, question_context, gds_answer, llm_answer, tool_calls, test_status, eval_judge_comment, test_date)
+            VALUES (:judge_model, :judge_prompt_id, :dm_id, :pipeline_model, :embeddings_model, :embeddings_dim, :gds_question, :question_context, :gds_answer, :llm_answer, :tool_calls, :test_status, :eval_judge_comment, :test_date)
+            """
+        )
+
+        with con.begin() as conn:
+            conn.execute(delete_llm, result_row)
+            conn.execute(delete_tests, result_row)
+            conn.execute(insert_llm, result_row)
+            conn.execute(insert_tests, result_row)
 
     @rx.event(background=True)  # type: ignore[operator]
-    async def run_selected_tests(self):  # todo fix async / blocking here by replacing datapipe run tests with jims
-        """Run tests one question at a time, yielding between each to allow UI updates."""
+    async def run_selected_tests(self):
+        """Run tests via JIMS sessions, one question at a time."""
         async with self:
             if self.is_running:
                 return
@@ -491,11 +624,12 @@ class EvalState(rx.State):
             if not selection:
                 self.error_message = "Select at least one question to run tests."
                 return
-            try:
-                steps = self._resolve_eval_steps()
-            except Exception as e:
-                self.error_message = str(e)
+            if not self.selected_judge_prompt:
+                self.error_message = "Judge prompt not loaded. Refresh judge config first."
                 return
+
+            question_map = {str(row.get("id")): row for row in (self.eval_gds_rows or [])}
+            test_run_name = self._generate_test_run_name()
 
             # Initialize run state
             self.is_running = True
@@ -514,11 +648,39 @@ class EvalState(rx.State):
                 self._append_progress(f"Starting: '{question}'")
                 yield  # Yield before starting to update UI
 
+                row = question_map.get(question)
+                if row is None:
+                    self._append_progress(f"Skipped: '{question}' not found in dataset")
+                    yield
+                    continue
+
                 try:
-                    # TODO This is a blocking call, replace with async
-                    self._run_eval_for_question(question, steps)
+                    thread_id, answer, tech = await self._run_question_thread(row, test_run_name)
+                    tool_calls = self._format_tool_calls(tech)
+                    status, comment = await self._judge_answer(row, answer, tool_calls)
+
+                    result_row = {
+                        "judge_model": self.selected_judge_model,
+                        "judge_prompt_id": self.judge_prompt_id,
+                        "dm_id": self.dm_id,
+                        "pipeline_model": self.pipeline_model,
+                        "embeddings_model": self.embeddings_model,
+                        "embeddings_dim": int(self.embeddings_dim),
+                        "gds_question": row.get("gds_question"),
+                        "question_context": row.get("question_context"),
+                        "gds_answer": row.get("gds_answer"),
+                        "llm_answer": answer,
+                        "tool_calls": tool_calls,
+                        "test_status": status,
+                        "eval_judge_comment": comment,
+                        "test_date": test_run_name,
+                        "thread_id": thread_id,
+                    }
+
+                    self._persist_eval_results(result_row)
+
                     completed += 1
-                    self._append_progress(f"Completed: '{question}'")
+                    self._append_progress(f"Completed: '{question}' (status: {status})")
                     self.status_message = f"Completed {completed} of {len(selection)} question(s)"
                 except Exception as e:
                     error_msg = f"Failed for '{question}': {e}"
