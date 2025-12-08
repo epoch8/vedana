@@ -423,14 +423,14 @@ class EvalState(rx.State):
             status = "—"
             judge_comment = ""
             tool_calls = ""
-            test_date = thread.created_at.strftime("%Y-%m-%d %H:%M") if thread.created_at else ""
+            run_label = self._format_run_label(thread.contact_id)
+            test_date = run_label
 
             for ev in evs:
                 if ev.event_type == "comm.assistant_message":
                     answer = str(ev.event_data.get("content", ""))
                 elif ev.event_type == "rag.query_processed":
                     tool_calls = self._format_tool_calls(ev.event_data.get("technical_info", {}))
-                    # gather model cost if present
                     tech = ev.event_data.get("technical_info", {}) if isinstance(ev.event_data, dict) else {}
                     model_stats = tech.get("model_stats") if isinstance(tech, dict) else {}
                     if isinstance(model_stats, dict):
@@ -445,7 +445,7 @@ class EvalState(rx.State):
                 elif ev.event_type == "eval.result":
                     status = ev.event_data.get("test_status", status)
                     judge_comment = ev.event_data.get("eval_judge_comment", judge_comment)
-                    test_date = ev.event_data.get("test_date", test_date)
+                    test_date = self._format_run_label(ev.event_data.get("test_date", test_date))
 
             if str(status).lower() == "pass":
                 passed += 1
@@ -557,6 +557,21 @@ class EvalState(rx.State):
         vts_s = "\n".join([str(v) for v in vts]) if isinstance(vts, list) else ""
         cypher_s = "\n".join([str(c) for c in cypher]) if isinstance(cypher, list) else ""
         return "\n---\n".join(part for part in [vts_s, cypher_s] if part).strip()
+
+    def _format_run_label(self, contact_id: str | None) -> str:
+        """
+        Convert run id like 'eval:20251208-214017' -> '2025-12-08 21:40:17'.
+        Falls back to the raw value if parsing fails.
+        """
+        raw = str(contact_id or "").strip()
+        if raw.startswith("eval:") and len(raw) >= 18:
+            ts = raw.removeprefix("eval:")
+            try:
+                dt = datetime.strptime(ts, "%Y%m%d-%H%M%S")
+                return dt.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                return raw
+        return raw
 
     def _build_thread_config(self, question_row: dict[str, Any], test_run_name: str) -> dict[str, Any]:
         """Pack metadata into thread_config so runs are traceable in JIMS."""
