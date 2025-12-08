@@ -100,7 +100,7 @@ class EvalState(rx.State):
         if total == 0:
             return "No questions available"
         if self.selected_count == 0:
-            return f"Select tests to run"
+            return f"Select tests to run ({self.selected_count}/{total})"
         return f"Run selected ({self.selected_count}/{total})"
 
     @rx.var
@@ -480,7 +480,6 @@ class EvalState(rx.State):
             answer = ""
             status = "—"
             judge_comment = ""
-            tool_calls = ""
             run_label = self._format_run_label(thread.contact_id)
             test_date = run_label
 
@@ -488,7 +487,6 @@ class EvalState(rx.State):
                 if ev.event_type == "comm.assistant_message":
                     answer = str(ev.event_data.get("content", ""))
                 elif ev.event_type == "rag.query_processed":
-                    tool_calls = self._format_tool_calls(ev.event_data.get("technical_info", {}))
                     tech = ev.event_data.get("technical_info", {}) if isinstance(ev.event_data, dict) else {}
                     model_stats = tech.get("model_stats") if isinstance(tech, dict) else {}
                     if isinstance(model_stats, dict):
