@@ -303,6 +303,13 @@ def _tests_card() -> rx.Component:
                 rx.text(EvalState.pass_fail_summary, size="2", color="gray"),
                 rx.badge(EvalState.cost_label, color_scheme="gray", variant="soft"),
                 rx.select(
+                    items=EvalState.tests_scenario_options,
+                    value=EvalState.selected_tests_scenario,
+                    placeholder="Scenario (All)",
+                    on_change=EvalState.select_tests_scenario,
+                    width="14em",
+                ),
+                rx.select(
                     items=EvalState.run_id_options,
                     value=EvalState.selected_run_id,
                     placeholder="Run id (All)",
