@@ -65,7 +65,7 @@ def _questions_card() -> rx.Component:
                     ),
                 ),
                 cursor="pointer",
-                on_click=EvalState.toggle_gds_row(row_id=row_id),  # type: ignore[arg-type]
+                on_click=EvalState.toggle_gds_row(row_id=row_id),  # type: ignore[call-arg,func-returns-value]
             )
         )
 
@@ -74,7 +74,7 @@ def _questions_card() -> rx.Component:
             rx.table.cell(
                 rx.checkbox(
                     checked=row.get("selected", False),
-                    on_change=EvalState.toggle_question_selection(question=row.get("id", "")),  # type: ignore[arg-type]
+                    on_change=EvalState.toggle_question_selection(question=row.get("id", "")),  # type: ignore[arg-type,call-arg,func-returns-value]
                 )
             ),
             _expandable_text(row, "gds_question"),
@@ -274,7 +274,7 @@ def _tests_card() -> rx.Component:
                     ),
                 ),
                 cursor="pointer",
-                on_click=EvalState.toggle_row_expand(row_id=row_id),  # type: ignore[arg-type]
+                on_click=EvalState.toggle_row_expand(row_id=row_id),  # type: ignore[call-arg,func-returns-value]
             )
         )
 
