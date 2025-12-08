@@ -465,6 +465,9 @@ class EvalState(rx.State):
         return resolved
 
     def _run_eval_for_question(self, question: str, steps: list[Any]) -> None:
+        # todo replace with ThreadController + launching threads for tests just like chat works.
+        #  Pass configurations and other meta in thread_config.
+        #  Make everything async to achieve non-blocking execution and enable proper parallelism.
         """Run evaluation steps for a single question. This is a blocking operation."""
         rc = RunConfig(filters={"gds_question": question})
         for step in steps:
@@ -479,7 +482,7 @@ class EvalState(rx.State):
             self._append_progress(f"'{question}': {step_name} completed")
 
     @rx.event(background=True)  # type: ignore[operator]
-    async def run_selected_tests(self):  # todo fix async / blocking here.
+    async def run_selected_tests(self):  # todo fix async / blocking here by replacing datapipe run tests with jims
         """Run tests one question at a time, yielding between each to allow UI updates."""
         async with self:
             if self.is_running:
@@ -512,7 +515,7 @@ class EvalState(rx.State):
                 yield  # Yield before starting to update UI
 
                 try:
-                    # This is a blocking call, but we yield before and after
+                    # TODO This is a blocking call, replace with async
                     self._run_eval_for_question(question, steps)
                     completed += 1
                     self._append_progress(f"Completed: '{question}'")
