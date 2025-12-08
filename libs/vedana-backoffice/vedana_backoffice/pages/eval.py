@@ -30,18 +30,6 @@ def _selection_and_actions() -> rx.Component:
                 loading=EvalState.is_running,
                 disabled=rx.cond(EvalState.can_run, False, True),  # type: ignore[arg-type]
             ),
-            rx.button(
-                "Refresh Data Model",
-                variant="soft",
-                on_click=EvalState.refresh_data_model,
-                loading=EvalState.loading,
-            ),
-            rx.button(
-                "Refresh Judge Config",
-                variant="soft",
-                on_click=EvalState.run_judge_refresh,
-                loading=EvalState.is_running,
-            ),
             spacing="3",
         ),
         rx.button(
@@ -154,7 +142,7 @@ def _questions_card() -> rx.Component:
         ),
         padding="1em",
         width="100%",
-        style={"height": "100%", "display": "flex", "flexDirection": "column"},
+        style={"height": "80vh", "display": "flex", "flexDirection": "column"},
     )
 
 
@@ -175,8 +163,18 @@ def _judge_card() -> rx.Component:
                 on_click=EvalState.open_judge_prompt_dialog,
                 disabled=rx.cond(EvalState.judge_prompt_id != "", False, True),  # type: ignore[arg-type]
                 width="100%",
+                margin_top="0.5em",
             ),
-            spacing="3",
+            rx.button(
+                "Refresh Judge Config",
+                variant="soft",
+                size="1",
+                on_click=EvalState.run_judge_refresh,
+                loading=EvalState.is_running,
+                width="100%",
+                margin_top="0.5em",
+            ),
+            spacing="1",
             width="100%",
         ),
         padding="1em",
@@ -198,6 +196,15 @@ def _pipeline_card() -> rx.Component:
                         size="1",
                         on_click=EvalState.open_data_model_dialog,
                         disabled=rx.cond(EvalState.dm_id != "", False, True),  # type: ignore[arg-type]
+                        width="100%",
+                        margin_top="0.5em",
+                    ),
+                    rx.button(
+                        "Refresh Data Model",
+                        variant="soft",
+                        size="1",
+                        on_click=EvalState.refresh_data_model,
+                        loading=EvalState.loading,
                         width="100%",
                         margin_top="0.5em",
                     ),
@@ -276,7 +283,7 @@ def _tests_card() -> rx.Component:
     return rx.card(
         rx.vstack(
             rx.hstack(
-                rx.heading("Latest test results", size="4"),
+                rx.heading("Test results", size="4"),
                 rx.spacer(),
                 align="center",
                 width="100%",
@@ -300,7 +307,7 @@ def _tests_card() -> rx.Component:
                 ),
                 type="always",
                 scrollbars="vertical",
-                style={"height": "360px", "width": "100%"},
+                style={"height": "80vh", "width": "100%"},
             ),
             # Server-side pagination controls
             rx.hstack(
@@ -477,7 +484,10 @@ def page() -> rx.Component:
         app_header(),
         rx.vstack(
             rx.grid(
-                _questions_card(),
+                rx.vstack(
+                    _questions_card(),
+                    _tests_card(),
+                ),
                 rx.vstack(
                     _judge_card(),
                     _pipeline_card(),
@@ -489,9 +499,8 @@ def page() -> rx.Component:
                 columns="2",
                 spacing="4",
                 width="100%",
-                style={"gridTemplateColumns": "3fr 1fr", "height": "calc(100vh - 200px)", "minHeight": "600px"},
+                style={"gridTemplateColumns": "3fr 1fr", "height": "calc(100vh - 200px)", "minHeight": "700px"},
             ),
-            _tests_card(),
             spacing="4",
             width="100%",
         ),
