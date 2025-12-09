@@ -558,7 +558,7 @@ def _compare_dialog() -> rx.Component:
                         row.get("left", ""),
                         size="1",
                         white_space="pre-wrap",
-                        weight=rx.cond(row.get("strong", False), "medium", "regular"),
+                        weight=rx.cond(row.get("strong", False), "bold", "regular"),
                         color=row.get("left_color", "inherit"),
                     ),
                     style={
@@ -668,22 +668,52 @@ def _compare_dialog() -> rx.Component:
                             rx.hstack(
                                 rx.text("Differences:", weight="medium", size="1"),
                                 rx.box(rx.foreach(EvalState.compare_diff_keys, lambda k: rx.badge(k, variant="soft"))),
-                                spacing="2",
+                                spacing="3",
                                 align="center",
                             ),
-                            rx.checkbox(
-                                "Show only changes",
-                                default_checked=True,
-                                checked=EvalState.compare_compact,
-                                on_change=EvalState.set_compare_compact,
-                                size="2",
+                            rx.accordion.root(
+                                rx.accordion.item(
+                                    rx.accordion.trigger("Judge prompt diff"),
+                                    rx.accordion.content(
+                                        rx.vstack(
+                                            rx.checkbox(
+                                                "Show only changes",
+                                                default_checked=True,
+                                                checked=EvalState.compare_judge_prompt_compact,
+                                                on_change=EvalState.set_compare_judge_prompt_compact,
+                                                size="2",
+                                            ),
+                                            _diff_table("Judge prompt diff", EvalState.compare_prompt_rows_view),
+                                            spacing="1",
+                                        )
+                                    ),
+                                    value="prompt-diff-block",
+                                ),
+                                rx.accordion.item(
+                                    rx.accordion.trigger("Data model diff"),
+                                    rx.accordion.content(
+                                        rx.vstack(
+                                            rx.checkbox(
+                                                "Show only changes",
+                                                default_checked=True,
+                                                checked=EvalState.compare_dm_compact,
+                                                on_change=EvalState.set_compare_dm_compact,
+                                                size="2",
+                                            ),
+                                            _diff_table("Data model diff", EvalState.compare_dm_rows_view),
+                                            spacing="1",
+                                        )
+                                    ),
+                                    value="dm-diff-block",
+                                ),
+                                type="multiple",
+                                collapsible=True,
+                                variant="outline",
+                                width="100%",
                             ),
-                            _diff_table("Judge prompt diff", EvalState.compare_prompt_rows_view),
-                            _diff_table("Data model diff", EvalState.compare_dm_rows_view),
                             spacing="2",
                             width="100%",
                         ),
-                        # color_scheme="amber",
                         variant="surface",
                         width="100%",
                     ),

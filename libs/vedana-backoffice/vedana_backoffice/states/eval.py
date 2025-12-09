@@ -93,7 +93,8 @@ class EvalState(rx.State):
     compare_dm_full_b: str = ""
     compare_prompt_diff_rows: list[dict[str, Any]] = []
     compare_dm_diff_rows: list[dict[str, Any]] = []
-    compare_compact: bool = True
+    compare_judge_prompt_compact: bool = True
+    compare_dm_compact: bool = True
 
     @rx.var
     def available_scenarios(self) -> list[str]:
@@ -651,9 +652,13 @@ class EvalState(rx.State):
             return ""
         return self.run_id_lookup.get(label, label)
 
-    def set_compare_compact(self, checked: bool) -> None:
-        """Toggle compact diff view (show only changes)."""
-        self.compare_compact = bool(checked)
+    def set_compare_judge_prompt_compact(self, checked: bool) -> None:
+        """Toggle compact diff view for prompt diff."""
+        self.compare_judge_prompt_compact = bool(checked)
+
+    def set_compare_dm_compact(self, checked: bool) -> None:
+        """Toggle compact diff view for data model diff."""
+        self.compare_dm_compact = bool(checked)
 
     @rx.event(background=True)  # type: ignore[operator]
     async def compare_runs(self):
@@ -1138,7 +1143,7 @@ class EvalState(rx.State):
     @rx.var
     def compare_prompt_rows_view(self) -> list[dict[str, Any]]:
         rows = self.compare_prompt_diff_rows or []
-        if not self.compare_compact:
+        if not self.compare_judge_prompt_compact:
             return rows
         change_idxs = [r.get("row_idx", -1) for r in rows if r.get("is_change")]
         window = 4
@@ -1151,7 +1156,7 @@ class EvalState(rx.State):
     @rx.var
     def compare_dm_rows_view(self) -> list[dict[str, Any]]:
         rows = self.compare_dm_diff_rows or []
-        if not self.compare_compact:
+        if not self.compare_dm_compact:
             return rows
         change_idxs = [r.get("row_idx", -1) for r in rows if r.get("is_change")]
         window = 4
