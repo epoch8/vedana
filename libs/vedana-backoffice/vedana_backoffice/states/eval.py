@@ -59,6 +59,8 @@ class EvalState(rx.State):
     tests_page: int = 0  # 0-indexed current page
     tests_page_size: int = 100  # rows per page
     tests_total_rows: int = 0  # total count
+    tests_sort_options: list[str] = ["Sort: Recent", "Sort: Rating"]
+    selected_tests_sort: str = "Sort: Recent"
 
     @rx.var
     def available_scenarios(self) -> list[str]:
@@ -374,7 +376,7 @@ class EvalState(rx.State):
         return color_schemes[color_idx]
 
     async def _load_tests(self) -> None:
-        """Build test results directly from JIMS threads (source=eval)."""
+        """Build test results table directly from JIMS threads (source=eval)."""
         vedana_app = await get_vedana_app()
 
         async with vedana_app.sessionmaker() as session:
@@ -417,6 +419,8 @@ class EvalState(rx.State):
             self.run_id_options = ["All", *labels]
             if not self.selected_run_id:
                 self.selected_run_id = labels[0] if labels else "All"
+            if self.selected_tests_sort not in self.tests_sort_options:
+                self.selected_tests_sort = "Sort: Recent"
 
             # Scenario options
             scenarios = [
@@ -434,6 +438,19 @@ class EvalState(rx.State):
             if self.selected_tests_scenario not in self.tests_scenario_options:
                 self.selected_tests_scenario = "All"
 
+            eval_result_subq = (
+                sa.select(
+                    ThreadEventDB.thread_id.label("thread_id"),
+                    ThreadEventDB.event_data.label("eval_data"),
+                    ThreadEventDB.created_at.label("eval_created_at"),
+                    sa.func.row_number()
+                    .over(partition_by=ThreadEventDB.thread_id, order_by=ThreadEventDB.created_at.desc())
+                    .label("rn"),
+                )
+                .where(ThreadEventDB.event_type == "eval.result")
+                .subquery()
+            )
+
             # Base query for eval threads
             base_threads = sa.select(ThreadDB).where(ThreadDB.thread_config.contains({"source": "eval"}))
             if self.selected_run_id and self.selected_run_id != "All":
@@ -449,7 +466,24 @@ class EvalState(rx.State):
             self.tests_total_rows = int((await session.execute(count_q)).scalar_one())
 
             offset = self.tests_page * self.tests_page_size
-            threads_q = base_threads.order_by(ThreadDB.created_at.desc()).limit(self.tests_page_size).offset(offset)
+            threads_q = base_threads
+
+            selected_sort = self.selected_tests_sort or "Sort: Recent"
+            rating_expr = None
+            if selected_sort in ("Sort: Rating"):
+                threads_q = threads_q.join(
+                    eval_result_subq,
+                    sa.and_(eval_result_subq.c.thread_id == ThreadDB.thread_id, eval_result_subq.c.rn == 1),
+                    isouter=True,
+                )
+                rating_expr = sa.cast(eval_result_subq.c.eval_data["eval_judge_rating"].astext, sa.Integer)
+
+            if selected_sort == "Sort: Rating" and rating_expr is not None:
+                threads_q = threads_q.order_by(sa.desc(rating_expr), ThreadDB.created_at.desc())
+            else:
+                threads_q = threads_q.order_by(ThreadDB.created_at.desc())
+
+            threads_q = threads_q.limit(self.tests_page_size).offset(offset)
             page_threads = (await session.execute(threads_q)).scalars().all()
 
             if not page_threads:
@@ -480,6 +514,7 @@ class EvalState(rx.State):
             answer = ""
             status = "—"
             judge_comment = ""
+            rating_label = "—"
             run_label = self._format_run_label(thread.contact_id)
             test_date = run_label
 
@@ -501,11 +536,12 @@ class EvalState(rx.State):
                 elif ev.event_type == "eval.result":
                     status = ev.event_data.get("test_status", status)
                     judge_comment = ev.event_data.get("eval_judge_comment", judge_comment)
+                    rating_label = str(ev.event_data.get("eval_judge_rating"), rating_label)
                     test_date = self._format_run_label(ev.event_data.get("test_date", test_date))
 
-            if str(status).lower() == "pass":
+            if status == "pass":
                 passed += 1
-            elif str(status).lower() == "fail":
+            elif status == "fail":
                 failed += 1
 
             cfg = thread.thread_config or {}
@@ -521,6 +557,7 @@ class EvalState(rx.State):
                     "test_status": status or "—",
                     "status_color": self._status_color(status),
                     "eval_judge_comment": safe_render_value(judge_comment),
+                    "eval_judge_rating": rating_label,
                 }
             )
 
@@ -581,6 +618,15 @@ class EvalState(rx.State):
         """Update scenario filter for tests and reload."""
         async with self:
             self.selected_tests_scenario = str(value or "All")
+            self.tests_page = 0
+            await self._load_tests()
+            yield
+
+    @rx.event(background=True)  # type: ignore[operator]
+    async def select_tests_sort(self, value: str):
+        """Update sorting for tests and reload."""
+        async with self:
+            self.selected_tests_sort = str(value or "Sort: Recent")
             self.tests_page = 0
             await self._load_tests()
             yield
@@ -717,11 +763,11 @@ class EvalState(rx.State):
 
         return str(thread_id), answer, technical_info
 
-    async def _judge_answer(self, question_row: dict[str, Any], answer: str, tool_calls: str) -> tuple[str, str]:
-        """Judge model answer with current judge prompt/model."""
+    async def _judge_answer(self, question_row: dict[str, Any], answer: str, tool_calls: str) -> tuple[str, str, int]:
+        """Judge model answer with current judge prompt/model and rating."""
         judge_prompt = self.selected_judge_prompt
         if not judge_prompt:
-            return "fail", "Judge prompt not loaded"
+            return "fail", "Judge prompt not loaded", 0
 
         provider = LLMProvider()  # todo use single LLMProvider per-thread
         judge_model = self.selected_judge_model
@@ -735,12 +781,15 @@ class EvalState(rx.State):
             test_status: str = Field(description="pass / fail")
             comment: str = Field(description="justification and hints")
             errors: str | list[str] | None = Field(default=None, description="Text description of errors found")
+            rating: int = Field(description="Numeric rating between 0 (worst) and 10 (best)")
 
         user_msg = (
             f"Golden answer:\n{question_row.get('gds_answer', '')}\n\n"
             f"Expected context (if any):\n{question_row.get('question_context', '')}\n\n"
             f"Model answer:\n{answer}\n\n"
-            f"Technical info (for reference):\n{tool_calls}"
+            f"Technical info (for reference):\n{tool_calls}\n\n"
+            "Return test_status (pass/fail), a helpful comment, optional errors list/text, "
+            "and rating as an integer number between 0 and 10 (10 = best possible answer)."
         )
 
         try:
@@ -753,11 +802,17 @@ class EvalState(rx.State):
             )  # type: ignore[arg-type]
         except Exception as e:
             logging.exception(f"Judge failed for question '{question_row.get('gds_question')}': {e}")
-            return "fail", f"Judge failed: {e}"
+            return "fail", f"Judge failed: {e}", 0
 
         if res is None:
-            return "fail", ""
-        return res.test_status or "fail", res.comment or ""
+            return "fail", "", 0.0
+
+        try:
+            rating = int(res.rating)
+        except Exception:
+            rating = 0
+
+        return res.test_status or "fail", res.comment or "", rating
 
     async def _store_eval_result_event(self, thread_id: str, result_row: dict[str, Any]) -> None:
         """Persist eval result as a thread event for thread-based history. todo why is this needed?"""

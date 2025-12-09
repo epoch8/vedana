@@ -292,6 +292,7 @@ def _tests_card() -> rx.Component:
                     variant="soft",
                 )
             ),
+            rx.table.cell(rx.text(row.get("eval_judge_rating", "—"))),
             _expandable_text(row, "eval_judge_comment"),
         )
 
@@ -302,6 +303,13 @@ def _tests_card() -> rx.Component:
                 rx.spacer(),
                 rx.text(EvalState.pass_fail_summary, size="2", color="gray"),
                 rx.badge(EvalState.cost_label, color_scheme="gray", variant="soft"),
+                rx.select(
+                    items=EvalState.tests_sort_options,
+                    value=EvalState.selected_tests_sort,
+                    placeholder="Sort",
+                    on_change=EvalState.select_tests_sort,
+                    width="14em",
+                ),
                 rx.select(
                     items=EvalState.tests_scenario_options,
                     value=EvalState.selected_tests_scenario,
@@ -329,6 +337,7 @@ def _tests_card() -> rx.Component:
                             rx.table.column_header_cell("Answer"),
                             rx.table.column_header_cell("Golden Answer"),
                             rx.table.column_header_cell("Status"),
+                            rx.table.column_header_cell("Rating"),
                             rx.table.column_header_cell("Judge comment"),
                         )
                     ),
@@ -474,6 +483,7 @@ def _status_messages() -> rx.Component:
                 ),
                 color_scheme="green",
                 variant="soft",
+                width="100%",
             ),
             rx.box(),
         ),
