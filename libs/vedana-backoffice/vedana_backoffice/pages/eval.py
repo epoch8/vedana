@@ -414,14 +414,14 @@ def _compare_card() -> rx.Component:
                     value=EvalState.compare_run_a,
                     placeholder="Run A",
                     on_change=EvalState.set_compare_run_a,
-                    width="14em",
+                    width="100%",
                 ),
                 rx.select(
                     items=EvalState.run_options_only,
                     value=EvalState.compare_run_b,
                     placeholder="Run B",
                     on_change=EvalState.set_compare_run_b,
-                    width="14em",
+                    width="100%",
                 ),
                 spacing="2",
                 align="center",
@@ -507,7 +507,7 @@ def _compare_dialog() -> rx.Component:
         diff_keys = EvalState.compare_diff_keys
 
         def _row(label: str, key: str) -> rx.Component:
-            val = str(cfg.get(key))
+            val = str(cfg.get(key, "—")) if isinstance(cfg, dict) else "—"
             return rx.cond(
                 diff_keys.contains(key),
                     rx.hstack(
@@ -537,6 +537,65 @@ def _compare_dialog() -> rx.Component:
                 spacing="1",
             ),
             padding="0.75em",
+            width="100%",
+        )
+
+    def _diff_table(title: str, rows: list[dict[str, rx.Var]]) -> rx.Component:
+        def _line(row: dict[str, rx.Var]) -> rx.Component:
+            return rx.hstack(
+                rx.box(
+                    rx.text(
+                        row.get("left", ""),
+                        size="1",
+                        white_space="pre-wrap",
+                        weight=rx.cond(row.get("strong", False), "medium", "regular"),
+                        color=row.get("left_color", "inherit"),
+                    ),
+                    style={
+                        "fontFamily": "monospace",
+                        "padding": "2px 6px",
+                        "borderRadius": "4px",
+                        "width": "100%",
+                    },
+                ),
+                rx.box(
+                    rx.text(
+                        row.get("right", ""),
+                        size="1",
+                        white_space="pre-wrap",
+                        weight=rx.cond(row.get("strong", False), "medium", "regular"),
+                        color=row.get("right_color", "inherit"),
+                    ),
+                    style={
+                        "fontFamily": "monospace",
+                        "padding": "2px 6px",
+                        "borderRadius": "4px",
+                        "width": "100%",
+                    },
+                ),
+                spacing="2",
+                width="100%",
+            )
+
+        return rx.vstack(
+            rx.text(title, weight="medium"),
+            rx.hstack(
+                rx.text("Run A", weight="medium", size="1"),
+                rx.spacer(),
+                rx.text("Run B", weight="medium", size="1"),
+                width="100%",
+            ),
+            rx.scroll_area(
+                rx.vstack(
+                    rx.foreach(rows, _line),
+                    spacing="1",
+                    width="100%",
+                ),
+                type="always",
+                scrollbars="vertical",
+                style={"maxHeight": "260px", "padding": "2px"},
+            ),
+            spacing="1",
             width="100%",
         )
 
@@ -596,39 +655,15 @@ def _compare_dialog() -> rx.Component:
                                 spacing="2",
                                 align="center",
                             ),
-                            rx.hstack(
-                                rx.accordion.root(
-                                    rx.accordion.item(
-                                        rx.accordion.trigger("Judge prompt diff"),
-                                        rx.accordion.content(
-                                            rx.box(
-                                                rx.text(EvalState.compare_prompt_diff, size="1", white_space="pre-wrap"),
-                                                padding="0.5em",
-                                                border="1px solid var(--gray-5)",
-                                                border_radius="6px",
-                                                style={"maxHeight": "240px", "overflow": "auto"},
-                                            )
-                                        ),
-                                        value="prompt-diff",
-                                    ),
-                                    rx.accordion.item(
-                                        rx.accordion.trigger("Data model diff"),
-                                        rx.accordion.content(
-                                            rx.box(
-                                                rx.text(EvalState.compare_dm_diff, size="1", white_space="pre-wrap"),
-                                                padding="0.5em",
-                                                border="1px solid var(--gray-5)",
-                                                border_radius="6px",
-                                                style={"maxHeight": "240px", "overflow": "auto"},
-                                            )
-                                        ),
-                                        value="dm-diff",
-                                    ),
-                                    type="multiple",
-                                    collapsible=True,
-                                    width="100%",
-                                ),
-                            ),
+                rx.checkbox(
+                    "Show only changes",
+                    default_checked=True,
+                    checked=EvalState.compare_compact,
+                    on_change=EvalState.set_compare_compact,
+                    size="2",
+                ),
+                _diff_table("Judge prompt diff", EvalState.compare_prompt_rows_view),
+                _diff_table("Data model diff", EvalState.compare_dm_rows_view),
                             spacing="2",
                             width="100%",
                         ),
