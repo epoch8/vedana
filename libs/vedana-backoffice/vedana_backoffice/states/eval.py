@@ -1,3 +1,6 @@
+import asyncio
+import hashlib
+import json
 import logging
 from datetime import datetime
 from typing import Any
@@ -21,6 +24,16 @@ from vedana_backoffice.util import safe_render_value
 
 class EvalState(rx.State):
     """State holder for evaluation workflow."""
+
+    """
+    TODO tasks
+    - still no way to version the graph data properly. need to create some sort of metadata write (all node counts per-label, all edge counts per-label, plus SHOW VECTOR INDEX INFO and put all this into JSON and write as an eval.meta event in thread)
+    - write data model JSON (+ its hash like in the page) in thread as a system event to version it (also eval.meta event)
+    - same for judge prompt, also store it in eval.meta event
+    - optimize runs if possible (parallel async execution? check if it is not done properly already)
+    - make the 0-10 judge rating that is in judge's comment right now a separate column, update judge response schema.
+    - add the ability to sort test results by fail / pass (and judge rating, combined in this sorting)
+    """
 
     loading: bool = False
     error_message: str = ""
@@ -61,6 +74,7 @@ class EvalState(rx.State):
     tests_total_rows: int = 0  # total count
     tests_sort_options: list[str] = ["Sort: Recent", "Sort: Rating"]
     selected_tests_sort: str = "Sort: Recent"
+    max_parallel_tests: int = 4
 
     @rx.var
     def available_scenarios(self) -> list[str]:
@@ -536,7 +550,7 @@ class EvalState(rx.State):
                 elif ev.event_type == "eval.result":
                     status = ev.event_data.get("test_status", status)
                     judge_comment = ev.event_data.get("eval_judge_comment", judge_comment)
-                    rating_label = str(ev.event_data.get("eval_judge_rating"), rating_label)
+                    rating_label = str(ev.event_data.get("eval_judge_rating", rating_label))
                     test_date = self._format_run_label(ev.event_data.get("test_date", test_date))
 
             if status == "pass":
@@ -688,6 +702,114 @@ class EvalState(rx.State):
         stamp = datetime.now().strftime("%H:%M:%S")
         self.run_progress = [*self.run_progress[-20:], f"[{stamp}] {message}"]
 
+    def _record_val(self, rec: Any, key: str) -> Any:
+        """Best-effort extractor for neo4j / sqlalchemy records."""
+        if isinstance(rec, dict):
+            return rec.get(key)
+        getter = getattr(rec, "get", None)
+        if callable(getter):
+            try:
+                return getter(key)
+            except Exception:
+                pass
+        try:
+            return rec[key]  # type: ignore[index]
+        except Exception:
+            pass
+        data_fn = getattr(rec, "data", None)
+        if callable(data_fn):
+            try:
+                data = data_fn()
+                if isinstance(data, dict):
+                    return data.get(key)
+            except Exception:
+                return None
+        return None
+
+    async def _collect_graph_metadata(self, graph) -> dict[str, Any]:
+        """Collect node/edge counts and vector index info from the graph."""
+        meta: dict[str, Any] = {"nodes_by_label": {}, "edges_by_type": {}, "vector_indexes": []}
+
+        try:
+            node_res = await graph.execute_ro_cypher_query(
+                "MATCH (n) UNWIND labels(n) AS lbl RETURN lbl, count(*) AS cnt"
+            )
+            for rec in node_res:
+                lbl = str(self._record_val(rec, "lbl") or "")
+                cnt_val = self._record_val(rec, "cnt")
+                try:
+                    cnt = int(cnt_val)
+                except Exception:
+                    cnt = None
+                if lbl and cnt is not None:
+                    meta["nodes_by_label"][lbl] = cnt
+        except Exception as exc:
+            meta["nodes_error"] = str(exc)
+
+        try:
+            edge_res = await graph.execute_ro_cypher_query(
+                "MATCH ()-[r]->() RETURN type(r) AS rel_type, count(*) AS cnt"
+            )
+            for rec in edge_res:
+                rel = str(self._record_val(rec, "rel_type") or "")
+                cnt_val = self._record_val(rec, "cnt")
+                try:
+                    cnt = int(cnt_val)
+                except Exception:
+                    cnt = None
+                if rel and cnt is not None:
+                    meta["edges_by_type"][rel] = cnt
+        except Exception as exc:
+            meta["edges_error"] = str(exc)
+
+        try:
+            res = await graph.driver.execute_query("CALL vector_search.show_index_info() YIELD * RETURN *")
+            for rec in res.records:
+                row = {}
+                try:
+                    for key in rec.keys():
+                        row[key] = rec.get(key)
+                except Exception:
+                    row = {}
+                if row:
+                    meta["vector_indexes"].append(row)
+        except Exception as exc:
+            meta["vector_indexes_error"] = str(exc)
+
+        return meta
+
+    def _build_data_model_meta(self, vedana_app) -> dict[str, Any]:
+        """Serialize data model and attach hash for versioning."""
+        dm_dict = vedana_app.data_model.to_dict()
+        dm_json = json.dumps(dm_dict, ensure_ascii=False, sort_keys=True)
+        dm_hash = hashlib.sha256(dm_json.encode("utf-8")).hexdigest()
+        return {
+            "data_model_json": dm_json,
+            "data_model_hash": dm_hash,
+            "dm_id": self.dm_id,
+            "dm_description": self.dm_description,
+            "dm_snapshot_updated": self.dm_snapshot_updated,
+        }
+
+    async def _build_eval_meta_payload(self, vedana_app, test_run_name: str) -> dict[str, Any]:
+        """Build a single eval.meta payload shared across threads for a run."""
+        graph_meta = await self._collect_graph_metadata(vedana_app.graph)
+        data_model_meta = self._build_data_model_meta(vedana_app)
+        return {
+            "meta_version": 1,
+            "test_run": test_run_name,
+            "pipeline_model": self.pipeline_model,
+            "embeddings_model": self.embeddings_model,
+            "embeddings_dim": self.embeddings_dim,
+            "judge": {
+                "judge_model": self.selected_judge_model,
+                "judge_prompt_id": self.judge_prompt_id,
+                "judge_prompt": self.selected_judge_prompt,
+            },
+            "graph": graph_meta,
+            "data_model": data_model_meta,
+        }
+
     def _format_tool_calls(self, technical_info: dict[str, Any]) -> str:
         """Flatten VTS/Cypher info into a text blob for judge/storage."""
         if not isinstance(technical_info, dict):
@@ -733,11 +855,12 @@ class EvalState(rx.State):
 
     async def _run_question_thread(
         self,
+        vedana_app,
         question_row: dict[str, Any],
         test_run_name: str,
+        eval_meta_base: dict[str, Any],
     ) -> tuple[str, str, dict[str, Any]]:
         """Create a JIMS thread, post the question, run pipeline, return answer + tech info."""
-        vedana_app = await get_vedana_app()
         thread_id = uuid7()
         ctl = await ThreadController.new_thread(
             vedana_app.sessionmaker,
@@ -745,6 +868,20 @@ class EvalState(rx.State):
             thread_id=thread_id,
             thread_config=self._build_thread_config(question_row, test_run_name),
         )
+
+        try:
+            meta_payload = {
+                **eval_meta_base,
+                "question": {
+                    "gds_question": question_row.get("gds_question"),
+                    "gds_answer": question_row.get("gds_answer"),
+                    "question_context": question_row.get("question_context"),
+                    "question_scenario": question_row.get("question_scenario"),
+                },
+            }
+            await ctl.store_event_dict(uuid7(), "eval.meta", meta_payload)
+        except Exception as exc:
+            logging.warning(f"Failed to store eval.meta for thread {thread_id}: {exc}")
 
         question_text = str(question_row.get("gds_question", "") or "")
         q_ctx = str(question_row.get("question_context", "") or "").strip()
@@ -856,55 +993,68 @@ class EvalState(rx.State):
             self.error_message = ""
             yield
 
-            # Process one question at a time
+            vedana_app = await get_vedana_app()
+            eval_meta_base = await self._build_eval_meta_payload(vedana_app, test_run_ts)
+            max_parallel = max(1, int(self.max_parallel_tests or 1))
+            sem = asyncio.Semaphore(max_parallel)
+
+            async def _run_one(idx: int, question: str) -> dict[str, Any]:
+                async with sem:
+                    row = question_map.get(question)
+                    if row is None:
+                        return {"question": question, "status": None, "error": "not found"}
+                    try:
+                        thread_id, answer, tech = await self._run_question_thread(
+                            vedana_app, row, test_run_ts, eval_meta_base
+                        )
+                        tool_calls = self._format_tool_calls(tech)
+                        status, comment, rating = await self._judge_answer(row, answer, tool_calls)
+
+                        result_row = {
+                            "judge_model": self.selected_judge_model,
+                            "judge_prompt_id": self.judge_prompt_id,
+                            "dm_id": self.dm_id,
+                            "pipeline_model": self.pipeline_model,
+                            "embeddings_model": self.embeddings_model,
+                            "embeddings_dim": self.embeddings_dim,
+                            "gds_question": row.get("gds_question"),
+                            "question_context": row.get("question_context"),
+                            "gds_answer": row.get("gds_answer"),
+                            "llm_answer": answer,
+                            "tool_calls": tool_calls,
+                            "test_status": status,
+                            "eval_judge_comment": comment,
+                            "eval_judge_rating": rating,
+                            "test_date": test_run_ts,
+                            "thread_id": thread_id,
+                        }
+
+                        await self._store_eval_result_event(thread_id, result_row)
+                        return {"question": question, "status": status, "rating": rating, "error": None}
+                    except Exception as exc:
+                        logging.error(f"Failed for '{question}': {exc}", exc_info=True)
+                        return {"question": question, "status": None, "error": str(exc)}
+
+            self._append_progress(
+                f"Queued {len(selection)} question(s) with up to {max_parallel} parallel worker(s)"
+            )
+            tasks = [asyncio.create_task(_run_one(idx, question)) for idx, question in enumerate(selection)]
+
             completed = 0
-            for idx, question in enumerate(selection):
-                self.current_question_index = idx
-                self.status_message = f"Processing question {idx + 1} of {len(selection)}: '{question[:50]}...'"
-                self._append_progress(f"Starting: '{question}'")
-                yield  # Yield before starting to update UI
-
-                row = question_map.get(question)
-                if row is None:
-                    self._append_progress(f"Skipped: '{question}' not found in dataset")
-                    yield
-                    continue
-
-                try:
-                    thread_id, answer, tech = await self._run_question_thread(row, test_run_ts)
-                    tool_calls = self._format_tool_calls(tech)
-                    status, comment = await self._judge_answer(row, answer, tool_calls)
-
-                    result_row = {
-                        "judge_model": self.selected_judge_model,
-                        "judge_prompt_id": self.judge_prompt_id,
-                        "dm_id": self.dm_id,
-                        "pipeline_model": self.pipeline_model,
-                        "embeddings_model": self.embeddings_model,
-                        "embeddings_dim": self.embeddings_dim,
-                        "gds_question": row.get("gds_question"),
-                        "question_context": row.get("question_context"),
-                        "gds_answer": row.get("gds_answer"),
-                        "llm_answer": answer,
-                        "tool_calls": tool_calls,
-                        "test_status": status,
-                        "eval_judge_comment": comment,
-                        "test_date": test_run_ts,
-                        "thread_id": thread_id,
-                    }
-
-                    await self._store_eval_result_event(thread_id, result_row)
-
-                    completed += 1
-                    self._append_progress(f"Completed: '{question}' (status: {status})")
-                    self.status_message = f"Completed {completed} of {len(selection)} question(s)"
-                except Exception as e:
-                    error_msg = f"Failed for '{question}': {e}"
-                    self._append_progress(error_msg)
-                    logging.error(error_msg, exc_info=True)
-                    # Continue with next question instead of stopping
-
-                yield  # Yield after each question to update UI
+            for future in asyncio.as_completed(tasks):
+                res = await future
+                completed += 1
+                self.current_question_index = completed - 1
+                question = res.get("question", "")
+                if res.get("error"):
+                    msg = f"Failed for '{question}': {res.get('error')}"
+                else:
+                    status = res.get("status", "")
+                    rating = res.get("rating", 0.0)
+                    msg = f"Completed: '{question}' (status: {status}, rating: {rating})"
+                self._append_progress(msg)
+                self.status_message = f"Completed {completed} of {len(selection)} question(s)"
+                yield  # Yield after each completion to update UI
 
             # Finalize
             self.status_message = f"Evaluation complete: {completed} of {len(selection)} question(s) processed"
