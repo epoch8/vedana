@@ -6,7 +6,6 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-import pandas as pd
 import reflex as rx
 import sqlalchemy as sa
 from datapipe.compute import run_steps
@@ -42,8 +41,7 @@ class EvalState(rx.State):
     gds_expanded_rows: list[str] = []
     selected_question_ids: list[str] = []
     selected_scenario: str = "all"  # Filter by scenario
-    judge_configs: list[dict[str, Any]] = []
-    selected_judge_model: str = ""
+    judge_model: str = ""
     judge_prompt_id: str = ""
     selected_judge_prompt: str = ""
     pipeline_model: str = core_settings.model
@@ -162,10 +160,6 @@ class EvalState(rx.State):
     def embeddings_dim_label(self) -> str:
         return f"{self.embeddings_dim} dims" if self.embeddings_dim > 0 else ""
 
-    @rx.var
-    def judge_model_options(self) -> list[str]:
-        return [str(cfg.get("judge_model", "")) for cfg in (self.judge_configs or []) if cfg.get("judge_model")]
-
     def toggle_question_selection(self, question: str, checked: bool) -> None:
         question = str(question or "").strip()
         if not question:
@@ -223,15 +217,6 @@ class EvalState(rx.State):
         }
         self.selected_question_ids = [q for q in (self.selected_question_ids or []) if q in allowed_ids]
 
-    def set_judge_model(self, value: str) -> None:
-        value = str(value or "")
-        for cfg in self.judge_configs or []:
-            if cfg.get("judge_model") == value:
-                self.selected_judge_model = value
-                self.judge_prompt_id = cfg.get("judge_prompt_id", "")
-                self.selected_judge_prompt = cfg.get("judge_prompt", "")
-                break
-
     def _prune_selection(self) -> None:
         # Validate against all rows (not filtered) to keep selections valid across filter changes
         valid = {str(row.get("id")) for row in self.eval_gds_rows or [] if row.get("id")}
@@ -279,81 +264,26 @@ class EvalState(rx.State):
         self._prune_selection()
 
     async def _load_judge_config(self) -> None:
+        self.judge_model = core_settings.judge_model
+        self.judge_prompt_id = ""
+        self.selected_judge_prompt = ""
+
         vedana_app = await get_vedana_app()
-        query = sa.text(
-            'SELECT judge_model, judge_prompt_id, judge_prompt FROM "eval_judge_config" ORDER BY judge_model'
-        )
-        try:
-            async with vedana_app.sessionmaker() as session:
-                result = await session.execute(query)
-                rows = result.mappings().all()
-        except Exception as exc:
-            logging.exception(f"Failed to load eval_judge_config: {exc}")
-            rows = []
-        if not rows:
-            self.judge_configs = []
-            self.selected_judge_model = ""
-            self.judge_prompt_id = ""
-            self.selected_judge_prompt = ""
-            return
-        df = pd.DataFrame(rows)
-        df = df.astype(object).where(pd.notna(df), None)
-        configs: list[dict[str, Any]] = []
-        for rec in df.to_dict(orient="records"):
-            configs.append(
-                {
-                    "judge_model": safe_render_value(rec.get("judge_model")),
-                    "judge_prompt_id": safe_render_value(rec.get("judge_prompt_id")),
-                    "judge_prompt": rec.get("judge_prompt") or "",
-                }
-            )
-        self.judge_configs = configs
-        if configs:
-            current = next(
-                (
-                    cfg
-                    for cfg in configs
-                    if cfg.get("judge_model") == self.selected_judge_model
-                    and cfg.get("judge_prompt_id") == self.judge_prompt_id
-                ),
-                configs[0],
-            )
-            self.selected_judge_model = current.get("judge_model", "")
-            self.judge_prompt_id = current.get("judge_prompt_id", "")
-            self.selected_judge_prompt = current.get("judge_prompt", "")
+
+        judge_prompt = vedana_app.data_model.prompt_templates().get("eval_judge_prompt")
+
+        if judge_prompt:
+            text_b = bytearray(judge_prompt, "utf-8")
+            self.judge_prompt_id = hashlib.sha256(text_b).hexdigest()
+            self.selected_judge_prompt = judge_prompt
 
     async def _load_pipeline_config(self) -> None:
         vedana_app = await get_vedana_app()
-        pipeline_stmt = sa.text('SELECT pipeline_model FROM "llm_pipeline_config"')
-        dm_stmt = sa.text(
-            """
-            SELECT snap.dm_id, snap.dm_description, meta.process_ts
-            FROM "dm_snapshot" AS snap
-            JOIN "dm_snapshot_meta" AS meta USING (dm_id)
-            ORDER BY meta.process_ts DESC
-            LIMIT 1
-            """
-        )
-        async with vedana_app.sessionmaker() as session:
-            pipeline_rows = (await session.execute(pipeline_stmt)).scalars().all()
-
-            dm_row = (await session.execute(dm_stmt)).mappings().first()
-
-        if pipeline_rows:
-            self.pipeline_model = safe_render_value(pipeline_rows[-1])
-
-        if dm_row:
-            self.dm_id = safe_render_value(dm_row.get("dm_id"))
-            self.dm_description = safe_render_value(dm_row.get("dm_description"))
-            ts = dm_row.get("process_ts")
-            if ts:
-                try:
-                    dt = datetime.fromtimestamp(float(ts))
-                    self.dm_snapshot_updated = dt.strftime("%Y-%m-%d %H:%M")
-                except Exception:
-                    self.dm_snapshot_updated = datetime.now().strftime("%Y-%m-%d %H:%M")
-            else:
-                self.dm_snapshot_updated = datetime.now().strftime("%Y-%m-%d %H:%M")
+        dm = vedana_app.data_model
+        self.dm_description = dm.to_json()
+        dm_text_b = bytearray(self.dm_description, "utf-8")
+        self.dm_id = hashlib.sha256(dm_text_b).hexdigest()
+        self.dm_snapshot_updated = datetime.now().strftime("%Y-%m-%d %H:%M")  # todo change on dm change only or remove entirely
 
     def _status_color(self, status: str) -> str:
         val = str(status or "").lower()
@@ -802,7 +732,7 @@ class EvalState(rx.State):
             "embeddings_model": self.embeddings_model,
             "embeddings_dim": self.embeddings_dim,
             "judge": {
-                "judge_model": self.selected_judge_model,
+                "judge_model": self.judge_model,
                 "judge_prompt_id": self.judge_prompt_id,
                 "judge_prompt": self.selected_judge_prompt,
             },
@@ -845,7 +775,7 @@ class EvalState(rx.State):
             "gds_answer": question_row.get("gds_answer"),
             "question_context": question_row.get("question_context"),
             "question_scenario": question_row.get("question_scenario"),
-            "judge_model": self.selected_judge_model,
+            "judge_model": self.judge_model,
             "judge_prompt_id": self.judge_prompt_id,
             "pipeline_model": self.pipeline_model,
             "embeddings_model": self.embeddings_model,
@@ -907,7 +837,7 @@ class EvalState(rx.State):
             return "fail", "Judge prompt not loaded", 0
 
         provider = LLMProvider()  # todo use single LLMProvider per-thread
-        judge_model = self.selected_judge_model
+        judge_model = self.judge_model
         if judge_model:
             try:
                 provider.set_model(judge_model)
@@ -1011,7 +941,7 @@ class EvalState(rx.State):
                         status, comment, rating = await self._judge_answer(row, answer, tool_calls)
 
                         result_row = {
-                            "judge_model": self.selected_judge_model,
+                            "judge_model": self.judge_model,
                             "judge_prompt_id": self.judge_prompt_id,
                             "dm_id": self.dm_id,
                             "pipeline_model": self.pipeline_model,
