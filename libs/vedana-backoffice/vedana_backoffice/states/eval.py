@@ -40,6 +40,7 @@ class EvalState(rx.State):
     eval_gds_rows: list[dict[str, Any]] = []
     gds_expanded_rows: list[str] = []
     selected_question_ids: list[str] = []
+    test_run_name: str = ""
     selected_scenario: str = "all"  # Filter by scenario
     judge_model: str = ""
     judge_prompt_id: str = ""
@@ -216,6 +217,10 @@ class EvalState(rx.State):
         }
         self.selected_question_ids = [q for q in (self.selected_question_ids or []) if q in allowed_ids]
 
+    def set_test_run_name(self, value: str) -> None:
+        """Set user-provided test run name."""
+        self.test_run_name = str(value or "").strip()
+
     def _prune_selection(self) -> None:
         # Validate against all rows (not filtered) to keep selections valid across filter changes
         valid = {str(row.get("id")) for row in self.eval_gds_rows or [] if row.get("id")}
@@ -322,16 +327,12 @@ class EvalState(rx.State):
 
         async with vedana_app.sessionmaker() as session:
             run_rows = (
-                (
-                    await session.execute(
-                        sa.select(ThreadDB.contact_id)
-                        .where(ThreadDB.thread_config.contains({"source": "eval"}))
-                        .order_by(ThreadDB.created_at.desc())
-                    )
+                await session.execute(
+                    sa.select(ThreadDB.contact_id, ThreadDB.thread_config)
+                    .where(ThreadDB.thread_config.contains({"source": "eval"}))
+                    .order_by(ThreadDB.created_at.desc())
                 )
-                .scalars()
-                .all()
-            )
+            ).all()
             scenario_rows = (
                 (
                     await session.execute(
@@ -343,16 +344,19 @@ class EvalState(rx.State):
             )
 
             seen = set()
-            ordered_run_ids = []
-            for rid in run_rows:
+            ordered_runs: list[tuple[str, dict[str, Any]]] = []
+            for rid, cfg in run_rows:
                 if rid not in seen:
-                    ordered_run_ids.append(rid)
+                    ordered_runs.append((rid, cfg))
                     seen.add(rid)
 
             lookup: dict[str, str] = {}
             labels: list[str] = []
-            for rid in ordered_run_ids:
-                label = self._format_run_label(rid)
+            for rid, cfg in ordered_runs:
+                base_label = self._format_run_label_with_name(rid, cfg)
+                label = base_label
+                if label in lookup:
+                    label = f"{base_label} ({rid})"
                 lookup[label] = rid
                 labels.append(label)
 
@@ -451,12 +455,13 @@ class EvalState(rx.State):
         failed = 0
         cost_total = 0.0
         for thread in page_threads:
+            cfg = thread.thread_config or {}
             evs = events_by_thread.get(thread.thread_id, [])
             answer = ""
             status = "—"
             judge_comment = ""
             rating_label = "—"
-            run_label = self._format_run_label(thread.contact_id)
+            run_label = self._format_run_label_with_name(thread.contact_id, cfg)
             test_date = run_label
 
             for ev in evs:
@@ -485,7 +490,6 @@ class EvalState(rx.State):
             elif status == "fail":
                 failed += 1
 
-            cfg = thread.thread_config or {}
             rows.append(
                 {
                     "row_id": str(thread.thread_id),
@@ -717,13 +721,14 @@ class EvalState(rx.State):
             "dm_description": self.dm_description,
         }
 
-    async def _build_eval_meta_payload(self, vedana_app, test_run_name: str) -> dict[str, Any]:
+    async def _build_eval_meta_payload(self, vedana_app, test_run_id: str, test_run_name: str) -> dict[str, Any]:
         """Build a single eval.meta payload shared across threads for a run."""
         graph_meta = await self._collect_graph_metadata(vedana_app.graph)
         data_model_meta = self._build_data_model_meta(vedana_app)
         return {
             "meta_version": 1,
-            "test_run": test_run_name,
+            "test_run": test_run_id,
+            "test_run_name": test_run_name,
             "pipeline_model": self.pipeline_model,
             "embeddings_model": self.embeddings_model,
             "embeddings_dim": self.embeddings_dim,
@@ -761,12 +766,25 @@ class EvalState(rx.State):
                 return raw
         return raw
 
-    def _build_thread_config(self, question_row: dict[str, Any], test_run_name: str) -> dict[str, Any]:
+    def _format_run_label_with_name(self, contact_id: str | None, cfg: dict[str, Any] | None) -> str:
+        """
+        Prefer user-provided test_run_name, fallback to formatted timestamp label.
+        """
+        name = cfg.get("test_run_name")
+        base = self._format_run_label(contact_id)
+        if name:
+            return f"{name} — {base}"
+        return base
+
+    def _build_thread_config(
+        self, question_row: dict[str, Any], test_run_id: str, test_run_name: str
+    ) -> dict[str, Any]:
         """Pack metadata into thread_config so runs are traceable in JIMS."""
         return {
             "interface": "reflex-eval",
             "source": "eval",
-            "test_run": test_run_name,
+            "test_run": test_run_id,
+            "test_run_name": test_run_name,
             "gds_question": question_row.get("gds_question"),
             "gds_answer": question_row.get("gds_answer"),
             "question_context": question_row.get("question_context"),
@@ -784,15 +802,16 @@ class EvalState(rx.State):
         vedana_app,
         question_row: dict[str, Any],
         test_run_name: str,
+        test_run_id: str,
         eval_meta_base: dict[str, Any],
     ) -> tuple[str, str, dict[str, Any]]:
         """Create a JIMS thread, post the question, run pipeline, return answer + tech info."""
         thread_id = uuid7()
         ctl = await ThreadController.new_thread(
             vedana_app.sessionmaker,
-            contact_id=f"eval:{test_run_name}",
+            contact_id=test_run_id,
             thread_id=thread_id,
-            thread_config=self._build_thread_config(question_row, test_run_name),
+            thread_config=self._build_thread_config(question_row, test_run_id, test_run_name),
         )
 
         try:
@@ -909,18 +928,20 @@ class EvalState(rx.State):
 
             question_map = {str(row.get("id")): row for row in (self.eval_gds_rows or [])}
             test_run_ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+            test_run_id = f"eval:{test_run_ts}"
+            test_run_name = self.test_run_name.strip() or ""
 
             # Initialize run state
             self.is_running = True
             self.current_question_index = -1
             self.total_questions_to_run = len(selection)
-            self.status_message = f"Starting evaluation run for {len(selection)} question(s)…"
+            self.status_message = f"Starting evaluation run '{test_run_name}' for {len(selection)} question(s)…"
             self.run_progress = []
             self.error_message = ""
             yield
 
             vedana_app = await get_vedana_app()
-            eval_meta_base = await self._build_eval_meta_payload(vedana_app, test_run_ts)
+            eval_meta_base = await self._build_eval_meta_payload(vedana_app, test_run_id, test_run_name)
             max_parallel = max(1, int(self.max_parallel_tests or 1))
             sem = asyncio.Semaphore(max_parallel)
 
@@ -931,7 +952,7 @@ class EvalState(rx.State):
                         return {"question": question, "status": None, "error": "not found"}
                     try:
                         thread_id, answer, tech = await self._run_question_thread(
-                            vedana_app, row, test_run_ts, eval_meta_base
+                            vedana_app, row, test_run_name, test_run_id, eval_meta_base
                         )
                         tool_calls = self._format_tool_calls(tech)
                         status, comment, rating = await self._judge_answer(row, answer, tool_calls)
@@ -943,6 +964,8 @@ class EvalState(rx.State):
                             "pipeline_model": self.pipeline_model,
                             "embeddings_model": self.embeddings_model,
                             "embeddings_dim": self.embeddings_dim,
+                            "test_run_id": test_run_id,
+                            "test_run_name": test_run_name,
                             "gds_question": row.get("gds_question"),
                             "question_context": row.get("question_context"),
                             "gds_answer": row.get("gds_answer"),
@@ -961,9 +984,7 @@ class EvalState(rx.State):
                         logging.error(f"Failed for '{question}': {exc}", exc_info=True)
                         return {"question": question, "status": None, "error": str(exc)}
 
-            self._append_progress(
-                f"Queued {len(selection)} question(s) with up to {max_parallel} parallel worker(s)"
-            )
+            self._append_progress(f"Queued {len(selection)} question(s) with up to {max_parallel} parallel worker(s)")
             tasks = [asyncio.create_task(_run_one(idx, question)) for idx, question in enumerate(selection)]
 
             completed = 0
