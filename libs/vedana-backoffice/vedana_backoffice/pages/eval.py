@@ -510,13 +510,13 @@ def _compare_dialog() -> rx.Component:
             val = str(cfg.get(key, "—")) if isinstance(cfg, dict) else "—"
             return rx.cond(
                 diff_keys.contains(key),
-                    rx.hstack(
+                rx.hstack(
                     rx.text(label, weight="medium", size="1"),
                     rx.spacer(),
                     rx.text(val, size="1"),
                     style={"padding": "0.15em 0.25em", "backgroundColor": "var(--amber-3)"},
                 ),
-                               rx.hstack(
+                rx.hstack(
                     rx.text(label, weight="medium", size="1"),
                     rx.spacer(),
                     rx.text(val, size="1"),
@@ -611,7 +611,9 @@ def _compare_dialog() -> rx.Component:
             rx.table.cell(rx.text(row.get("question", ""))),
             rx.table.cell(
                 rx.vstack(
-                    rx.badge(row.get("status_a", "—"), color_scheme=_badge_color(row.get("status_a", "—")), variant="soft"),
+                    rx.badge(
+                        row.get("status_a", "—"), color_scheme=_badge_color(row.get("status_a", "—")), variant="soft"
+                    ),
                     rx.text(f"Rating: {row.get('rating_a', '—')}", size="1"),
                     rx.text(row.get("comment_a", ""), size="1", color="gray"),
                     spacing="1",
@@ -620,7 +622,9 @@ def _compare_dialog() -> rx.Component:
             ),
             rx.table.cell(
                 rx.vstack(
-                    rx.badge(row.get("status_b", "—"), color_scheme=_badge_color(row.get("status_b", "—")), variant="soft"),
+                    rx.badge(
+                        row.get("status_b", "—"), color_scheme=_badge_color(row.get("status_b", "—")), variant="soft"
+                    ),
                     rx.text(f"Rating: {row.get('rating_b', '—')}", size="1"),
                     rx.text(row.get("comment_b", ""), size="1", color="gray"),
                     spacing="1",
@@ -655,15 +659,15 @@ def _compare_dialog() -> rx.Component:
                                 spacing="2",
                                 align="center",
                             ),
-                rx.checkbox(
-                    "Show only changes",
-                    default_checked=True,
-                    checked=EvalState.compare_compact,
-                    on_change=EvalState.set_compare_compact,
-                    size="2",
-                ),
-                _diff_table("Judge prompt diff", EvalState.compare_prompt_rows_view),
-                _diff_table("Data model diff", EvalState.compare_dm_rows_view),
+                            rx.checkbox(
+                                "Show only changes",
+                                default_checked=True,
+                                checked=EvalState.compare_compact,
+                                on_change=EvalState.set_compare_compact,
+                                size="2",
+                            ),
+                            _diff_table("Judge prompt diff", EvalState.compare_prompt_rows_view),
+                            _diff_table("Data model diff", EvalState.compare_dm_rows_view),
                             spacing="2",
                             width="100%",
                         ),
