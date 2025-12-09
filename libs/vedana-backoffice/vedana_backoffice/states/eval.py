@@ -84,6 +84,12 @@ class EvalState(rx.State):
     compare_summary: dict[str, Any] = {}
     compare_configs: dict[str, Any] = {}
     compare_diff_keys: list[str] = []
+    compare_prompt_diff: str = ""
+    compare_dm_diff: str = ""
+    compare_prompt_full_a: str = ""
+    compare_prompt_full_b: str = ""
+    compare_dm_full_a: str = ""
+    compare_dm_full_b: str = ""
 
     @rx.var
     def available_scenarios(self) -> list[str]:
@@ -204,19 +210,11 @@ class EvalState(rx.State):
 
     @rx.var
     def compare_config_run_a(self) -> dict[str, Any]:
-        if isinstance(self.compare_configs, dict):
-            val = self.compare_configs.get("run_a")
-            if isinstance(val, dict):
-                return val
-        return {}
+        return self.compare_configs.get("run_a", {})
 
     @rx.var
     def compare_config_run_b(self) -> dict[str, Any]:
-        if isinstance(self.compare_configs, dict):
-            val = self.compare_configs.get("run_b")
-            if isinstance(val, dict):
-                return val
-        return {}
+        return self.compare_configs.get("run_b", {})
 
     def toggle_question_selection(self, question: str, checked: bool) -> None:
         question = str(question or "").strip()
