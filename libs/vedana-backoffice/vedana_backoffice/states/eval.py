@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import traceback
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -73,6 +74,16 @@ class EvalState(rx.State):
     tests_sort_options: list[str] = ["Sort: Recent", "Sort: Rating"]
     selected_tests_sort: str = "Sort: Recent"
     max_parallel_tests: int = 4
+    # Run comparison
+    compare_run_a: str = ""
+    compare_run_b: str = ""
+    compare_dialog_open: bool = False
+    compare_loading: bool = False
+    compare_error: str = ""
+    compare_rows: list[dict[str, Any]] = []
+    compare_summary: dict[str, Any] = {}
+    compare_configs: dict[str, Any] = {}
+    compare_diff_keys: list[str] = []
 
     @rx.var
     def available_scenarios(self) -> list[str]:
@@ -160,6 +171,53 @@ class EvalState(rx.State):
     def embeddings_dim_label(self) -> str:
         return f"{self.embeddings_dim} dims" if self.embeddings_dim > 0 else ""
 
+    @rx.var
+    def run_options_only(self) -> list[str]:
+        """Run options excluding the 'All' placeholder."""
+        return [opt for opt in (self.run_id_options or []) if opt != "All"]
+
+    @rx.var
+    def can_compare_runs(self) -> bool:
+        """Enable compare when both runs are selected and distinct."""
+        return (
+            bool(self.compare_run_a)
+            and bool(self.compare_run_b)
+            and self.compare_run_a != self.compare_run_b
+            and not self.compare_loading
+        )
+
+    @rx.var
+    def compare_run_a_summary(self) -> dict[str, Any]:
+        if isinstance(self.compare_summary, dict):
+            val = self.compare_summary.get("run_a")
+            if isinstance(val, dict):
+                return val
+        return {}
+
+    @rx.var
+    def compare_run_b_summary(self) -> dict[str, Any]:
+        if isinstance(self.compare_summary, dict):
+            val = self.compare_summary.get("run_b")
+            if isinstance(val, dict):
+                return val
+        return {}
+
+    @rx.var
+    def compare_config_run_a(self) -> dict[str, Any]:
+        if isinstance(self.compare_configs, dict):
+            val = self.compare_configs.get("run_a")
+            if isinstance(val, dict):
+                return val
+        return {}
+
+    @rx.var
+    def compare_config_run_b(self) -> dict[str, Any]:
+        if isinstance(self.compare_configs, dict):
+            val = self.compare_configs.get("run_b")
+            if isinstance(val, dict):
+                return val
+        return {}
+
     def toggle_question_selection(self, question: str, checked: bool) -> None:
         question = str(question or "").strip()
         if not question:
@@ -220,6 +278,15 @@ class EvalState(rx.State):
     def set_test_run_name(self, value: str) -> None:
         """Set user-provided test run name."""
         self.test_run_name = str(value or "").strip()
+
+    def set_compare_run_a(self, value: str) -> None:
+        self.compare_run_a = str(value or "").strip()
+
+    def set_compare_run_b(self, value: str) -> None:
+        self.compare_run_b = str(value or "").strip()
+
+    def set_compare_dialog_open(self, open: bool) -> None:
+        self.compare_dialog_open = open
 
     def _prune_selection(self) -> None:
         # Validate against all rows (not filtered) to keep selections valid across filter changes
@@ -576,6 +643,121 @@ class EvalState(rx.State):
             await self._load_tests()
             yield
 
+    def _resolve_run_contact(self, label: str) -> str:
+        """Translate UI label to contact_id; fallback to provided label."""
+        if not label:
+            return ""
+        return self.run_id_lookup.get(label, label)
+
+    @rx.event(background=True)  # type: ignore[operator]
+    async def compare_runs(self):
+        """Load and align two runs for comparison."""
+        async with self:
+            if self.compare_loading:
+                return
+            if not self.compare_run_a or not self.compare_run_b or self.compare_run_a == self.compare_run_b:
+                self.compare_error = "Select two different runs to compare."
+                self.compare_dialog_open = True
+                return
+
+            run_a_id = self._resolve_run_contact(self.compare_run_a)
+            run_b_id = self._resolve_run_contact(self.compare_run_b)
+            if not run_a_id or not run_b_id:
+                self.compare_error = "Unable to resolve selected runs."
+                self.compare_dialog_open = True
+                return
+
+            self.compare_loading = True
+            self.compare_error = ""
+            self.compare_dialog_open = True
+            yield
+
+            try:
+                vedana_app = await get_vedana_app()
+                async with vedana_app.sessionmaker() as session:
+                    threads_res = (
+                        (
+                            await session.execute(
+                                sa.select(ThreadDB)
+                                .where(
+                                    ThreadDB.thread_config.contains({"source": "eval"}),
+                                    ThreadDB.contact_id.in_([run_a_id, run_b_id]),
+                                )
+                                .order_by(ThreadDB.created_at.desc())
+                            )
+                        )
+                        .scalars()
+                        .all()
+                    )
+
+                    if not threads_res:
+                        self.compare_error = "No threads found for selected runs."
+                        return
+
+                    thread_ids = [t.thread_id for t in threads_res]
+                    events_res = (
+                        (
+                            await session.execute(
+                                sa.select(ThreadEventDB)
+                                .where(ThreadEventDB.thread_id.in_(thread_ids))
+                                .order_by(ThreadEventDB.created_at)
+                            )
+                        )
+                        .scalars()
+                        .all()
+                    )
+
+                events_by_thread: dict[UUID, list[ThreadEventDB]] = {}
+                for ev in events_res:
+                    events_by_thread.setdefault(ev.thread_id, []).append(ev)
+
+                threads_a = [t for t in threads_res if t.contact_id == run_a_id]
+                threads_b = [t for t in threads_res if t.contact_id == run_b_id]
+
+                run_a_data = self._collect_run_data(run_a_id, threads_a, events_by_thread)
+                run_b_data = self._collect_run_data(run_b_id, threads_b, events_by_thread)
+
+                # Align questions across both runs
+                run_a_results = run_a_data.get("results", {})
+                run_b_results = run_b_data.get("results", {})
+                all_questions = set(run_a_results.keys()) | set(run_b_results.keys())
+
+                aligned_rows = []
+                for q in sorted(all_questions):
+                    ra = run_a_results.get(q, {}) if isinstance(run_a_results, dict) else {}
+                    rb = run_b_results.get(q, {}) if isinstance(run_b_results, dict) else {}
+                    aligned_rows.append(
+                        {
+                            "question": q,
+                            "status_a": ra.get("status", "—"),
+                            "rating_a": ra.get("rating", "—"),
+                            "comment_a": ra.get("comment", ""),
+                            "status_b": rb.get("status", "—"),
+                            "rating_b": rb.get("rating", "—"),
+                            "comment_b": rb.get("comment", ""),
+                        }
+                    )
+
+                cfg_a = run_a_data.get("config_summary", {}) if isinstance(run_a_data, dict) else {}
+                cfg_b = run_b_data.get("config_summary", {}) if isinstance(run_b_data, dict) else {}
+                diff_keys = self._diff_config_keys(cfg_a, cfg_b)
+
+                self.compare_summary = {
+                    "run_a": run_a_data.get("summary", {}),
+                    "run_b": run_b_data.get("summary", {}),
+                }
+                self.compare_configs = {
+                    "run_a": cfg_a,
+                    "run_b": cfg_b,
+                }
+                self.compare_diff_keys = diff_keys
+                self.compare_rows = aligned_rows
+            except Exception as e:
+                self.compare_error = f"Failed to compare runs: {e}"
+            finally:
+                self.compare_loading = False
+                yield
+
     def toggle_gds_row(self, row_id: str) -> None:
         """Toggle expansion for a golden dataset row."""
         row_id = str(row_id or "")
@@ -770,11 +952,161 @@ class EvalState(rx.State):
         """
         Prefer user-provided test_run_name, fallback to formatted timestamp label.
         """
-        name = cfg.get("test_run_name")
+        name = cfg.get("test_run_name") if isinstance(cfg, dict) else ""
         base = self._format_run_label(contact_id)
         if name:
             return f"{name} — {base}"
         return base
+
+    def _normalize_diff_val(self, val: Any) -> Any:
+        """Normalize values for diffing."""
+        if isinstance(val, (dict, list)):
+            try:
+                return json.dumps(val, sort_keys=True)
+            except Exception:
+                return str(val)
+        return val
+
+    def _diff_config_keys(self, cfg_a: dict[str, Any], cfg_b: dict[str, Any]) -> list[str]:
+        """Return keys whose normalized values differ."""
+        keys = set(cfg_a.keys()) | set(cfg_b.keys())
+        diffs: list[str] = []
+        for key in keys:
+            if self._normalize_diff_val(cfg_a.get(key)) != self._normalize_diff_val(cfg_b.get(key)):
+                diffs.append(key)
+        return sorted(diffs)
+
+    def _summarize_config_for_display(self, meta: dict[str, Any]) -> dict[str, Any]:
+        """Extract a concise config summary for comparison UI."""
+        if not isinstance(meta, dict):
+            return {}
+        judge = meta.get("judge", {}) if isinstance(meta.get("judge"), dict) else {}
+        data_model = meta.get("data_model", {}) if isinstance(meta.get("data_model"), dict) else {}
+        graph = meta.get("graph", {}) if isinstance(meta.get("graph"), dict) else {}
+        judge_prompt = judge.get("judge_prompt")
+        judge_prompt_hash = ""
+        if isinstance(judge_prompt, str) and judge_prompt:
+            judge_prompt_hash = hashlib.sha256(judge_prompt.encode("utf-8")).hexdigest()
+
+        return {
+            "test_run_id": meta.get("test_run"),
+            "test_run_name": meta.get("test_run_name") or "",
+            "pipeline_model": meta.get("pipeline_model"),
+            "embeddings_model": meta.get("embeddings_model"),
+            "embeddings_dim": meta.get("embeddings_dim"),
+            "judge_model": judge.get("judge_model"),
+            "judge_prompt_id": judge.get("judge_prompt_id"),
+            "judge_prompt_hash": judge_prompt_hash,
+            "data_model_hash": data_model.get("data_model_hash"),
+            "dm_id": data_model.get("dm_id"),
+            "graph_nodes": graph.get("nodes_by_label"),
+            "graph_edges": graph.get("edges_by_type"),
+            "vector_indexes": graph.get("vector_indexes"),
+        }
+
+    def _extract_eval_meta(self, events: list[ThreadEventDB]) -> dict[str, Any]:
+        """Return first eval.meta event data, if any."""
+        for ev in events:
+            if ev.event_type == "eval.meta" and isinstance(ev.event_data, dict):
+                return ev.event_data
+        return {}
+
+    def _collect_run_data(
+        self,
+        run_id: str,
+        threads: list[ThreadDB],
+        events_by_thread: dict[UUID, list[ThreadEventDB]],
+    ) -> dict[str, Any]:
+        """Aggregate results, meta, and stats for a single run."""
+        results_by_question: dict[str, dict[str, Any]] = {}
+        meta_sample: dict[str, Any] = {}
+        cfg_sample: dict[str, Any] = {}
+        total = 0
+        passed = 0
+        failed = 0
+        cost_total = 0.0
+        ratings: list[float] = []
+
+        for thread in threads:
+            cfg = thread.thread_config or {}
+            if not cfg_sample:
+                cfg_sample = cfg
+            evs = events_by_thread.get(thread.thread_id, [])
+            if not meta_sample:
+                meta_sample = self._extract_eval_meta(evs)
+
+            answer = ""
+            status = "—"
+            judge_comment = ""
+            rating_val: float | None = None
+            question_text = cfg.get("gds_question") or ""
+
+            for ev in evs:
+                if ev.event_type == "comm.assistant_message":
+                    answer = str(ev.event_data.get("content", ""))
+                elif ev.event_type == "rag.query_processed":
+                    tech = ev.event_data.get("technical_info", {}) if isinstance(ev.event_data, dict) else {}
+                    model_stats = tech.get("model_stats") if isinstance(tech, dict) else {}
+                    if isinstance(model_stats, dict):
+                        for stats in model_stats.values():
+                            if isinstance(stats, dict):
+                                cost_val = stats.get("requests_cost")
+                                try:
+                                    if cost_val is not None:
+                                        cost_total += float(cost_val)
+                                except (TypeError, ValueError):
+                                    pass
+                elif ev.event_type == "eval.result":
+                    status = ev.event_data.get("test_status", status)
+                    judge_comment = ev.event_data.get("eval_judge_comment", judge_comment)
+                    rating_label = ev.event_data.get("eval_judge_rating")
+                    try:
+                        rating_val = float(rating_label) if rating_label is not None else None
+                    except Exception:
+                        rating_val = None
+                    question_text = ev.event_data.get("gds_question") or question_text
+
+            total += 1
+            if status == "pass":
+                passed += 1
+            elif status == "fail":
+                failed += 1
+
+            if rating_val is not None:
+                ratings.append(rating_val)
+
+            key = str(question_text or f"question-{total}")
+            results_by_question[key] = {
+                "status": status or "—",
+                "rating": rating_val if rating_val is not None else "—",
+                "comment": safe_render_value(judge_comment),
+                "answer": safe_render_value(answer),
+                "thread_id": str(thread.thread_id),
+            }
+
+        avg_rating = sum(ratings) / len(ratings) if ratings else 0.0
+        summary = {
+            "run_id": run_id,
+            "run_label": self._format_run_label_with_name(run_id, meta_sample or cfg_sample),
+            "tests_total": total,
+            "passed": passed,
+            "failed": failed,
+            "pass_rate": (passed / total) if total else 0.0,
+            "avg_rating": avg_rating if ratings else None,
+            "cost_total": cost_total,
+            "test_run_name": (meta_sample.get("test_run_name") if isinstance(meta_sample, dict) else None)
+            or (cfg_sample.get("test_run_name") if isinstance(cfg_sample, dict) else None)
+            or "",
+        }
+
+        config_summary = self._summarize_config_for_display(meta_sample)
+
+        return {
+            "summary": summary,
+            "meta": meta_sample,
+            "config_summary": config_summary,
+            "results": results_by_question,
+        }
 
     def _build_thread_config(
         self, question_row: dict[str, Any], test_run_id: str, test_run_name: str
@@ -1075,7 +1407,7 @@ class EvalState(rx.State):
                 await self._load_pipeline_config()
                 await self._load_tests()
             except Exception as e:
-                self.error_message = f"Failed to load eval data: {e}"
+                self.error_message = f"Failed to load eval data: {e} {traceback.format_exc()}"
             finally:
                 self.loading = False
                 yield
