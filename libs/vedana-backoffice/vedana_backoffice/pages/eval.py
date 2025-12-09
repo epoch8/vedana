@@ -404,6 +404,229 @@ def _tests_card() -> rx.Component:
     )
 
 
+def _compare_card() -> rx.Component:
+    return rx.card(
+        rx.vstack(
+            rx.heading("Compare runs", size="4"),
+            rx.hstack(
+                rx.select(
+                    items=EvalState.run_options_only,
+                    value=EvalState.compare_run_a,
+                    placeholder="Run A",
+                    on_change=EvalState.set_compare_run_a,
+                    width="14em",
+                ),
+                rx.select(
+                    items=EvalState.run_options_only,
+                    value=EvalState.compare_run_b,
+                    placeholder="Run B",
+                    on_change=EvalState.set_compare_run_b,
+                    width="14em",
+                ),
+                spacing="2",
+                align="center",
+                width="100%",
+            ),
+            rx.button(
+                "Compare",
+                on_click=EvalState.compare_runs,
+                disabled=~EvalState.can_compare_runs,  # type: ignore[operator]
+                loading=EvalState.compare_loading,
+                width="100%",
+                margin_top="0.5em",
+            ),
+            rx.cond(
+                EvalState.compare_error != "",
+                rx.callout(EvalState.compare_error, color_scheme="red", variant="soft"),
+                rx.box(),
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        padding="1em",
+        width="100%",
+    )
+
+
+def _compare_dialog() -> rx.Component:
+    def _stat_block(label: str, summary: dict[str, rx.Var]) -> rx.Component:
+        return rx.card(
+            rx.vstack(
+                rx.text(label, weight="medium"),
+                rx.text(
+                    rx.cond(
+                        summary.get("run_label", "") != "",
+                        summary.get("run_label", ""),
+                        "—",
+                    ),
+                    size="2",
+                    color="gray",
+                ),
+                rx.hstack(
+                    rx.badge(
+                        rx.text(
+                            rx.cond(
+                                summary.get("tests_total"),
+                                f"Pass: {summary.get('passed', 0)}",
+                                "No tests",
+                            ),
+                            size="1",
+                        ),
+                        color_scheme="green",
+                        variant="soft",
+                    ),
+                    rx.badge(
+                        f"Fail: {summary.get('failed', 0)}",
+                        color_scheme="red",
+                        variant="soft",
+                    ),
+                    rx.badge(
+                        rx.cond(
+                            summary.get("avg_rating", None) != None,  # noqa: E711
+                            f"Rating: {summary.get('avg_rating', 0):.1f}",
+                            "Rating: —",
+                        ),
+                        color_scheme="blue",
+                        variant="soft",
+                    ),
+                    rx.badge(
+                        f"Cost: ${summary.get('cost_total', 0.0):.4f}",
+                        color_scheme="gray",
+                        variant="soft",
+                    ),
+                    spacing="2",
+                    align="center",
+                ),
+                spacing="2",
+            ),
+            padding="0.75em",
+            width="100%",
+        )
+
+    def _config_block(cfg: dict[str, rx.Var]) -> rx.Component:
+        diff_keys = EvalState.compare_diff_keys
+
+        def _row(label: str, key: str) -> rx.Component:
+            val = cfg.get(key, "—") if isinstance(cfg, dict) else "—"
+            return rx.cond(diff_keys.contains(key),
+                rx.hstack(
+                rx.text(label, weight="medium", size="1"),
+                rx.spacer(),
+                rx.text(str(val) if val not in (None, "") else "—", size="1"),
+                style={"padding": "0.15em 0.25em", "backgroundColor": "var(--amber-3)"},
+            ),
+                           rx.hstack(
+                rx.text(label, weight="medium", size="1"),
+                rx.spacer(),
+                rx.text(str(val) if val not in (None, "") else "—", size="1"),
+                style={"padding": "0.15em 0.25em"},
+            ),
+            )
+
+        return rx.card(
+            rx.vstack(
+                rx.text("Config", weight="medium"),
+                _row("Pipeline", "pipeline_model"),
+                _row("Embeddings", "embeddings_model"),
+                _row("Emb dims", "embeddings_dim"),
+                _row("Judge model", "judge_model"),
+                _row("Judge prompt id", "judge_prompt_id"),
+                _row("Judge prompt hash", "judge_prompt_hash"),
+                _row("Data model hash", "data_model_hash"),
+                _row("DM id", "dm_id"),
+                _row("Graph nodes", "graph_nodes"),
+                _row("Graph edges", "graph_edges"),
+                _row("Vector indexes", "vector_indexes"),
+                spacing="1",
+            ),
+            padding="0.75em",
+            width="100%",
+        )
+
+    def _result_row(row: dict[str, rx.Var]) -> rx.Component:
+        return rx.table.row(
+            rx.table.cell(rx.text(row.get("question", ""))),
+            rx.table.cell(
+                rx.vstack(
+                    rx.badge(row.get("status_a", "—"), color_scheme="gray", variant="soft"),
+                    rx.text(f"Rating: {row.get('rating_a', '—')}", size="1"),
+                    rx.text(row.get("comment_a", ""), size="1", color="gray"),
+                    spacing="1",
+                    align="start",
+                )
+            ),
+            rx.table.cell(
+                rx.vstack(
+                    rx.badge(row.get("status_b", "—"), color_scheme="gray", variant="soft"),
+                    rx.text(f"Rating: {row.get('rating_b', '—')}", size="1"),
+                    rx.text(row.get("comment_b", ""), size="1", color="gray"),
+                    spacing="1",
+                    align="start",
+                )
+            ),
+        )
+
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title("Run comparison"),
+            rx.vstack(
+                rx.hstack(
+                    _stat_block("Run A", EvalState.compare_run_a_summary),
+                    _stat_block("Run B", EvalState.compare_run_b_summary),
+                    spacing="3",
+                ),
+                rx.hstack(
+                    _config_block(EvalState.compare_config_run_a),
+                    _config_block(EvalState.compare_config_run_b),
+                    spacing="3",
+                    width="100%",
+                ),
+                rx.cond(
+                    EvalState.compare_diff_keys != [],
+                    rx.callout(
+                        rx.hstack(
+                            rx.text("Differences:", weight="medium", size="1"),
+                            rx.box(rx.foreach(EvalState.compare_diff_keys, lambda k: rx.badge(k, variant="soft"))),  # todo wrap?
+                            spacing="2",
+                            align="center",
+                        ),
+                        color_scheme="amber",
+                        variant="soft",
+                    ),
+                    rx.box(),
+                ),
+                rx.cond(
+                    EvalState.compare_loading,
+                    rx.center(rx.spinner(size="3"), height="200px"),
+                    rx.scroll_area(
+                        rx.table.root(
+                            rx.table.header(
+                                rx.table.row(
+                                    rx.table.column_header_cell("Question"),
+                                    rx.table.column_header_cell("Run A"),
+                                    rx.table.column_header_cell("Run B"),
+                                )
+                            ),
+                            rx.table.body(rx.foreach(EvalState.compare_rows, _result_row)),
+                            variant="surface",
+                            style={"width": "100%"},
+                        ),
+                        type="always",
+                        scrollbars="vertical",
+                        style={"maxHeight": "60vh"},
+                    ),
+                ),
+                rx.dialog.close(rx.button("Close", variant="soft")),
+                spacing="3",
+                width="100%",
+            ),
+            style={"maxWidth": "1100px"},
+        ),
+        open=EvalState.compare_dialog_open,
+        on_open_change=EvalState.set_compare_dialog_open,
+    )
+
+
 def _judge_prompt_dialog() -> rx.Component:
     return rx.dialog.root(
         rx.dialog.content(
@@ -530,6 +753,7 @@ def page() -> rx.Component:
             rx.grid(
                 rx.vstack(
                     _questions_card(),
+                    _compare_card(),
                     _tests_card(),
                 ),
                 rx.vstack(
@@ -548,6 +772,7 @@ def page() -> rx.Component:
             spacing="4",
             width="100%",
         ),
+        _compare_dialog(),
         _judge_prompt_dialog(),
         _data_model_dialog(),
         align="start",
