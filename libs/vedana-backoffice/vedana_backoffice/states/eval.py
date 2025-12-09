@@ -942,7 +942,7 @@ class EvalState(rx.State):
             return "fail", f"Judge failed: {e}", 0
 
         if res is None:
-            return "fail", "", 0.0
+            return "fail", "", 0
 
         try:
             rating = int(res.rating)
