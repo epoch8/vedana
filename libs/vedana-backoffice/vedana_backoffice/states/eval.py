@@ -199,19 +199,11 @@ class EvalState(rx.State):
 
     @rx.var
     def compare_run_a_summary(self) -> dict[str, Any]:
-        if isinstance(self.compare_summary, dict):
-            val = self.compare_summary.get("run_a")
-            if isinstance(val, dict):
-                return val
-        return {}
+        return self.compare_summary.get("run_a", {})
 
     @rx.var
     def compare_run_b_summary(self) -> dict[str, Any]:
-        if isinstance(self.compare_summary, dict):
-            val = self.compare_summary.get("run_b")
-            if isinstance(val, dict):
-                return val
-        return {}
+        return self.compare_summary.get("run_b", {})
 
     @rx.var
     def compare_config_run_a(self) -> dict[str, Any]:
@@ -740,20 +732,17 @@ class EvalState(rx.State):
                     aligned_rows.append(
                         {
                             "question": q,
+                            "golden_answer": ra.get("golden_answer") or rb.get("golden_answer") or "",
                             "status_a": ra.get("status", "—"),
-                            "rating_a": (
-                                f"{float(ra.get('rating', 0)):.2f}"
-                                if isinstance(ra.get("rating"), (int, float))
-                                else ra.get("rating", "—")
-                            ),
+                            "rating_a": ra.get("rating"),
                             "comment_a": ra.get("comment", ""),
+                            "answer_a": ra.get("answer", ""),
+                            "tool_calls_a": ra.get("tool_calls", ""),
                             "status_b": rb.get("status", "—"),
-                            "rating_b": (
-                                f"{float(rb.get('rating', 0)):.2f}"
-                                if isinstance(rb.get("rating"), (int, float))
-                                else rb.get("rating", "—")
-                            ),
+                            "rating_b": rb.get("rating"),
                             "comment_b": rb.get("comment", ""),
+                            "answer_b": rb.get("answer", ""),
+                            "tool_calls_b": rb.get("tool_calls", ""),
                         }
                     )
 
@@ -1198,10 +1187,12 @@ class EvalState(rx.State):
                 meta_sample = self._extract_eval_meta(evs)
 
             answer = ""
+            tool_calls = ""
             status = "—"
             judge_comment = ""
             rating_val: float | None = None
             question_text = cfg.get("gds_question") or ""
+            golden_answer = cfg.get("gds_answer") or ""
 
             for ev in evs:
                 if ev.event_type == "comm.assistant_message":
@@ -1221,6 +1212,9 @@ class EvalState(rx.State):
                 elif ev.event_type == "eval.result":
                     status = ev.event_data.get("test_status", status)
                     judge_comment = ev.event_data.get("eval_judge_comment", judge_comment)
+                    answer = ev.event_data.get("llm_answer", answer)
+                    tool_calls = ev.event_data.get("tool_calls", tool_calls)
+                    golden_answer = ev.event_data.get("gds_answer", golden_answer)
                     rating_label = ev.event_data.get("eval_judge_rating")
                     try:
                         rating_val = float(rating_label) if rating_label is not None else None
@@ -1243,6 +1237,8 @@ class EvalState(rx.State):
                 "rating": rating_val if rating_val is not None else "—",
                 "comment": safe_render_value(judge_comment),
                 "answer": safe_render_value(answer),
+                "tool_calls": safe_render_value(tool_calls),
+                "golden_answer": safe_render_value(golden_answer),
                 "thread_id": str(thread.thread_id),
             }
 
