@@ -1,6 +1,6 @@
 import asyncio
-import hashlib
 import difflib
+import hashlib
 import json
 import logging
 import traceback
@@ -91,6 +91,9 @@ class EvalState(rx.State):
     compare_prompt_full_b: str = ""
     compare_dm_full_a: str = ""
     compare_dm_full_b: str = ""
+    compare_prompt_diff_rows: list[dict[str, Any]] = []
+    compare_dm_diff_rows: list[dict[str, Any]] = []
+    compare_compact: bool = True
 
     @rx.var
     def available_scenarios(self) -> list[str]:
@@ -648,6 +651,10 @@ class EvalState(rx.State):
             return ""
         return self.run_id_lookup.get(label, label)
 
+    def set_compare_compact(self, checked: bool) -> None:
+        """Toggle compact diff view (show only changes)."""
+        self.compare_compact = bool(checked)
+
     @rx.event(background=True)  # type: ignore[operator]
     async def compare_runs(self):
         """Load and align two runs for comparison."""
@@ -752,8 +759,6 @@ class EvalState(rx.State):
                 # Prompt and data model diffs
                 prompt_a = ""
                 prompt_b = ""
-                dm_a = ""
-                dm_b = ""
                 meta_a = run_a_data.get("meta", {}) if isinstance(run_a_data, dict) else {}
                 meta_b = run_b_data.get("meta", {}) if isinstance(run_b_data, dict) else {}
                 judge_a = meta_a.get("judge", {}) if isinstance(meta_a, dict) else {}
@@ -769,11 +774,13 @@ class EvalState(rx.State):
 
                 data_a = meta_a.get("data_model", {}) if isinstance(meta_a, dict) else {}
                 data_b = meta_b.get("data_model", {}) if isinstance(meta_b, dict) else {}
-                dm_a_str = data_a.get("dm_description")
-                dm_b_str = data_b.get("dm_description")
+                dm_a_str = data_a.get("dm_description") or ""
+                dm_b_str = data_b.get("dm_description") or ""
 
-                prompt_diff = "\n".join(difflib.unified_diff(prompt_a.splitlines(), prompt_b.splitlines(), lineterm=""))  # todo
-                dm_diff = "\n".join(difflib.unified_diff(dm_a_str.splitlines(), dm_b_str.splitlines()))
+                prompt_diff = "\n".join(difflib.unified_diff(prompt_a.splitlines(), prompt_b.splitlines(), lineterm=""))
+                dm_diff = "\n".join(difflib.unified_diff(dm_a_str.splitlines(), dm_b_str.splitlines(), lineterm=""))
+                prompt_diff_rows = self._build_side_by_side_diff(prompt_a, prompt_b)
+                dm_diff_rows = self._build_side_by_side_diff(dm_a_str, dm_b_str)
 
                 self.compare_summary = {
                     "run_a": run_a_data.get("summary", {}),
@@ -789,8 +796,10 @@ class EvalState(rx.State):
                 self.compare_dm_diff = dm_diff
                 self.compare_prompt_full_a = prompt_a
                 self.compare_prompt_full_b = prompt_b
-                self.compare_dm_full_a = dm_a
-                self.compare_dm_full_b = dm_b
+                self.compare_dm_full_a = dm_a_str
+                self.compare_dm_full_b = dm_b_str
+                self.compare_prompt_diff_rows = prompt_diff_rows
+                self.compare_dm_diff_rows = dm_diff_rows
             except Exception as e:
                 self.compare_error = f"Failed to compare runs: {e}"
             finally:
@@ -1002,6 +1011,66 @@ class EvalState(rx.State):
                 return str(val)
         return val
 
+    def _build_side_by_side_diff(self, a_text: str, b_text: str) -> list[dict[str, Any]]:
+        """Produce side-by-side diff rows with color hints (text color, no background)."""
+        a_lines = a_text.splitlines() if isinstance(a_text, str) else []
+        b_lines = b_text.splitlines() if isinstance(b_text, str) else []
+        sm = difflib.SequenceMatcher(None, a_lines, b_lines)
+        rows: list[dict[str, Any]] = []
+        for tag, i1, i2, j1, j2 in sm.get_opcodes():
+            if tag == "equal":
+                for al, bl in zip(a_lines[i1:i2], b_lines[j1:j2]):
+                    rows.append(
+                        {
+                            "left": al,
+                            "right": bl,
+                            "op": tag,
+                            "left_color": "inherit",
+                            "right_color": "inherit",
+                            "strong": False,
+                        }
+                    )
+            elif tag == "replace":
+                max_len = max(i2 - i1, j2 - j1)
+                for k in range(max_len):
+                    al = a_lines[i1 + k] if i1 + k < i2 else ""
+                    bl = b_lines[j1 + k] if j1 + k < j2 else ""
+                    rows.append(
+                        {
+                            "left": al,
+                            "right": bl,
+                            "op": tag,
+                            "left_color": "var(--indigo-11)",
+                            "right_color": "var(--indigo-11)",
+                            "strong": True,
+                        }
+                    )
+            elif tag == "delete":
+                for al in a_lines[i1:i2]:
+                    rows.append(
+                        {
+                            "left": al,
+                            "right": "",
+                            "op": tag,
+                            "left_color": "var(--red-11)",
+                            "right_color": "inherit",
+                            "strong": True,
+                        }
+                    )
+            elif tag == "insert":
+                for bl in b_lines[j1:j2]:
+                    rows.append(
+                        {
+                            "left": "",
+                            "right": bl,
+                            "op": tag,
+                            "left_color": "inherit",
+                            "right_color": "var(--green-11)",
+                            "strong": True,
+                        }
+                    )
+        return rows
+
     def _diff_config_keys(self, cfg_a: dict[str, Any], cfg_b: dict[str, Any]) -> list[str]:
         """Return keys whose normalized values differ."""
         keys = set(cfg_a.keys()) | set(cfg_b.keys())
@@ -1062,6 +1131,20 @@ class EvalState(rx.State):
             "graph_edges": graph.get("edges_by_type") if isinstance(graph, dict) else None,
             "vector_indexes": graph.get("vector_indexes") if isinstance(graph, dict) else None,
         }
+
+    @rx.var
+    def compare_prompt_rows_view(self) -> list[dict[str, Any]]:
+        rows = self.compare_prompt_diff_rows or []
+        if self.compare_compact:
+            rows = [r for r in rows if r.get("op") != "equal"]
+        return rows
+
+    @rx.var
+    def compare_dm_rows_view(self) -> list[dict[str, Any]]:
+        rows = self.compare_dm_diff_rows or []
+        if self.compare_compact:
+            rows = [r for r in rows if r.get("op") != "equal"]
+        return rows
 
     def _extract_eval_meta(self, events: list[ThreadEventDB]) -> dict[str, Any]:
         """Return first eval.meta event data, if any."""
