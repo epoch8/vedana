@@ -349,7 +349,7 @@ class EvalState(rx.State):
     async def _load_pipeline_config(self) -> None:
         vedana_app = await get_vedana_app()
         dm = vedana_app.data_model
-        self.dm_description = dm.to_json()
+        self.dm_description = dm.to_text_descr()
         dm_text_b = bytearray(self.dm_description, "utf-8")
         self.dm_id = hashlib.sha256(dm_text_b).hexdigest()
 
@@ -889,14 +889,10 @@ class EvalState(rx.State):
 
         return meta
 
-    def _build_data_model_meta(self, vedana_app) -> dict[str, Any]:
-        """Serialize data model and attach hash for versioning."""
-        dm_dict = vedana_app.data_model.to_dict()
-        dm_json = json.dumps(dm_dict, ensure_ascii=False, sort_keys=True)
-        dm_hash = hashlib.sha256(dm_json.encode("utf-8")).hexdigest()
+    def _build_data_model_meta(self) -> dict[str, Any]:
+        # dm_json = vedana_app.data_model.to_json()
         return {
-            "data_model_json": dm_json,
-            "data_model_hash": dm_hash,
+            # "dm_json": dm_json,  # may get used later
             "dm_id": self.dm_id,
             "dm_description": self.dm_description,
         }
@@ -904,7 +900,7 @@ class EvalState(rx.State):
     async def _build_eval_meta_payload(self, vedana_app, test_run_id: str, test_run_name: str) -> dict[str, Any]:
         """Build a single eval.meta payload shared across threads for a run."""
         graph_meta = await self._collect_graph_metadata(vedana_app.graph)
-        data_model_meta = self._build_data_model_meta(vedana_app)
+        data_model_meta = self._build_data_model_meta()
         return {
             "meta_version": 1,
             "test_run": test_run_id,
