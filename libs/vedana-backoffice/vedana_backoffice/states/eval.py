@@ -1145,7 +1145,7 @@ class EvalState(rx.State):
         return [
             r
             for r in rows
-            if r.get("is_change") or any(abs(r.get("row_idx", -999) - ci) <= window for ci in change_idxs)
+            if r.get("is_change") or any(abs(r.get("row_idx", -9999) - ci) <= window for ci in change_idxs)
         ]
 
     @rx.var

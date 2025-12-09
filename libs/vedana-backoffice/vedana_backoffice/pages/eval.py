@@ -651,7 +651,7 @@ def _compare_dialog() -> rx.Component:
                 ),
                 rx.cond(
                     EvalState.compare_diff_keys != [],
-                    rx.callout(
+                    rx.card(
                         rx.vstack(
                             rx.hstack(
                                 rx.text("Differences:", weight="medium", size="1"),
@@ -671,8 +671,8 @@ def _compare_dialog() -> rx.Component:
                             spacing="2",
                             width="100%",
                         ),
-                        color_scheme="amber",
-                        variant="soft",
+                        # color_scheme="amber",
+                        variant="surface",
                         width="100%",
                     ),
                     rx.box(),
