@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import difflib
 import json
 import logging
 import traceback
@@ -728,10 +729,18 @@ class EvalState(rx.State):
                         {
                             "question": q,
                             "status_a": ra.get("status", "—"),
-                            "rating_a": ra.get("rating", "—"),
+                            "rating_a": (
+                                f"{float(ra.get('rating', 0)):.2f}"
+                                if isinstance(ra.get("rating"), (int, float))
+                                else ra.get("rating", "—")
+                            ),
                             "comment_a": ra.get("comment", ""),
                             "status_b": rb.get("status", "—"),
-                            "rating_b": rb.get("rating", "—"),
+                            "rating_b": (
+                                f"{float(rb.get('rating', 0)):.2f}"
+                                if isinstance(rb.get("rating"), (int, float))
+                                else rb.get("rating", "—")
+                            ),
                             "comment_b": rb.get("comment", ""),
                         }
                     )
@@ -739,6 +748,32 @@ class EvalState(rx.State):
                 cfg_a = run_a_data.get("config_summary", {}) if isinstance(run_a_data, dict) else {}
                 cfg_b = run_b_data.get("config_summary", {}) if isinstance(run_b_data, dict) else {}
                 diff_keys = self._diff_config_keys(cfg_a, cfg_b)
+
+                # Prompt and data model diffs
+                prompt_a = ""
+                prompt_b = ""
+                dm_a = ""
+                dm_b = ""
+                meta_a = run_a_data.get("meta", {}) if isinstance(run_a_data, dict) else {}
+                meta_b = run_b_data.get("meta", {}) if isinstance(run_b_data, dict) else {}
+                judge_a = meta_a.get("judge", {}) if isinstance(meta_a, dict) else {}
+                judge_b = meta_b.get("judge", {}) if isinstance(meta_b, dict) else {}
+                if isinstance(judge_a, dict):
+                    pa = judge_a.get("judge_prompt")
+                    if isinstance(pa, str):
+                        prompt_a = pa
+                if isinstance(judge_b, dict):
+                    pb = judge_b.get("judge_prompt")
+                    if isinstance(pb, str):
+                        prompt_b = pb
+
+                data_a = meta_a.get("data_model", {}) if isinstance(meta_a, dict) else {}
+                data_b = meta_b.get("data_model", {}) if isinstance(meta_b, dict) else {}
+                dm_a_str = data_a.get("dm_description")
+                dm_b_str = data_b.get("dm_description")
+
+                prompt_diff = "\n".join(difflib.unified_diff(prompt_a.splitlines(), prompt_b.splitlines(), lineterm=""))  # todo
+                dm_diff = "\n".join(difflib.unified_diff(dm_a_str.splitlines(), dm_b_str.splitlines()))
 
                 self.compare_summary = {
                     "run_a": run_a_data.get("summary", {}),
@@ -750,6 +785,12 @@ class EvalState(rx.State):
                 }
                 self.compare_diff_keys = diff_keys
                 self.compare_rows = aligned_rows
+                self.compare_prompt_diff = prompt_diff
+                self.compare_dm_diff = dm_diff
+                self.compare_prompt_full_a = prompt_a
+                self.compare_prompt_full_b = prompt_b
+                self.compare_dm_full_a = dm_a
+                self.compare_dm_full_b = dm_b
             except Exception as e:
                 self.compare_error = f"Failed to compare runs: {e}"
             finally:
@@ -970,32 +1011,56 @@ class EvalState(rx.State):
                 diffs.append(key)
         return sorted(diffs)
 
-    def _summarize_config_for_display(self, meta: dict[str, Any]) -> dict[str, Any]:
-        """Extract a concise config summary for comparison UI."""
-        if not isinstance(meta, dict):
-            return {}
-        judge = meta.get("judge", {}) if isinstance(meta.get("judge"), dict) else {}
-        data_model = meta.get("data_model", {}) if isinstance(meta.get("data_model"), dict) else {}
-        graph = meta.get("graph", {}) if isinstance(meta.get("graph"), dict) else {}
-        judge_prompt = judge.get("judge_prompt")
+    def _summarize_config_for_display(self, meta: dict[str, Any], cfg_fallback: dict[str, Any]) -> dict[str, Any]:
+        """Extract a concise config summary for comparison UI with sensible fallbacks."""
+        src = meta if isinstance(meta, dict) else {}
+        judge = src.get("judge", {}) if isinstance(src.get("judge"), dict) else {}
+        data_model = src.get("data_model", {}) if isinstance(src.get("data_model"), dict) else {}
+        graph = src.get("graph", {}) if isinstance(src.get("graph"), dict) else {}
+
+        # Fallbacks from thread config if meta is missing
+        pipeline_model = src.get("pipeline_model") or (
+            cfg_fallback.get("pipeline_model") if isinstance(cfg_fallback, dict) else None
+        )
+        embeddings_model = src.get("embeddings_model") or (
+            cfg_fallback.get("embeddings_model") if isinstance(cfg_fallback, dict) else None
+        )
+        embeddings_dim = src.get("embeddings_dim") or (
+            cfg_fallback.get("embeddings_dim") if isinstance(cfg_fallback, dict) else None
+        )
+
+        judge_model = judge.get("judge_model") or (
+            cfg_fallback.get("judge_model") if isinstance(cfg_fallback, dict) else None
+        )
+        judge_prompt_id = judge.get("judge_prompt_id") or (
+            cfg_fallback.get("judge_prompt_id") if isinstance(cfg_fallback, dict) else None
+        )
+
+        judge_prompt = judge.get("judge_prompt") or ""
         judge_prompt_hash = ""
         if isinstance(judge_prompt, str) and judge_prompt:
             judge_prompt_hash = hashlib.sha256(judge_prompt.encode("utf-8")).hexdigest()
 
+        dm_hash = data_model.get("dm_hash") if isinstance(data_model, dict) else None
+        dm_id = data_model.get("dm_id") if isinstance(data_model, dict) else None
+
         return {
-            "test_run_id": meta.get("test_run"),
-            "test_run_name": meta.get("test_run_name") or "",
-            "pipeline_model": meta.get("pipeline_model"),
-            "embeddings_model": meta.get("embeddings_model"),
-            "embeddings_dim": meta.get("embeddings_dim"),
-            "judge_model": judge.get("judge_model"),
-            "judge_prompt_id": judge.get("judge_prompt_id"),
+            "test_run_id": src.get("test_run")
+            or (cfg_fallback.get("test_run") if isinstance(cfg_fallback, dict) else None),
+            "test_run_name": src.get("test_run_name")
+            or (cfg_fallback.get("test_run_name") if isinstance(cfg_fallback, dict) else "")
+            or "",
+            "pipeline_model": pipeline_model,
+            "embeddings_model": embeddings_model,
+            "embeddings_dim": embeddings_dim,
+            "judge_model": judge_model,
+            "judge_prompt_id": judge_prompt_id,
             "judge_prompt_hash": judge_prompt_hash,
-            "data_model_hash": data_model.get("data_model_hash"),
-            "dm_id": data_model.get("dm_id"),
-            "graph_nodes": graph.get("nodes_by_label"),
-            "graph_edges": graph.get("edges_by_type"),
-            "vector_indexes": graph.get("vector_indexes"),
+            "dm_hash": dm_hash,
+            "dm_id": dm_id,
+            "graph_nodes": graph.get("nodes_by_label") if isinstance(graph, dict) else None,
+            "graph_edges": graph.get("edges_by_type") if isinstance(graph, dict) else None,
+            "vector_indexes": graph.get("vector_indexes") if isinstance(graph, dict) else None,
         }
 
     def _extract_eval_meta(self, events: list[ThreadEventDB]) -> dict[str, Any]:
@@ -1086,14 +1151,14 @@ class EvalState(rx.State):
             "passed": passed,
             "failed": failed,
             "pass_rate": (passed / total) if total else 0.0,
-            "avg_rating": avg_rating if ratings else None,
-            "cost_total": cost_total,
+            "avg_rating": round(avg_rating, 2) if ratings else None,
+            "cost_total": round(cost_total, 3),
             "test_run_name": (meta_sample.get("test_run_name") if isinstance(meta_sample, dict) else None)
             or (cfg_sample.get("test_run_name") if isinstance(cfg_sample, dict) else None)
             or "",
         }
 
-        config_summary = self._summarize_config_for_display(meta_sample)
+        config_summary = self._summarize_config_for_display(meta_sample, cfg_sample)
 
         return {
             "summary": summary,
