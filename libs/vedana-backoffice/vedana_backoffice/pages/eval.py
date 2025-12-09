@@ -65,7 +65,7 @@ def _questions_card() -> rx.Component:
                     ),
                 ),
                 cursor="pointer",
-                on_click=EvalState.toggle_gds_row(row_id=row_id),  # type: ignore[call-arg,func-returns-value]
+                on_click=EvalState.toggle_gds_row(row_id=row_id),  # type: ignore[arg-type,call-arg,func-returns-value]
             )
         )
 
@@ -274,7 +274,7 @@ def _tests_card() -> rx.Component:
                     ),
                 ),
                 cursor="pointer",
-                on_click=EvalState.toggle_row_expand(row_id=row_id),  # type: ignore[call-arg,func-returns-value]
+                on_click=EvalState.toggle_row_expand(row_id=row_id),  # type: ignore[arg-type,call-arg,func-returns-value]
             )
         )
 
