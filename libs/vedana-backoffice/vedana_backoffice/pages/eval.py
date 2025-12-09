@@ -199,7 +199,6 @@ def _pipeline_card() -> rx.Component:
             rx.vstack(
                 rx.box(
                     rx.text("Data model", weight="medium"),
-                    rx.text(f"Snapshot @ {EvalState.dm_snapshot_updated}", size="1", color="gray"),
                     rx.button(
                         "View Data Model",
                         variant="soft",
@@ -438,7 +437,6 @@ def _data_model_dialog() -> rx.Component:
             rx.dialog.title("Data Model"),
             rx.vstack(
                 rx.text(f"Model ID: {EvalState.dm_id}", size="2", color="gray"),
-                rx.text(f"Snapshot @ {EvalState.dm_snapshot_updated}", size="2", color="gray"),
                 rx.box(
                     rx.text(
                         rx.cond(
