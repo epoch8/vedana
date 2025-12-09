@@ -673,59 +673,6 @@ def _compare_dialog() -> rx.Component:
                     ),
                     rx.box(),
                 ),
-                rx.accordion.root(
-                    rx.accordion.item(
-                        rx.accordion.trigger("View full judge prompts"),
-                        rx.accordion.content(
-                            rx.vstack(
-                                rx.text("Run A", weight="medium"),
-                                rx.box(
-                                    rx.text(EvalState.compare_prompt_full_a, size="1", white_space="pre-wrap"),
-                                    padding="0.5em",
-                                    border="1px solid var(--gray-5)",
-                                    border_radius="6px",
-                                ),
-                                rx.text("Run B", weight="medium", margin_top="0.5em"),
-                                rx.box(
-                                    rx.text(EvalState.compare_prompt_full_b, size="1", white_space="pre-wrap"),
-                                    padding="0.5em",
-                                    border="1px solid var(--gray-5)",
-                                    border_radius="6px",
-                                ),
-                                spacing="2",
-                            )
-                        ),
-                        value="full-prompts",
-                    ),
-                    rx.accordion.item(
-                        rx.accordion.trigger("View full data models"),
-                        rx.accordion.content(
-                            rx.vstack(
-                                rx.text("Run A", weight="medium"),
-                                rx.box(
-                                    rx.text(EvalState.compare_dm_full_a, size="1", white_space="pre-wrap"),
-                                    padding="0.5em",
-                                    border="1px solid var(--gray-5)",
-                                    border_radius="6px",
-                                    style={"maxHeight": "240px", "overflow": "auto"},
-                                ),
-                                rx.text("Run B", weight="medium", margin_top="0.5em"),
-                                rx.box(
-                                    rx.text(EvalState.compare_dm_full_b, size="1", white_space="pre-wrap"),
-                                    padding="0.5em",
-                                    border="1px solid var(--gray-5)",
-                                    border_radius="6px",
-                                    style={"maxHeight": "240px", "overflow": "auto"},
-                                ),
-                                spacing="2",
-                            )
-                        ),
-                        value="full-dm",
-                    ),
-                    type="multiple",
-                    collapsible=True,
-                    width="100%",
-                ),
                 rx.cond(
                     EvalState.compare_loading,
                     rx.center(rx.spinner(size="3"), height="200px"),
@@ -751,7 +698,7 @@ def _compare_dialog() -> rx.Component:
                 spacing="3",
                 width="100%",
             ),
-            style={"maxWidth": "1100px"},
+            style={"maxWidth": "90vw"},
         ),
         open=EvalState.compare_dialog_open,
         on_open_change=EvalState.set_compare_dialog_open,
