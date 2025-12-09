@@ -1,13 +1,10 @@
 from datapipe.compute import Table
 from datapipe.store.database import TableStoreDB
 from datapipe.store.neo4j import Neo4JStore
-from sqlalchemy import Boolean, Column, Float, Integer, String
+from sqlalchemy import Boolean, Column, Float, String
 
-from vedana_etl.store import GristStore
 import vedana_etl.schemas as schemas
 from vedana_etl.config import DBCONN_DATAPIPE, MEMGRAPH_CONN_ARGS
-from vedana_etl.settings import settings
-from vedana_core.settings import settings as core_settings
 
 
 dm_links = Table(
