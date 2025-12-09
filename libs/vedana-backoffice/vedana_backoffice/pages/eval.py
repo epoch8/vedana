@@ -161,11 +161,10 @@ def _judge_card() -> rx.Component:
     return rx.card(
         rx.vstack(
             rx.heading("Judge configuration", size="4"),
-            rx.select(
-                items=EvalState.judge_model_options,
-                value=EvalState.selected_judge_model,
-                placeholder="No judge models",
-                on_change=EvalState.set_judge_model,
+            rx.box(
+                rx.text("Judge model", weight="medium"),
+                rx.text(EvalState.judge_model, size="3"),
+                padding_bottom="0.75em",
             ),
             rx.button(
                 "View Judge Prompt",

@@ -144,41 +144,6 @@ memgraph_edges = Table(
 
 # --- Eval pipeline ---
 
-dm_snapshot = Table(
-    name="dm_snapshot",
-    store=TableStoreDB(
-        dbconn=DBCONN_DATAPIPE,
-        name="dm_snapshot",
-        data_sql_schema=[
-            Column("dm_id", String, primary_key=True),
-            Column("dm_description", String),
-        ],
-    ),
-)
-
-llm_embeddings_config = Table(
-    name="llm_embeddings_config",
-    store=TableStoreDB(
-        dbconn=DBCONN_DATAPIPE,
-        name="llm_embeddings_config",
-        data_sql_schema=[
-            Column("embeddings_model", String, primary_key=True),
-            Column("embeddings_dim", Integer, primary_key=True),
-        ],
-    ),
-)
-
-llm_pipeline_config = Table(
-    name="llm_pipeline_config",
-    store=TableStoreDB(
-        dbconn=DBCONN_DATAPIPE,
-        name="llm_pipeline_config",
-        data_sql_schema=[
-            Column("pipeline_model", String, primary_key=True),
-        ],
-    ),
-)
-
 eval_gds = Table(
     name="eval_gds",
     store=TableStoreDB(
@@ -190,88 +155,6 @@ eval_gds = Table(
             Column("question_scenario", String),
             Column("question_comment", String),
             Column("question_context", String),
-        ],
-    ),
-)
-
-eval_judge_config = Table(
-    name="eval_judge_config",
-    store=TableStoreDB(
-        dbconn=DBCONN_DATAPIPE,
-        name="eval_judge_config",
-        data_sql_schema=[
-            Column("judge_model", String, primary_key=True),
-            Column("judge_prompt_id", String, primary_key=True),
-            Column("judge_prompt", String),
-        ],
-    ),
-)
-
-eval_llm_answers = Table(
-    name="eval_llm_answers",
-    store=TableStoreDB(
-        dbconn=DBCONN_DATAPIPE,
-        name="eval_llm_answers",
-        data_sql_schema=[
-            Column("dm_id", String, primary_key=True),
-            Column("pipeline_model", String, primary_key=True),
-            Column("embeddings_model", String, primary_key=True),
-            Column("embeddings_dim", Integer, primary_key=True),
-            Column("gds_question", String, primary_key=True),
-            Column("question_context", String),
-            Column("llm_answer", String),
-            Column("tool_calls", String),
-            Column("test_date", String),
-        ],
-    ),
-)
-
-eval_tests = Table(
-    name="eval_tests",
-    store=TableStoreDB(
-        dbconn=DBCONN_DATAPIPE,
-        name="eval_tests",
-        data_sql_schema=[
-            Column("judge_model", String, primary_key=True),
-            Column("judge_prompt_id", String, primary_key=True),
-            Column("dm_id", String, primary_key=True),
-            Column("pipeline_model", String, primary_key=True),
-            Column("embeddings_model", String, primary_key=True),
-            Column("embeddings_dim", Integer, primary_key=True),
-            Column("gds_question", String, primary_key=True),
-            Column("question_context", String),
-            Column("gds_answer", String),
-            Column("llm_answer", String),
-            Column("tool_calls", String),
-            Column("test_status", String),
-            Column("eval_judge_comment", String),
-            Column("test_date", String),
-        ],
-    ),
-)
-
-tests_grist = Table(
-    name="tests_grist",
-    store=GristStore(
-        server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
-        doc_id=settings.grist_test_set_doc_id,
-        table=settings.tests_table_name,
-        data_sql_schema=[
-            Column("judge_model", String, primary_key=True),
-            Column("judge_prompt_id", String, primary_key=True),
-            Column("dm_id", String, primary_key=True),
-            Column("pipeline_model", String, primary_key=True),
-            Column("embeddings_model", String, primary_key=True),
-            Column("embeddings_dim", Integer, primary_key=True),
-            Column("gds_question", String, primary_key=True),
-            Column("question_context", String),
-            Column("gds_answer", String),
-            Column("llm_answer", String),
-            Column("tool_calls", String),
-            Column("test_status", String),
-            Column("eval_judge_comment", String),
-            Column("test_date", String),
         ],
     ),
 )
