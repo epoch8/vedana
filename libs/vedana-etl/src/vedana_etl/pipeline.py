@@ -15,7 +15,6 @@ from vedana_etl.catalog import (
     memgraph_nodes,
     memgraph_vector_indexes,
     nodes,
-    eval_judge_config,
     eval_gds,
 )
 

@@ -48,7 +48,6 @@ class EvalState(rx.State):
     embeddings_model: str = core_settings.embeddings_model
     embeddings_dim: int = core_settings.embeddings_dim
     dm_id: str = ""
-    dm_snapshot_updated: str = ""
     tests_rows: list[dict[str, Any]] = []
     tests_cost_total: float = 0.0
     run_passed: int = 0
@@ -283,13 +282,11 @@ class EvalState(rx.State):
         self.dm_description = dm.to_json()
         dm_text_b = bytearray(self.dm_description, "utf-8")
         self.dm_id = hashlib.sha256(dm_text_b).hexdigest()
-        self.dm_snapshot_updated = datetime.now().strftime("%Y-%m-%d %H:%M")  # todo change on dm change only or remove entirely
 
     def _status_color(self, status: str) -> str:
-        val = str(status or "").lower()
-        if val == "pass":
+        if status == "pass":
             return "green"
-        if val == "fail":
+        if status == "fail":
             return "red"
         return "gray"
 
@@ -718,7 +715,6 @@ class EvalState(rx.State):
             "data_model_hash": dm_hash,
             "dm_id": self.dm_id,
             "dm_description": self.dm_description,
-            "dm_snapshot_updated": self.dm_snapshot_updated,
         }
 
     async def _build_eval_meta_payload(self, vedana_app, test_run_name: str) -> dict[str, Any]:
