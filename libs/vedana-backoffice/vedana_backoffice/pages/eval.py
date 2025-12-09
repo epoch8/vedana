@@ -542,6 +542,16 @@ def _compare_dialog() -> rx.Component:
 
     def _diff_table(title: str, rows: list[dict[str, rx.Var]]) -> rx.Component:
         def _line(row: dict[str, rx.Var]) -> rx.Component:
+            left_border = rx.cond(
+                row.get("strong", False),
+                f"2px solid {row.get('left_color', 'transparent')}",
+                "2px solid transparent",
+            )
+            right_border = rx.cond(
+                row.get("strong", False),
+                f"2px solid {row.get('right_color', 'transparent')}",
+                "2px solid transparent",
+            )
             return rx.hstack(
                 rx.box(
                     rx.text(
@@ -553,8 +563,9 @@ def _compare_dialog() -> rx.Component:
                     ),
                     style={
                         "fontFamily": "monospace",
-                        "padding": "2px 6px",
+                        "padding": "1px 3px",
                         "borderRadius": "4px",
+                        "borderLeft": left_border,
                         "width": "100%",
                     },
                 ),
@@ -568,12 +579,13 @@ def _compare_dialog() -> rx.Component:
                     ),
                     style={
                         "fontFamily": "monospace",
-                        "padding": "2px 6px",
+                        "padding": "1px 3px",
                         "borderRadius": "4px",
+                        "borderLeft": right_border,
                         "width": "100%",
                     },
                 ),
-                spacing="2",
+                spacing="1",
                 width="100%",
             )
 
@@ -593,7 +605,7 @@ def _compare_dialog() -> rx.Component:
                 ),
                 type="always",
                 scrollbars="vertical",
-                style={"maxHeight": "260px", "padding": "2px"},
+                style={"maxHeight": "22vh", "padding": "1px"},
             ),
             spacing="1",
             width="100%",
