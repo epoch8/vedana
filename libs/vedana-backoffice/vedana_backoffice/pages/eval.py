@@ -159,7 +159,7 @@ def _questions_card() -> rx.Component:
         ),
         padding="1em",
         width="100%",
-        style={"height": "80vh", "display": "flex", "flexDirection": "column"},
+        style={"maxHeight": "80vh", "display": "flex", "flexDirection": "column"},
     )
 
 
@@ -263,7 +263,12 @@ def _tests_card() -> rx.Component:
             rx.box(
                 rx.cond(
                     row.get("expanded", False),
-                    rx.text(row.get(key, ""), size="1", white_space="pre-wrap"),
+                    rx.text(
+                        row.get(key, ""),
+                        size="1",
+                        white_space="pre-wrap",
+                        style={"wordBreak": "break-word"},
+                    ),
                     rx.text(
                         row.get(key, ""),
                         size="1",
@@ -274,12 +279,15 @@ def _tests_card() -> rx.Component:
                             "WebkitBoxOrient": "vertical",
                             "overflow": "hidden",
                             "textOverflow": "ellipsis",
+                            "wordBreak": "break-word",
                         },
                     ),
                 ),
                 cursor="pointer",
                 on_click=EvalState.toggle_row_expand(row_id=row_id),  # type: ignore[arg-type,call-arg,func-returns-value]
-            )
+                style={"minWidth": "0", "width": "100%"},
+            ),
+            style={"minWidth": "0"},
         )
 
     def _row(row: dict[str, rx.Var]) -> rx.Component:
@@ -347,11 +355,19 @@ def _tests_card() -> rx.Component:
                     ),
                     rx.table.body(rx.foreach(EvalState.tests_rows, _row)),
                     variant="surface",
-                    style={"width": "100%", "tableLayout": "fixed"},
+                    style={
+                        "width": "100%",
+                        "maxWidth": "100%",
+                        "tableLayout": "fixed",
+                    },
                 ),
                 type="always",
                 scrollbars="vertical",
-                style={"height": "80vh", "width": "100%"},
+                style={
+                    "maxHeight": "80vh",
+                    "width": "100%",
+                    "maxWidth": "100%",
+                },
             ),
             # Server-side pagination controls
             rx.hstack(
@@ -574,7 +590,7 @@ def _compare_dialog() -> rx.Component:
                         row.get("right", ""),
                         size="1",
                         white_space="pre-wrap",
-                        weight=rx.cond(row.get("strong", False), "medium", "regular"),
+                        weight=rx.cond(row.get("strong", False), "bold", "regular"),
                         color=row.get("right_color", "inherit"),
                     ),
                     style={
@@ -619,14 +635,64 @@ def _compare_dialog() -> rx.Component:
                 rx.cond(status == "fail", "red", "gray"),
             )
 
+        def _answer_block(text: str, tool_calls: str) -> rx.Component:
+            return rx.vstack(
+                rx.text(text, size="1", white_space="pre-wrap", style={"wordBreak": "break-word"}),
+                rx.cond(
+                    tool_calls != "",
+                    rx.accordion.root(
+                        rx.accordion.item(
+                            rx.accordion.trigger("Tool calls", style={"fontSize": "12px"}),
+                            rx.accordion.content(
+                                rx.text(
+                                    tool_calls,
+                                    size="1",
+                                    color="gray",
+                                    white_space="pre-wrap",
+                                    style={"wordBreak": "break-word"},
+                                )
+                            ),
+                            value="tool-calls",
+                        ),
+                        collapsible=True,
+                        type="single",
+                        default_value="",
+                        variant="ghost",
+                        style={"width": "100%"},
+                    ),
+                    rx.box(),
+                ),
+                spacing="1",
+                align="start",
+                width="100%",
+            )
+
         return rx.table.row(
-            rx.table.cell(rx.text(row.get("question", ""))),
             rx.table.cell(
                 rx.vstack(
-                    rx.badge(
-                        row.get("status_a", "—"), color_scheme=_badge_color(row.get("status_a", "—")), variant="soft"
+                    rx.text(row.get("question", "")),
+                    rx.text(
+                        row.get("golden_answer", ""),
+                        size="1",
+                        color="gray",
+                        white_space="pre-wrap",
+                        style={"wordBreak": "break-word"},
                     ),
-                    rx.text(f"Rating: {row.get('rating_a', '—')}", size="1"),
+                    spacing="1",
+                    align="start",
+                    width="100%",
+                )
+            ),
+            rx.table.cell(
+                rx.vstack(
+                    rx.hstack(
+                        rx.badge(
+                            row.get("status_a"), color_scheme=_badge_color(row.get("status_a", "—")), variant="soft"
+                        ),
+                        rx.text(f"Rating: {row.get('rating_a', '—')}", size="1"),
+                        align="center",
+                    ),
+                    _answer_block(row.get("answer_a", ""), row.get("tool_calls_a", "")),
                     rx.text(row.get("comment_a", ""), size="1", color="gray"),
                     spacing="1",
                     align="start",
@@ -634,10 +700,14 @@ def _compare_dialog() -> rx.Component:
             ),
             rx.table.cell(
                 rx.vstack(
-                    rx.badge(
-                        row.get("status_b", "—"), color_scheme=_badge_color(row.get("status_b", "—")), variant="soft"
+                    rx.hstack(
+                        rx.badge(
+                            row.get("status_b"), color_scheme=_badge_color(row.get("status_b", "—")), variant="soft"
+                        ),
+                        rx.text(f"Rating: {row.get('rating_b', '—')}", size="1"),
+                        align="center",
                     ),
-                    rx.text(f"Rating: {row.get('rating_b', '—')}", size="1"),
+                    _answer_block(row.get("answer_b", ""), row.get("tool_calls_b", "")),
                     rx.text(row.get("comment_b", ""), size="1", color="gray"),
                     spacing="1",
                     align="start",
@@ -726,14 +796,14 @@ def _compare_dialog() -> rx.Component:
                         rx.table.root(
                             rx.table.header(
                                 rx.table.row(
-                                    rx.table.column_header_cell("Question"),
-                                    rx.table.column_header_cell("Run A"),
-                                    rx.table.column_header_cell("Run B"),
+                                    rx.table.column_header_cell("Question", style={"width": "25%"}),
+                                    rx.table.column_header_cell("Run A", style={"width": "37.5%"}),
+                                    rx.table.column_header_cell("Run B", style={"width": "37.5%"}),
                                 )
                             ),
                             rx.table.body(rx.foreach(EvalState.compare_rows, _result_row)),
                             variant="surface",
-                            style={"width": "100%"},
+                            style={"width": "100%", "tableLayout": "fixed"},
                         ),
                         type="always",
                         scrollbars="vertical",
@@ -744,7 +814,7 @@ def _compare_dialog() -> rx.Component:
                 spacing="3",
                 width="100%",
             ),
-            style={"maxWidth": "90vw"},
+            style={"maxWidth": "92vw"},
         ),
         open=EvalState.compare_dialog_open,
         on_open_change=EvalState.set_compare_dialog_open,
