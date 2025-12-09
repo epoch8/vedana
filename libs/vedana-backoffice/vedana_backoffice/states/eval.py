@@ -1069,6 +1069,9 @@ class EvalState(rx.State):
                             "strong": True,
                         }
                     )
+        for idx, row in enumerate(rows):
+            row["row_idx"] = idx
+            row["is_change"] = row.get("op") != "equal"
         return rows
 
     def _diff_config_keys(self, cfg_a: dict[str, Any], cfg_b: dict[str, Any]) -> list[str]:
@@ -1135,16 +1138,28 @@ class EvalState(rx.State):
     @rx.var
     def compare_prompt_rows_view(self) -> list[dict[str, Any]]:
         rows = self.compare_prompt_diff_rows or []
-        if self.compare_compact:
-            rows = [r for r in rows if r.get("op") != "equal"]
-        return rows
+        if not self.compare_compact:
+            return rows
+        change_idxs = [r.get("row_idx", -1) for r in rows if r.get("is_change")]
+        window = 4
+        return [
+            r
+            for r in rows
+            if r.get("is_change") or any(abs(r.get("row_idx", -999) - ci) <= window for ci in change_idxs)
+        ]
 
     @rx.var
     def compare_dm_rows_view(self) -> list[dict[str, Any]]:
         rows = self.compare_dm_diff_rows or []
-        if self.compare_compact:
-            rows = [r for r in rows if r.get("op") != "equal"]
-        return rows
+        if not self.compare_compact:
+            return rows
+        change_idxs = [r.get("row_idx", -1) for r in rows if r.get("is_change")]
+        window = 4
+        return [
+            r
+            for r in rows
+            if r.get("is_change") or any(abs(r.get("row_idx", -9999) - ci) <= window for ci in change_idxs)
+        ]
 
     def _extract_eval_meta(self, events: list[ThreadEventDB]) -> dict[str, Any]:
         """Return first eval.meta event data, if any."""
