@@ -8,6 +8,12 @@ def _selection_and_actions() -> rx.Component:
     """Selection controls and action buttons for the right panel."""
     return rx.vstack(
         rx.hstack(
+            rx.input(
+                placeholder="Test run name",
+                value=EvalState.test_run_name,
+                on_change=EvalState.set_test_run_name,
+                width="18em",
+            ),
             rx.button(
                 EvalState.selection_label,
                 color_scheme="blue",
