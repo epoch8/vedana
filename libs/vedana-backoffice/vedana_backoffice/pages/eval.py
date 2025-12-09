@@ -408,7 +408,7 @@ def _compare_card() -> rx.Component:
     return rx.card(
         rx.vstack(
             rx.heading("Compare runs", size="4"),
-            rx.hstack(
+            rx.vstack(
                 rx.select(
                     items=EvalState.run_options_only,
                     value=EvalState.compare_run_a,
@@ -483,14 +483,14 @@ def _compare_dialog() -> rx.Component:
                     rx.badge(
                         rx.cond(
                             summary.get("avg_rating", None) != None,  # noqa: E711
-                            f"Rating: {summary.get('avg_rating', 0):.1f}",
+                            f"Rating: {summary.get('avg_rating', 0):.2f}",
                             "Rating: —",
                         ),
                         color_scheme="blue",
                         variant="soft",
                     ),
                     rx.badge(
-                        f"Cost: ${summary.get('cost_total', 0.0):.4f}",
+                        f"Cost: ${summary.get('cost_total', 0.0):.3f}",
                         color_scheme="gray",
                         variant="soft",
                     ),
@@ -507,20 +507,21 @@ def _compare_dialog() -> rx.Component:
         diff_keys = EvalState.compare_diff_keys
 
         def _row(label: str, key: str) -> rx.Component:
-            val = cfg.get(key, "—") if isinstance(cfg, dict) else "—"
-            return rx.cond(diff_keys.contains(key),
-                rx.hstack(
-                rx.text(label, weight="medium", size="1"),
-                rx.spacer(),
-                rx.text(str(val) if val not in (None, "") else "—", size="1"),
-                style={"padding": "0.15em 0.25em", "backgroundColor": "var(--amber-3)"},
-            ),
-                           rx.hstack(
-                rx.text(label, weight="medium", size="1"),
-                rx.spacer(),
-                rx.text(str(val) if val not in (None, "") else "—", size="1"),
-                style={"padding": "0.15em 0.25em"},
-            ),
+            val = str(cfg.get(key))
+            return rx.cond(
+                diff_keys.contains(key),
+                    rx.hstack(
+                    rx.text(label, weight="medium", size="1"),
+                    rx.spacer(),
+                    rx.text(val, size="1"),
+                    style={"padding": "0.15em 0.25em", "backgroundColor": "var(--amber-3)"},
+                ),
+                               rx.hstack(
+                    rx.text(label, weight="medium", size="1"),
+                    rx.spacer(),
+                    rx.text(val, size="1"),
+                    style={"padding": "0.15em 0.25em"},
+                ),
             )
 
         return rx.card(
@@ -530,10 +531,6 @@ def _compare_dialog() -> rx.Component:
                 _row("Embeddings", "embeddings_model"),
                 _row("Emb dims", "embeddings_dim"),
                 _row("Judge model", "judge_model"),
-                _row("Judge prompt id", "judge_prompt_id"),
-                _row("Judge prompt hash", "judge_prompt_hash"),
-                _row("Data model hash", "data_model_hash"),
-                _row("DM id", "dm_id"),
                 _row("Graph nodes", "graph_nodes"),
                 _row("Graph edges", "graph_edges"),
                 _row("Vector indexes", "vector_indexes"),
@@ -544,11 +541,18 @@ def _compare_dialog() -> rx.Component:
         )
 
     def _result_row(row: dict[str, rx.Var]) -> rx.Component:
+        def _badge_color(status: str) -> rx.Var:
+            return rx.cond(
+                status == "pass",
+                "green",
+                rx.cond(status == "fail", "red", "gray"),
+            )
+
         return rx.table.row(
             rx.table.cell(rx.text(row.get("question", ""))),
             rx.table.cell(
                 rx.vstack(
-                    rx.badge(row.get("status_a", "—"), color_scheme="gray", variant="soft"),
+                    rx.badge(row.get("status_a", "—"), color_scheme=_badge_color(row.get("status_a", "—")), variant="soft"),
                     rx.text(f"Rating: {row.get('rating_a', '—')}", size="1"),
                     rx.text(row.get("comment_a", ""), size="1", color="gray"),
                     spacing="1",
@@ -557,7 +561,7 @@ def _compare_dialog() -> rx.Component:
             ),
             rx.table.cell(
                 rx.vstack(
-                    rx.badge(row.get("status_b", "—"), color_scheme="gray", variant="soft"),
+                    rx.badge(row.get("status_b", "—"), color_scheme=_badge_color(row.get("status_b", "—")), variant="soft"),
                     rx.text(f"Rating: {row.get('rating_b', '—')}", size="1"),
                     rx.text(row.get("comment_b", ""), size="1", color="gray"),
                     spacing="1",
@@ -574,6 +578,7 @@ def _compare_dialog() -> rx.Component:
                     _stat_block("Run A", EvalState.compare_run_a_summary),
                     _stat_block("Run B", EvalState.compare_run_b_summary),
                     spacing="3",
+                    width="100%",
                 ),
                 rx.hstack(
                     _config_block(EvalState.compare_config_run_a),
@@ -584,16 +589,107 @@ def _compare_dialog() -> rx.Component:
                 rx.cond(
                     EvalState.compare_diff_keys != [],
                     rx.callout(
-                        rx.hstack(
-                            rx.text("Differences:", weight="medium", size="1"),
-                            rx.box(rx.foreach(EvalState.compare_diff_keys, lambda k: rx.badge(k, variant="soft"))),  # todo wrap?
+                        rx.vstack(
+                            rx.hstack(
+                                rx.text("Differences:", weight="medium", size="1"),
+                                rx.box(rx.foreach(EvalState.compare_diff_keys, lambda k: rx.badge(k, variant="soft"))),
+                                spacing="2",
+                                align="center",
+                            ),
+                            rx.hstack(
+                                rx.accordion.root(
+                                    rx.accordion.item(
+                                        rx.accordion.trigger("Judge prompt diff"),
+                                        rx.accordion.content(
+                                            rx.box(
+                                                rx.text(EvalState.compare_prompt_diff, size="1", white_space="pre-wrap"),
+                                                padding="0.5em",
+                                                border="1px solid var(--gray-5)",
+                                                border_radius="6px",
+                                                style={"maxHeight": "240px", "overflow": "auto"},
+                                            )
+                                        ),
+                                        value="prompt-diff",
+                                    ),
+                                    rx.accordion.item(
+                                        rx.accordion.trigger("Data model diff"),
+                                        rx.accordion.content(
+                                            rx.box(
+                                                rx.text(EvalState.compare_dm_diff, size="1", white_space="pre-wrap"),
+                                                padding="0.5em",
+                                                border="1px solid var(--gray-5)",
+                                                border_radius="6px",
+                                                style={"maxHeight": "240px", "overflow": "auto"},
+                                            )
+                                        ),
+                                        value="dm-diff",
+                                    ),
+                                    type="multiple",
+                                    collapsible=True,
+                                    width="100%",
+                                ),
+                            ),
                             spacing="2",
-                            align="center",
+                            width="100%",
                         ),
                         color_scheme="amber",
                         variant="soft",
+                        width="100%",
                     ),
                     rx.box(),
+                ),
+                rx.accordion.root(
+                    rx.accordion.item(
+                        rx.accordion.trigger("View full judge prompts"),
+                        rx.accordion.content(
+                            rx.vstack(
+                                rx.text("Run A", weight="medium"),
+                                rx.box(
+                                    rx.text(EvalState.compare_prompt_full_a, size="1", white_space="pre-wrap"),
+                                    padding="0.5em",
+                                    border="1px solid var(--gray-5)",
+                                    border_radius="6px",
+                                ),
+                                rx.text("Run B", weight="medium", margin_top="0.5em"),
+                                rx.box(
+                                    rx.text(EvalState.compare_prompt_full_b, size="1", white_space="pre-wrap"),
+                                    padding="0.5em",
+                                    border="1px solid var(--gray-5)",
+                                    border_radius="6px",
+                                ),
+                                spacing="2",
+                            )
+                        ),
+                        value="full-prompts",
+                    ),
+                    rx.accordion.item(
+                        rx.accordion.trigger("View full data models"),
+                        rx.accordion.content(
+                            rx.vstack(
+                                rx.text("Run A", weight="medium"),
+                                rx.box(
+                                    rx.text(EvalState.compare_dm_full_a, size="1", white_space="pre-wrap"),
+                                    padding="0.5em",
+                                    border="1px solid var(--gray-5)",
+                                    border_radius="6px",
+                                    style={"maxHeight": "240px", "overflow": "auto"},
+                                ),
+                                rx.text("Run B", weight="medium", margin_top="0.5em"),
+                                rx.box(
+                                    rx.text(EvalState.compare_dm_full_b, size="1", white_space="pre-wrap"),
+                                    padding="0.5em",
+                                    border="1px solid var(--gray-5)",
+                                    border_radius="6px",
+                                    style={"maxHeight": "240px", "overflow": "auto"},
+                                ),
+                                spacing="2",
+                            )
+                        ),
+                        value="full-dm",
+                    ),
+                    type="multiple",
+                    collapsible=True,
+                    width="100%",
                 ),
                 rx.cond(
                     EvalState.compare_loading,
@@ -753,7 +849,6 @@ def page() -> rx.Component:
             rx.grid(
                 rx.vstack(
                     _questions_card(),
-                    _compare_card(),
                     _tests_card(),
                 ),
                 rx.vstack(
@@ -761,6 +856,7 @@ def page() -> rx.Component:
                     _pipeline_card(),
                     _selection_and_actions(),
                     _status_messages(),
+                    _compare_card(),
                     spacing="4",
                     width="100%",
                 ),
