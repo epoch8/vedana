@@ -720,14 +720,14 @@ def _compare_dialog() -> rx.Component:
             rx.dialog.title("Run comparison"),
             rx.vstack(
                 rx.hstack(
-                    _stat_block("Run A", EvalState.compare_run_a_summary),
-                    _stat_block("Run B", EvalState.compare_run_b_summary),
+                    _stat_block("Run A", EvalState.compare_summary_a),
+                    _stat_block("Run B", EvalState.compare_summary_b),
                     spacing="3",
                     width="100%",
                 ),
                 rx.hstack(
-                    _config_block(EvalState.compare_config_run_a),
-                    _config_block(EvalState.compare_config_run_b),
+                    _config_block(EvalState.compare_config_a),
+                    _config_block(EvalState.compare_config_b),
                     spacing="3",
                     width="100%",
                 ),
