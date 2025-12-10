@@ -306,19 +306,19 @@ class DataModel:
             ],
             "links": [
                 {
-                    "from": l.anchor_from,
-                    "to": l.anchor_to,
-                    "sentence": l.sentence,
-                    "description": l.description,
+                    "from": li.anchor_from,
+                    "to": li.anchor_to,
+                    "sentence": li.sentence,
+                    "description": li.description,
                     "attributes": [
                         {
                             "attr_name": la.name,
                             "attr_description": la.description,
                         }
-                        for la in l.attributes
+                        for la in li.attributes
                     ],
                 }
-                for l in self.links
+                for li in self.links
             ],
             "queries": {i: q.name for i, q in enumerate(self.queries, start=1)},
         }
