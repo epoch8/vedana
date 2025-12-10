@@ -83,6 +83,10 @@ class EvalState(rx.State):
     compare_error: str = ""
     compare_rows: list[dict[str, Any]] = []
     compare_summary: dict[str, Any] = {}
+    compare_summary_a: dict[str, Any] = {}
+    compare_summary_b: dict[str, Any] = {}
+    compare_config_a: dict[str, Any] = {}
+    compare_config_b: dict[str, Any] = {}
     compare_configs: dict[str, Any] = {}
     compare_diff_keys: list[str] = []
     compare_prompt_diff: str = ""
@@ -196,22 +200,6 @@ class EvalState(rx.State):
             and self.compare_run_a != self.compare_run_b
             and not self.compare_loading
         )
-
-    @rx.var
-    def compare_run_a_summary(self) -> dict[str, Any]:
-        return self.compare_summary.get("run_a", {})
-
-    @rx.var
-    def compare_run_b_summary(self) -> dict[str, Any]:
-        return self.compare_summary.get("run_b", {})
-
-    @rx.var
-    def compare_config_run_a(self) -> dict[str, Any]:
-        return self.compare_configs.get("run_a", {})
-
-    @rx.var
-    def compare_config_run_b(self) -> dict[str, Any]:
-        return self.compare_configs.get("run_b", {})
 
     def toggle_question_selection(self, question: str, checked: bool) -> None:
         question = str(question or "").strip()
@@ -746,17 +734,17 @@ class EvalState(rx.State):
                         }
                     )
 
-                cfg_a = run_a_data.get("config_summary", {}) if isinstance(run_a_data, dict) else {}
-                cfg_b = run_b_data.get("config_summary", {}) if isinstance(run_b_data, dict) else {}
-                diff_keys = self._diff_config_keys(cfg_a, cfg_b)
+                self.compare_config_a = run_a_data.get("config_summary", {})
+                self.compare_config_b = run_b_data.get("config_summary", {})
+                diff_keys = self._diff_config_keys(self.compare_config_a, self.compare_config_b)
 
                 # Prompt and data model diffs
                 prompt_a = ""
                 prompt_b = ""
-                meta_a = run_a_data.get("meta", {}) if isinstance(run_a_data, dict) else {}
-                meta_b = run_b_data.get("meta", {}) if isinstance(run_b_data, dict) else {}
-                judge_a = meta_a.get("judge", {}) if isinstance(meta_a, dict) else {}
-                judge_b = meta_b.get("judge", {}) if isinstance(meta_b, dict) else {}
+                meta_a = run_a_data.get("meta", {})
+                meta_b = run_b_data.get("meta", {})
+                judge_a = meta_a.get("judge", {})
+                judge_b = meta_b.get("judge", {})
                 if isinstance(judge_a, dict):
                     pa = judge_a.get("judge_prompt")
                     if isinstance(pa, str):
@@ -766,8 +754,8 @@ class EvalState(rx.State):
                     if isinstance(pb, str):
                         prompt_b = pb
 
-                data_a = meta_a.get("data_model", {}) if isinstance(meta_a, dict) else {}
-                data_b = meta_b.get("data_model", {}) if isinstance(meta_b, dict) else {}
+                data_a = meta_a.get("data_model", {})
+                data_b = meta_b.get("data_model", {})
                 dm_a_str = data_a.get("dm_description") or ""
                 dm_b_str = data_b.get("dm_description") or ""
 
@@ -776,14 +764,8 @@ class EvalState(rx.State):
                 prompt_diff_rows = self._build_side_by_side_diff(prompt_a, prompt_b)
                 dm_diff_rows = self._build_side_by_side_diff(dm_a_str, dm_b_str)
 
-                self.compare_summary = {
-                    "run_a": run_a_data.get("summary", {}),
-                    "run_b": run_b_data.get("summary", {}),
-                }
-                self.compare_configs = {
-                    "run_a": cfg_a,
-                    "run_b": cfg_b,
-                }
+                self.compare_summary_a = run_a_data.get("summary", {})
+                self.compare_summary_b = run_b_data.get("summary", {})
                 self.compare_diff_keys = diff_keys
                 self.compare_rows = aligned_rows
                 self.compare_prompt_diff = prompt_diff
