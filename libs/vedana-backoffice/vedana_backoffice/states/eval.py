@@ -5,7 +5,7 @@ import json
 import logging
 import traceback
 from datetime import datetime
-from typing import Any
+from typing import Any, TypedDict, cast
 from uuid import UUID
 
 import reflex as rx
@@ -21,6 +21,58 @@ from vedana_etl.app import app as etl_app
 
 from vedana_backoffice.states.common import get_vedana_app
 from vedana_backoffice.util import safe_render_value
+
+
+class QuestionResult(TypedDict):
+    status: str
+    rating: float | str | None
+    comment: str
+    answer: str
+    tool_calls: str
+    golden_answer: str
+    thread_id: str
+
+
+class RunSummary(TypedDict):
+    run_id: str
+    run_label: str
+    tests_total: int
+    passed: int
+    failed: int
+    pass_rate: float
+    avg_rating: float | None
+    cost_total: float
+    test_run_name: str
+
+
+class RunData(TypedDict):
+    summary: RunSummary
+    meta: dict[str, Any]
+    config_summary: dict[str, Any]
+    results: dict[str, QuestionResult]
+
+
+EMPTY_RESULT: QuestionResult = {
+    "status": "—",
+    "rating": "—",
+    "comment": "",
+    "answer": "",
+    "tool_calls": "",
+    "golden_answer": "",
+    "thread_id": "",
+}
+
+EMPTY_SUMMARY: RunSummary = {
+    "run_id": "",
+    "run_label": "",
+    "tests_total": 0,
+    "passed": 0,
+    "failed": 0,
+    "pass_rate": 0.0,
+    "avg_rating": None,
+    "cost_total": 0.0,
+    "test_run_name": "",
+}
 
 
 class EvalState(rx.State):
@@ -83,8 +135,8 @@ class EvalState(rx.State):
     compare_error: str = ""
     compare_rows: list[dict[str, Any]] = []
     compare_summary: dict[str, Any] = {}
-    compare_summary_a: dict[str, Any] = {}
-    compare_summary_b: dict[str, Any] = {}
+    compare_summary_a: RunSummary = EMPTY_SUMMARY
+    compare_summary_b: RunSummary = EMPTY_SUMMARY
     compare_config_a: dict[str, Any] = {}
     compare_config_b: dict[str, Any] = {}
     compare_configs: dict[str, Any] = {}
@@ -709,63 +761,55 @@ class EvalState(rx.State):
                 run_b_data = self._collect_run_data(run_b_id, threads_b, events_by_thread)
 
                 # Align questions across both runs
-                run_a_results = run_a_data.get("results", {})
-                run_b_results = run_b_data.get("results", {})
+                run_a_results = run_a_data["results"]
+                run_b_results = run_b_data["results"]
                 all_questions = set(run_a_results.keys()) | set(run_b_results.keys())
 
                 aligned_rows = []
                 for q in sorted(all_questions):
-                    ra = run_a_results.get(q, {}) if isinstance(run_a_results, dict) else {}
-                    rb = run_b_results.get(q, {}) if isinstance(run_b_results, dict) else {}
+                    ra = run_a_results.get(q, EMPTY_RESULT)
+                    rb = run_b_results.get(q, EMPTY_RESULT)
                     aligned_rows.append(
                         {
                             "question": q,
-                            "golden_answer": ra.get("golden_answer") or rb.get("golden_answer") or "",
-                            "status_a": ra.get("status", "—"),
-                            "rating_a": ra.get("rating"),
-                            "comment_a": ra.get("comment", ""),
-                            "answer_a": ra.get("answer", ""),
-                            "tool_calls_a": ra.get("tool_calls", ""),
-                            "status_b": rb.get("status", "—"),
-                            "rating_b": rb.get("rating"),
-                            "comment_b": rb.get("comment", ""),
-                            "answer_b": rb.get("answer", ""),
-                            "tool_calls_b": rb.get("tool_calls", ""),
+                            "golden_answer": ra["golden_answer"] or rb["golden_answer"],
+                            "status_a": ra["status"],
+                            "rating_a": ra["rating"],
+                            "comment_a": ra["comment"],
+                            "answer_a": ra["answer"],
+                            "tool_calls_a": ra["tool_calls"],
+                            "status_b": rb["status"],
+                            "rating_b": rb["rating"],
+                            "comment_b": rb["comment"],
+                            "answer_b": rb["answer"],
+                            "tool_calls_b": rb["tool_calls"],
                         }
                     )
 
-                self.compare_config_a = run_a_data.get("config_summary", {})
-                self.compare_config_b = run_b_data.get("config_summary", {})
+                self.compare_config_a = run_a_data["config_summary"]
+                self.compare_config_b = run_b_data["config_summary"]
                 diff_keys = self._diff_config_keys(self.compare_config_a, self.compare_config_b)
 
                 # Prompt and data model diffs
-                prompt_a = ""
-                prompt_b = ""
-                meta_a = run_a_data.get("meta", {})
-                meta_b = run_b_data.get("meta", {})
-                judge_a = meta_a.get("judge", {})
-                judge_b = meta_b.get("judge", {})
-                if isinstance(judge_a, dict):
-                    pa = judge_a.get("judge_prompt")
-                    if isinstance(pa, str):
-                        prompt_a = pa
-                if isinstance(judge_b, dict):
-                    pb = judge_b.get("judge_prompt")
-                    if isinstance(pb, str):
-                        prompt_b = pb
+                meta_a = run_a_data["meta"]
+                meta_b = run_b_data["meta"]
+                judge_a = cast(dict[str, Any], meta_a.get("judge", {}))
+                judge_b = cast(dict[str, Any], meta_b.get("judge", {}))
+                prompt_a = cast(str, judge_a.get("judge_prompt", ""))
+                prompt_b = cast(str, judge_b.get("judge_prompt", ""))
 
-                data_a = meta_a.get("data_model", {})
-                data_b = meta_b.get("data_model", {})
-                dm_a_str = data_a.get("dm_description") or ""
-                dm_b_str = data_b.get("dm_description") or ""
+                data_a = cast(dict[str, Any], meta_a.get("data_model", {}))
+                data_b = cast(dict[str, Any], meta_b.get("data_model", {}))
+                dm_a_str = cast(str, data_a.get("dm_description", ""))
+                dm_b_str = cast(str, data_b.get("dm_description", ""))
 
                 prompt_diff = "\n".join(difflib.unified_diff(prompt_a.splitlines(), prompt_b.splitlines(), lineterm=""))
                 dm_diff = "\n".join(difflib.unified_diff(dm_a_str.splitlines(), dm_b_str.splitlines(), lineterm=""))
                 prompt_diff_rows = self._build_side_by_side_diff(prompt_a, prompt_b)
                 dm_diff_rows = self._build_side_by_side_diff(dm_a_str, dm_b_str)
 
-                self.compare_summary_a = run_a_data.get("summary", {})
-                self.compare_summary_b = run_b_data.get("summary", {})
+                self.compare_summary_a = run_a_data["summary"]
+                self.compare_summary_b = run_b_data["summary"]
                 self.compare_diff_keys = diff_keys
                 self.compare_rows = aligned_rows
                 self.compare_prompt_diff = prompt_diff
@@ -1061,54 +1105,34 @@ class EvalState(rx.State):
 
     def _summarize_config_for_display(self, meta: dict[str, Any], cfg_fallback: dict[str, Any]) -> dict[str, Any]:
         """Extract a concise config summary for comparison UI with sensible fallbacks."""
-        src = meta if isinstance(meta, dict) else {}
-        judge = src.get("judge", {}) if isinstance(src.get("judge"), dict) else {}
-        data_model = src.get("data_model", {}) if isinstance(src.get("data_model"), dict) else {}
-        graph = src.get("graph", {}) if isinstance(src.get("graph"), dict) else {}
+        judge = cast(dict[str, Any], meta.get("judge", {}))
+        data_model = cast(dict[str, Any], meta.get("data_model", {}))
+        graph = cast(dict[str, Any], meta.get("graph", {}))
 
-        # Fallbacks from thread config if meta is missing
-        pipeline_model = src.get("pipeline_model") or (
-            cfg_fallback.get("pipeline_model") if isinstance(cfg_fallback, dict) else None
-        )
-        embeddings_model = src.get("embeddings_model") or (
-            cfg_fallback.get("embeddings_model") if isinstance(cfg_fallback, dict) else None
-        )
-        embeddings_dim = src.get("embeddings_dim") or (
-            cfg_fallback.get("embeddings_dim") if isinstance(cfg_fallback, dict) else None
-        )
+        pipeline_model = meta.get("pipeline_model", cfg_fallback.get("pipeline_model"))
+        embeddings_model = meta.get("embeddings_model", cfg_fallback.get("embeddings_model"))
+        embeddings_dim = meta.get("embeddings_dim", cfg_fallback.get("embeddings_dim"))
 
-        judge_model = judge.get("judge_model") or (
-            cfg_fallback.get("judge_model") if isinstance(cfg_fallback, dict) else None
-        )
-        judge_prompt_id = judge.get("judge_prompt_id") or (
-            cfg_fallback.get("judge_prompt_id") if isinstance(cfg_fallback, dict) else None
-        )
+        judge_model = judge.get("judge_model", cfg_fallback.get("judge_model"))
+        judge_prompt_id = judge.get("judge_prompt_id", cfg_fallback.get("judge_prompt_id"))
 
-        judge_prompt = judge.get("judge_prompt") or ""
-        judge_prompt_hash = ""
-        if isinstance(judge_prompt, str) and judge_prompt:
-            judge_prompt_hash = hashlib.sha256(judge_prompt.encode("utf-8")).hexdigest()
-
-        dm_hash = data_model.get("dm_hash") if isinstance(data_model, dict) else None
-        dm_id = data_model.get("dm_id") if isinstance(data_model, dict) else None
+        judge_prompt = cast(str, judge.get("judge_prompt", ""))
+        judge_prompt_hash = hashlib.sha256(judge_prompt.encode("utf-8")).hexdigest() if judge_prompt else ""
 
         return {
-            "test_run_id": src.get("test_run")
-            or (cfg_fallback.get("test_run") if isinstance(cfg_fallback, dict) else None),
-            "test_run_name": src.get("test_run_name")
-            or (cfg_fallback.get("test_run_name") if isinstance(cfg_fallback, dict) else "")
-            or "",
+            "test_run_id": meta.get("test_run", cfg_fallback.get("test_run")),
+            "test_run_name": meta.get("test_run_name", cfg_fallback.get("test_run_name", "")) or "",
             "pipeline_model": pipeline_model,
             "embeddings_model": embeddings_model,
             "embeddings_dim": embeddings_dim,
             "judge_model": judge_model,
             "judge_prompt_id": judge_prompt_id,
             "judge_prompt_hash": judge_prompt_hash,
-            "dm_hash": dm_hash,
-            "dm_id": dm_id,
-            "graph_nodes": graph.get("nodes_by_label") if isinstance(graph, dict) else None,
-            "graph_edges": graph.get("edges_by_type") if isinstance(graph, dict) else None,
-            "vector_indexes": graph.get("vector_indexes") if isinstance(graph, dict) else None,
+            "dm_hash": data_model.get("dm_hash"),
+            "dm_id": data_model.get("dm_id"),
+            "graph_nodes": graph.get("nodes_by_label"),
+            "graph_edges": graph.get("edges_by_type"),
+            "vector_indexes": graph.get("vector_indexes"),
         }
 
     @rx.var
@@ -1149,9 +1173,9 @@ class EvalState(rx.State):
         run_id: str,
         threads: list[ThreadDB],
         events_by_thread: dict[UUID, list[ThreadEventDB]],
-    ) -> dict[str, Any]:
+    ) -> RunData:
         """Aggregate results, meta, and stats for a single run."""
-        results_by_question: dict[str, dict[str, Any]] = {}
+        results_by_question: dict[str, QuestionResult] = {}
         meta_sample: dict[str, Any] = {}
         cfg_sample: dict[str, Any] = {}
         total = 0
@@ -1180,17 +1204,16 @@ class EvalState(rx.State):
                 if ev.event_type == "comm.assistant_message":
                     answer = str(ev.event_data.get("content", ""))
                 elif ev.event_type == "rag.query_processed":
-                    tech = ev.event_data.get("technical_info", {}) if isinstance(ev.event_data, dict) else {}
-                    model_stats = tech.get("model_stats") if isinstance(tech, dict) else {}
-                    if isinstance(model_stats, dict):
-                        for stats in model_stats.values():
-                            if isinstance(stats, dict):
-                                cost_val = stats.get("requests_cost")
-                                try:
-                                    if cost_val is not None:
-                                        cost_total += float(cost_val)
-                                except (TypeError, ValueError):
-                                    pass
+                    tech = cast(dict[str, Any], ev.event_data.get("technical_info", {}))
+                    model_stats = cast(dict[str, Any], tech.get("model_stats", {}))
+                    for stats in model_stats.values():
+                        if isinstance(stats, dict):
+                            cost_val = stats.get("requests_cost")
+                            try:
+                                if cost_val is not None:
+                                    cost_total += float(cost_val)
+                            except (TypeError, ValueError):
+                                pass
                 elif ev.event_type == "eval.result":
                     status = ev.event_data.get("test_status", status)
                     judge_comment = ev.event_data.get("eval_judge_comment", judge_comment)
@@ -1214,18 +1237,18 @@ class EvalState(rx.State):
                 ratings.append(rating_val)
 
             key = str(question_text or f"question-{total}")
-            results_by_question[key] = {
-                "status": status or "—",
-                "rating": rating_val if rating_val is not None else "—",
-                "comment": safe_render_value(judge_comment),
-                "answer": safe_render_value(answer),
-                "tool_calls": safe_render_value(tool_calls),
-                "golden_answer": safe_render_value(golden_answer),
-                "thread_id": str(thread.thread_id),
-            }
+            results_by_question[key] = QuestionResult(
+                status=status or "—",
+                rating=rating_val if rating_val is not None else "—",
+                comment=safe_render_value(judge_comment),
+                answer=safe_render_value(answer),
+                tool_calls=safe_render_value(tool_calls),
+                golden_answer=safe_render_value(golden_answer),
+                thread_id=str(thread.thread_id),
+            )
 
         avg_rating = sum(ratings) / len(ratings) if ratings else 0.0
-        summary = {
+        summary: RunSummary = {
             "run_id": run_id,
             "run_label": self._format_run_label_with_name(run_id, meta_sample or cfg_sample),
             "tests_total": total,
@@ -1234,19 +1257,17 @@ class EvalState(rx.State):
             "pass_rate": (passed / total) if total else 0.0,
             "avg_rating": round(avg_rating, 2) if ratings else None,
             "cost_total": round(cost_total, 3),
-            "test_run_name": (meta_sample.get("test_run_name") if isinstance(meta_sample, dict) else None)
-            or (cfg_sample.get("test_run_name") if isinstance(cfg_sample, dict) else None)
-            or "",
+            "test_run_name": meta_sample.get("test_run_name", "") or cfg_sample.get("test_run_name", ""),
         }
 
         config_summary = self._summarize_config_for_display(meta_sample, cfg_sample)
 
-        return {
-            "summary": summary,
-            "meta": meta_sample,
-            "config_summary": config_summary,
-            "results": results_by_question,
-        }
+        return RunData(
+            summary=summary,
+            meta=meta_sample,
+            config_summary=config_summary,
+            results=results_by_question,
+        )
 
     def _build_thread_config(
         self, question_row: dict[str, Any], test_run_id: str, test_run_name: str
