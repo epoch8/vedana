@@ -686,8 +686,8 @@ def _compare_dialog() -> rx.Component:
                     rx.hstack(
                         rx.badge(
                             row["status_b"],
-                            color_scheme=_badge_color(row["status_b"]),
-                            variant="soft",  # type: ignore[arg-type]
+                            color_scheme=_badge_color(row["status_b"]),  # type: ignore[arg-type]
+                            variant="soft",
                         ),
                         rx.text(f"Rating: {row['rating_b']}", size="1"),
                         align="center",
