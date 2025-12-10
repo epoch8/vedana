@@ -101,7 +101,7 @@ class FilteredRagPipeline:
         self.threshold = threshold
         self.top_n = top_n
         self.model = model or settings.model
-        self.filter_model = filter_model or self.model
+        self.filter_model = filter_model or settings.filter_model  # or self.model
         self.enable_filtering = enable_filtering
 
     async def __call__(self, ctx: ThreadContext) -> None:
