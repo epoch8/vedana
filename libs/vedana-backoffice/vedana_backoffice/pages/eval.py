@@ -1,6 +1,6 @@
 import reflex as rx
 
-from vedana_backoffice.states.eval import EvalState
+from vedana_backoffice.states.eval import EvalState, RunSummary
 from vedana_backoffice.ui import app_header
 
 
@@ -465,7 +465,7 @@ def _compare_card() -> rx.Component:
 
 
 def _compare_dialog() -> rx.Component:
-    def _stat_block(label: str, summary: dict[str, rx.Var]) -> rx.Component:
+    def _stat_block(label: str, summary: RunSummary) -> rx.Component:
         return rx.card(
             rx.vstack(
                 rx.text(label, weight="medium"),
@@ -628,7 +628,10 @@ def _compare_dialog() -> rx.Component:
         )
 
     def _result_row(row: dict[str, rx.Var]) -> rx.Component:
-        def _badge_color(status: str) -> rx.Var:
+        def _badge_color(status: str | None) -> rx.Var:
+            """
+            green for pass, red for fail, grey else
+            """
             return rx.cond(
                 status == "pass",
                 "green",
@@ -670,9 +673,9 @@ def _compare_dialog() -> rx.Component:
         return rx.table.row(
             rx.table.cell(
                 rx.vstack(
-                    rx.text(row.get("question", "")),
+                    rx.text(row["question"]),
                     rx.text(
-                        row.get("golden_answer", ""),
+                        row["golden_answer"],
                         size="1",
                         color="gray",
                         white_space="pre-wrap",

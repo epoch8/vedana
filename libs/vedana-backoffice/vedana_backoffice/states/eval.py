@@ -80,12 +80,8 @@ class EvalState(rx.State):
 
     """
     TODO tasks
-    - still no way to version the graph data properly. need to create some sort of metadata write (all node counts per-label, all edge counts per-label, plus SHOW VECTOR INDEX INFO and put all this into JSON and write as an eval.meta event in thread)
-    - write data model JSON (+ its hash like in the page) in thread as a system event to version it (also eval.meta event)
-    - same for judge prompt, also store it in eval.meta event
-    - optimize runs if possible (parallel async execution? check if it is not done properly already)
-    - make the 0-10 judge rating that is in judge's comment right now a separate column, update judge response schema.
-    - add the ability to sort test results by fail / pass (and judge rating, combined in this sorting)
+    - fix configs display on comparison page
+    - fix run naming on comparison page
     """
 
     loading: bool = False
