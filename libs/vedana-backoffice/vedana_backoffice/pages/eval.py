@@ -469,15 +469,6 @@ def _compare_dialog() -> rx.Component:
         return rx.card(
             rx.vstack(
                 rx.text(label, weight="medium"),
-                rx.text(
-                    rx.cond(
-                        summary["run_label"] != "",
-                        summary["run_label"],
-                        "—",
-                    ),
-                    size="2",
-                    color="gray",
-                ),
                 rx.hstack(
                     rx.badge(
                         rx.text(
@@ -497,11 +488,7 @@ def _compare_dialog() -> rx.Component:
                         variant="soft",
                     ),
                     rx.badge(
-                        rx.cond(
-                            summary["avg_rating"] is not None,
-                            f"Rating: {summary['avg_rating']:.2f}",
-                            "Rating: —",
-                        ),
+                        f"Rating: {summary['avg_rating']}",
                         color_scheme="blue",
                         variant="soft",
                     ),
@@ -536,6 +523,7 @@ def _compare_dialog() -> rx.Component:
                     style={"padding": "0.15em 0.25em"},
                 ),
             )
+
         return rx.card(
             rx.vstack(
                 rx.text("Config", weight="medium"),
@@ -598,9 +586,9 @@ def _compare_dialog() -> rx.Component:
         return rx.vstack(
             rx.text(title, weight="medium"),
             rx.hstack(
-                rx.text("Run A", weight="medium", size="1"),
+                rx.text(EvalState.compare_run_label_a, weight="medium", size="1"),
                 rx.spacer(),
-                rx.text("Run B", weight="medium", size="1"),
+                rx.text(EvalState.compare_run_label_b, weight="medium", size="1"),
                 width="100%",
             ),
             rx.scroll_area(
@@ -680,7 +668,9 @@ def _compare_dialog() -> rx.Component:
                 rx.vstack(
                     rx.hstack(
                         rx.badge(
-                            row["status_a"], color_scheme=_badge_color(row["status_a"]), variant="soft"  # type: ignore[arg-type]
+                            row["status_a"],
+                            color_scheme=_badge_color(row["status_a"]),  # type: ignore[arg-type]
+                            variant="soft",
                         ),
                         rx.text(f"Rating: {row['rating_a']}", size="1"),
                         align="center",
@@ -695,7 +685,9 @@ def _compare_dialog() -> rx.Component:
                 rx.vstack(
                     rx.hstack(
                         rx.badge(
-                            row["status_b"], color_scheme=_badge_color(row["status_b"]), variant="soft"  # type: ignore[arg-type]
+                            row["status_b"],
+                            color_scheme=_badge_color(row["status_b"]),
+                            variant="soft",  # type: ignore[arg-type]
                         ),
                         rx.text(f"Rating: {row['rating_b']}", size="1"),
                         align="center",
@@ -713,8 +705,8 @@ def _compare_dialog() -> rx.Component:
             rx.dialog.title("Run comparison"),
             rx.vstack(
                 rx.hstack(
-                    _stat_block("Run A", EvalState.compare_summary_a),
-                    _stat_block("Run B", EvalState.compare_summary_b),
+                    _stat_block(EvalState.compare_run_label_a, EvalState.compare_summary_a),  # type: ignore[arg-type]
+                    _stat_block(EvalState.compare_run_label_b, EvalState.compare_summary_b),  # type: ignore[arg-type]
                     spacing="3",
                     width="100%",
                 ),
@@ -790,8 +782,12 @@ def _compare_dialog() -> rx.Component:
                             rx.table.header(
                                 rx.table.row(
                                     rx.table.column_header_cell("Question", style={"width": "25%"}),
-                                    rx.table.column_header_cell("Run A", style={"width": "37.5%"}),
-                                    rx.table.column_header_cell("Run B", style={"width": "37.5%"}),
+                                    rx.table.column_header_cell(
+                                        EvalState.compare_run_label_a, style={"width": "37.5%"}
+                                    ),
+                                    rx.table.column_header_cell(
+                                        EvalState.compare_run_label_b, style={"width": "37.5%"}
+                                    ),
                                 )
                             ),
                             rx.table.body(rx.foreach(EvalState.compare_rows, _result_row)),

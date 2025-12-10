@@ -41,7 +41,7 @@ class RunSummary(TypedDict):
     passed: int
     failed: int
     pass_rate: float
-    avg_rating: float | None
+    avg_rating: str  # rounded and converted to str
     cost_total: float
     test_run_name: str
 
@@ -154,7 +154,7 @@ EMPTY_SUMMARY: RunSummary = {
     "passed": 0,
     "failed": 0,
     "pass_rate": 0.0,
-    "avg_rating": None,
+    "avg_rating": "—",
     "cost_total": 0.0,
     "test_run_name": "",
 }
@@ -1269,6 +1269,28 @@ class EvalState(rx.State):
             or any(abs(self._to_int(cast(int | float | str | None, r["row_idx"])) - ci) <= window for ci in change_idxs)
         ]
 
+    @rx.var
+    def compare_run_label_a(self) -> str:
+        name = self.compare_summary_a.get("test_run_name", "")
+        if isinstance(name, str) and name.strip():
+            other = self.compare_summary_b.get("test_run_name", "")
+            if isinstance(other, str) and other.strip() and other == name:
+                return f"{self.compare_summary_a.get('run_label', '')}"
+            return name
+        label = self.compare_summary_a.get("run_label", "")
+        return str(label) if label else "Run A"
+
+    @rx.var
+    def compare_run_label_b(self) -> str:
+        name = self.compare_summary_b.get("test_run_name", "")
+        if isinstance(name, str) and name.strip():
+            other = self.compare_summary_a.get("test_run_name", "")
+            if isinstance(other, str) and other.strip() and other == name:
+                return f"{self.compare_summary_b.get('run_label', '')}"
+            return name
+        label = self.compare_summary_b.get("run_label", "")
+        return str(label) if label else "Run B"
+
     def _extract_eval_meta(self, events: list[ThreadEventDB]) -> dict[str, Any]:
         """Return first eval.meta event data, if any."""
         for ev in events:
@@ -1422,7 +1444,7 @@ class EvalState(rx.State):
             "passed": passed,
             "failed": failed,
             "pass_rate": (passed / total) if total else 0.0,
-            "avg_rating": round(avg_rating, 2) if ratings else None,
+            "avg_rating": str(round(avg_rating, 2) if ratings else "—"),
             "cost_total": round(cost_total, 3),
             "test_run_name": meta_sample["test_run_name"]
             if "test_run_name" in meta_sample
