@@ -1450,13 +1450,13 @@ class EvalState(rx.State):
 
         rows: list[dict[str, object]] = []
         for label, key in [
-            ("Pipeline", "pipeline_model"),
+            ("Pipeline model", "pipeline_model"),
             ("Embeddings", "embeddings_model"),
-            ("Emb dims", "embeddings_dim"),
+            ("Embedding dims", "embeddings_dim"),
             ("Judge model", "judge_model"),
             ("Graph nodes", "graph_nodes"),
             ("Graph edges", "graph_edges"),
-            ("Vector indexes", "vector_indexes"),
+            # ("Vector indexes", "vector_indexes"),  # takes a lot of space
         ]:
             val = _as_text(cfg[key]) if key in cfg else "—"
             rows.append({"label": label, "value": val, "diff": key in diff_keys})
