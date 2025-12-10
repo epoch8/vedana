@@ -3,8 +3,8 @@ import difflib
 import hashlib
 import json
 import logging
-from dataclasses import dataclass
 import traceback
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Any, TypedDict, cast
 from uuid import UUID
@@ -48,26 +48,29 @@ class RunSummary(TypedDict):
 
 @dataclass
 class GraphMeta:
-    nodes_count: int
+    nodes_by_label: dict[str, int]
+    edges_by_type: dict[str, int]
+    vector_indexes: list[dict[str, object]]
+
 
 @dataclass
 class DmMeta:
-    dm_id: str
-    dm_description: str
+    dm_id: str = ""
+    dm_description: str = ""
 
 
 @dataclass
 class JudgeMeta:
-    judge_model: str
-    judge_prompt_id: str
-    judge_prompt: str
+    judge_model: str = ""
+    judge_prompt_id: str = ""
+    judge_prompt: str = ""
 
 
 @dataclass
 class RunConfig:
-    pipeline_model: str
-    embeddings_model: str
-    embeddings_dim: int
+    pipeline_model: str = ""
+    embeddings_model: str = ""
+    embeddings_dim: int = 0
 
 
 @dataclass
@@ -82,8 +85,56 @@ class RunMeta:
 class RunData:
     summary: RunSummary
     meta: RunMeta
-    config_summary: dict[str, Any]
+    config_summary: "RunConfigSummary"
     results: dict[str, QuestionResult]
+
+
+@dataclass
+class RunConfigSummary:
+    test_run_id: str
+    test_run_name: str
+    pipeline_model: str
+    embeddings_model: str
+    embeddings_dim: int
+    judge_model: str
+    judge_prompt_id: str
+    judge_prompt_hash: str
+    dm_hash: str
+    dm_id: str
+    graph_nodes: dict[str, int]
+    graph_edges: dict[str, int]
+    vector_indexes: list[dict[str, object]]
+
+
+@dataclass
+class DiffLine:
+    left: str
+    right: str
+    op: str
+    left_color: str
+    right_color: str
+    strong: bool
+    row_idx: int
+    is_change: bool
+
+
+@dataclass
+class CompareRow:
+    question: str
+    golden_answer: str
+    status_a: str
+    rating_a: float | str | None
+    comment_a: str
+    answer_a: str
+    tool_calls_a: str
+    status_b: str
+    rating_b: float | str | None
+    comment_b: str
+    answer_b: str
+    tool_calls_b: str
+
+
+DiffRow = dict[str, str | int | bool]
 
 
 EMPTY_RESULT: QuestionResult = {
@@ -167,8 +218,10 @@ class EvalState(rx.State):
     compare_summary: dict[str, Any] = {}
     compare_summary_a: RunSummary = EMPTY_SUMMARY
     compare_summary_b: RunSummary = EMPTY_SUMMARY
-    compare_config_a: dict[str, Any] = {}
-    compare_config_b: dict[str, Any] = {}
+    compare_config_a: dict[str, object] = {}
+    compare_config_b: dict[str, object] = {}
+    compare_config_a_rows: list[dict[str, object]] = []
+    compare_config_b_rows: list[dict[str, object]] = []
     compare_configs: dict[str, Any] = {}
     compare_diff_keys: list[str] = []
     compare_prompt_diff: str = ""
@@ -177,8 +230,8 @@ class EvalState(rx.State):
     compare_prompt_full_b: str = ""
     compare_dm_full_a: str = ""
     compare_dm_full_b: str = ""
-    compare_prompt_diff_rows: list[dict[str, Any]] = []
-    compare_dm_diff_rows: list[dict[str, Any]] = []
+    compare_prompt_diff_rows: list[DiffRow] = []
+    compare_dm_diff_rows: list[DiffRow] = []
     compare_judge_prompt_compact: bool = True
     compare_dm_compact: bool = True
 
@@ -791,57 +844,53 @@ class EvalState(rx.State):
                 run_b_data = self._collect_run_data(run_b_id, threads_b, events_by_thread)
 
                 # Align questions across both runs
-                run_a_results = run_a_data["results"]
-                run_b_results = run_b_data["results"]
+                run_a_results = run_a_data.results
+                run_b_results = run_b_data.results
                 all_questions = set(run_a_results.keys()) | set(run_b_results.keys())
 
-                aligned_rows = []
+                aligned_rows: list[CompareRow] = []
                 for q in sorted(all_questions):
                     ra = run_a_results.get(q, EMPTY_RESULT)
                     rb = run_b_results.get(q, EMPTY_RESULT)
                     aligned_rows.append(
-                        {
-                            "question": q,
-                            "golden_answer": ra["golden_answer"] or rb["golden_answer"],
-                            "status_a": ra["status"],
-                            "rating_a": ra["rating"],
-                            "comment_a": ra["comment"],
-                            "answer_a": ra["answer"],
-                            "tool_calls_a": ra["tool_calls"],
-                            "status_b": rb["status"],
-                            "rating_b": rb["rating"],
-                            "comment_b": rb["comment"],
-                            "answer_b": rb["answer"],
-                            "tool_calls_b": rb["tool_calls"],
-                        }
+                        CompareRow(
+                            question=q,
+                            golden_answer=ra["golden_answer"] or rb["golden_answer"],
+                            status_a=ra["status"],
+                            rating_a=ra["rating"],
+                            comment_a=ra["comment"],
+                            answer_a=ra["answer"],
+                            tool_calls_a=ra["tool_calls"],
+                            status_b=rb["status"],
+                            rating_b=rb["rating"],
+                            comment_b=rb["comment"],
+                            answer_b=rb["answer"],
+                            tool_calls_b=rb["tool_calls"],
+                        )
                     )
 
-                self.compare_config_a = run_a_data["config_summary"]
-                self.compare_config_b = run_b_data["config_summary"]
-                diff_keys = self._diff_config_keys(self.compare_config_a, self.compare_config_b)
+                cfg_a = asdict(run_a_data.config_summary)
+                cfg_b = asdict(run_b_data.config_summary)
+                diff_keys = self._diff_config_keys(cfg_a, cfg_b)
 
                 # Prompt and data model diffs
-                meta_a = run_a_data["meta"]
-                meta_b = run_b_data["meta"]
-                judge_a = cast(dict[str, Any], meta_a.get("judge", {}))
-                judge_b = cast(dict[str, Any], meta_b.get("judge", {}))
-                prompt_a = cast(str, judge_a.get("judge_prompt", ""))
-                prompt_b = cast(str, judge_b.get("judge_prompt", ""))
+                meta_a = run_a_data.meta
+                meta_b = run_b_data.meta
+                prompt_a = meta_a.judge.judge_prompt
+                prompt_b = meta_b.judge.judge_prompt
 
-                data_a = cast(dict[str, Any], meta_a.get("data_model", {}))
-                data_b = cast(dict[str, Any], meta_b.get("data_model", {}))
-                dm_a_str = cast(str, data_a.get("dm_description", ""))
-                dm_b_str = cast(str, data_b.get("dm_description", ""))
+                dm_a_str = meta_a.dm.dm_description
+                dm_b_str = meta_b.dm.dm_description
 
                 prompt_diff = "\n".join(difflib.unified_diff(prompt_a.splitlines(), prompt_b.splitlines(), lineterm=""))
                 dm_diff = "\n".join(difflib.unified_diff(dm_a_str.splitlines(), dm_b_str.splitlines(), lineterm=""))
                 prompt_diff_rows = self._build_side_by_side_diff(prompt_a, prompt_b)
                 dm_diff_rows = self._build_side_by_side_diff(dm_a_str, dm_b_str)
 
-                self.compare_summary_a = run_a_data["summary"]
-                self.compare_summary_b = run_b_data["summary"]
+                self.compare_summary_a = run_a_data.summary
+                self.compare_summary_b = run_b_data.summary
                 self.compare_diff_keys = diff_keys
-                self.compare_rows = aligned_rows
+                self.compare_rows = [asdict(r) for r in aligned_rows]
                 self.compare_prompt_diff = prompt_diff
                 self.compare_dm_diff = dm_diff
                 self.compare_prompt_full_a = prompt_a
@@ -850,11 +899,15 @@ class EvalState(rx.State):
                 self.compare_dm_full_b = dm_b_str
                 self.compare_prompt_diff_rows = prompt_diff_rows
                 self.compare_dm_diff_rows = dm_diff_rows
+                self.compare_config_a = cfg_a
+                self.compare_config_b = cfg_b
+                self.compare_config_a_rows = self._config_rows(cfg_a, diff_keys)
+                self.compare_config_b_rows = self._config_rows(cfg_b, diff_keys)
             except Exception as e:
                 self.compare_error = f"Failed to compare runs: {e}"
             finally:
                 self.compare_loading = False
-                yield
+            yield
 
     def toggle_gds_row(self, row_id: str) -> None:
         """Toggle expansion for a golden dataset row."""
@@ -1015,8 +1068,8 @@ class EvalState(rx.State):
             "meta_version": 1,
             "test_run": test_run_id,
             "test_run_name": test_run_name,
-            "run_config": run_config,
-            "judge": judge_meta,
+            "run_config": asdict(run_config),
+            "judge": asdict(judge_meta),
             "graph": graph_meta,
             "data_model": data_model_meta,
         }
@@ -1050,7 +1103,7 @@ class EvalState(rx.State):
         """
         Prefer user-provided test_run_name, fallback to formatted timestamp label.
         """
-        name = cfg.get("test_run_name") if isinstance(cfg, dict) else ""
+        name = cfg["test_run_name"] if isinstance(cfg, dict) and "test_run_name" in cfg else ""
         base = self._format_run_label(contact_id)
         if name:
             return f"{name} — {base}"
@@ -1065,24 +1118,26 @@ class EvalState(rx.State):
                 return str(val)
         return val
 
-    def _build_side_by_side_diff(self, a_text: str, b_text: str) -> list[dict[str, Any]]:
+    def _build_side_by_side_diff(self, a_text: str, b_text: str) -> list[DiffRow]:
         """Produce side-by-side diff rows with color hints (text color, no background)."""
-        a_lines = a_text.splitlines() if isinstance(a_text, str) else []
-        b_lines = b_text.splitlines() if isinstance(b_text, str) else []
+        a_lines = a_text.splitlines()
+        b_lines = b_text.splitlines()
         sm = difflib.SequenceMatcher(None, a_lines, b_lines)
-        rows: list[dict[str, Any]] = []
+        rows: list[DiffLine] = []
         for tag, i1, i2, j1, j2 in sm.get_opcodes():
             if tag == "equal":
                 for al, bl in zip(a_lines[i1:i2], b_lines[j1:j2]):
                     rows.append(
-                        {
-                            "left": al,
-                            "right": bl,
-                            "op": tag,
-                            "left_color": "inherit",
-                            "right_color": "inherit",
-                            "strong": False,
-                        }
+                        DiffLine(
+                            left=al,
+                            right=bl,
+                            op=tag,
+                            left_color="inherit",
+                            right_color="inherit",
+                            strong=False,
+                            row_idx=0,
+                            is_change=False,
+                        )
                     )
             elif tag == "replace":
                 max_len = max(i2 - i1, j2 - j1)
@@ -1090,108 +1145,128 @@ class EvalState(rx.State):
                     al = a_lines[i1 + k] if i1 + k < i2 else ""
                     bl = b_lines[j1 + k] if j1 + k < j2 else ""
                     rows.append(
-                        {
-                            "left": al,
-                            "right": bl,
-                            "op": tag,
-                            "left_color": "var(--indigo-11)",
-                            "right_color": "var(--indigo-11)",
-                            "strong": True,
-                        }
+                        DiffLine(
+                            left=al,
+                            right=bl,
+                            op=tag,
+                            left_color="var(--indigo-11)",
+                            right_color="var(--indigo-11)",
+                            strong=True,
+                            row_idx=0,
+                            is_change=True,
+                        )
                     )
             elif tag == "delete":
                 for al in a_lines[i1:i2]:
                     rows.append(
-                        {
-                            "left": al,
-                            "right": "",
-                            "op": tag,
-                            "left_color": "var(--red-11)",
-                            "right_color": "inherit",
-                            "strong": True,
-                        }
+                        DiffLine(
+                            left=al,
+                            right="",
+                            op=tag,
+                            left_color="var(--red-11)",
+                            right_color="inherit",
+                            strong=True,
+                            row_idx=0,
+                            is_change=True,
+                        )
                     )
             elif tag == "insert":
                 for bl in b_lines[j1:j2]:
                     rows.append(
-                        {
-                            "left": "",
-                            "right": bl,
-                            "op": tag,
-                            "left_color": "inherit",
-                            "right_color": "var(--green-11)",
-                            "strong": True,
-                        }
+                        DiffLine(
+                            left="",
+                            right=bl,
+                            op=tag,
+                            left_color="inherit",
+                            right_color="var(--green-11)",
+                            strong=True,
+                            row_idx=0,
+                            is_change=True,
+                        )
                     )
         for idx, row in enumerate(rows):
-            row["row_idx"] = idx
-            row["is_change"] = row.get("op") != "equal"
-        return rows
+            row.row_idx = idx
+            row.is_change = row.op != "equal"
+        return [cast(DiffRow, asdict(r)) for r in rows]
 
-    def _diff_config_keys(self, cfg_a: dict[str, Any], cfg_b: dict[str, Any]) -> list[str]:
+    def _diff_config_keys(self, cfg_a: dict[str, object], cfg_b: dict[str, object]) -> list[str]:
         """Return keys whose normalized values differ."""
         keys = set(cfg_a.keys()) | set(cfg_b.keys())
         diffs: list[str] = []
         for key in keys:
-            if self._normalize_diff_val(cfg_a.get(key)) != self._normalize_diff_val(cfg_b.get(key)):
+            left = cfg_a[key] if key in cfg_a else None
+            right = cfg_b[key] if key in cfg_b else None
+            if self._normalize_diff_val(left) != self._normalize_diff_val(right):
                 diffs.append(key)
         return sorted(diffs)
 
-    def _summarize_config_for_display(self, meta: dict[str, Any], cfg_fallback: dict[str, Any]) -> dict[str, Any]:
-        judge = meta.get("judge", {})
-        data_model = meta.get("data_model", {})
-        graph = meta.get("graph", {})
+    def _summarize_config_for_display(self, meta: RunMeta, cfg_fallback: dict[str, Any]) -> RunConfigSummary:
+        judge = meta.judge
+        dm = meta.dm
+        graph = meta.graph
+        run_cfg = meta.run_config
 
-        pipeline_model = meta.get("pipeline_model", cfg_fallback.get("pipeline_model"))
-        embeddings_model = meta.get("embeddings_model", cfg_fallback.get("embeddings_model"))
-        embeddings_dim = meta.get("embeddings_dim", cfg_fallback.get("embeddings_dim"))
+        pipeline_model_val = (
+            run_cfg.pipeline_model if run_cfg.pipeline_model else cfg_fallback.get("pipeline_model", "")
+        )
+        embeddings_model_val = (
+            run_cfg.embeddings_model if run_cfg.embeddings_model else cfg_fallback.get("embeddings_model", "")
+        )
+        embeddings_dim_val = run_cfg.embeddings_dim if run_cfg.embeddings_dim else cfg_fallback.get("embeddings_dim", 0)
+        pipeline_model = str(pipeline_model_val)
+        embeddings_model = str(embeddings_model_val)
+        embeddings_dim = self._to_int(embeddings_dim_val)
 
-        judge_model = judge.get("judge_model", cfg_fallback.get("judge_model"))
-        judge_prompt_id = judge.get("judge_prompt_id", cfg_fallback.get("judge_prompt_id"))
+        judge_model = judge.judge_model or cfg_fallback.get("judge_model", "")
+        judge_prompt_id = judge.judge_prompt_id or cfg_fallback.get("judge_prompt_id", "")
 
-        judge_prompt = cast(str, judge.get("judge_prompt", ""))
-        judge_prompt_hash = hashlib.sha256(judge_prompt.encode("utf-8")).hexdigest() if judge_prompt else ""
+        judge_prompt_hash = hashlib.sha256(judge.judge_prompt.encode("utf-8")).hexdigest() if judge.judge_prompt else ""
 
-        return {
-            "test_run_id": meta.get("test_run", cfg_fallback.get("test_run")),
-            "test_run_name": meta.get("test_run_name", cfg_fallback.get("test_run_name", "")) or "",
-            "pipeline_model": pipeline_model,
-            "embeddings_model": embeddings_model,
-            "embeddings_dim": embeddings_dim,
-            "judge_model": judge_model,
-            "judge_prompt_id": judge_prompt_id,
-            "judge_prompt_hash": judge_prompt_hash,
-            "dm_hash": data_model.get("dm_hash"),
-            "dm_id": data_model.get("dm_id"),
-            "graph_nodes": graph.get("nodes_by_label"),
-            "graph_edges": graph.get("edges_by_type"),
-            "vector_indexes": graph.get("vector_indexes"),
-        }
+        test_run_id = cfg_fallback.get("test_run", "")
+        test_run_name = cfg_fallback.get("test_run_name", "")
+
+        return RunConfigSummary(
+            test_run_id=test_run_id,
+            test_run_name=test_run_name,
+            pipeline_model=pipeline_model,
+            embeddings_model=embeddings_model,
+            embeddings_dim=embeddings_dim,
+            judge_model=judge_model,
+            judge_prompt_id=judge_prompt_id,
+            judge_prompt_hash=judge_prompt_hash,
+            dm_hash=str(cfg_fallback.get("dm_hash", "")),
+            dm_id=dm.dm_id,
+            graph_nodes=graph.nodes_by_label,
+            graph_edges=graph.edges_by_type,
+            vector_indexes=graph.vector_indexes,
+        )
 
     @rx.var
-    def compare_prompt_rows_view(self) -> list[dict[str, Any]]:
+    def compare_prompt_rows_view(self) -> list[DiffRow]:
         rows = self.compare_prompt_diff_rows or []
         if not self.compare_judge_prompt_compact:
             return rows
-        change_idxs = [r.get("row_idx", -1) for r in rows if r.get("is_change")]
+        change_idxs = [self._to_int(cast(int | float | str | None, r["row_idx"])) for r in rows if r.get("is_change")]
         window = 4
         return [
             r
             for r in rows
-            if r.get("is_change") or any(abs(r.get("row_idx", -9999) - ci) <= window for ci in change_idxs)
+            if r.get("is_change")
+            or any(abs(self._to_int(cast(int | float | str | None, r["row_idx"])) - ci) <= window for ci in change_idxs)
         ]
 
     @rx.var
-    def compare_dm_rows_view(self) -> list[dict[str, Any]]:
+    def compare_dm_rows_view(self) -> list[DiffRow]:
         rows = self.compare_dm_diff_rows or []
         if not self.compare_dm_compact:
             return rows
-        change_idxs = [r.get("row_idx", -1) for r in rows if r.get("is_change")]
+        change_idxs = [self._to_int(cast(int | float | str | None, r["row_idx"])) for r in rows if r.get("is_change")]
         window = 4
         return [
             r
             for r in rows
-            if r.get("is_change") or any(abs(r.get("row_idx", -9999) - ci) <= window for ci in change_idxs)
+            if r.get("is_change")
+            or any(abs(self._to_int(cast(int | float | str | None, r["row_idx"])) - ci) <= window for ci in change_idxs)
         ]
 
     def _extract_eval_meta(self, events: list[ThreadEventDB]) -> dict[str, Any]:
@@ -1200,6 +1275,53 @@ class EvalState(rx.State):
             if ev.event_type == "eval.meta" and isinstance(ev.event_data, dict):
                 return ev.event_data
         return {}
+
+    def _to_int(self, val: int | float | str | None, default: int = 0) -> int:
+        if val is None:
+            return default
+        try:
+            narrowed: int | float | str = cast(int | float | str, val)
+            return int(narrowed)
+        except Exception:
+            return default
+
+    def _parse_run_meta(self, meta: dict[str, Any], cfg_fallback: dict[str, Any]) -> RunMeta:
+        graph_src = meta["graph"] if "graph" in meta and isinstance(meta["graph"], dict) else {}
+        judge_src = meta["judge"] if "judge" in meta and isinstance(meta["judge"], dict) else {}
+        dm_src = meta["data_model"] if "data_model" in meta and isinstance(meta["data_model"], dict) else {}
+        run_cfg_src = meta["run_config"] if "run_config" in meta and isinstance(meta["run_config"], dict) else {}
+
+        graph = GraphMeta(
+            nodes_by_label=graph_src["nodes_by_label"] if "nodes_by_label" in graph_src else {},
+            edges_by_type=graph_src["edges_by_type"] if "edges_by_type" in graph_src else {},
+            vector_indexes=graph_src["vector_indexes"] if "vector_indexes" in graph_src else [],
+        )
+        judge = JudgeMeta(
+            judge_model=str(judge_src["judge_model"])
+            if "judge_model" in judge_src
+            else str(cfg_fallback.get("judge_model", "")),
+            judge_prompt_id=str(judge_src["judge_prompt_id"])
+            if "judge_prompt_id" in judge_src
+            else str(cfg_fallback.get("judge_prompt_id", "")),
+            judge_prompt=str(judge_src["judge_prompt"]) if "judge_prompt" in judge_src else "",
+        )
+        embeddings_dim_src = (
+            run_cfg_src["embeddings_dim"] if "embeddings_dim" in run_cfg_src else cfg_fallback.get("embeddings_dim", 0)
+        )
+        run_config = RunConfig(
+            pipeline_model=str(run_cfg_src["pipeline_model"])
+            if "pipeline_model" in run_cfg_src
+            else str(cfg_fallback.get("pipeline_model", "")),
+            embeddings_model=str(run_cfg_src["embeddings_model"])
+            if "embeddings_model" in run_cfg_src
+            else str(cfg_fallback.get("embeddings_model", "")),
+            embeddings_dim=self._to_int(embeddings_dim_src),
+        )
+        dm = DmMeta(
+            dm_id=str(dm_src["dm_id"]) if "dm_id" in dm_src else str(cfg_fallback.get("dm_id", "")),
+            dm_description=str(dm_src["dm_description"]) if "dm_description" in dm_src else "",
+        )
+        return RunMeta(graph=graph, judge=judge, run_config=run_config, dm=dm)
 
     def _collect_run_data(
         self,
@@ -1230,35 +1352,47 @@ class EvalState(rx.State):
             status = "—"
             judge_comment = ""
             rating_val: float | None = None
-            question_text = cfg.get("gds_question") or ""
-            golden_answer = cfg.get("gds_answer") or ""
+            question_text = str(cfg["gds_question"]) if "gds_question" in cfg else ""
+            golden_answer = str(cfg["gds_answer"]) if "gds_answer" in cfg else ""
 
             for ev in evs:
+                if not isinstance(ev.event_data, dict):
+                    continue
                 if ev.event_type == "comm.assistant_message":
-                    answer = str(ev.event_data.get("content", ""))
+                    if "content" in ev.event_data:
+                        answer = str(ev.event_data["content"])
                 elif ev.event_type == "rag.query_processed":
-                    tech = cast(dict[str, Any], ev.event_data.get("technical_info", {}))
-                    model_stats = cast(dict[str, Any], tech.get("model_stats", {}))
+                    tech = (
+                        cast(dict[str, Any], ev.event_data["technical_info"])
+                        if "technical_info" in ev.event_data
+                        else {}
+                    )
+                    model_stats = cast(dict[str, Any], tech["model_stats"]) if "model_stats" in tech else {}
                     for stats in model_stats.values():
                         if isinstance(stats, dict):
-                            cost_val = stats.get("requests_cost")
+                            cost_val = stats["requests_cost"] if "requests_cost" in stats else None
                             try:
                                 if cost_val is not None:
                                     cost_total += float(cost_val)
                             except (TypeError, ValueError):
                                 pass
                 elif ev.event_type == "eval.result":
-                    status = ev.event_data.get("test_status", status)
-                    judge_comment = ev.event_data.get("eval_judge_comment", judge_comment)
-                    answer = ev.event_data.get("llm_answer", answer)
-                    tool_calls = ev.event_data.get("tool_calls", tool_calls)
-                    golden_answer = ev.event_data.get("gds_answer", golden_answer)
-                    rating_label = ev.event_data.get("eval_judge_rating")
+                    status = str(ev.event_data["test_status"]) if "test_status" in ev.event_data else status
+                    judge_comment = (
+                        str(ev.event_data["eval_judge_comment"])
+                        if "eval_judge_comment" in ev.event_data
+                        else judge_comment
+                    )
+                    answer = str(ev.event_data["llm_answer"]) if "llm_answer" in ev.event_data else answer
+                    tool_calls = str(ev.event_data["tool_calls"]) if "tool_calls" in ev.event_data else tool_calls
+                    golden_answer = str(ev.event_data["gds_answer"]) if "gds_answer" in ev.event_data else golden_answer
+                    rating_label = ev.event_data["eval_judge_rating"] if "eval_judge_rating" in ev.event_data else None
                     try:
                         rating_val = float(rating_label) if rating_label is not None else None
                     except Exception:
                         rating_val = None
-                    question_text = ev.event_data.get("gds_question") or question_text
+                    if "gds_question" in ev.event_data:
+                        question_text = str(ev.event_data["gds_question"])
 
             total += 1
             if status == "pass":
@@ -1290,17 +1424,43 @@ class EvalState(rx.State):
             "pass_rate": (passed / total) if total else 0.0,
             "avg_rating": round(avg_rating, 2) if ratings else None,
             "cost_total": round(cost_total, 3),
-            "test_run_name": meta_sample.get("test_run_name", "") or cfg_sample.get("test_run_name", ""),
+            "test_run_name": meta_sample["test_run_name"]
+            if "test_run_name" in meta_sample
+            else (cfg_sample["test_run_name"] if "test_run_name" in cfg_sample else ""),
         }
 
-        config_summary = self._summarize_config_for_display(meta_sample, cfg_sample)
+        run_meta = self._parse_run_meta(meta_sample, cfg_sample)
+        config_summary = self._summarize_config_for_display(run_meta, cfg_sample)
 
         return RunData(
             summary=summary,
-            meta=meta_sample,
+            meta=run_meta,
             config_summary=config_summary,
             results=results_by_question,
         )
+
+    def _config_rows(self, cfg: dict[str, object], diff_keys: list[str]) -> list[dict[str, object]]:
+        def _as_text(val: object) -> str:
+            if isinstance(val, (dict, list)):
+                try:
+                    return json.dumps(val, ensure_ascii=False)
+                except Exception:
+                    return str(val)
+            return str(val)
+
+        rows: list[dict[str, object]] = []
+        for label, key in [
+            ("Pipeline", "pipeline_model"),
+            ("Embeddings", "embeddings_model"),
+            ("Emb dims", "embeddings_dim"),
+            ("Judge model", "judge_model"),
+            ("Graph nodes", "graph_nodes"),
+            ("Graph edges", "graph_edges"),
+            ("Vector indexes", "vector_indexes"),
+        ]:
+            val = _as_text(cfg[key]) if key in cfg else "—"
+            rows.append({"label": label, "value": val, "diff": key in diff_keys})
+        return rows
 
     def _build_thread_config(
         self, question_row: dict[str, Any], test_run_id: str, test_run_name: str

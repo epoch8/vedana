@@ -471,8 +471,8 @@ def _compare_dialog() -> rx.Component:
                 rx.text(label, weight="medium"),
                 rx.text(
                     rx.cond(
-                        summary.get("run_label", "") != "",
-                        summary.get("run_label", ""),
+                        summary["run_label"] != "",
+                        summary["run_label"],
                         "—",
                     ),
                     size="2",
@@ -482,8 +482,8 @@ def _compare_dialog() -> rx.Component:
                     rx.badge(
                         rx.text(
                             rx.cond(
-                                summary.get("tests_total"),
-                                f"Pass: {summary.get('passed', 0)}",
+                                summary["tests_total"],
+                                f"Pass: {summary['passed']}",
                                 "No tests",
                             ),
                             size="1",
@@ -492,21 +492,21 @@ def _compare_dialog() -> rx.Component:
                         variant="soft",
                     ),
                     rx.badge(
-                        f"Fail: {summary.get('failed', 0)}",
+                        f"Fail: {summary['failed']}",
                         color_scheme="red",
                         variant="soft",
                     ),
                     rx.badge(
                         rx.cond(
-                            summary.get("avg_rating", None) != None,  # noqa: E711
-                            f"Rating: {summary.get('avg_rating', 0):.2f}",
+                            summary["avg_rating"] is not None,
+                            f"Rating: {summary['avg_rating']:.2f}",
                             "Rating: —",
                         ),
                         color_scheme="blue",
                         variant="soft",
                     ),
                     rx.badge(
-                        f"Cost: ${summary.get('cost_total', 0.0):.3f}",
+                        f"Cost: ${summary['cost_total']:.3f}",
                         color_scheme="gray",
                         variant="soft",
                     ),
@@ -519,37 +519,27 @@ def _compare_dialog() -> rx.Component:
             width="100%",
         )
 
-    def _config_block(cfg: dict[str, rx.Var]) -> rx.Component:
-        diff_keys = EvalState.compare_diff_keys
-
-        def _row(label: str, key: str) -> rx.Component:
-            val = str(cfg.get(key, "—")) if isinstance(cfg, dict) else "—"
+    def _config_block(rows: list[dict[str, rx.Var]]) -> rx.Component:
+        def _row(row: dict[str, rx.Var]) -> rx.Component:
             return rx.cond(
-                diff_keys.contains(key),
+                row["diff"],
                 rx.hstack(
-                    rx.text(label, weight="medium", size="1"),
+                    rx.text(row["label"], weight="medium", size="1"),
                     rx.spacer(),
-                    rx.text(val, size="1"),
+                    rx.text(row["value"], size="1"),
                     style={"padding": "0.15em 0.25em", "backgroundColor": "var(--amber-3)"},
                 ),
                 rx.hstack(
-                    rx.text(label, weight="medium", size="1"),
+                    rx.text(row["label"], weight="medium", size="1"),
                     rx.spacer(),
-                    rx.text(val, size="1"),
+                    rx.text(row["value"], size="1"),
                     style={"padding": "0.15em 0.25em"},
                 ),
             )
-
         return rx.card(
             rx.vstack(
                 rx.text("Config", weight="medium"),
-                _row("Pipeline", "pipeline_model"),
-                _row("Embeddings", "embeddings_model"),
-                _row("Emb dims", "embeddings_dim"),
-                _row("Judge model", "judge_model"),
-                _row("Graph nodes", "graph_nodes"),
-                _row("Graph edges", "graph_edges"),
-                _row("Vector indexes", "vector_indexes"),
+                rx.foreach(rows, _row),
                 spacing="1",
             ),
             padding="0.75em",
@@ -560,12 +550,12 @@ def _compare_dialog() -> rx.Component:
         def _line(row: dict[str, rx.Var]) -> rx.Component:
             left_border = rx.cond(
                 row.get("strong", False),
-                f"2px solid {row.get('left_color', 'transparent')}",
+                f"2px solid {row.get('left_color', 'inherit')}",
                 "2px solid transparent",
             )
             right_border = rx.cond(
                 row.get("strong", False),
-                f"2px solid {row.get('right_color', 'transparent')}",
+                f"2px solid {row.get('right_color', 'inherit')}",
                 "2px solid transparent",
             )
             return rx.hstack(
@@ -690,13 +680,13 @@ def _compare_dialog() -> rx.Component:
                 rx.vstack(
                     rx.hstack(
                         rx.badge(
-                            row.get("status_a"), color_scheme=_badge_color(row.get("status_a", "—")), variant="soft"
+                            row["status_a"], color_scheme=_badge_color(row["status_a"]), variant="soft"
                         ),
-                        rx.text(f"Rating: {row.get('rating_a', '—')}", size="1"),
+                        rx.text(f"Rating: {row['rating_a']}", size="1"),
                         align="center",
                     ),
-                    _answer_block(row.get("answer_a", ""), row.get("tool_calls_a", "")),
-                    rx.text(row.get("comment_a", ""), size="1", color="gray"),
+                    _answer_block(row["answer_a"], row["tool_calls_a"]),
+                    rx.text(row["comment_a"], size="1", color="gray"),
                     spacing="1",
                     align="start",
                 )
@@ -705,13 +695,13 @@ def _compare_dialog() -> rx.Component:
                 rx.vstack(
                     rx.hstack(
                         rx.badge(
-                            row.get("status_b"), color_scheme=_badge_color(row.get("status_b", "—")), variant="soft"
+                            row["status_b"], color_scheme=_badge_color(row["status_b"]), variant="soft"
                         ),
-                        rx.text(f"Rating: {row.get('rating_b', '—')}", size="1"),
+                        rx.text(f"Rating: {row['rating_b']}", size="1"),
                         align="center",
                     ),
-                    _answer_block(row.get("answer_b", ""), row.get("tool_calls_b", "")),
-                    rx.text(row.get("comment_b", ""), size="1", color="gray"),
+                    _answer_block(row["answer_b"], row["tool_calls_b"]),
+                    rx.text(row["comment_b"], size="1", color="gray"),
                     spacing="1",
                     align="start",
                 )
@@ -729,8 +719,8 @@ def _compare_dialog() -> rx.Component:
                     width="100%",
                 ),
                 rx.hstack(
-                    _config_block(EvalState.compare_config_a),
-                    _config_block(EvalState.compare_config_b),
+                    _config_block(EvalState.compare_config_a_rows),
+                    _config_block(EvalState.compare_config_b_rows),
                     spacing="3",
                     width="100%",
                 ),
