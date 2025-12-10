@@ -680,12 +680,12 @@ def _compare_dialog() -> rx.Component:
                 rx.vstack(
                     rx.hstack(
                         rx.badge(
-                            row["status_a"], color_scheme=_badge_color(row["status_a"]), variant="soft"
+                            row["status_a"], color_scheme=_badge_color(row["status_a"]), variant="soft"  # type: ignore[arg-type]
                         ),
                         rx.text(f"Rating: {row['rating_a']}", size="1"),
                         align="center",
                     ),
-                    _answer_block(row["answer_a"], row["tool_calls_a"]),
+                    _answer_block(row["answer_a"], row["tool_calls_a"]),  # type: ignore[arg-type]
                     rx.text(row["comment_a"], size="1", color="gray"),
                     spacing="1",
                     align="start",
@@ -695,12 +695,12 @@ def _compare_dialog() -> rx.Component:
                 rx.vstack(
                     rx.hstack(
                         rx.badge(
-                            row["status_b"], color_scheme=_badge_color(row["status_b"]), variant="soft"
+                            row["status_b"], color_scheme=_badge_color(row["status_b"]), variant="soft"  # type: ignore[arg-type]
                         ),
                         rx.text(f"Rating: {row['rating_b']}", size="1"),
                         align="center",
                     ),
-                    _answer_block(row["answer_b"], row["tool_calls_b"]),
+                    _answer_block(row["answer_b"], row["tool_calls_b"]),  # type: ignore[arg-type]
                     rx.text(row["comment_b"], size="1", color="gray"),
                     spacing="1",
                     align="start",
@@ -719,8 +719,8 @@ def _compare_dialog() -> rx.Component:
                     width="100%",
                 ),
                 rx.hstack(
-                    _config_block(EvalState.compare_config_a_rows),
-                    _config_block(EvalState.compare_config_b_rows),
+                    _config_block(EvalState.compare_config_a_rows),  # type: ignore[arg-type]
+                    _config_block(EvalState.compare_config_b_rows),  # type: ignore[arg-type]
                     spacing="3",
                     width="100%",
                 ),
@@ -746,7 +746,7 @@ def _compare_dialog() -> rx.Component:
                                                 on_change=EvalState.set_compare_judge_prompt_compact,
                                                 size="2",
                                             ),
-                                            _diff_table("Judge prompt diff", EvalState.compare_prompt_rows_view),
+                                            _diff_table("Judge prompt diff", EvalState.compare_prompt_rows_view),  # type: ignore[arg-type]
                                             spacing="1",
                                         )
                                     ),
@@ -763,7 +763,7 @@ def _compare_dialog() -> rx.Component:
                                                 on_change=EvalState.set_compare_dm_compact,
                                                 size="2",
                                             ),
-                                            _diff_table("Data model diff", EvalState.compare_dm_rows_view),
+                                            _diff_table("Data model diff", EvalState.compare_dm_rows_view),  # type: ignore[arg-type]
                                             spacing="1",
                                         )
                                     ),
