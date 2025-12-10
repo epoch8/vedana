@@ -3,6 +3,7 @@ import difflib
 import hashlib
 import json
 import logging
+from dataclasses import dataclass
 import traceback
 from datetime import datetime
 from typing import Any, TypedDict, cast
@@ -45,9 +46,42 @@ class RunSummary(TypedDict):
     test_run_name: str
 
 
-class RunData(TypedDict):
+@dataclass
+class GraphMeta:
+    nodes_count: int
+
+@dataclass
+class DmMeta:
+    dm_id: str
+    dm_description: str
+
+
+@dataclass
+class JudgeMeta:
+    judge_model: str
+    judge_prompt_id: str
+    judge_prompt: str
+
+
+@dataclass
+class RunConfig:
+    pipeline_model: str
+    embeddings_model: str
+    embeddings_dim: int
+
+
+@dataclass
+class RunMeta:
+    graph: GraphMeta
+    judge: JudgeMeta
+    run_config: RunConfig
+    dm: DmMeta
+
+
+@dataclass
+class RunData:
     summary: RunSummary
-    meta: dict[str, Any]
+    meta: RunMeta
     config_summary: dict[str, Any]
     results: dict[str, QuestionResult]
 
@@ -967,18 +1001,22 @@ class EvalState(rx.State):
         """Build a single eval.meta payload shared across threads for a run."""
         graph_meta = await self._collect_graph_metadata(vedana_app.graph)
         data_model_meta = self._build_data_model_meta()
+        judge_meta = JudgeMeta(
+            judge_model=self.judge_model,
+            judge_prompt_id=self.judge_prompt_id,
+            judge_prompt=self.selected_judge_prompt,
+        )
+        run_config = RunConfig(
+            pipeline_model=self.pipeline_model,
+            embeddings_model=self.embeddings_model,
+            embeddings_dim=self.embeddings_dim,
+        )
         return {
             "meta_version": 1,
             "test_run": test_run_id,
             "test_run_name": test_run_name,
-            "pipeline_model": self.pipeline_model,
-            "embeddings_model": self.embeddings_model,
-            "embeddings_dim": self.embeddings_dim,
-            "judge": {
-                "judge_model": self.judge_model,
-                "judge_prompt_id": self.judge_prompt_id,
-                "judge_prompt": self.selected_judge_prompt,
-            },
+            "run_config": run_config,
+            "judge": judge_meta,
             "graph": graph_meta,
             "data_model": data_model_meta,
         }
@@ -1100,10 +1138,9 @@ class EvalState(rx.State):
         return sorted(diffs)
 
     def _summarize_config_for_display(self, meta: dict[str, Any], cfg_fallback: dict[str, Any]) -> dict[str, Any]:
-        """Extract a concise config summary for comparison UI with sensible fallbacks."""
-        judge = cast(dict[str, Any], meta.get("judge", {}))
-        data_model = cast(dict[str, Any], meta.get("data_model", {}))
-        graph = cast(dict[str, Any], meta.get("graph", {}))
+        judge = meta.get("judge", {})
+        data_model = meta.get("data_model", {})
+        graph = meta.get("graph", {})
 
         pipeline_model = meta.get("pipeline_model", cfg_fallback.get("pipeline_model"))
         embeddings_model = meta.get("embeddings_model", cfg_fallback.get("embeddings_model"))
