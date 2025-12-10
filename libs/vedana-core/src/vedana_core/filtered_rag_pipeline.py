@@ -15,6 +15,7 @@ from vedana_core.settings import settings
 
 class DataModelSelection(BaseModel):
     reasoning: str = Field(
+        default="",
         description="Brief explanation of why these elements were selected for answering the user's question"
     )
     anchor_nouns: list[str] = Field(

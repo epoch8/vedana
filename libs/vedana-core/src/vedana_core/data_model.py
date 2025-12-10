@@ -353,7 +353,7 @@ class DataModel:
         for anchor in self.anchors:
             if anchor_set is None or anchor.noun in anchor_set:
                 # Filter attributes within the anchor
-                filtered_attrs = [
+                filtered_anchor_attrs = [
                     Attribute(
                         name=attr.name,
                         description=attr.description,
@@ -374,7 +374,7 @@ class DataModel:
                         description=anchor.description,
                         id_example=anchor.id_example,
                         query=anchor.query,
-                        attributes=filtered_attrs,
+                        attributes=filtered_anchor_attrs,
                     )
                 )
 
@@ -433,7 +433,7 @@ class DataModel:
         return DataModel(
             anchors=filtered_anchors,
             links=filtered_links,
-            attrs=filtered_attrs,
+            attrs=filtered_link_attrs,
             queries=filtered_queries,
             conversation_lifecycle=self.conversation_lifecycle.copy(),
             prompts=self.prompts.copy(),
