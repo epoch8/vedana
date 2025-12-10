@@ -285,5 +285,5 @@ class RagPipeline:
                 anchor_nouns=[],
                 link_sentences=[],
                 attribute_names=[],
-                query_names=[],
+                query_ids=[],
             )
