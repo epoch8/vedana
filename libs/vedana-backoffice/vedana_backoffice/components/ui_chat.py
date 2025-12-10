@@ -23,7 +23,18 @@ def render_message_bubble(
                     msg.get("has_models"),
                     rx.vstack(
                         rx.text("Models", weight="medium"),
-                        rx.code(msg.get("models_str", ""), font_size="11px"),
+                        rx.code_block(
+                            msg.get("models_str", ""),
+                            font_size="11px",
+                            language="json",
+                            style={
+                                "whiteSpace": "pre-wrap",
+                                "overflowX": "auto",
+                                "display": "block",
+                                "maxWidth": "100%",
+                                "boxSizing": "border-box",
+                            },
+                        ),
                         spacing="1",
                         width="100%",
                     ),
@@ -32,7 +43,18 @@ def render_message_bubble(
                     msg.get("has_vts"),
                     rx.vstack(
                         rx.text("VTS Queries", weight="medium"),
-                        rx.code(msg.get("vts_str", ""), font_size="11px"),
+                        rx.code_block(
+                            msg.get("vts_str", ""),
+                            font_size="11px",
+                            language="python",
+                            style={
+                                "whiteSpace": "wrap",
+                                "overflowX": "auto",
+                                "display": "block",
+                                "maxWidth": "100%",
+                                "boxSizing": "border-box",
+                            },
+                        ),
                         spacing="1",
                         width="100%",
                     ),
@@ -41,7 +63,18 @@ def render_message_bubble(
                     msg.get("has_cypher"),
                     rx.vstack(
                         rx.text("Cypher Queries", weight="medium"),
-                        rx.code(msg.get("cypher_str", ""), font_size="11px"),
+                        rx.code_block(
+                            msg.get("cypher_str", ""),
+                            font_size="11px",
+                            language="cypher",
+                            style={
+                                "whiteSpace": "wrap",
+                                "overflowX": "auto",
+                                "display": "block",
+                                "maxWidth": "100%",
+                                "boxSizing": "border-box",
+                            },
+                        ),
                         spacing="1",
                         width="100%",
                     ),
@@ -51,6 +84,10 @@ def render_message_bubble(
             ),
             padding="0.75em",
             variant="surface",
+            style={
+                "maxWidth": "100%",
+                "overflowX": "auto",
+            },
         ),
         rx.box(),
     )
@@ -80,27 +117,22 @@ def render_message_bubble(
         align="center",
     )
 
-    header = rx.hstack(
-        header_left,
-        tags_box,
-        justify="between",
-        width="100%",
-        align="center",
-    )
-
-    body_children = [
-        header,
-        rx.text(msg.get("content", "")),
+    body = rx.vstack(
+        rx.hstack(header_left, tags_box, justify="between", width="100%", align="center"),  # header
+        rx.text(
+            msg.get("content", ""),
+            style={
+                "whiteSpace": "pre-wrap",
+                "wordBreak": "break-word",
+            },
+        ),
         rx.cond(msg.get("show_details"), tech_block),
         rx.cond(extras is not None, extras or rx.box()),
-    ]
-
-    # Comments are appended by caller via `extras`
-
-    body = rx.vstack(
-        *body_children,
         spacing="2",
         width="100%",
+        style={
+            "maxWidth": "100%",
+        },
     )
 
     assistant_bubble = rx.card(
@@ -111,6 +143,8 @@ def render_message_bubble(
             "backgroundColor": "#11182714",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
+            "wordBreak": "break-word",
+            "overflowX": "hidden",
         },
     )
     user_bubble = rx.card(
@@ -121,6 +155,8 @@ def render_message_bubble(
             "backgroundColor": "#3b82f614",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
+            "wordBreak": "break-word",
+            "overflowX": "hidden",
         },
     )
 
