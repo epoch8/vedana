@@ -466,6 +466,8 @@ def _compare_card() -> rx.Component:
 
 def _compare_dialog() -> rx.Component:
     def _stat_block(label: str, summary: RunSummary) -> rx.Component:
+        avg_time = summary["avg_answer_time_sec"]
+        median_time = summary["median_answer_time_sec"]
         return rx.card(
             rx.vstack(
                 rx.text(label, weight="medium"),
@@ -495,6 +497,14 @@ def _compare_dialog() -> rx.Component:
                     rx.badge(
                         f"Cost: ${summary['cost_total']:.3f}",
                         color_scheme="gray",
+                        variant="soft",
+                    ),
+                    rx.badge(
+                        rx.text(
+                            f"Time (avg/med): {avg_time} / {median_time}",
+                            size="1",
+                        ),
+                        color_scheme="purple",
                         variant="soft",
                     ),
                     spacing="2",

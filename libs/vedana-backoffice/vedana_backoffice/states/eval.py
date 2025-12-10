@@ -3,6 +3,7 @@ import difflib
 import hashlib
 import json
 import logging
+import statistics
 import traceback
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -44,6 +45,8 @@ class RunSummary(TypedDict):
     avg_rating: str  # rounded and converted to str
     cost_total: float
     test_run_name: str
+    avg_answer_time_sec: float
+    median_answer_time_sec: float
 
 
 @dataclass
@@ -157,6 +160,8 @@ EMPTY_SUMMARY: RunSummary = {
     "avg_rating": "—",
     "cost_total": 0.0,
     "test_run_name": "",
+    "avg_answer_time_sec": 0.0,
+    "median_answer_time_sec": 0.0,
 }
 
 
@@ -1360,6 +1365,7 @@ class EvalState(rx.State):
         failed = 0
         cost_total = 0.0
         ratings: list[float] = []
+        answer_times: list[float] = []
 
         for thread in threads:
             cfg = thread.thread_config or {}
@@ -1380,9 +1386,12 @@ class EvalState(rx.State):
             for ev in evs:
                 if not isinstance(ev.event_data, dict):
                     continue
+                if ev.event_type == "comm.user_message":
+                    user_ts = ev.created_at
                 if ev.event_type == "comm.assistant_message":
                     if "content" in ev.event_data:
                         answer = str(ev.event_data["content"])
+                    answer_ts = ev.created_at
                 elif ev.event_type == "rag.query_processed":
                     tech = (
                         cast(dict[str, Any], ev.event_data["technical_info"])
@@ -1422,6 +1431,14 @@ class EvalState(rx.State):
             elif status == "fail":
                 failed += 1
 
+            if user_ts and answer_ts:
+                try:
+                    delta = (answer_ts - user_ts).total_seconds()
+                    if delta >= 0:
+                        answer_times.append(delta)
+                except Exception:
+                    pass
+
             if rating_val is not None:
                 ratings.append(rating_val)
 
@@ -1449,6 +1466,8 @@ class EvalState(rx.State):
             "test_run_name": meta_sample["test_run_name"]
             if "test_run_name" in meta_sample
             else (cfg_sample["test_run_name"] if "test_run_name" in cfg_sample else ""),
+            "avg_answer_time_sec": round(sum(answer_times) / len(answer_times), 2) if answer_times else 0.0,
+            "median_answer_time_sec": round(statistics.median(answer_times), 2) if answer_times else 0.0,
         }
 
         run_meta = self._parse_run_meta(meta_sample, cfg_sample)
