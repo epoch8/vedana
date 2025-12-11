@@ -35,6 +35,17 @@ variable "memgraph_resources" {
   }
 }
 
+variable "datapipe_resources" {
+  type = object({
+    requests : map(string)
+    limits : map(string)
+  })
+  default = {
+    requests = { cpu = "1", memory = "1Gi" }
+    limits   = { cpu = "1", memory = "2Gi" }
+  }
+}
+
 variable "image_repository" {
   type    = string
   default = null
