@@ -16,6 +16,7 @@ import requests
 import sqlalchemy as sa
 from datapipe.compute import run_steps
 from jims_core.db import ThreadEventDB
+from jims_core.llms.llm_provider import env_settings as llm_settings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from vedana_core.app import VedanaApp, make_vedana_app
@@ -995,16 +996,102 @@ class ChatState(rx.State):
     data_model_text: str = ""
     data_model_last_sync: str = ""
     is_refreshing_dm: bool = True
-    model = core_settings.model
+    provider: str = "openai"  # default llm provider
+    model: str = core_settings.model
+    _default_models: tuple[str, ...] = (
+        "gpt-5.1-chat-latest",
+        "gpt-5.1",
+        "gpt-5-chat-latest",
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4.1-nano",
+        "gpt-4o",
+        "gpt-4o-mini",
+        "o4-mini",
+    )
+    openai_models: list[str] = list(_default_models) + [core_settings.model]
+    openrouter_models: list[str] = []
+    available_models: list[str] = list(_default_models) + [core_settings.model]
 
     async def mount(self) -> None:
         global vedana_app
         if vedana_app is None:
             vedana_app = await make_vedana_app()
         self.data_model_last_sync: str = datetime.now().strftime("%Y-%m-%d %H:%M")
+        self.fetch_openrouter_models()
+        self._sync_available_models()
 
     def set_input(self, value: str) -> None:
         self.input_text = value
+
+    def set_model(self, value: str) -> None:
+        if value in self.available_models:
+            self.model = value
+
+    def set_provider(self, value: str) -> None:
+        if value in {"openai", "openrouter"}:
+            if value == "openrouter" and not self.openrouter_models:  # no openrouter catalog available
+                self.provider = "openai"
+            else:
+                self.provider = value
+            self._sync_available_models()
+
+    def _filter_chat_capable(self, models: Iterable[dict]) -> list[str]:
+        result: list[str] = []
+        for m in models:
+            model_id = str(m.get("id", "")).strip()
+            if not model_id:
+                continue
+
+            capabilities = m.get("capabilities") or {}
+            if isinstance(capabilities, dict):
+                has_chat = bool(capabilities.get("chat") or capabilities.get("completion"))
+            else:
+                has_chat = False
+
+            # Some entries do not expose capabilities; allow them through.
+            if has_chat or not capabilities:
+                result.append(model_id)
+
+        return result
+
+    def fetch_openrouter_models(self) -> None:
+        try:
+            resp = requests.get(
+                f"{llm_settings.openrouter_api_base_url}/models",
+                headers={"Authorization": f"Bearer {llm_settings.openrouter_api_key}"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+            models = payload.get("data", [])
+            parsed = self._filter_chat_capable(models)
+        except Exception as exc:  # pragma: no cover - best effort
+            logging.warning(f"Failed to fetch OpenRouter models: {exc}")
+            parsed = []
+        self.openrouter_models = sorted(list(parsed))
+
+    def _sync_available_models(self) -> None:
+        """
+        Recompute available_models based on selected provider, and realign
+        the selected model if it is no longer valid.
+        """
+
+        if self.provider == "openrouter":
+            models = self.openrouter_models
+            if not models:
+                self.provider = "openai"
+                models = self.openai_models
+        else:
+            models = self.openai_models
+
+        self.available_models = list(models)
+
+        if self.model not in self.available_models and self.available_models:
+            self.model = self.available_models[0]
 
     def toggle_details_by_id(self, message_id: str) -> None:
         for idx, m in enumerate(self.messages):
@@ -1109,7 +1196,7 @@ class ChatState(rx.State):
         return self.chat_thread_id
 
     async def _run_message(self, thread_id: str, user_text: str) -> Tuple[str, Dict[str, Any]]:
-        vedana_app = await get_vedana_app()
+        vedana_app = await make_vedana_app()  # to keep pipeline setup within run
         try:
             tid = UUID(thread_id)
         except Exception:
@@ -1126,7 +1213,10 @@ class ChatState(rx.State):
             )
 
         await ctl.store_user_message(uuid7(), user_text)
-        events = await ctl.run_pipeline_with_context(vedana_app.pipeline)
+
+        pipeline = vedana_app.pipeline
+        pipeline.model = f"{self.provider}/{self.model}"
+        events = await ctl.run_pipeline_with_context(pipeline)
 
         answer: str = ""
         tech: dict[str, Any] = {}

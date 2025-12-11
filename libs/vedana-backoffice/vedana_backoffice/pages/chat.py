@@ -132,7 +132,6 @@ def page() -> rx.Component:
                                     spacing="1",
                                 ),
                             ),
-                            rx.text(f"model: {ChatState.model}", size="1", color="gray"),
                             rx.cond(
                                 ChatState.total_conversation_cost > 0,
                                 rx.text(
@@ -153,6 +152,24 @@ def page() -> rx.Component:
                                 value=ChatState.input_text,
                                 on_change=ChatState.set_input,
                                 width="100%",
+                            ),
+                            rx.select(
+                                items=rx.cond(
+                                    ChatState.openrouter_models.length() > 0,  # type: ignore[attr-defined]
+                                    ["openai", "openrouter"],
+                                    ["openai"]
+                                ),
+                                value=ChatState.provider,
+                                on_change=ChatState.set_provider,
+                                width="10em",
+                                placeholder="Provider",
+                            ),
+                            rx.select(
+                                items=ChatState.available_models,
+                                value=ChatState.model,
+                                on_change=ChatState.set_model,
+                                width="16em",
+                                placeholder="Select model",
                             ),
                             rx.button("Send", type="submit", loading=ChatState.is_running),
                             spacing="2",
