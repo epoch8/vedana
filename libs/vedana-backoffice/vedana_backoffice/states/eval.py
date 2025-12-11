@@ -433,7 +433,7 @@ class EvalState(rx.State):
     def set_provider(self, value: str) -> None:
         self.provider = str(value or "openai")
         if self.provider == "openrouter" and not self.openrouter_models:
-            self.fetch_openrouter_models(api_key_override=self.custom_openrouter_key or None)
+            self.fetch_openrouter_models()
         self._sync_available_models()
 
     def set_compare_run_a(self, value: str) -> None:
