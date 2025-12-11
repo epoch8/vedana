@@ -20,7 +20,12 @@ class LLMSettings(BaseSettings):
     model: str = "gpt-4.1-nano"
     embeddings_model: str = "text-embedding-3-large"
     embeddings_dim: int = 1024
-    openrouter_api_key: str | None = None
+
+    # passable api_keys; if None, defaults to env vars
+    model_api_key: str | None = None
+    embeddings_model_api_key: str | None = None
+
+    # openrouter_api_key: str | None = None
     openrouter_api_base_url: str = "https://openrouter.ai/api/v1"
 
 
@@ -69,7 +74,9 @@ class LLMProvider:
     def __init__(self, settings: LLMSettings | None = None) -> None:
         self._settings = settings or env_settings
         self.model = self._settings.model
+        self.model_api_key = self._settings.model_api_key
         self.embeddings_model = self._settings.embeddings_model
+        self.embeddings_model_api_key = self._settings.embeddings_model_api_key
         self.embeddings_dim = self._settings.embeddings_dim
 
         # counters for single ThreadContext (~single pipeline run) instance
@@ -119,7 +126,12 @@ class LLMProvider:
 
     @backoff.on_exception(backoff.expo, Exception, max_tries=3)
     async def create_embedding(self, text: str) -> list[float]:
-        response = await litellm.aembedding(model=self.embeddings_model, input=[text], dimensions=self.embeddings_dim)
+        response = await litellm.aembedding(
+            model=self.embeddings_model,
+            input=[text],
+            dimensions=self.embeddings_dim,
+            api_key=self.embeddings_model_api_key,
+        )
         self.observe_create_embedding(response)
         return response.data[0]["embedding"]
 
@@ -130,6 +142,7 @@ class LLMProvider:
             model=self.embeddings_model,
             input=texts,
             dimensions=self.embeddings_dim,
+            api_key=self.embeddings_model_api_key,
         )
         self.observe_create_embedding(response)
         return [d["embedding"] for d in response.data]
@@ -139,6 +152,7 @@ class LLMProvider:
             model=self.embeddings_model,
             input=[text],
             dimensions=self.embeddings_dim,
+            api_key=self.embeddings_model_api_key,
         )
         self.observe_create_embedding(response)
         return response.data[0]["embedding"]
@@ -148,6 +162,7 @@ class LLMProvider:
             model=self.embeddings_model,
             input=texts,
             dimensions=self.embeddings_dim,
+            api_key=self.embeddings_model_api_key,
         )
         self.observe_create_embedding(response)
         return [d["embedding"] for d in response.data]
@@ -162,6 +177,7 @@ class LLMProvider:
             model=self.model,
             messages=list(messages),
             response_format=response_format,
+            api_key=self.model_api_key,
         )
         assert isinstance(completion, litellm.ModelResponse)
 
@@ -185,6 +201,7 @@ class LLMProvider:
             model=self.model,
             messages=list(messages),
             caching=use_cache,
+            api_key=self.model_api_key,
         )
         assert isinstance(completion, litellm.ModelResponse)
 
@@ -208,6 +225,7 @@ class LLMProvider:
             model=self.model,
             messages=list(messages),
             tools=tools,
+            api_key=self.model_api_key,
         )
         assert isinstance(completion, litellm.ModelResponse)
 
