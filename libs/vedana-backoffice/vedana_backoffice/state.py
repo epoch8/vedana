@@ -1012,6 +1012,8 @@ class ChatState(rx.State):
         "gpt-4o-mini",
         "o4-mini",
     )
+    custom_openrouter_key: str = ""
+    default_openrouter_key_present: bool = bool(os.environ.get("OPENROUTER_API_KEY"))  # to require api_key input
     openai_models: list[str] = list(_default_models) + [core_settings.model]
     openrouter_models: list[str] = []
     available_models: list[str] = list(_default_models) + [core_settings.model]
@@ -1031,13 +1033,12 @@ class ChatState(rx.State):
         if value in self.available_models:
             self.model = value
 
+    def set_custom_openrouter_key(self, value: str) -> None:
+        self.custom_openrouter_key = value  # need validating?
+
     def set_provider(self, value: str) -> None:
-        if value in {"openai", "openrouter"}:
-            if value == "openrouter" and not self.openrouter_models:  # no openrouter catalog available
-                self.provider = "openai"
-            else:
-                self.provider = value
-            self._sync_available_models()
+        self.provider = value
+        self._sync_available_models()
 
     def _filter_chat_capable(self, models: Iterable[dict]) -> list[str]:
         result: list[str] = []
@@ -1065,7 +1066,7 @@ class ChatState(rx.State):
         try:
             resp = requests.get(
                 f"{llm_settings.openrouter_api_base_url}/models",
-                headers={"Authorization": f"Bearer {llm_settings.openrouter_api_key}"},
+                # headers={"Authorization": f"Bearer {openrouter_api_key}"},  # actually works without a token as well
                 timeout=10,
             )
             resp.raise_for_status()
@@ -1219,7 +1220,15 @@ class ChatState(rx.State):
 
         pipeline = vedana_app.pipeline
         pipeline.model = f"{self.provider}/{self.model}"
-        events = await ctl.run_pipeline_with_context(pipeline)
+
+        ctx = await ctl.make_context()
+
+        # override model api_key if custom api_key is provided
+        if self.custom_openrouter_key and self.provider == "openrouter":
+            ctx.llm.model_api_key = self.custom_openrouter_key
+            # embeddings model is not customisable in chat, it's configured on project level.
+
+        events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
         answer: str = ""
         tech: dict[str, Any] = {}
