@@ -1,3 +1,7 @@
+# WIP
+
+* add LLM model selection to chat page - integration via openrouter
+
 # 0.3.0 - 2025.11.20
 
 * ETL - added monitoring dashboard on the main page
