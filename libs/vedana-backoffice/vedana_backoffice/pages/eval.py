@@ -223,13 +223,45 @@ def _pipeline_card() -> rx.Component:
                         width="100%",
                         margin_top="0.5em",
                     ),
+                    width="100%",
                     padding_bottom="0.75em",
                 ),
                 rx.box(
                     rx.text("Pipeline model", weight="medium"),
-                    rx.text(
-                        rx.cond(EvalState.pipeline_model != "", EvalState.pipeline_model, "—"),
-                        size="3",
+                    rx.hstack(
+                        rx.select(
+                            items=["openai", "openrouter"],
+                            value=EvalState.provider,
+                            on_change=EvalState.set_provider,
+                            width="100%",
+                            placeholder="Provider",
+                        ),
+                        rx.cond(
+                            EvalState.provider == "openrouter",
+                            rx.input(
+                                placeholder=rx.cond(
+                                    EvalState.default_openrouter_key_present,
+                                    "(Optional) custom OPENROUTER_API_KEY",
+                                    "(Required) OPENROUTER_API_KEY",
+                                ),
+                                type="password",
+                                value=EvalState.custom_openrouter_key,
+                                on_change=EvalState.set_custom_openrouter_key,
+                                width="100%",
+                                required=rx.cond(EvalState.default_openrouter_key_present, False, True),
+                            ),
+                        ),
+                        rx.select(
+                            items=EvalState.available_models_view,
+                            value=EvalState.pipeline_model,
+                            on_change=EvalState.set_pipeline_model,
+                            width="100%",
+                            placeholder="Select model",
+                        ),
+                        spacing="2",
+                        align="center",
+                        wrap="wrap",
+                        width="100%",
                     ),
                     padding_bottom="0.75em",
                 ),
