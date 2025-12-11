@@ -1014,9 +1014,9 @@ class ChatState(rx.State):
     )
     custom_openrouter_key: str = ""
     default_openrouter_key_present: bool = bool(os.environ.get("OPENROUTER_API_KEY"))  # to require api_key input
-    openai_models: list[str] = list(_default_models) + [core_settings.model]
+    openai_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
     openrouter_models: list[str] = []
-    available_models: list[str] = list(_default_models) + [core_settings.model]
+    available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
 
     async def mount(self) -> None:
         global vedana_app
