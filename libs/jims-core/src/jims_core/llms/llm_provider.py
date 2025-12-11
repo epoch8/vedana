@@ -20,6 +20,8 @@ class LLMSettings(BaseSettings):
     model: str = "gpt-4.1-nano"
     embeddings_model: str = "text-embedding-3-large"
     embeddings_dim: int = 1024
+    openrouter_api_key: str | None = None
+    openrouter_api_base_url: str = "https://openrouter.ai/api/v1"
 
 
 env_settings = LLMSettings()  # type: ignore
