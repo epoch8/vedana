@@ -154,15 +154,26 @@ def page() -> rx.Component:
                                 width="100%",
                             ),
                             rx.select(
-                                items=rx.cond(
-                                    ChatState.openrouter_models.length() > 0,  # type: ignore[attr-defined]
-                                    ["openai", "openrouter"],
-                                    ["openai"]
-                                ),
+                                items=["openai", "openrouter"],
                                 value=ChatState.provider,
                                 on_change=ChatState.set_provider,
                                 width="10em",
                                 placeholder="Provider",
+                            ),
+                            rx.cond(
+                                ChatState.provider == "openrouter",
+                                rx.input(
+                                    placeholder=rx.cond(
+                                        ChatState.default_openrouter_key_present,
+                                        "(Optional) custom OPENROUTER_API_KEY",
+                                        "(Required) OPENROUTER_API_KEY"
+                                    ),
+                                    type="password",
+                                    value=ChatState.custom_openrouter_key,
+                                    on_change=ChatState.set_custom_openrouter_key,
+                                    width="36em",
+                                    required=rx.cond(ChatState.default_openrouter_key_present, False, True)
+                                ),
                             ),
                             rx.select(
                                 items=ChatState.available_models,
