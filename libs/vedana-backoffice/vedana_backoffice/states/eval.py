@@ -1,6 +1,8 @@
+import os
 import asyncio
 import difflib
 import hashlib
+import requests
 import json
 import logging
 import statistics
@@ -14,7 +16,7 @@ import reflex as rx
 import sqlalchemy as sa
 from datapipe.compute import run_steps
 from jims_core.db import ThreadDB, ThreadEventDB
-from jims_core.llms.llm_provider import LLMProvider
+from jims_core.llms.llm_provider import LLMProvider, env_settings as llm_settings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from pydantic import BaseModel, Field
@@ -168,12 +170,6 @@ EMPTY_SUMMARY: RunSummary = {
 class EvalState(rx.State):
     """State holder for evaluation workflow."""
 
-    """
-    TODO tasks
-    - fix configs display on comparison page
-    - fix run naming on comparison page
-    """
-
     loading: bool = False
     error_message: str = ""
     status_message: str = ""
@@ -185,9 +181,29 @@ class EvalState(rx.State):
     judge_model: str = ""
     judge_prompt_id: str = ""
     selected_judge_prompt: str = ""
+    provider: str = "openai"
     pipeline_model: str = core_settings.model
     embeddings_model: str = core_settings.embeddings_model
     embeddings_dim: int = core_settings.embeddings_dim
+    custom_openrouter_key: str = ""
+    default_openrouter_key_present: bool = bool(os.environ.get("OPENROUTER_API_KEY"))
+    _default_models: tuple[str, ...] = (
+        "gpt-5.1-chat-latest",
+        "gpt-5.1",
+        "gpt-5-chat-latest",
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4.1-nano",
+        "gpt-4o",
+        "gpt-4o-mini",
+        "o4-mini",
+    )
+    openai_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
+    openrouter_models: list[str] = []
+    available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
     dm_id: str = ""
     tests_rows: list[dict[str, Any]] = []
     tests_cost_total: float = 0.0
@@ -341,6 +357,10 @@ class EvalState(rx.State):
             and not self.compare_loading
         )
 
+    @rx.var
+    def available_models_view(self) -> list[str]:
+        return self.available_models
+
     def toggle_question_selection(self, question: str, checked: bool) -> None:
         question = str(question or "").strip()
         if not question:
@@ -402,6 +422,20 @@ class EvalState(rx.State):
         """Set user-provided test run name."""
         self.test_run_name = str(value or "").strip()
 
+    def set_pipeline_model(self, value: str) -> None:
+        if value in self.available_models:
+            self.pipeline_model = value
+
+    def set_custom_openrouter_key(self, value: str) -> None:
+        self.custom_openrouter_key = str(value or "").strip()
+        # optional: could refetch models with the override; keep static to avoid extra calls
+
+    def set_provider(self, value: str) -> None:
+        self.provider = str(value or "openai")
+        if self.provider == "openrouter" and not self.openrouter_models:
+            self.fetch_openrouter_models(api_key_override=self.custom_openrouter_key or None)
+        self._sync_available_models()
+
     def set_compare_run_a(self, value: str) -> None:
         self.compare_run_a = str(value or "").strip()
 
@@ -415,6 +449,58 @@ class EvalState(rx.State):
         # Validate against all rows (not filtered) to keep selections valid across filter changes
         valid = {str(row.get("id")) for row in self.eval_gds_rows or [] if row.get("id")}
         self.selected_question_ids = [q for q in (self.selected_question_ids or []) if q in valid]
+
+    def _filter_chat_capable(self, models: list[dict[str, Any]]) -> list[str]:
+        result: list[str] = []
+        for m in models:
+            model_id = str(m.get("id", "")).strip()
+            if not model_id:
+                continue
+
+            architecture = m.get("architecture", {}) or {}
+            has_chat = False
+            if "text" in architecture.get("input_modalities", []) and "text" in architecture.get("output_modalities", []):
+                has_chat = True
+
+            has_tools = "tools" in (m.get("supported_parameters") or [])
+
+            if has_chat and has_tools:
+                result.append(model_id)
+
+        return result
+
+    def fetch_openrouter_models(self) -> None:
+        try:
+            resp = requests.get(
+                f"{llm_settings.openrouter_api_base_url}/models",
+                # headers={"Authorization": f"Bearer {openrouter_api_key}"},  # actually works without a token as well
+                timeout=10,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+            models = payload.get("data", [])
+            parsed = self._filter_chat_capable(models)
+        except Exception as exc:  # pragma: no cover - best effort
+            logging.warning(f"Failed to fetch OpenRouter models: {exc}")
+            parsed = []
+        self.openrouter_models = sorted(list(parsed))
+
+    def _sync_available_models(self) -> None:
+        if self.provider == "openrouter":
+            models = self.openrouter_models
+            if not models:
+                self.provider = "openai"
+                models = self.openai_models
+        else:
+            models = self.openai_models
+
+        self.available_models = list(models)
+        if self.pipeline_model not in self.available_models and self.available_models:
+            self.pipeline_model = self.available_models[0]
+
+    def _resolved_pipeline_model(self) -> str:
+        provider = self.provider or "openai"
+        return f"{provider}/{self.pipeline_model}"
 
     def get_eval_gds_from_grist(self):
         # Run datapipe step to refresh eval_gds from Grist first
@@ -1065,7 +1151,7 @@ class EvalState(rx.State):
             judge_prompt=self.selected_judge_prompt,
         )
         run_config = RunConfig(
-            pipeline_model=self.pipeline_model,
+            pipeline_model=self._resolved_pipeline_model(),
             embeddings_model=self.embeddings_model,
             embeddings_dim=self.embeddings_dim,
         )
@@ -1507,6 +1593,7 @@ class EvalState(rx.State):
         self, question_row: dict[str, Any], test_run_id: str, test_run_name: str
     ) -> dict[str, Any]:
         """Pack metadata into thread_config so runs are traceable in JIMS."""
+        resolved_model = self._resolved_pipeline_model()
         return {
             "interface": "reflex-eval",
             "source": "eval",
@@ -1518,7 +1605,8 @@ class EvalState(rx.State):
             "question_scenario": question_row.get("question_scenario"),
             "judge_model": self.judge_model,
             "judge_prompt_id": self.judge_prompt_id,
-            "pipeline_model": self.pipeline_model,
+            "pipeline_model": resolved_model,
+            "pipeline_provider": self.provider,
             "embeddings_model": self.embeddings_model,
             "embeddings_dim": self.embeddings_dim,
             "dm_id": self.dm_id,
@@ -1560,7 +1648,15 @@ class EvalState(rx.State):
         user_query = f"{question_text} {q_ctx}".strip()
 
         await ctl.store_user_message(uuid7(), user_query)
-        events = await ctl.run_pipeline_with_context(vedana_app.pipeline)
+        pipeline = vedana_app.pipeline
+        resolved_model = self._resolved_pipeline_model()
+        pipeline.model = resolved_model
+
+        ctx = await ctl.make_context()
+        if self.provider == "openrouter" and self.custom_openrouter_key:
+            ctx.llm.model_api_key = self.custom_openrouter_key
+
+        events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
         answer: str = ""
         technical_info: dict[str, Any] = {}
@@ -1652,11 +1748,17 @@ class EvalState(rx.State):
             if not self.selected_judge_prompt:
                 self.error_message = "Judge prompt not loaded. Refresh judge config first."
                 return
+            if self.provider == "openrouter":
+                key = (self.custom_openrouter_key or os.environ.get("OPENROUTER_API_KEY") or "").strip()
+                if not key:
+                    self.error_message = "OPENROUTER_API_KEY is required for OpenRouter provider."
+                    return
 
             question_map = {str(row.get("id")): row for row in (self.eval_gds_rows or [])}
             test_run_ts = datetime.now().strftime("%Y%m%d-%H%M%S")
             test_run_id = f"eval:{test_run_ts}"
             test_run_name = self.test_run_name.strip() or ""
+            resolved_pipeline_model = self._resolved_pipeline_model()
 
             # Initialize run state
             self.is_running = True
@@ -1688,7 +1790,7 @@ class EvalState(rx.State):
                             "judge_model": self.judge_model,
                             "judge_prompt_id": self.judge_prompt_id,
                             "dm_id": self.dm_id,
-                            "pipeline_model": self.pipeline_model,
+                            "pipeline_model": resolved_pipeline_model,
                             "embeddings_model": self.embeddings_model,
                             "embeddings_dim": self.embeddings_dim,
                             "test_run_id": test_run_id,
@@ -1794,6 +1896,8 @@ class EvalState(rx.State):
             self.error_message = ""
             self.status_message = ""
             self.tests_page = 0  # Reset to first page
+            self.fetch_openrouter_models()
+            self._sync_available_models()
             yield
             try:
                 await self._load_eval_questions()
