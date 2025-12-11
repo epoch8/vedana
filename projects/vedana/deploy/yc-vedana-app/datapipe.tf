@@ -112,16 +112,7 @@ resource "helm_release" "datapipe_regular" {
         "--labels=flow=regular",
         "run",
       ]
-      resources = {
-        requests = {
-          cpu    = "1"
-          memory = "1Gi"
-        }
-        limits = {
-          cpu    = "1"
-          memory = "2Gi"
-        }
-      }
+      resources = var.datapipe_resources
 
       env = local.datapipe_env
       },
