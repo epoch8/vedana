@@ -1046,14 +1046,17 @@ class ChatState(rx.State):
             if not model_id:
                 continue
 
-            capabilities = m.get("capabilities") or {}
-            if isinstance(capabilities, dict):
-                has_chat = bool(capabilities.get("chat") or capabilities.get("completion"))
-            else:
-                has_chat = False
+            has_chat = False
+            architecture = m.get("architecture", {})
+            if architecture:
+                if "text" in architecture.get("input_modalities", []) and "text" in  architecture.get("output_modalities", []):
+                    has_chat = True
 
-            # Some entries do not expose capabilities; allow them through.
-            if has_chat or not capabilities:
+            has_tools = False  # only accept models with tool calls
+            if "tools" in m.get("supported_parameters", []):
+                has_tools = True
+
+            if has_chat and has_tools:
                 result.append(model_id)
 
         return result
