@@ -30,15 +30,15 @@ def test_anchor_attribute_filtering_removes_unknown() -> None:
     """
 
     # 1) Проверяем Data Model
-    anchors_df, attrs_df, links_df = next(steps.get_data_model())
-    assert not anchors_df.empty and not attrs_df.empty, "Data Model must not be empty."
+    anchors_df, a_attrs_df, _l_attrs_df, _links_df, _q_df, _p_df, _cl_df = next(steps.get_data_model())
+    assert not anchors_df.empty and not a_attrs_df.empty, "Data Model must not be empty (Anchors)."
 
     # 2) Проверяем данные из Grist
     nodes_df, _ = next(steps.get_grist_data())
     assert not nodes_df.empty, "No nodes fetched from Grist."
 
     # 3) Допустимые атрибуты по Data Model
-    allowed_attrs: Set[str] = set(attrs_df["attribute_name"].astype(str))
+    allowed_attrs: Set[str] = set(a_attrs_df["attribute_name"].astype(str))
 
     # 3.1) У каждого узла (кроме DataModel) ключи атрибутов ⊆ Data Model атрибутов (плюс *_embedding)
     for _, row in nodes_df[nodes_df["node_type"] != "DataModel"].iterrows():

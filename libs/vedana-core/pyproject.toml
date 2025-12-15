@@ -20,6 +20,7 @@ dependencies = [
     "jims-tui",
     "jims-telegram",
     "jims-backoffice",
+    "vedana-etl",
     "alembic>=1.13.0",
     "asyncpg>=0.29.0",
     "aiosqlite>=0.21.0",
@@ -57,5 +58,21 @@ line-length = 120
 [tool.uv-workspace-codegen]
 generate = true
 template_type = "lib"
-generate_standard_pytest_step = true
+generate_standard_pytest_step = false
 typechecker = "mypy"
+custom_steps = """
+- name: Run tests
+  env:
+    DB_CONN_URI: "sqlite:///:memory:"
+    GRIST_SERVER_URL: "http://0.0.0.0:8484"
+    GRIST_API_KEY: "e30d2f274a538c05fecd14510887f8a3b7eab718"
+    GRIST_DATA_MODEL_DOC_ID: "wEEmPY3UiwMD"
+    GRIST_DATA_DOC_ID: "qAxQ1gcBKcW7"
+    MEMGRAPH_URI: "bolt://localhost:7687"
+    MEMGRAPH_USER: ""
+    MEMGRAPH_PWD: ""
+    EMBEDDINGS_DIM: "1024"
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  run: |
+    uv run pytest libs/vedana-core/
+"""

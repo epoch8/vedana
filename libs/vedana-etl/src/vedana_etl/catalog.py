@@ -28,16 +28,15 @@ dm_links = Table(
     ),
 )
 
-dm_attributes = Table(
-    name="dm_attributes_v2",
+dm_anchor_attributes = Table(
+    name="dm_anchor_attributes",
     store=TableStoreDB(
         dbconn=DBCONN_DATAPIPE,
-        name="dm_attributes_v2",
+        name="dm_anchor_attributes",
         data_sql_schema=[
-            Column("attribute_name", String, primary_key=True),
             Column("anchor", String, primary_key=True),
+            Column("attribute_name", String, primary_key=True),
             Column("description", String),
-            Column("link", String),
             Column("data_example", String),
             Column("embeddable", Boolean),
             Column("query", String),
@@ -47,6 +46,23 @@ dm_attributes = Table(
     ),
 )
 
+dm_link_attributes = Table(
+    name="dm_link_attributes",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="dm_link_attributes",
+        data_sql_schema=[
+            Column("link", String, primary_key=True),
+            Column("attribute_name", String, primary_key=True),
+            Column("description", String),
+            Column("data_example", String),
+            Column("embeddable", Boolean),
+            Column("query", String),
+            Column("dtype", String),
+            Column("embed_threshold", Float),
+        ],
+    ),
+)
 
 dm_anchors = Table(
     name="dm_anchors",
@@ -58,6 +74,42 @@ dm_anchors = Table(
             Column("description", String),
             Column("id_example", String),
             Column("query", String),
+        ],
+    ),
+)
+
+dm_queries = Table(
+    name="dm_queries",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="dm_queries",
+        data_sql_schema=[
+            Column("query_name", String, primary_key=True),
+            Column("query_example", String),
+        ],
+    ),
+)
+
+dm_prompts = Table(
+    name="dm_prompts",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="dm_prompts",
+        data_sql_schema=[
+            Column("name", String, primary_key=True),
+            Column("text", String),
+        ],
+    ),
+)
+
+dm_conversation_lifecycle = Table(
+    name="dm_conversation_lifecycle",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="dm_conversation_lifecycle",
+        data_sql_schema=[
+            Column("event", String, primary_key=True),
+            Column("text", String),
         ],
     ),
 )
@@ -102,26 +154,48 @@ edges = Table(
 
 # --- Memgraph-related tables ---
 
-memgraph_indexes = Table(
-    name="memgraph_indexes",
+memgraph_anchor_indexes = Table(
+    name="memgraph_anchor_indexes",
     store=TableStoreDB(
         dbconn=DBCONN_DATAPIPE,
-        name="memgraph_indexes",
+        name="memgraph_anchor_indexes",
         data_sql_schema=[
+            Column("anchor", String, primary_key=True),
+        ],
+    ),
+)
+
+memgraph_link_indexes = Table(
+    name="memgraph_link_indexes",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="memgraph_link_indexes",
+        data_sql_schema=[
+            Column("link", String, primary_key=True),
+        ],
+    ),
+)
+
+memgraph_anchor_vector_indexes = Table(
+    name="memgraph_anchor_vector_indexes",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="memgraph_anchor_vector_indexes",
+        data_sql_schema=[
+            Column("anchor", String, primary_key=True),
             Column("attribute_name", String, primary_key=True),
         ],
     ),
 )
 
-memgraph_vector_indexes = Table(
-    name="memgraph_vector_indexes",
+memgraph_link_vector_indexes = Table(
+    name="memgraph_link_vector_indexes",
     store=TableStoreDB(
         dbconn=DBCONN_DATAPIPE,
-        name="memgraph_vector_indexes",
+        name="memgraph_link_vector_indexes",
         data_sql_schema=[
+            Column("link", String, primary_key=True),
             Column("attribute_name", String, primary_key=True),
-            Column("anchor", String),
-            Column("link", String),
         ],
     ),
 )

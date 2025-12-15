@@ -31,7 +31,7 @@ def test_table_filtering() -> None:
     """
 
     # 1) Загружаем Data Model (Anchors/Attributes/Links) и сырые узлы/рёбра из живой Grist.
-    anchors_df, attrs_df, links_df = next(steps.get_data_model())
+    anchors_df, a_attrs_df, l_attrs_df, links_df, _q_df, _p_df, _cl_df = next(steps.get_data_model())
     nodes_df, edges_df = next(steps.get_grist_data())
 
     # Проверяем наичие данных в Grist.
