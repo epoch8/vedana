@@ -7,6 +7,7 @@ from jims_core.thread.thread_context import ThreadContext
 
 from vedana_core.data_model import DataModel
 from vedana_core.graph import Graph
+from vedana_core.vts import VectorStore
 from vedana_core.llm import LLM
 from vedana_core.rag_agent import RagAgent
 from vedana_core.settings import settings
@@ -34,6 +35,7 @@ class RagPipeline:
     def __init__(
         self,
         graph: Graph,
+        vts: VectorStore,
         data_model: DataModel,
         logger,
         threshold: float = 0.8,
@@ -41,6 +43,7 @@ class RagPipeline:
         model: str | None = None,
     ):
         self.graph = graph
+        self.vts = vts
         self.data_model = data_model
         self.logger = logger or logging.getLogger(__name__)
         self.threshold = threshold
@@ -107,6 +110,7 @@ class RagPipeline:
 
         agent = RagAgent(
             graph=self.graph,
+            vts=self.vts,
             data_model_description=data_model_description,
             data_model_vts_indices=data_model_vector_search_indices,
             llm=llm,

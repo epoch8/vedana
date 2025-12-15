@@ -11,11 +11,6 @@ import numpy as np
 import typing_extensions as te
 from neo4j import AsyncGraphDatabase, EagerResult, RoutingControl
 from opentelemetry import trace
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from vedana_etl.catalog import rag_anchor_embeddings, rag_edge_embeddings, nodes, edges
-
-from vedana_core.db import get_sessionmaker
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -279,50 +274,6 @@ class MemgraphGraph(CypherGraph):
             # MATCH (n)
             # DETACH DELETE n;
 
-    async def vector_search(
-        self,
-        label: str,
-        prop_type: str,
-        prop_name: str,
-        embedding: np.ndarray | list[float],
-        threshold: float,
-        top_n: int = 5,
-    ) -> list[Record]:
-        with tracer.start_as_current_span("memgraph.vector_search") as span:
-            span.set_attribute("memgraph.label", label)
-            span.set_attribute("memgraph.prop_type", prop_type)
-            span.set_attribute("memgraph.prop_name", prop_name)
-            span.set_attribute("memgraph.top_n", top_n)
-            span.set_attribute("memgraph.threshold", threshold)
-
-            if prop_type == "edge":
-                query = (
-                    "CALL vector_search.search_edges($idx_name, $top_n, $embedding) "
-                    "YIELD similarity, edge "
-                    "WITH similarity, edge "
-                    "WHERE similarity > $threshold "
-                    "RETURN similarity, edge, startNode(edge) AS start, endNode(edge) AS end;"
-                )
-            else:  # node
-                query = (
-                    "CALL vector_search.search($idx_name, $top_n, $embedding) "
-                    "YIELD similarity, node "
-                    "WITH similarity, node WHERE similarity > $threshold RETURN *"
-                )
-
-            span.set_attribute("memgraph.query", query)
-
-            idx_name = f"{label}_{prop_name}_embed_idx"
-            res = await self.driver.execute_query(
-                query,
-                idx_name=idx_name,
-                top_n=top_n,
-                embedding=embedding,
-                threshold=threshold,
-                routing_=RoutingControl.READ,
-            )
-            return res.records
-
     async def create_vector_search_index(self, label: str, prop_name: str, dimension: int) -> None:
         idx_name = escape_cypher(f"{label}_{prop_name}_embed_idx")
         param_name = escape_cypher(f"{prop_name}_embedding")
@@ -379,122 +330,6 @@ class MemgraphGraph(CypherGraph):
 
     def close(self):
         self.driver.close()
-
-
-class MemgraphGraphPgvectorVts(MemgraphGraph):
-    """Cypher queries in Memgraph, vector search in Postgres+pgvector."""
-
-    def __init__(
-        self,
-        uri: str,
-        user: str,
-        pwd: str,
-        sessionmaker: async_sessionmaker[AsyncSession] | None = None,
-    ) -> None:
-        super().__init__(uri=uri, user=user, pwd=pwd)
-        self._sessionmaker: async_sessionmaker[AsyncSession] = sessionmaker or get_sessionmaker()
-        self.rag_anchor_embeddings_table = rag_anchor_embeddings.store.data_table
-        self.rag_edge_embeddings_table = rag_edge_embeddings.store.data_table
-        self.node_table = nodes.store.data_table
-        self.edge_table = edges.store.data_table
-
-    async def vector_search(
-        self,
-        label: str,
-        prop_type: str,
-        prop_name: str,
-        embedding: np.ndarray | list[float],
-        threshold: float,
-        top_n: int = 5,
-    ) -> list[Record]:
-        with tracer.start_as_current_span("pgvector.vector_search") as span:
-            span.set_attribute("pgvector.label", label)
-            span.set_attribute("pgvector.prop_type", prop_type)
-            span.set_attribute("pgvector.prop_name", prop_name)
-            span.set_attribute("pgvector.top_n", top_n)
-            span.set_attribute("pgvector.threshold", threshold)
-
-            async with self._sessionmaker() as session:
-                if prop_type == "edge":
-                    distance = self.rag_edge_embeddings_table.c.embedding.l2_distance(embedding)
-                    similarity = (1 - distance).label("similarity")
-
-                    stmt = (
-                        select(
-                            similarity,
-                            self.edge_table.c.from_node_id,
-                            self.edge_table.c.to_node_id,
-                            self.edge_table.c.edge_label,
-                            self.edge_table.c.attributes.label("edge"),
-                        )
-                        .select_from(
-                            self.rag_edge_embeddings_table.join(
-                                self.edge_table,
-                                (self.rag_edge_embeddings_table.c.from_node_id == self.edge_table.c.from_node_id)
-                                & (self.rag_edge_embeddings_table.c.to_node_id == self.edge_table.c.to_node_id)
-                                & (self.rag_edge_embeddings_table.c.edge_label == self.edge_table.c.edge_label)
-                            )
-                        )
-                        .where(self.rag_edge_embeddings_table.c.edge_label == label)
-                        .where(self.rag_edge_embeddings_table.c.attribute_name == prop_name)
-                        .where(similarity > threshold)
-                        .order_by(distance)
-                        .limit(top_n)
-                    )
-
-                    span.set_attribute("pgvector.query", str(stmt))
-                    res = await session.execute(stmt)
-                    return res.mappings().all()
-
-                else:  # node
-                    distance = self.rag_anchor_embeddings_table.c.embedding.l2_distance(embedding)
-                    similarity = (1 - distance).label("similarity")
-
-                    stmt = (
-                        select(
-                            similarity,
-                            self.node_table.c.node_id,
-                            self.node_table.c.node_type,
-                            self.node_table.c.attributes.label("node"),
-                        )
-                        .select_from(
-                            self.rag_anchor_embeddings_table.join(
-                                self.node_table,
-                                self.rag_anchor_embeddings_table.c.node_id == self.node_table.c.node_id
-                            )
-                        )
-                        .where(self.rag_anchor_embeddings_table.c.label == label)
-                        .where(self.rag_anchor_embeddings_table.c.attribute_name == prop_name)
-                        .where(similarity > threshold)
-                        .order_by(distance)
-                        .limit(top_n)
-                    )
-
-                    span.set_attribute("pgvector.query", str(stmt))
-                    res = await session.execute(stmt)
-                    return res.mappings().all()
-
-    def close(self):
-        super().close()
-
-    async def batch_add_nodes(self, label: str, node_dicts: list[dict]):
-        cypher = f"""
-        UNWIND $batch AS node
-        CREATE (n:{escape_cypher(label)})
-        SET n = node
-        """
-        await self.run_cypher(cypher, {"batch": node_dicts})
-
-    async def batch_add_edges(self, label: str, edge_dicts: list[dict]):
-        if not edge_dicts:
-            return
-        cypher = f"""
-        UNWIND $batch AS edge
-        MATCH (from {{id: edge.from_id}}), (to {{id: edge.to_id}})
-        CREATE (from)-[r:{escape_cypher(label)}]->(to)
-        SET r = edge
-        """
-        await self.run_cypher(cypher, {"batch": edge_dicts})
 
 
 class Labels(set[str]): ...
