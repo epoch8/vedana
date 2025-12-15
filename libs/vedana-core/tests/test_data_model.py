@@ -32,7 +32,6 @@ class MockGraph:
 
 
 def build_dm() -> DataModel:
-
     # Anchors
     document = Anchor(
         noun="document",
@@ -203,5 +202,3 @@ async def test_dm_graph_cache() -> None:
 
     # Compare semantic equality via JSON
     assert dm_loaded.to_json() == dm.to_json()
-
-

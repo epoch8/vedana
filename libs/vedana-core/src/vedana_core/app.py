@@ -7,7 +7,7 @@ from loguru import logger
 
 from vedana_core.data_model import DataModel
 from vedana_core.db import get_sessionmaker
-from vedana_core.graph import MemgraphGraph
+from vedana_core.graph import Graph, MemgraphGraphPgvectorVts
 from vedana_core.rag_pipeline import RagPipeline, StartPipeline
 from vedana_core.settings import settings as core_settings
 
@@ -16,7 +16,7 @@ from vedana_core.settings import settings as core_settings
 class VedanaApp:
     sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession]
 
-    graph: MemgraphGraph
+    graph: Graph
     data_model: DataModel
     pipeline: RagPipeline
     start_pipeline: StartPipeline
@@ -24,7 +24,14 @@ class VedanaApp:
 
 @alru_cache
 async def make_vedana_app() -> VedanaApp:
-    graph = MemgraphGraph(core_settings.memgraph_uri, core_settings.memgraph_user, core_settings.memgraph_pwd)
+    sessionmaker = get_sessionmaker()
+
+    graph = MemgraphGraphPgvectorVts(
+        core_settings.memgraph_uri,
+        core_settings.memgraph_user,
+        core_settings.memgraph_pwd,
+        sessionmaker=sessionmaker,
+    )
 
     data_model = await DataModel.load_from_graph(graph)
     if data_model is None:
@@ -48,9 +55,6 @@ async def make_vedana_app() -> VedanaApp:
     )
 
     start_pipeline = StartPipeline(data_model=data_model)
-
-    # Jims setup
-    sessionmaker = get_sessionmaker()
 
     return VedanaApp(
         sessionmaker=sessionmaker,
