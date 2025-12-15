@@ -1,14 +1,14 @@
 from datapipe.compute import Table
 from datapipe.store.database import TableStoreDB
 from datapipe.store.neo4j import Neo4JStore
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Boolean, Column, Float, Integer, String
+from vedana_core.settings import settings as core_settings
 
-from vedana_etl.store import GristStore
 import vedana_etl.schemas as schemas
 from vedana_etl.config import DBCONN_DATAPIPE, MEMGRAPH_CONN_ARGS
 from vedana_etl.settings import settings
-from vedana_core.settings import settings as core_settings
-
+from vedana_etl.store import GristStore
 
 dm_links = Table(
     name="dm_links",
@@ -139,6 +139,63 @@ memgraph_edges = Table(
     store=Neo4JStore(
         connection_kwargs=MEMGRAPH_CONN_ARGS,
         data_sql_schema=schemas.GENERIC_EDGE_DATA_SCHEMA,
+    ),
+)
+
+# --- Node/Edge tables with generated embeddings ---
+
+embedded_nodes = Table(
+    name="embedded_nodes",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="embedded_nodes",
+        data_sql_schema=schemas.GENERIC_NODE_DATA_SCHEMA,
+    ),
+)
+
+embedded_edges = Table(
+    name="embedded_edges",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="embedded_edges",
+        data_sql_schema=schemas.GENERIC_EDGE_DATA_SCHEMA,
+    ),
+)
+
+# --- VTS (pgvector) ---
+# embedding size column is fixed for indexing and is defined through settings. Definition is then fixed in migrations
+
+rag_anchor_embeddings = Table(
+    name="rag_anchor_embeddings",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="rag_anchor_embeddings",
+        data_sql_schema=[
+            Column("node_id", String, primary_key=True),
+            Column("attribute_name", String, primary_key=True),
+            Column("label", String, nullable=False),
+            Column("attribute_value", String),
+            Column("embedding", Vector(dim=core_settings.embeddings_dim), nullable=False),
+            Column("embedding_model", String, nullable=False),
+        ],
+    ),
+)
+
+rag_edge_embeddings = Table(
+    name="rag_edge_embeddings",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="rag_edge_embeddings",
+        data_sql_schema=[
+            Column("edge_id", String, primary_key=True),
+            Column("attribute_name", String, primary_key=True),
+            Column("edge_label", String, nullable=False),
+            Column("from_node_id", String, nullable=False),
+            Column("to_node_id", String, nullable=False),
+            Column("attribute_value", String),
+            Column("embedding", Vector(dim=core_settings.embeddings_dim), nullable=False),
+            Column("embedding_model", String, nullable=False),
+        ],
     ),
 )
 

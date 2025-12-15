@@ -9,18 +9,22 @@ from vedana_etl.catalog import (
     dm_links,
     dm_version,
     edges,
+    embedded_edges,
+    embedded_nodes,
+    eval_gds,
+    eval_llm_answers,
     grist_edges,
     grist_nodes,
-    llm_pipeline_config,
+    judge_config,
     llm_embeddings_config,
+    llm_pipeline_config,
     memgraph_edges,
     memgraph_indexes,
     memgraph_nodes,
     memgraph_vector_indexes,
     nodes,
-    judge_config,
-    eval_gds,
-    eval_llm_answers,
+    rag_anchor_embeddings,
+    rag_edge_embeddings,
     tests,
 )
 
@@ -78,7 +82,7 @@ default_custom_steps = [
     ),
 ]
 
-# ---
+# --- Loading data to Memgraph and Vector Store ---
 
 memgraph_steps = [
     BatchTransform(
@@ -88,14 +92,24 @@ memgraph_steps = [
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["attribute_name"],
     ),
-    # TODO move embeddings to pgvector, store embeddings persistently
-    # TODO add llm_embeddings_config as input
-    # Add embeddings and upload result to memgraph.
-    # generate_embeddings is a last processing step, making DataFrame ready for upload
+    BatchTransform(
+        func=steps.pass_df_to_memgraph,
+        inputs=[nodes],
+        outputs=[memgraph_nodes],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
+        transform_keys=["node_id", "node_type"],
+    ),
+    BatchTransform(
+        func=steps.pass_df_to_memgraph,
+        inputs=[edges],
+        outputs=[memgraph_edges],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
+        transform_keys=["from_node_id", "to_node_id", "edge_label"],
+    ),
     BatchTransform(
         func=steps.generate_embeddings,
         inputs=[nodes, memgraph_vector_indexes],
-        outputs=[memgraph_nodes],
+        outputs=[embedded_nodes],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["node_id", "node_type"],
         chunk_size=100,
@@ -103,7 +117,23 @@ memgraph_steps = [
     BatchTransform(
         func=steps.generate_embeddings,
         inputs=[edges, memgraph_vector_indexes],
-        outputs=[memgraph_edges],
+        outputs=[embedded_edges],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
+        transform_keys=["from_node_id", "to_node_id", "edge_label"],
+        chunk_size=300,
+    ),
+    BatchTransform(
+        func=steps.store_pgvector_nodes,
+        inputs=[embedded_nodes],
+        outputs=[rag_anchor_embeddings],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
+        transform_keys=["node_id", "node_type"],
+        chunk_size=100,
+    ),
+    BatchTransform(
+        func=steps.store_pgvector_edges,
+        inputs=[embedded_edges],
+        outputs=[rag_edge_embeddings],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["from_node_id", "to_node_id", "edge_label"],
         chunk_size=300,

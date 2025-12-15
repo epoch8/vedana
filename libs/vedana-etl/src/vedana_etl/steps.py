@@ -4,7 +4,7 @@ import re
 import secrets
 from datetime import date, datetime
 from hashlib import sha256
-from typing import Any, Hashable, Iterator, cast
+from typing import Any, Iterator, cast
 from unicodedata import normalize
 from uuid import UUID
 
@@ -417,31 +417,6 @@ def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, 
             except Exception as exc:
                 logger.debug(f"CREATE CONSTRAINT failed for label {label}: {exc}")  # probably index exists
 
-        # Vector indices
-        for _, row in vec_attr_rows.iterrows():
-            attr: str = row["attribute_name"]
-            embeddings_dim = core_settings.embeddings_dim
-
-            if pd.notna(row["anchor"]):
-                label = row["anchor"]
-            elif pd.notna(row["link"]):
-                label = row["link"]  # relationship label
-            else:
-                continue  # cannot determine label
-
-            idx_name = f"{label}_{attr}_embed_idx".replace(" ", "_")
-            prop_name = f"{attr}_embedding"
-
-            cypher = (
-                f"CREATE VECTOR INDEX `{idx_name}` ON :`{label}`(`{prop_name}`) "
-                f'WITH CONFIG {{"dimension": {embeddings_dim}, "capacity": 1024, "metric": "cos"}}'
-            )
-            try:
-                session.run(cypher)  # type: ignore
-            except Exception as exc:
-                logger.debug(f"CREATE VECTOR INDEX failed for {idx_name}: {exc}")  # probably index exists
-                continue
-
     driver.close()
 
     # nominal outputs
@@ -469,18 +444,25 @@ def generate_embeddings(
             continue
         mapping.setdefault(record_type, []).append(row["attribute_name"])
 
-    tasks: list[tuple[Hashable, str, str]] = []  # (row_idx, attr_name, text)
+    tasks: list[tuple[int, str, str]] = []  # (row_pos, attr_name, text)
+    attr_loc = df.columns.get_loc("attributes")
+    if not isinstance(attr_loc, int):
+        raise KeyError("Unexpected non-int column location for 'attributes'")
+    attributes_col_idx = attr_loc
 
-    for idx, row in df.iterrows():
+    for pos, (_, row) in enumerate(df.iterrows()):
         typ_val = row[type_col]
         attrs_needed = mapping.get(typ_val)
         if not attrs_needed:
             continue
-        attr_dict = row["attributes"] or {}
+        attrs_any = row.get("attributes") or {}
+        if not isinstance(attrs_any, dict):
+            continue
+        row_attrs = cast(dict[str, object], attrs_any)
         for attr_name in attrs_needed:
-            text_val = attr_dict.get(attr_name)
+            text_val = row_attrs.get(attr_name)
             if text_val and isinstance(text_val, str) and not is_uuid(text_val):
-                tasks.append((idx, attr_name, text_val))
+                tasks.append((pos, attr_name, text_val))
 
     if not tasks:
         return df
@@ -490,24 +472,99 @@ def generate_embeddings(
     texts = [t[2] for t in tasks]
     vectors = provider.create_embeddings_sync(texts)
 
-    # Re-init attributes to store only embeddings
-    # df = df.drop(columns=["attributes"])
-    # df["attributes"] = pd.NA
-
     # Apply embeddings to df
-    for (row_idx, attr_name, _), vec in zip(tasks, vectors):
-        attr_dict = df.at[row_idx, "attributes"]
-        if pd.isna(attr_dict):
-            attr_dict = {}
-        else:
-            attr_dict = dict(attr_dict)
-        attr_dict[f"{attr_name}_embedding"] = vec
-        df.at[row_idx, "attributes"] = attr_dict
-
-    # remove rows without embeddings
-    # df = df.dropna(subset=["attributes"])
+    for (row_pos, attr_name, _), vec in zip(tasks, vectors):
+        attr_dict_any = df.iat[row_pos, attributes_col_idx]
+        if pd.isna(attr_dict_any):
+            updated_attrs: dict[str, object] = {}
+        elif isinstance(attr_dict_any, dict):
+            updated_attrs = cast(dict[str, object], dict(attr_dict_any))
+        else:  # Unexpected shape - skip.
+            continue
+        updated_attrs[f"{attr_name}_embedding"] = vec
+        # pandas typing stubs don't treat `object` columns as assignable.
+        df.iat[row_pos, attributes_col_idx] = updated_attrs  # type: ignore[index]
 
     return df
+
+
+def store_pgvector_nodes(df: pd.DataFrame) -> pd.DataFrame:
+    emb_model = core_settings.embeddings_model
+
+    rows: list[dict[str, object]] = []
+    for _, row in df.iterrows():
+        node_id = row.get("node_id")
+        label = row.get("node_type")
+        attrs_any = row.get("attributes")
+        if not isinstance(attrs_any, dict):
+            continue
+        attrs: dict[str, object] = attrs_any
+
+        for k, v in attrs.items():
+            if not k.endswith("_embedding"):
+                continue
+            if not isinstance(v, list) or not v:
+                continue
+            attr_name = k[:-10]  # "_embedding" = 10 chars
+            attr_val = attrs.get(attr_name)
+            vec = [float(x) for x in v]
+
+            rows.append(
+                {
+                    "node_id": str(node_id),
+                    "attribute_name": attr_name,
+                    "label": str(label),
+                    "attribute_value": attr_val if isinstance(attr_val, str) else None,
+                    "embedding": vec,
+                    "embedding_model": emb_model,
+                }
+            )
+
+    rag_df = pd.DataFrame.from_records(rows)
+    return rag_df
+
+
+def store_pgvector_edges(df: pd.DataFrame) -> pd.DataFrame:
+    emb_model = core_settings.embeddings_model
+    dim = int(core_settings.embeddings_dim)
+
+    edge_rows: list[dict[str, object]] = []
+    for _, row in df.iterrows():
+        from_node_id = row.get("from_node_id")
+        to_node_id = row.get("to_node_id")
+        edge_label = row.get("edge_label")
+        edge_id = f"{from_node_id}::{edge_label}::{to_node_id}"
+
+        attrs_any = row.get("attributes")
+        if not isinstance(attrs_any, dict):
+            continue
+        attrs = cast(dict[str, object], attrs_any)
+
+        for k, v in attrs.items():
+            if not k.endswith("_embedding"):
+                continue
+            if not isinstance(v, list) or not v:
+                continue
+            attr_name = k[:-10]  # "_embedding" = 10 chars
+            attr_val = attrs.get(attr_name)
+            vec = [float(x) for x in v]
+
+            edge_rows.append(
+                {
+                    "edge_id": str(edge_id),
+                    "attribute_name": attr_name,
+                    "edge_label": str(edge_label),
+                    "from_node_id": str(from_node_id),
+                    "to_node_id": str(to_node_id),
+                    "attribute_value": attr_val if isinstance(attr_val, str) else None,
+                    "embedding": vec,
+                    "embedding_model": emb_model,
+                    "embedding_dim": dim,
+                }
+            )
+
+    rag_df = pd.DataFrame.from_records(edge_rows)
+    return rag_df
 
 
 def merge_attr_dicts(dicts):
@@ -515,6 +572,13 @@ def merge_attr_dicts(dicts):
     for d in dicts:
         result.update(d)
     return result
+
+
+def pass_df_to_memgraph(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    """dummy method for BatchTransform to MemgraphStore"""
+    return df.copy()
 
 
 # ---
