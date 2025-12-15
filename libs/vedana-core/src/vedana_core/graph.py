@@ -396,6 +396,7 @@ class MemgraphGraphPgvectorVts(MemgraphGraph):
     async def vector_search(
         self,
         label: str,
+        prop_type: str,
         prop_name: str,
         embedding: np.ndarray | list[float],
         threshold: float,
@@ -403,6 +404,7 @@ class MemgraphGraphPgvectorVts(MemgraphGraph):
     ) -> list[Record]:
         with tracer.start_as_current_span("pgvector.vector_search") as span:
             span.set_attribute("pgvector.label", label)
+            span.set_attribute("pgvector.prop_type", prop_type)
             span.set_attribute("pgvector.prop_name", prop_name)
             span.set_attribute("pgvector.top_n", top_n)
             span.set_attribute("pgvector.threshold", threshold)
@@ -413,62 +415,144 @@ class MemgraphGraphPgvectorVts(MemgraphGraph):
                 raise ValueError(f"Invalid embedding type: {type(embedding)}")
                 # vec_list = [float(x) for x in embedding]
 
-            # Use SQLAlchemy sessionmaker (asyncpg driver) from vedana_core.db for consistency.
-            sa_query = """
-            SELECT
-                node_id,
-                1 - (embedding <=> (:vec)::vector) AS similarity
-            FROM rag_anchor_embeddings
-            WHERE label = :label
-            AND attribute_name = :attr
-            AND (1 - (embedding <=> (:vec)::vector)) > :threshold
-            ORDER BY embedding <=> (:vec)::vector
-            LIMIT :top_n;
-            """
-            span.set_attribute("pgvector.query", sa_query)
+            if prop_type == "edge":
+                # Query edge embeddings from Postgres
+                sa_query = """
+                SELECT
+                    edge_id,
+                    from_node_id,
+                    to_node_id,
+                    edge_label,
+                    1 - (embedding <=> (:vec)::vector) AS similarity
+                FROM rag_edge_embeddings
+                WHERE edge_label = :label
+                AND attribute_name = :attr
+                AND (1 - (embedding <=> (:vec)::vector)) > :threshold
+                ORDER BY embedding <=> (:vec)::vector
+                LIMIT :top_n;
+                """
+                span.set_attribute("pgvector.query", sa_query)
 
-            async with self._sessionmaker() as session:
-                res = await session.execute(
-                    text(sa_query),
-                    {
-                        "vec": vec_list,
-                        "label": label,
-                        "attr": prop_name,
-                        "threshold": float(threshold),
-                        "top_n": int(top_n),
-                    },
-                )
-                rows = res.mappings().all()
+                async with self._sessionmaker() as session:
+                    res = await session.execute(
+                        text(sa_query),
+                        {
+                            "vec": vec_list,
+                            "label": label,
+                            "attr": prop_name,
+                            "threshold": float(threshold),
+                            "top_n": int(top_n),
+                        },
+                    )
+                    rows = res.mappings().all()
 
-            if not rows:
-                return []
+                if not rows:
+                    return []
 
-            id_to_sim: dict[str, float] = {str(r["node_id"]): float(r["similarity"]) for r in rows}
-            ids = list(id_to_sim.keys())
+                # Build mapping from edge tuple (from_id, to_id, edge_label) to similarity
+                tuple_to_sim: dict[tuple[str, str, str], float] = {}  # (from_id, to_id, edge_label) -> similarity
+                for r in rows:
+                    from_id = str(r["from_node_id"])
+                    to_id = str(r["to_node_id"])
+                    edge_label = str(r["edge_label"])
+                    similarity = float(r["similarity"])
+                    tuple_to_sim[(from_id, to_id, edge_label)] = similarity
 
-            # Fetch actual nodes from Memgraph to keep downstream behavior consistent
-            cypher = f"""
-            MATCH (n:{escape_cypher(label)})
-            WHERE n.id IN $ids
-            RETURN n.id AS id, n AS node
-            """
-            mg_records = await self.execute_ro_cypher_query(cypher, {"ids": ids})
+                # Fetch actual edges from Memgraph
+                # Build edge tuples for the query
+                edge_params = [{"from_id": f, "to_id": t, "edge_label": el} for f, t, el in tuple_to_sim.keys()]
+                cypher = f"""
+                UNWIND $edges AS edge_tuple
+                MATCH (from {{id: edge_tuple.from_id}})-[r:{escape_cypher(label)}]->(to {{id: edge_tuple.to_id}})
+                RETURN from.id AS from_id, to.id AS to_id, '{label}' AS edge_label, r AS edge, from AS start, to AS end
+                """
+                mg_records = await self.execute_ro_cypher_query(cypher, {"edges": edge_params})
 
-            id_to_node: dict[str, Any] = {}
-            for rec in mg_records:
-                # rec is a neo4j.Record here
-                rec_any = cast(neo4j.Record, rec)
-                node_id = str(rec_any["id"])
-                id_to_node[node_id] = rec_any["node"]
+                # Build mapping from edge tuple to edge record
+                tuple_to_edge: dict[tuple[str, str, str], dict[str, Any]] = {}
+                for rec in mg_records:
+                    rec_any = cast(neo4j.Record, rec)
+                    from_id = str(rec_any["from_id"])
+                    to_id = str(rec_any["to_id"])
+                    edge_label = str(rec_any["edge_label"])
+                    tuple_to_edge[(from_id, to_id, edge_label)] = {
+                        "edge": rec_any["edge"],
+                        "start": rec_any["start"],
+                        "end": rec_any["end"],
+                    }
 
-            # Preserve similarity order
-            out: list[Record] = []
-            for node_id, sim in sorted(id_to_sim.items(), key=lambda kv: kv[1], reverse=True):
-                node = id_to_node.get(node_id)
-                if node is None:
-                    continue
-                out.append({"similarity": sim, "node": node})
-            return out
+                # Preserve similarity order and build output
+                out: list[Record] = []
+                for (from_id, to_id, edge_label), sim in sorted(tuple_to_sim.items(), key=lambda kv: kv[1], reverse=True):
+                    edge_data = tuple_to_edge.get((from_id, to_id, edge_label))
+                    if edge_data is None:
+                        continue
+                    out.append(
+                        {
+                            "similarity": sim,
+                            "edge": edge_data["edge"],
+                            "start": edge_data["start"],
+                            "end": edge_data["end"],
+                        }
+                    )
+                return out
+            else:  # node
+                # Use SQLAlchemy sessionmaker (asyncpg driver) from vedana_core.db for consistency.
+                sa_query = """
+                SELECT
+                    node_id,
+                    1 - (embedding <=> (:vec)::vector) AS similarity
+                FROM rag_anchor_embeddings
+                WHERE label = :label
+                AND attribute_name = :attr
+                AND (1 - (embedding <=> (:vec)::vector)) > :threshold
+                ORDER BY embedding <=> (:vec)::vector
+                LIMIT :top_n;
+                """
+                span.set_attribute("pgvector.query", sa_query)
+
+                async with self._sessionmaker() as session:
+                    res = await session.execute(
+                        text(sa_query),
+                        {
+                            "vec": vec_list,
+                            "label": label,
+                            "attr": prop_name,
+                            "threshold": float(threshold),
+                            "top_n": int(top_n),
+                        },
+                    )
+                    rows = res.mappings().all()
+
+                if not rows:
+                    return []
+
+                id_to_sim: dict[str, float] = {str(r["node_id"]): float(r["similarity"]) for r in rows}
+                ids = list(id_to_sim.keys())
+
+                # Fetch actual nodes from Memgraph to keep downstream behavior consistent
+                cypher = f"""
+                MATCH (n:{escape_cypher(label)})
+                WHERE n.id IN $ids
+                RETURN n.id AS id, n AS node
+                """
+                mg_records = await self.execute_ro_cypher_query(cypher, {"ids": ids})
+
+                id_to_node: dict[str, Any] = {}
+                for rec in mg_records:
+                    # rec is a neo4j.Record here
+                    rec_any = cast(neo4j.Record, rec)
+                    node_id = str(rec_any["id"])
+                    id_to_node[node_id] = rec_any["node"]
+
+                # Preserve similarity order
+                out: list[Record] = []
+                for node_id, sim in sorted(id_to_sim.items(), key=lambda kv: kv[1], reverse=True):
+                    node = id_to_node.get(node_id)
+                    if node is None:
+                        continue
+                    out.append({"similarity": sim, "node": node})
+                return out
 
     def close(self):
         super().close()
