@@ -3,7 +3,7 @@ import json
 import logging
 import re
 import sys
-from typing import Any, Dict, Iterable, Set
+from typing import Any, Dict, Iterable, Mapping, Set, cast
 
 import aioitertools as aioit
 import neo4j
@@ -11,6 +11,10 @@ import numpy as np
 import typing_extensions as te
 from neo4j import AsyncGraphDatabase, EagerResult, RoutingControl
 from opentelemetry import trace
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from vedana_core.db import get_sessionmaker
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -246,7 +250,7 @@ class MemgraphGraph(CypherGraph):
 
     async def create_basic_indices(self, node_types=None) -> None:
         if not node_types:
-            node_types = self.get_existing_node_types()
+            node_types = await self.get_existing_node_types()
         for label in node_types:
             await self.create_node_prop_index(set(label), "id", unique=True)
 
@@ -257,7 +261,7 @@ class MemgraphGraph(CypherGraph):
             async for (idx_name,) in res:
                 await session.run(f"DROP VECTOR INDEX {escape_cypher(idx_name)}")
             idx_name_re = re.compile(r"\(name:\s(.+?)\)")
-            async for row in await session.run("SHOW INDEX INFO"):
+            async for row in await session.run(cast(te.LiteralString, "SHOW INDEX INFO")):
                 index_type = row["index type"]
                 idx_name = next(iter(idx_name_re.findall(index_type)), None)
                 if not idx_name:
@@ -360,6 +364,100 @@ class MemgraphGraph(CypherGraph):
 
     def close(self):
         self.driver.close()
+
+
+class MemgraphGraphPgvectorVts(MemgraphGraph):
+    """Cypher queries in Memgraph, vector search in Postgres+pgvector."""
+
+    def __init__(
+        self,
+        uri: str,
+        user: str,
+        pwd: str,
+        sessionmaker: async_sessionmaker[AsyncSession] | None = None,
+    ) -> None:
+        super().__init__(uri=uri, user=user, pwd=pwd)
+        self._sessionmaker: async_sessionmaker[AsyncSession] = sessionmaker or get_sessionmaker()
+
+    async def vector_search(
+        self,
+        label: str,
+        prop_name: str,
+        embedding: np.ndarray | list[float],
+        threshold: float,
+        top_n: int = 5,
+    ) -> list[Record]:
+        with tracer.start_as_current_span("pgvector.vector_search") as span:
+            span.set_attribute("pgvector.label", label)
+            span.set_attribute("pgvector.prop_name", prop_name)
+            span.set_attribute("pgvector.top_n", top_n)
+            span.set_attribute("pgvector.threshold", threshold)
+
+            if isinstance(embedding, np.ndarray):
+                vec_list: list[float] = embedding.astype(float).tolist()
+            else:
+                raise ValueError(f"Invalid embedding type: {type(embedding)}")
+                # vec_list = [float(x) for x in embedding]
+
+            # Use SQLAlchemy sessionmaker (asyncpg driver) from vedana_core.db for consistency.
+            sa_query = """
+            SELECT
+                node_id,
+                1 - (embedding <=> (:vec)::vector) AS similarity
+            FROM rag_anchor_embeddings
+            WHERE label = :label
+            AND attribute_name = :attr
+            AND (1 - (embedding <=> (:vec)::vector)) > :threshold
+            ORDER BY embedding <=> (:vec)::vector
+            LIMIT :top_n;
+            """
+            span.set_attribute("pgvector.query", sa_query)
+
+            async with self._sessionmaker() as session:
+                res = await session.execute(
+                    text(sa_query),
+                    {
+                        "vec": vec_list,
+                        "label": label,
+                        "attr": prop_name,
+                        "threshold": float(threshold),
+                        "top_n": int(top_n),
+                    },
+                )
+                rows = res.mappings().all()
+
+            if not rows:
+                return []
+
+            id_to_sim: dict[str, float] = {str(r["node_id"]): float(r["similarity"]) for r in rows}
+            ids = list(id_to_sim.keys())
+
+            # Fetch actual nodes from Memgraph to keep downstream behavior consistent
+            cypher = f"""
+            MATCH (n:{escape_cypher(label)})
+            WHERE n.id IN $ids
+            RETURN n.id AS id, n AS node
+            """
+            mg_records = await self.execute_ro_cypher_query(cypher, {"ids": ids})
+
+            id_to_node: dict[str, Any] = {}
+            for rec in mg_records:
+                # rec is a neo4j.Record here
+                rec_any = cast(neo4j.Record, rec)
+                node_id = str(rec_any["id"])
+                id_to_node[node_id] = rec_any["node"]
+
+            # Preserve similarity order
+            out: list[Record] = []
+            for node_id, sim in sorted(id_to_sim.items(), key=lambda kv: kv[1], reverse=True):
+                node = id_to_node.get(node_id)
+                if node is None:
+                    continue
+                out.append({"similarity": sim, "node": node})
+            return out
+
+    def close(self):
+        super().close()
 
     async def batch_add_nodes(self, label: str, node_dicts: list[dict]):
         cypher = f"""
