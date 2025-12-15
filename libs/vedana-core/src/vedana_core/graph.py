@@ -11,12 +11,11 @@ import numpy as np
 import typing_extensions as te
 from neo4j import AsyncGraphDatabase, EagerResult, RoutingControl
 from opentelemetry import trace
-from pgvector import Vector
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from vedana_etl.catalog import rag_anchor_embeddings, rag_edge_embeddings, nodes, edges
 
 from vedana_core.db import get_sessionmaker
-from vedana_etl.catalog import rag_anchor_embeddings, rag_edge_embeddings
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -396,6 +395,8 @@ class MemgraphGraphPgvectorVts(MemgraphGraph):
         self._sessionmaker: async_sessionmaker[AsyncSession] = sessionmaker or get_sessionmaker()
         self.rag_anchor_embeddings_table = rag_anchor_embeddings.store.data_table
         self.rag_edge_embeddings_table = rag_edge_embeddings.store.data_table
+        self.node_table = nodes.store.data_table
+        self.edge_table = edges.store.data_table
 
     async def vector_search(
         self,
@@ -413,131 +414,65 @@ class MemgraphGraphPgvectorVts(MemgraphGraph):
             span.set_attribute("pgvector.top_n", top_n)
             span.set_attribute("pgvector.threshold", threshold)
 
-            if prop_type == "edge":
-                distance = self.rag_edge_embeddings_table.c.embedding.l2_distance(embedding)
+            async with self._sessionmaker() as session:
+                if prop_type == "edge":
+                    distance = self.rag_edge_embeddings_table.c.embedding.l2_distance(embedding)
+                    similarity = (1 - distance).label("similarity")
 
-                stmt = (
-                    select(
-                        self.rag_edge_embeddings_table.c.edge_id,
-                        self.rag_edge_embeddings_table.c.from_node_id,
-                        self.rag_edge_embeddings_table.c.to_node_id,
-                        self.rag_edge_embeddings_table.c.edge_label,
-                        (1 - distance).label("similarity"),
+                    stmt = (
+                        select(
+                            similarity,
+                            self.edge_table.c.from_node_id,
+                            self.edge_table.c.to_node_id,
+                            self.edge_table.c.edge_label,
+                            self.edge_table.c.attributes.label("edge"),
+                        )
+                        .select_from(
+                            self.rag_edge_embeddings_table.join(
+                                self.edge_table,
+                                (self.rag_edge_embeddings_table.c.from_node_id == self.edge_table.c.from_node_id)
+                                & (self.rag_edge_embeddings_table.c.to_node_id == self.edge_table.c.to_node_id)
+                                & (self.rag_edge_embeddings_table.c.edge_label == self.edge_table.c.edge_label)
+                            )
+                        )
+                        .where(self.rag_edge_embeddings_table.c.edge_label == label)
+                        .where(self.rag_edge_embeddings_table.c.attribute_name == prop_name)
+                        .where(similarity > threshold)
+                        .order_by(distance)
+                        .limit(top_n)
                     )
-                    .where(self.rag_edge_embeddings_table.c.edge_label == label)
-                    .where(self.rag_edge_embeddings_table.c.attribute_name == prop_name)
-                    .where((1 - distance) > threshold)
-                    .order_by(distance)
-                    .limit(top_n)
-                )
-                span.set_attribute("pgvector.query", stmt)
 
-                async with self._sessionmaker() as session:
+                    span.set_attribute("pgvector.query", str(stmt))
                     res = await session.execute(stmt)
-                    rows = res.mappings().all()
+                    return res.mappings().all()
 
-                if not rows:
-                    return []
+                else:  # node
+                    distance = self.rag_anchor_embeddings_table.c.embedding.l2_distance(embedding)
+                    similarity = (1 - distance).label("similarity")
 
-                # Build mapping from edge tuple (from_id, to_id, edge_label) to similarity
-                tuple_to_sim: dict[tuple[str, str, str], float] = {}  # (from_id, to_id, edge_label) -> similarity
-                for r in rows:
-                    from_id = str(r["from_node_id"])
-                    to_id = str(r["to_node_id"])
-                    edge_label = str(r["edge_label"])
-                    similarity = float(r["similarity"])
-                    tuple_to_sim[(from_id, to_id, edge_label)] = similarity
-
-                # Fetch related data from Memgraph
-                edge_params = [{"from_id": f, "to_id": t, "edge_label": el} for f, t, el in tuple_to_sim.keys()]
-                cypher = f"""
-                UNWIND $edges AS edge_tuple
-                MATCH (from {{id: edge_tuple.from_id}})-[r:{escape_cypher(label)}]->(to {{id: edge_tuple.to_id}})
-                RETURN from.id AS from_id, to.id AS to_id, '{label}' AS edge_label, r AS edge, from AS start, to AS end
-                """
-                mg_records = await self.execute_ro_cypher_query(cypher, {"edges": edge_params})
-
-                # Build mapping from edge tuple to edge record
-                tuple_to_edge: dict[tuple[str, str, str], dict[str, Any]] = {}
-                for rec in mg_records:
-                    rec_any = cast(neo4j.Record, rec)
-                    from_id = str(rec_any["from_id"])
-                    to_id = str(rec_any["to_id"])
-                    edge_label = str(rec_any["edge_label"])
-                    tuple_to_edge[(from_id, to_id, edge_label)] = {
-                        "edge": rec_any["edge"],
-                        "start": rec_any["start"],
-                        "end": rec_any["end"],
-                    }
-
-                # Preserve similarity order and build output
-                edge_results: list[Record] = []
-                for (from_id, to_id, edge_label), sim in sorted(
-                    tuple_to_sim.items(), key=lambda kv: kv[1], reverse=True
-                ):
-                    edge_data = tuple_to_edge.get((from_id, to_id, edge_label))
-                    if edge_data is None:
-                        continue
-                    edge_results.append(
-                        {
-                            "similarity": sim,
-                            "edge": edge_data["edge"],
-                            "start": edge_data["start"],
-                            "end": edge_data["end"],
-                        }
+                    stmt = (
+                        select(
+                            similarity,
+                            self.node_table.c.node_id,
+                            self.node_table.c.node_type,
+                            self.node_table.c.attributes.label("node"),
+                        )
+                        .select_from(
+                            self.rag_anchor_embeddings_table.join(
+                                self.node_table,
+                                self.rag_anchor_embeddings_table.c.node_id == self.node_table.c.node_id
+                            )
+                        )
+                        .where(self.rag_anchor_embeddings_table.c.label == label)
+                        .where(self.rag_anchor_embeddings_table.c.attribute_name == prop_name)
+                        .where(similarity > threshold)
+                        .order_by(distance)
+                        .limit(top_n)
                     )
-                return edge_results
 
-            else:  # node
-                distance = self.rag_anchor_embeddings_table.c.embedding.l2_distance(embedding)
-
-                stmt = (
-                    select(
-                        self.rag_anchor_embeddings_table.c.node_id,
-                        (1 - distance).label("similarity"),
-                    )
-                    .where(self.rag_anchor_embeddings_table.c.label == label)
-                    .where(self.rag_anchor_embeddings_table.c.attribute_name == prop_name)
-                    .where((1 - distance) > threshold)
-                    .order_by(distance)
-                    .limit(top_n)
-                )
-                
-                span.set_attribute("pgvector.query", stmt)
-
-                async with self._sessionmaker() as session:
+                    span.set_attribute("pgvector.query", str(stmt))
                     res = await session.execute(stmt)
-                    rows = res.mappings().all()
-
-                if not rows:
-                    return []
-
-                id_to_sim: dict[str, float] = {str(r["node_id"]): float(r["similarity"]) for r in rows}
-                ids = list(id_to_sim.keys())
-
-                # Fetch related data from Memgraph
-                cypher = f"""
-                MATCH (n:{escape_cypher(label)})
-                WHERE n.id IN $ids
-                RETURN n.id AS id, n AS node
-                """
-                mg_records = await self.execute_ro_cypher_query(cypher, {"ids": ids})
-
-                id_to_node: dict[str, Any] = {}
-                for rec in mg_records:
-                    # rec is a neo4j.Record here
-                    rec_any = cast(neo4j.Record, rec)
-                    node_id = str(rec_any["id"])
-                    id_to_node[node_id] = rec_any["node"]
-
-                # Preserve similarity order
-                node_results: list[Record] = []
-                for node_id, sim in sorted(id_to_sim.items(), key=lambda kv: kv[1], reverse=True):
-                    node = id_to_node.get(node_id)
-                    if node is None:
-                        continue
-                    node_results.append(cast(Record, {"similarity": sim, "node": node}))
-                return node_results
+                    return res.mappings().all()
 
     def close(self):
         super().close()
