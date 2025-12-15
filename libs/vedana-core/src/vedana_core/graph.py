@@ -11,11 +11,12 @@ import numpy as np
 import typing_extensions as te
 from neo4j import AsyncGraphDatabase, EagerResult, RoutingControl
 from opentelemetry import trace
-from pgvector.asyncpg import register_vector
-from sqlalchemy import text
+from pgvector import Vector
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from vedana_core.db import get_sessionmaker
+from vedana_etl.catalog import rag_anchor_embeddings, rag_edge_embeddings
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -393,6 +394,8 @@ class MemgraphGraphPgvectorVts(MemgraphGraph):
     ) -> None:
         super().__init__(uri=uri, user=user, pwd=pwd)
         self._sessionmaker: async_sessionmaker[AsyncSession] = sessionmaker or get_sessionmaker()
+        self.rag_anchor_embeddings_table = rag_anchor_embeddings.store.data_table
+        self.rag_edge_embeddings_table = rag_edge_embeddings.store.data_table
 
     async def vector_search(
         self,
@@ -410,40 +413,27 @@ class MemgraphGraphPgvectorVts(MemgraphGraph):
             span.set_attribute("pgvector.top_n", top_n)
             span.set_attribute("pgvector.threshold", threshold)
 
-            if isinstance(embedding, np.ndarray):
-                vec_list: list[float] = embedding.astype(float).tolist()
-            else:
-                vec_list = [float(x) for x in embedding]
-
             if prop_type == "edge":
-                # Query edge embeddings from Postgres
-                sa_query = """
-                SELECT
-                    edge_id,
-                    from_node_id,
-                    to_node_id,
-                    edge_label,
-                    1 - (embedding <=> (:vec)::vector) AS similarity
-                FROM rag_edge_embeddings
-                WHERE edge_label = :label
-                AND attribute_name = :attr
-                AND (1 - (embedding <=> (:vec)::vector)) > :threshold
-                ORDER BY embedding <=> (:vec)::vector
-                LIMIT :top_n;
-                """
-                span.set_attribute("pgvector.query", sa_query)
+                distance = self.rag_edge_embeddings_table.c.embedding.l2_distance(embedding)
+
+                stmt = (
+                    select(
+                        self.rag_edge_embeddings_table.c.edge_id,
+                        self.rag_edge_embeddings_table.c.from_node_id,
+                        self.rag_edge_embeddings_table.c.to_node_id,
+                        self.rag_edge_embeddings_table.c.edge_label,
+                        (1 - distance).label("similarity"),
+                    )
+                    .where(self.rag_edge_embeddings_table.c.edge_label == label)
+                    .where(self.rag_edge_embeddings_table.c.attribute_name == prop_name)
+                    .where((1 - distance) > threshold)
+                    .order_by(distance)
+                    .limit(top_n)
+                )
+                span.set_attribute("pgvector.query", stmt)
 
                 async with self._sessionmaker() as session:
-                    res = await session.execute(
-                        text(sa_query),
-                        {
-                            "vec": vec_list,
-                            "label": label,
-                            "attr": prop_name,
-                            "threshold": float(threshold),
-                            "top_n": int(top_n),
-                        },
-                    )
+                    res = await session.execute(stmt)
                     rows = res.mappings().all()
 
                 if not rows:
@@ -489,44 +479,34 @@ class MemgraphGraphPgvectorVts(MemgraphGraph):
                     if edge_data is None:
                         continue
                     edge_results.append(
-                        cast(
-                            Record,
-                            {
-                                "similarity": sim,
-                                "edge": edge_data["edge"],
-                                "start": edge_data["start"],
-                                "end": edge_data["end"],
-                            },
-                        )
+                        {
+                            "similarity": sim,
+                            "edge": edge_data["edge"],
+                            "start": edge_data["start"],
+                            "end": edge_data["end"],
+                        }
                     )
                 return edge_results
 
             else:  # node
-                # Use SQLAlchemy sessionmaker (asyncpg driver) from vedana_core.db for consistency.
-                sa_query = """
-                SELECT
-                    node_id,
-                    1 - (embedding <=> (:vec)::vector) AS similarity
-                FROM rag_anchor_embeddings
-                WHERE label = :label
-                AND attribute_name = :attr
-                AND (1 - (embedding <=> (:vec)::vector)) > :threshold
-                ORDER BY embedding <=> (:vec)::vector
-                LIMIT :top_n;
-                """
-                span.set_attribute("pgvector.query", sa_query)
+                distance = self.rag_anchor_embeddings_table.c.embedding.l2_distance(embedding)
+
+                stmt = (
+                    select(
+                        self.rag_anchor_embeddings_table.c.node_id,
+                        (1 - distance).label("similarity"),
+                    )
+                    .where(self.rag_anchor_embeddings_table.c.label == label)
+                    .where(self.rag_anchor_embeddings_table.c.attribute_name == prop_name)
+                    .where((1 - distance) > threshold)
+                    .order_by(distance)
+                    .limit(top_n)
+                )
+                
+                span.set_attribute("pgvector.query", stmt)
 
                 async with self._sessionmaker() as session:
-                    res = await session.execute(
-                        text(sa_query),
-                        {
-                            "vec": vec_list,
-                            "label": label,
-                            "attr": prop_name,
-                            "threshold": float(threshold),
-                            "top_n": int(top_n),
-                        },
-                    )
+                    res = await session.execute(stmt)
                     rows = res.mappings().all()
 
                 if not rows:
