@@ -14,16 +14,16 @@ import pandas as pd
 import reflex as rx
 import requests
 import sqlalchemy as sa
-from datapipe.compute import run_steps
+from datapipe.compute import Catalog, run_steps, run_pipeline
 from jims_core.db import ThreadEventDB
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from vedana_core.app import VedanaApp, make_vedana_app
-from vedana_core.data_model import DataModel
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.app import pipeline
 from vedana_etl.config import DBCONN_DATAPIPE
+from vedana_etl.pipeline import get_data_model_pipeline
 
 from vedana_backoffice.graph.build import build_canonical, derive_step_edges, derive_table_edges
 from vedana_backoffice.util import safe_render_value
@@ -826,14 +826,6 @@ class EtlState(rx.State):
                     last_deleted_rows=0,
                 )
 
-    def _run_steps_sync(self, steps_to_run: list[Any]) -> None:
-        # Run each step sequentially to provide granular logs
-        for step in steps_to_run:
-            step_name = getattr(step, "name", type(step).__name__)
-            self._append_log(f"Running step: {step_name}")
-            run_steps(etl_app.ds, [step])  # type: ignore[arg-type]
-            self._append_log(f"Completed step: {step_name}")
-
     def run_selected(self):  # type: ignore[override]
         """Run the ETL for selected labels in background, streaming logs."""
         if self.is_running:
@@ -993,15 +985,13 @@ class ChatState(rx.State):
     messages: list[dict[str, Any]] = []
     chat_thread_id: str = ""
     data_model_text: str = ""
-    data_model_last_sync: str = ""
-    is_refreshing_dm: bool = True
+    is_refreshing_dm: bool = False
     model = core_settings.model
 
     async def mount(self) -> None:
         global vedana_app
         if vedana_app is None:
             vedana_app = await make_vedana_app()
-        self.data_model_last_sync: str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     def set_input(self, value: str) -> None:
         self.input_text = value
@@ -1193,47 +1183,24 @@ class ChatState(rx.State):
             yield
 
     @rx.event(background=True)  # type: ignore[operator]
-    async def refresh_data_model(self):
+    async def reload_data_model(self):
+        """Reload the data model by running all data_model_steps from the pipeline."""
         async with self:
+            self.is_refreshing_dm = True
+            yield
             try:
-                # todo: UI updates are not triggered from async with self, need to fix
-                # https://reflex.dev/blog/2023-09-28-unlocking-new-workflows-with-background-tasks/
-                self.is_refreshing_dm = True
-                yield  # trigger UI update
+                run_pipeline(etl_app.ds, Catalog({}), get_data_model_pipeline())
 
-                # get App
                 va = await get_vedana_app()
-
-                # Get new DM
-                new_dm = DataModel.load_grist_online(
-                    core_settings.grist_data_model_doc_id,
-                    grist_server=core_settings.grist_server_url,
-                    api_key=core_settings.grist_api_key,
-                )
-                await new_dm.update_data_model_node(va.graph)
-
-                # update App
-                va.data_model = new_dm
-                try:
-                    va.pipeline.data_model = new_dm
-                except Exception:
-                    pass
-
-                # update UI
-                self.data_model_text = new_dm.to_text_descr()
-                self.data_model_last_sync = datetime.now().strftime("%Y-%m-%d %H:%M")
-                self.is_refreshing_dm = False
-                try:
-                    yield rx.toast.success("Data model refreshed")  # type: ignore[attr-defined]
-                except Exception:
-                    pass
+                self.data_model_text = va.data_model.to_text_descr()
+                yield rx.toast.success("Data model reloaded")
             except Exception as e:
-                self.data_model_text = f"Error refreshing DataModel: {e}"
+                error_msg = str(e)
+                self.data_model_text = f"(error reloading data model: {error_msg})"
+                yield rx.toast.error(f"Failed to reload data model\n{error_msg}")
+            finally:
                 self.is_refreshing_dm = False
-                try:
-                    yield rx.toast.error(f"Failed to refresh data model: {e}")  # type: ignore[attr-defined]
-                except Exception:
-                    pass
+                yield
 
 
 @dataclass

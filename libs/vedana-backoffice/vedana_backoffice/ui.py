@@ -1,6 +1,6 @@
 import reflex as rx
 
-from vedana_backoffice.state import AppVersionState, TelegramBotState  # type: ignore[attr-defined]
+from vedana_backoffice.state import AppVersionState, TelegramBotState, ChatState  # type: ignore[attr-defined]
 
 
 def telegram_link_box() -> rx.Component:
@@ -21,6 +21,16 @@ def telegram_link_box() -> rx.Component:
     )
 
 
+def data_model_reload_btn() -> rx.Component:
+    return rx.button(
+        "Reload Data Model",
+        variant="soft",
+        color_scheme="blue",
+        on_click=ChatState.reload_data_model,
+        loading=ChatState.is_refreshing_dm,
+    )
+
+
 def app_header() -> rx.Component:
     return rx.box(
         rx.hstack(
@@ -31,6 +41,7 @@ def app_header() -> rx.Component:
                 spacing="3",
             ),
             rx.hstack(
+                data_model_reload_btn(),
                 rx.link("ETL", href="/etl", font_size="1.1em"),
                 rx.link("Chat", href="/chat", font_size="1.1em"),
                 rx.link("JIMS", href="/jims", font_size="1.1em"),

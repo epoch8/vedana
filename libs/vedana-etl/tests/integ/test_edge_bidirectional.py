@@ -36,7 +36,7 @@ def _as_attr_dict(val: object) -> Dict[str, object]:
 
 def test_edge_bidirectional() -> None:
     # 1) Берём из Data Model нужную ссылку и убеждаемся, что она недиректная
-    anchors_df, attrs_df, links_df = next(steps.get_data_model())
+    anchors_df, a_attrs_df, l_attrs_df, links_df, _q_df, _p_df, _cl_df = next(steps.get_data_model())
     assert not links_df.empty, "Data Model Links пуст."
 
     dm = links_df.copy()
