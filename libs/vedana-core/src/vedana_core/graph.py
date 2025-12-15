@@ -3,7 +3,7 @@ import json
 import logging
 import re
 import sys
-from typing import Any, Dict, Iterable, Mapping, Set, cast
+from typing import Any, Dict, Iterable, Set, cast
 
 import aioitertools as aioit
 import neo4j
@@ -11,6 +11,7 @@ import numpy as np
 import typing_extensions as te
 from neo4j import AsyncGraphDatabase, EagerResult, RoutingControl
 from opentelemetry import trace
+from pgvector.asyncpg import register_vector
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -412,8 +413,7 @@ class MemgraphGraphPgvectorVts(MemgraphGraph):
             if isinstance(embedding, np.ndarray):
                 vec_list: list[float] = embedding.astype(float).tolist()
             else:
-                raise ValueError(f"Invalid embedding type: {type(embedding)}")
-                # vec_list = [float(x) for x in embedding]
+                vec_list = [float(x) for x in embedding]
 
             if prop_type == "edge":
                 # Query edge embeddings from Postgres
@@ -458,8 +458,7 @@ class MemgraphGraphPgvectorVts(MemgraphGraph):
                     similarity = float(r["similarity"])
                     tuple_to_sim[(from_id, to_id, edge_label)] = similarity
 
-                # Fetch actual edges from Memgraph
-                # Build edge tuples for the query
+                # Fetch related data from Memgraph
                 edge_params = [{"from_id": f, "to_id": t, "edge_label": el} for f, t, el in tuple_to_sim.keys()]
                 cypher = f"""
                 UNWIND $edges AS edge_tuple
@@ -482,20 +481,26 @@ class MemgraphGraphPgvectorVts(MemgraphGraph):
                     }
 
                 # Preserve similarity order and build output
-                out: list[Record] = []
-                for (from_id, to_id, edge_label), sim in sorted(tuple_to_sim.items(), key=lambda kv: kv[1], reverse=True):
+                edge_results: list[Record] = []
+                for (from_id, to_id, edge_label), sim in sorted(
+                    tuple_to_sim.items(), key=lambda kv: kv[1], reverse=True
+                ):
                     edge_data = tuple_to_edge.get((from_id, to_id, edge_label))
                     if edge_data is None:
                         continue
-                    out.append(
-                        {
-                            "similarity": sim,
-                            "edge": edge_data["edge"],
-                            "start": edge_data["start"],
-                            "end": edge_data["end"],
-                        }
+                    edge_results.append(
+                        cast(
+                            Record,
+                            {
+                                "similarity": sim,
+                                "edge": edge_data["edge"],
+                                "start": edge_data["start"],
+                                "end": edge_data["end"],
+                            },
+                        )
                     )
-                return out
+                return edge_results
+
             else:  # node
                 # Use SQLAlchemy sessionmaker (asyncpg driver) from vedana_core.db for consistency.
                 sa_query = """
@@ -530,7 +535,7 @@ class MemgraphGraphPgvectorVts(MemgraphGraph):
                 id_to_sim: dict[str, float] = {str(r["node_id"]): float(r["similarity"]) for r in rows}
                 ids = list(id_to_sim.keys())
 
-                # Fetch actual nodes from Memgraph to keep downstream behavior consistent
+                # Fetch related data from Memgraph
                 cypher = f"""
                 MATCH (n:{escape_cypher(label)})
                 WHERE n.id IN $ids
@@ -546,13 +551,13 @@ class MemgraphGraphPgvectorVts(MemgraphGraph):
                     id_to_node[node_id] = rec_any["node"]
 
                 # Preserve similarity order
-                out: list[Record] = []
+                node_results: list[Record] = []
                 for node_id, sim in sorted(id_to_sim.items(), key=lambda kv: kv[1], reverse=True):
                     node = id_to_node.get(node_id)
                     if node is None:
                         continue
-                    out.append({"similarity": sim, "node": node})
-                return out
+                    node_results.append(cast(Record, {"similarity": sim, "node": node}))
+                return node_results
 
     def close(self):
         super().close()
