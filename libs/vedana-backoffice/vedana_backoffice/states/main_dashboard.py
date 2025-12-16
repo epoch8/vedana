@@ -5,11 +5,11 @@ from typing import Any
 import pandas as pd
 import reflex as rx
 import sqlalchemy as sa
+from vedana_etl.app import app as etl_app
+from vedana_etl.config import DBCONN_DATAPIPE
 
 from vedana_backoffice.states.common import get_vedana_app
 from vedana_backoffice.util import safe_render_value
-from vedana_etl.app import app as etl_app
-from vedana_etl.config import DBCONN_DATAPIPE
 
 
 class DashboardState(rx.State):
