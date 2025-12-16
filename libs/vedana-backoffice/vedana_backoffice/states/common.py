@@ -1,9 +1,9 @@
+import io
 import logging
 import os
 
 import reflex as rx
 import requests
-
 from vedana_core.app import VedanaApp, make_vedana_app
 
 vedana_app: VedanaApp | None = None
@@ -14,6 +14,25 @@ async def get_vedana_app():
     if vedana_app is None:
         vedana_app = await make_vedana_app()
     return vedana_app
+
+
+class MemLogger(logging.Logger):
+    """Logger that captures logs to a string buffer for debugging purposes."""
+
+    def __init__(self, name: str, level: int = 0) -> None:
+        super().__init__(name, level)
+        self.parent = logging.getLogger(__name__)
+        self._buf = io.StringIO()
+        handler = logging.StreamHandler(self._buf)
+        handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+        self.addHandler(handler)
+
+    def get_logs(self) -> str:
+        return self._buf.getvalue()
+
+    def clear(self) -> None:
+        self._buf.truncate(0)
+        self._buf.seek(0)
 
 
 class AppVersionState(rx.State):

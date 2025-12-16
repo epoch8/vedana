@@ -12,11 +12,12 @@ import reflex as rx
 import sqlalchemy as sa
 from datapipe.compute import run_steps
 from datapipe.step.batch_transform import BaseBatchTransformStep
-
-from vedana_backoffice.graph.build import build_canonical, derive_step_edges, refine_layer_orders, derive_table_edges
-from vedana_backoffice.util import safe_render_value
-from vedana_etl.app import pipeline, app as etl_app
+from vedana_etl.app import app as etl_app
+from vedana_etl.app import pipeline
 from vedana_etl.config import DBCONN_DATAPIPE
+
+from vedana_backoffice.graph.build import build_canonical, derive_step_edges, derive_table_edges, refine_layer_orders
+from vedana_backoffice.util import safe_render_value
 
 
 @dataclass
@@ -414,7 +415,7 @@ class EtlState(rx.State):
 
     def _filter_steps_by_labels(self, steps: Iterable[Any], restrict_to_pipeline: bool = True) -> list[Any]:
         """Filter steps by flow/stage labels.
-        
+
         Args:
             steps: The steps to filter (from etl_app.steps)
             restrict_to_pipeline: If True, only include steps from the current pipeline
@@ -429,11 +430,11 @@ class EtlState(rx.State):
             # Check if step is in the current pipeline
             if valid_indices is not None and idx not in valid_indices:
                 return False
-            
+
             # Check flow/stage labels
             if self.selected_flow == "all" and self.selected_stage == "all":
                 return True
-                
+
             labels = getattr(step, "labels", []) or []
             label_map: dict[str, set[str]] = {}
             for key, value in labels:
@@ -1129,9 +1130,11 @@ class EtlState(rx.State):
 
         try:
             valid_pipeline_indices = self._get_current_pipeline_step_indices()
-            
+
             if self.selection_source == "manual" and self.selected_node_ids:
-                selected = [i for i in self.selected_node_ids or [] if isinstance(i, int) and i in valid_pipeline_indices]
+                selected = [
+                    i for i in self.selected_node_ids or [] if isinstance(i, int) and i in valid_pipeline_indices
+                ]
                 steps_to_run = [etl_app.steps[i] for i in sorted(selected) if 0 <= i < len(etl_app.steps)]
             else:
                 steps_to_run = self._filter_steps_by_labels(etl_app.steps)
@@ -1139,7 +1142,7 @@ class EtlState(rx.State):
                 self._append_log("No steps match selected filters")
                 return
 
-            self._append_log(f"Steps to execute: {[getattr(s, "name", type(s).__name__) for s in steps_to_run]}")
+            self._append_log(f"Steps to execute: {[getattr(s, 'name', type(s).__name__) for s in steps_to_run]}")
 
             # stream datapipe logs into UI while each step runs
             q, handler, logger = self._start_log_capture()
