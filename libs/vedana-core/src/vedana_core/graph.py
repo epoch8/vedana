@@ -48,30 +48,10 @@ class Graph(abc.ABC):
     async def get_existing_node_types(self) -> Iterable[list[str]]:
         raise NotImplementedError
 
-    async def create_full_text_search_index(self, label: str) -> None:
-        raise NotImplementedError
-
-    async def create_vector_search_index(self, label: str, prop_name: str, dimension: int) -> None:
-        raise NotImplementedError
-
-    async def create_snapshot(self) -> None:
-        raise NotImplementedError
-
     async def llm_schema(self) -> str:
         raise NotImplementedError
 
     async def text_search(self, label: str, query: str, limit: int = 10) -> Iterable[Record]:
-        raise NotImplementedError
-
-    async def vector_search(
-        self,
-        label: str,
-        prop_type: str,
-        prop_name: str,
-        embedding: np.ndarray | list[float],
-        threshold: float,
-        top_n: int = 10,
-    ) -> list[Record]:
         raise NotImplementedError
 
     async def setup(self, *_, create_basic_indices: bool = True, **kwargs) -> None:
@@ -242,6 +222,7 @@ class MemgraphGraph(CypherGraph):
         await super().add_node(node_id, labels, properties, embeddings)
 
     async def llm_schema(self) -> str:
+        """can be used as fallback data model structure"""
         res = await self.driver.execute_query("CALL llm_util.schema() YIELD schema RETURN schema")
         return res.records[0]["schema"]
 
@@ -274,19 +255,6 @@ class MemgraphGraph(CypherGraph):
             # MATCH (n)
             # DETACH DELETE n;
 
-    async def create_vector_search_index(self, label: str, prop_name: str, dimension: int) -> None:
-        idx_name = escape_cypher(f"{label}_{prop_name}_embed_idx")
-        param_name = escape_cypher(f"{prop_name}_embedding")
-        print(
-            f"CREATE VECTOR INDEX {idx_name} ON :{label}({param_name}) "
-            f'WITH CONFIG {{"dimension": {int(dimension)}, "capacity": 1024, "metric": "cos"}}'
-        )
-        # todo estimate vector index capacity from data
-        await self.run_cypher(
-            f"CREATE VECTOR INDEX {idx_name} ON :{label}({param_name}) "
-            f'WITH CONFIG {{"dimension": {int(dimension)}, "capacity": 1024, "metric": "cos"}}',
-        )
-
     async def text_search(self, label: str, query: str, limit: int = 10) -> Iterable[Record]:
         with tracer.start_as_current_span("memgraph.text_search") as span:
             span.set_attribute("memgraph.label", label)
@@ -305,14 +273,6 @@ class MemgraphGraph(CypherGraph):
             )
             return res.records
 
-    async def create_full_text_search_index(self, label: str) -> None:
-        await self.run_cypher(
-            "CREATE TEXT INDEX {idx_name} ON :{label}".format(
-                label=escape_cypher(label),
-                idx_name=escape_cypher(self._fts_idx_name(label)),
-            )
-        )
-
     async def create_node_prop_index(self, labels: set[str], property: str, unique: bool = False) -> None:
         escaped_label = escape_labels(labels)
         escaped_prop = escape_cypher(property)
@@ -320,9 +280,6 @@ class MemgraphGraph(CypherGraph):
         if not unique:
             return
         await self.run_cypher(f"CREATE CONSTRAINT ON (n:{escaped_label})\nASSERT n.{escaped_prop} IS UNIQUE")
-
-    async def create_snapshot(self) -> None:
-        await self.run_cypher("CREATE SNAPSHOT")
 
     @staticmethod
     def _fts_idx_name(label: str) -> str:
@@ -332,33 +289,6 @@ class MemgraphGraph(CypherGraph):
         self.driver.close()
 
 
-class Labels(set[str]): ...
-
-
-class CypherQ:
-    def __init__(self, q: te.LiteralString = "") -> None:
-        self._q: str = q
-
-    def _format_val(self, val: Any) -> str:
-        if isinstance(val, CypherQ):
-            return val._q
-        if isinstance(val, Labels):
-            return escape_labels(val)
-        if isinstance(val, str):
-            return escape_cypher(val)
-        raise ValueError(f"Invalid type '{type(val).__name__}' passed to format()")
-
-    def format(self, *args, **kwargs) -> "CypherQ":
-        args = tuple(self._format_val(arg) for arg in args)
-        kwargs = {k: self._format_val(v) for k, v in kwargs.items()}
-        new_q = CypherQ()
-        new_q._q = self._q.format(*args, **kwargs)
-        return new_q
-
-    def __str__(self) -> str:
-        return self._q
-
-
 def escape_cypher(identifier: str) -> str:
     identifier = identifier.replace("\u0060", "`").replace("`", "``")
     return f"`{identifier}`"
@@ -366,29 +296,3 @@ def escape_cypher(identifier: str) -> str:
 
 def escape_labels(labels: set[str]) -> str:
     return ":".join(escape_cypher(label) for label in labels)
-
-
-_arg_name_re = re.compile(r"(\S+)")
-_return_re = re.compile(r".+return\s+(.+?)(?:limit|order|where|$)", flags=re.IGNORECASE)
-
-
-def extract_ret_attrs_names(cypher_query: str) -> list[str]:
-    cypher_query = cypher_query.replace("\n", " ")
-    return_stmts: list[str] = _return_re.findall(cypher_query)
-    if not return_stmts:
-        return []
-    return_stmt = return_stmts[0]
-    ret_args_stmts = return_stmt.split(",")
-    args = []
-    for arg_stmt in ret_args_stmts:
-        candidates = _arg_name_re.findall(arg_stmt)
-        if candidates:
-            args.append(candidates[-1])
-    return args
-
-
-def main(): ...
-
-
-if __name__ == "__main__":
-    sys.exit(main())
