@@ -6,6 +6,7 @@ def render_message_bubble(
     on_toggle_details,
     extras: rx.Component | None = None,
     corner_tags_component: rx.Component | None = None,
+    bubble_width_limit_vw: str | None = None,
 ) -> rx.Component:  # type: ignore[valid-type]
     """Render a chat-style message bubble.
 
@@ -140,7 +141,7 @@ def render_message_bubble(
                         },
                     ),
                     type="always",
-                    scrollbars="vertical",
+                    scrollbars="both",
                     style={
                         "maxHeight": "25vh",
                         "width": "100%",
