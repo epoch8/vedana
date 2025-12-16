@@ -27,6 +27,8 @@ def render_message_bubble(
                             msg.get("models_str", ""),
                             font_size="11px",
                             language="json",
+                            # (bug in reflex?) code_block does not pass some custom styling (wordBreak, whiteSpace)
+                            # styling is actually enforced at message bubble here, with maxWidth=35vw
                             style={
                                 "whiteSpace": "pre-wrap",
                                 "wordBreak": "break-all",
