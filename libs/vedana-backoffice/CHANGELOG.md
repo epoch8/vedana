@@ -5,6 +5,8 @@
 * Add stats to ETL step / data table cards - last run time, row changes, row counts
 * Improve ETL Graph rendering logic
 * Refactor backoffice state.py - split into smaller states per-page 
+* Improve pipeline details view in assistant messages
+* Add pipeline logs to assistant message details on Chat page
 
 # 0.3.0 - 2025.11.20
 
