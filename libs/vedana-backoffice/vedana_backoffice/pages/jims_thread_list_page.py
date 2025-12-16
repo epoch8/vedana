@@ -609,6 +609,8 @@ def jims_thread_list_page() -> rx.Component:
             "vts_str": ev.vts_str,
             "cypher_str": ev.cypher_str,
             "show_details": ThreadViewState.expanded_event_id == ev.event_id,
+            "event_data_str": ev.event_data_str,
+            "generic_meta": ev.generic_meta,
         }
 
         tag_dialog = rx.dialog.root(
