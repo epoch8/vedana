@@ -22,7 +22,7 @@ class ThreadEventVis:
     role: str
     content: str
     tags: list[str]
-    event_data_list: list[tuple[str, str]]
+    event_data_str: str
     technical_vts_queries: list[str]
     technical_cypher_queries: list[str]
     technical_models: list[tuple[str, str]]
@@ -36,6 +36,7 @@ class ThreadEventVis:
     # Aggregated annotations from jims.backoffice.* events
     visible_tags: list[str] = field(default_factory=list)
     feedback_comments: list[dict[str, Any]] = field(default_factory=list)
+    generic_meta: bool = False
 
     @classmethod
     def create(cls, event_id: Any, created_at: datetime, event_type: str, event_data: dict) -> "ThreadEventVis":
@@ -70,6 +71,11 @@ class ThreadEventVis:
         cypher_str = "\n".join([pprint.pformat(x)[1:-1].replace("'", "") for x in cypher_queries])  # format to fit
         models_str = "\n".join([f"{k}: {v}" for k, v in models_list])
 
+        # Show meta (event_data) for events that are NOT comm.* and NOT rag.query_processed
+        generic_meta = False
+        if not event_type.startswith("comm.") and event_type != "rag.query_processed":
+            generic_meta = True
+
         return cls(
             event_id=str(event_id),
             created_at=created_at.replace(microsecond=0),
@@ -78,7 +84,7 @@ class ThreadEventVis:
             role=role,
             content=content,
             tags=tags,
-            event_data_list=[(str(k), str(v)) for k, v in event_data.items()],
+            event_data_str=json.dumps(event_data, option=json.OPT_INDENT_2).decode(),
             technical_vts_queries=vts_queries,
             technical_cypher_queries=cypher_queries,
             technical_models=models_list,
@@ -91,6 +97,7 @@ class ThreadEventVis:
             has_models=bool(models_list),
             visible_tags=list(tags),
             feedback_comments=[],
+            generic_meta=generic_meta,
         )
 
 

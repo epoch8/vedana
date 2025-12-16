@@ -92,6 +92,36 @@ def render_message_bubble(
         rx.box(),
     )
 
+    generic_details_block = rx.cond(
+        msg.get("generic_meta"),
+        rx.card(
+            rx.vstack(
+                rx.code_block(
+                    msg.get("event_data_str", ""),
+                    font_size="11px",
+                    language="json",
+                    style={
+                        "whiteSpace": "pre-wrap",
+                        "overflowX": "auto",
+                        "display": "block",
+                        "maxWidth": "100%",
+                        "boxSizing": "border-box",
+                    },
+                ),
+                spacing="1",
+                width="100%",
+            ),
+            padding="0.75em",
+            variant="surface",
+            width="100%",
+            style={
+                "maxWidth": "100%",
+                "overflowX": "auto",
+            },
+        ),
+        rx.box(),
+    )
+
     # Tag badges for feedback
     tags_box = corner_tags_component or rx.box()
 
@@ -103,7 +133,7 @@ def render_message_bubble(
             rx.box(),
         ),
         rx.cond(
-            msg.get("has_tech"),
+            msg.get("has_tech") | msg.get("generic_meta"),  # type: ignore[operator]
             rx.button(
                 "Details",
                 variant="ghost",
@@ -127,6 +157,10 @@ def render_message_bubble(
             },
         ),
         rx.cond(msg.get("show_details"), tech_block),
+        rx.cond(
+            msg.get("show_details") & msg.get("generic_meta"),  # type: ignore[operator]
+            generic_details_block,
+        ),
         rx.cond(extras is not None, extras or rx.box()),
         spacing="2",
         width="100%",
