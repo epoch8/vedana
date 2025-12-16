@@ -27,7 +27,7 @@ class VectorStore(abc.ABC):
         raise NotImplementedError
 
 
-class MemgraphVectorStore(abc.ABC):
+class MemgraphVectorStore(VectorStore):
     def __init__(self, uri: str, user: str, pwd: str, db_name: str = "") -> None:
         self.driver = AsyncGraphDatabase.driver(uri, auth=(user, pwd), database=db_name)
         # await self.driver.verify_connectivity()
@@ -79,7 +79,7 @@ class MemgraphVectorStore(abc.ABC):
             return res.records
 
 
-class PgvectorVectorStore(VectorStore):
+class PGVectorStore(VectorStore):
     def __init__(
         self,
         sessionmaker: async_sessionmaker[AsyncSession] | None = None,
@@ -134,10 +134,6 @@ class PgvectorVectorStore(VectorStore):
                         .limit(top_n)
                     )
 
-                    span.set_attribute("pgvector.query", str(stmt))
-                    res = await session.execute(stmt)
-                    return res.mappings().all()
-
                 else:  # node
                     distance = self.rag_anchor_embeddings_table.c.embedding.l2_distance(embedding)
                     similarity = (1 - distance).label("similarity")
@@ -162,6 +158,6 @@ class PgvectorVectorStore(VectorStore):
                         .limit(top_n)
                     )
 
-                    span.set_attribute("pgvector.query", str(stmt))
-                    res = await session.execute(stmt)
-                    return res.mappings().all()
+                span.set_attribute("pgvector.query", str(stmt))
+                res = await session.execute(stmt)
+                return res.mappings().all()
