@@ -130,6 +130,7 @@ def render_message_bubble(
                     rx.code_block(
                         msg.get("logs_str", ""),
                         font_size="11px",
+                        language="log",
                         wrap_long_lines=True,
                         style={
                             "whiteSpace": "pre-wrap",
