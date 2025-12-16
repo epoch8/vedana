@@ -29,6 +29,7 @@ def render_message_bubble(
                             language="json",
                             style={
                                 "whiteSpace": "pre-wrap",
+                                "wordBreak": "break-all",
                                 "overflowX": "auto",
                                 "display": "block",
                                 "maxWidth": "100%",
@@ -48,13 +49,18 @@ def render_message_bubble(
                             font_size="11px",
                             language="python",
                             style={
-                                "whiteSpace": "wrap",
+                                "whiteSpace": "pre-wrap",
+                                "wordBreak": "break-all",
                                 "overflowX": "auto",
                                 "display": "block",
                                 "maxWidth": "100%",
                                 "boxSizing": "border-box",
                             },
                         ),
+                        style={
+                            "whiteSpace": "pre-wrap",
+                            "wordBreak": "break-all",
+                        },
                         spacing="1",
                         width="100%",
                     ),
@@ -68,7 +74,8 @@ def render_message_bubble(
                             font_size="11px",
                             language="cypher",
                             style={
-                                "whiteSpace": "wrap",
+                                "whiteSpace": "pre-wrap",
+                                "wordBreak": "break-all",
                                 "overflowX": "auto",
                                 "display": "block",
                                 "maxWidth": "100%",
@@ -102,6 +109,7 @@ def render_message_bubble(
                     language="json",
                     style={
                         "whiteSpace": "pre-wrap",
+                        "word-break": "break-all",
                         "overflowX": "auto",
                         "display": "block",
                         "maxWidth": "100%",
@@ -173,7 +181,7 @@ def render_message_bubble(
         body,
         padding="0.75em",
         style={
-            "maxWidth": "70%",
+            "maxWidth": "35vw",  # 70% of 50% parent card width in vw terms
             "backgroundColor": "#11182714",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
@@ -185,7 +193,7 @@ def render_message_bubble(
         body,
         padding="0.75em",
         style={
-            "maxWidth": "70%",
+            "maxWidth": "35vw",  # 70% of 50% parent card width in vw terms
             "backgroundColor": "#3b82f614",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
