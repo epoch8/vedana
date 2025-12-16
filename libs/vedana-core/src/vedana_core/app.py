@@ -8,7 +8,7 @@ from loguru import logger
 from vedana_core.data_model import DataModel
 from vedana_core.db import get_sessionmaker
 from vedana_core.graph import Graph, MemgraphGraph
-from vedana_core.vts import VectorStore, PgvectorVectorStore
+from vedana_core.vts import VectorStore, PGVectorStore
 from vedana_core.rag_pipeline import RagPipeline, StartPipeline
 from vedana_core.settings import settings as core_settings
 
@@ -34,7 +34,7 @@ async def make_vedana_app() -> VedanaApp:
         core_settings.memgraph_pwd,
     )
 
-    vts = PgvectorVectorStore(
+    vts = PGVectorStore(
         sessionmaker=sessionmaker,
     )
 
