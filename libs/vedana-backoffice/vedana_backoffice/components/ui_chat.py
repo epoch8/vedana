@@ -129,19 +129,28 @@ def render_message_bubble(
                     rx.code_block(
                         msg.get("logs_str", ""),
                         font_size="11px",
+                        wrap_long_lines=True,
                         style={
                             "whiteSpace": "pre-wrap",
-                            "width": "100%"
+                            "wordBreak": "break-all",
+                            "overflowX": "auto",
+                            "display": "block",
+                            "maxWidth": "100%",
+                            "boxSizing": "border-box",
                         },
                     ),
                     type="always",
                     scrollbars="vertical",
-                    style={"height": "220px", "width": "100%"},
+                    style={
+                        "maxHeight": "25vh",
+                        "width": "100%",
+                    },
                 ),
                 spacing="1",
                 width="100%",
             ),
             padding="0.75em",
+            width="100%",
             variant="surface",
         ),
         rx.box(),
@@ -202,7 +211,7 @@ def render_message_bubble(
         body,
         padding="0.75em",
         style={
-            "maxWidth": "35vw",  # 70% of 50% parent card width in vw terms
+            "maxWidth": bubble_width_limit_vw or "35vw",  # 35 vw is 70% of 50% parent card width in vw terms
             "backgroundColor": "#11182714",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
@@ -214,7 +223,7 @@ def render_message_bubble(
         body,
         padding="0.75em",
         style={
-            "maxWidth": "35vw",  # 70% of 50% parent card width in vw terms
+            "maxWidth": bubble_width_limit_vw or "35vw",
             "backgroundColor": "#3b82f614",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
