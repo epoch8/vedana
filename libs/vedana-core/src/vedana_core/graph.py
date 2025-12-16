@@ -2,7 +2,6 @@ import abc
 import json
 import logging
 import re
-import sys
 from typing import Any, Dict, Iterable, Set, cast
 
 import aioitertools as aioit

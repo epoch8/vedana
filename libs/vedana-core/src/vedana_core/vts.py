@@ -1,10 +1,11 @@
 import abc
 import logging
+from typing import Sequence
 
 import numpy as np
 from neo4j import AsyncGraphDatabase, RoutingControl, Record
 from opentelemetry import trace
-from sqlalchemy import select
+from sqlalchemy import select, RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from vedana_etl.catalog import rag_anchor_embeddings, rag_edge_embeddings, nodes, edges
 
@@ -85,10 +86,10 @@ class PGVectorStore(VectorStore):
         sessionmaker: async_sessionmaker[AsyncSession] | None = None,
     ) -> None:
         self._sessionmaker: async_sessionmaker[AsyncSession] = sessionmaker or get_sessionmaker()
-        self.rag_anchor_embeddings_table = rag_anchor_embeddings.store.data_table
-        self.rag_edge_embeddings_table = rag_edge_embeddings.store.data_table
-        self.node_table = nodes.store.data_table
-        self.edge_table = edges.store.data_table
+        self.rag_anchor_embeddings_table = rag_anchor_embeddings.store.data_table  # type: ignore[attr-defined]
+        self.rag_edge_embeddings_table = rag_edge_embeddings.store.data_table  # type: ignore[attr-defined]
+        self.node_table = nodes.store.data_table  # type: ignore[attr-defined]
+        self.edge_table = edges.store.data_table  # type: ignore[attr-defined]
 
     async def vector_search(
         self,
@@ -98,7 +99,7 @@ class PGVectorStore(VectorStore):
         embedding: np.ndarray | list[float],
         threshold: float,
         top_n: int = 5,
-    ) -> list[Record]:
+    ) -> Sequence[RowMapping]:
         with tracer.start_as_current_span("pgvector.vector_search") as span:
             span.set_attribute("pgvector.label", label)
             span.set_attribute("pgvector.prop_type", prop_type)
