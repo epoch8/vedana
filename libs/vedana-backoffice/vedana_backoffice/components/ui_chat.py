@@ -103,30 +103,17 @@ def render_message_bubble(
 
     generic_details_block = rx.cond(
         msg.get("generic_meta"),
-        rx.card(
-            rx.vstack(
-                rx.code_block(
-                    msg.get("event_data_str", ""),
-                    font_size="11px",
-                    language="json",
-                    style={
-                        "whiteSpace": "pre-wrap",
-                        "word-break": "break-all",
-                        "overflowX": "auto",
-                        "display": "block",
-                        "maxWidth": "100%",
-                        "boxSizing": "border-box",
-                    },
-                ),
-                spacing="1",
-                width="100%",
-            ),
-            padding="0.75em",
-            variant="surface",
-            width="100%",
+        rx.code_block(
+            msg.get("event_data_str", ""),
+            font_size="11px",
+            language="json",
             style={
-                "maxWidth": "100%",
+                "whiteSpace": "pre-wrap",
+                "word-break": "break-all",
                 "overflowX": "auto",
+                "display": "block",
+                "maxWidth": "100%",
+                "boxSizing": "border-box",
             },
         ),
         rx.box(),
