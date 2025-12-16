@@ -11,8 +11,9 @@ def render_message_bubble(
 
     Expects msg dict with keys:
       - content, is_assistant (bool-like), created_at_fmt or created_at
-      - has_tech, show_details
+      - has_tech, has_logs, show_details
       - has_models, has_vts, has_cypher, models_str, vts_str, cypher_str (optional)
+      - logs_str (optional)
     """
 
     tech_block = rx.cond(
@@ -55,6 +56,40 @@ def render_message_bubble(
         rx.box(),
     )
 
+    logs_block = rx.cond(
+        msg.get("has_logs"),
+        rx.card(
+            rx.vstack(
+                rx.text("Logs", weight="medium"),
+                rx.scroll_area(
+                    rx.code_block(
+                        msg.get("logs_str", ""),
+                        font_size="11px",
+                        style={
+                            "whiteSpace": "pre-wrap",
+                            "width": "100%"
+                        },
+                    ),
+                    type="always",
+                    scrollbars="vertical",
+                    style={"height": "220px", "width": "100%"},
+                ),
+                spacing="1",
+                width="100%",
+            ),
+            padding="0.75em",
+            variant="surface",
+        ),
+        rx.box(),
+    )
+
+    details_block = rx.vstack(
+        tech_block,
+        logs_block,
+        spacing="2",
+        width="100%",
+    )
+
     # Tag badges for feedback
     tags_box = corner_tags_component or rx.box()
 
@@ -66,7 +101,7 @@ def render_message_bubble(
             rx.box(),
         ),
         rx.cond(
-            msg.get("has_tech"),
+            msg.get("has_tech") | msg.get("has_logs"),
             rx.button(
                 "Details",
                 variant="ghost",
@@ -91,7 +126,7 @@ def render_message_bubble(
     body_children = [
         header,
         rx.text(msg.get("content", "")),
-        rx.cond(msg.get("show_details"), tech_block),
+        rx.cond(msg.get("show_details"), details_block),
         rx.cond(extras is not None, extras or rx.box()),
     ]
 
