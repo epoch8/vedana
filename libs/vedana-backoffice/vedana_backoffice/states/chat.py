@@ -1,16 +1,19 @@
+import logging
+import traceback
 from datetime import datetime
-from typing import Any, Tuple, Dict
-from uuid import uuid4, UUID
+from typing import Any, Dict, Tuple
+from uuid import UUID, uuid4
 
 import orjson as json
 import reflex as rx
-
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
-from vedana_backoffice.states.common import get_vedana_app
-from vedana_backoffice.states.jims import ThreadViewState
+from vedana_core.app import RagPipeline
 from vedana_core.data_model import DataModel
 from vedana_core.settings import settings as core_settings
+
+from vedana_backoffice.states.common import MemLogger, get_vedana_app
+from vedana_backoffice.states.jims import ThreadViewState
 
 
 class ChatState(rx.State):
@@ -77,6 +80,7 @@ class ChatState(rx.State):
         role: str,
         content: str,
         technical_info: dict[str, Any] | None = None,
+        debug_logs: str | None = None,
     ) -> None:
         message: dict[str, Any] = {
             "id": str(uuid4()),
@@ -112,6 +116,10 @@ class ChatState(rx.State):
             message["has_tech"] = bool(vts_list or cypher_list or models_list)
             message["model_stats"] = models_raw
 
+        logs = (debug_logs or "").replace("\r\n", "\n").rstrip()
+        message["logs_str"] = logs
+        message["has_logs"] = bool(logs)
+
         self.messages.append(message)
 
     async def _ensure_thread(self) -> str:
@@ -133,7 +141,7 @@ class ChatState(rx.State):
 
         return self.chat_thread_id
 
-    async def _run_message(self, thread_id: str, user_text: str) -> Tuple[str, Dict[str, Any]]:
+    async def _run_message(self, thread_id: str, user_text: str) -> Tuple[str, Dict[str, Any], str]:
         vedana_app = await get_vedana_app()
         try:
             tid = UUID(thread_id)
@@ -150,18 +158,34 @@ class ChatState(rx.State):
                 thread_config={"interface": "reflex"},
             )
 
-        await ctl.store_user_message(uuid7(), user_text)
-        events = await ctl.run_pipeline_with_context(vedana_app.pipeline)
+        mem_logger = MemLogger("rag_debug", level=logging.DEBUG)
+        # Create a per-request pipeline to avoid mutating the globally cached pipeline/logger
+        req_pipeline = RagPipeline(
+            graph=vedana_app.graph,
+            data_model=vedana_app.data_model,
+            logger=mem_logger,
+            threshold=getattr(vedana_app.pipeline, "threshold", 0.8),
+            top_n=getattr(vedana_app.pipeline, "top_n", 5),
+            model=getattr(vedana_app.pipeline, "model", None),
+        )
 
         answer: str = ""
         tech: dict[str, Any] = {}
-        for ev in events:
-            if ev.event_type == "comm.assistant_message":
-                answer = str(ev.event_data.get("content", ""))
-            elif ev.event_type == "rag.query_processed":
-                tech = dict(ev.event_data.get("technical_info", {}))
+        try:
+            await ctl.store_user_message(uuid7(), user_text)
+            events = await ctl.run_pipeline_with_context(req_pipeline)
 
-        return answer, tech
+            for ev in events:
+                if ev.event_type == "comm.assistant_message":
+                    answer = str(ev.event_data.get("content", ""))
+                elif ev.event_type == "rag.query_processed":
+                    tech = dict(ev.event_data.get("technical_info", {}))
+        except Exception as e:
+            mem_logger.exception(f"Error processing query: {e}")
+            answer, tech = (f"Error: {e}", {})
+
+        logs = mem_logger.get_logs()
+        return answer, tech, logs
 
     # mypy raises error: "EventNamespace" not callable [operator], though event definition is according to reflex docs
     @rx.event(background=True)  # type: ignore[operator]
@@ -171,13 +195,13 @@ class ChatState(rx.State):
         async with self:
             try:
                 thread_id = await self._ensure_thread()
-                answer, tech = await self._run_message(thread_id, user_text)
+                answer, tech, logs = await self._run_message(thread_id, user_text)
                 # update shared session thread id
                 self.chat_thread_id = thread_id
             except Exception as e:
-                answer, tech = (f"Error: {e}", {})
+                answer, tech, logs = (f"Error: {e}", {}, traceback.format_exc())
 
-            self._append_message("assistant", answer, technical_info=tech)
+            self._append_message("assistant", answer, technical_info=tech, debug_logs=logs)
             self.is_running = False
 
     def send(self):

@@ -6,13 +6,15 @@ def render_message_bubble(
     on_toggle_details,
     extras: rx.Component | None = None,
     corner_tags_component: rx.Component | None = None,
+    bubble_width_limit_vw: str | None = None,
 ) -> rx.Component:  # type: ignore[valid-type]
     """Render a chat-style message bubble.
 
     Expects msg dict with keys:
       - content, is_assistant (bool-like), created_at_fmt or created_at
-      - has_tech, show_details
+      - has_tech, has_logs, show_details
       - has_models, has_vts, has_cypher, models_str, vts_str, cypher_str (optional)
+      - logs_str (optional)
     """
 
     tech_block = rx.cond(
@@ -119,6 +121,50 @@ def render_message_bubble(
         rx.box(),
     )
 
+    logs_block = rx.cond(
+        msg.get("has_logs"),
+        rx.card(
+            rx.vstack(
+                rx.text("Logs", weight="medium"),
+                rx.scroll_area(
+                    rx.code_block(
+                        msg.get("logs_str", ""),
+                        font_size="11px",
+                        wrap_long_lines=True,
+                        style={
+                            "whiteSpace": "pre-wrap",
+                            "wordBreak": "break-all",
+                            "overflowX": "auto",
+                            "display": "block",
+                            "maxWidth": "100%",
+                            "boxSizing": "border-box",
+                        },
+                    ),
+                    type="always",
+                    scrollbars="both",
+                    style={
+                        "maxHeight": "25vh",
+                        "width": "100%",
+                    },
+                ),
+                spacing="1",
+                width="100%",
+            ),
+            padding="0.75em",
+            width="100%",
+            variant="surface",
+        ),
+        rx.box(),
+    )
+
+    details_block = rx.vstack(
+        tech_block,
+        generic_details_block,
+        logs_block,
+        spacing="2",
+        width="100%",
+    )
+
     # Tag badges for feedback
     tags_box = corner_tags_component or rx.box()
 
@@ -130,7 +176,7 @@ def render_message_bubble(
             rx.box(),
         ),
         rx.cond(
-            msg.get("has_tech") | msg.get("generic_meta"),  # type: ignore[operator]
+            msg.get("has_tech") | msg.get("has_logs") | msg.get("generic_meta"),  # type: ignore[operator]
             rx.button(
                 "Details",
                 variant="ghost",
@@ -153,11 +199,7 @@ def render_message_bubble(
                 "wordBreak": "break-word",
             },
         ),
-        rx.cond(msg.get("show_details"), tech_block),
-        rx.cond(
-            msg.get("show_details") & msg.get("generic_meta"),  # type: ignore[operator]
-            generic_details_block,
-        ),
+        rx.cond(msg.get("show_details"), details_block),
         rx.cond(extras is not None, extras or rx.box()),
         spacing="2",
         width="100%",
@@ -170,7 +212,7 @@ def render_message_bubble(
         body,
         padding="0.75em",
         style={
-            "maxWidth": "35vw",  # 70% of 50% parent card width in vw terms
+            "maxWidth": bubble_width_limit_vw or "35vw",  # 35 vw is 70% of 50% parent card width in vw terms
             "backgroundColor": "#11182714",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
@@ -182,7 +224,7 @@ def render_message_bubble(
         body,
         padding="0.75em",
         style={
-            "maxWidth": "35vw",  # 70% of 50% parent card width in vw terms
+            "maxWidth": bubble_width_limit_vw or "35vw",
             "backgroundColor": "#3b82f614",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
