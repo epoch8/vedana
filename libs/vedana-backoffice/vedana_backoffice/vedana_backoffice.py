@@ -4,10 +4,11 @@ from vedana_backoffice.pages.chat import page as chat_page
 from vedana_backoffice.pages.etl import page as etl_page
 from vedana_backoffice.pages.jims_thread_list_page import jims_thread_list_page
 from vedana_backoffice.pages.main_dashboard import page as main_dashboard_page
-from vedana_backoffice.state import EtlState, ChatState, DashboardState
+from vedana_backoffice.states.main_dashboard import DashboardState
+from vedana_backoffice.states.chat import ChatState
+from vedana_backoffice.states.etl import EtlState
 
-
-app = rx.App()
+app = rx.App(stylesheets=["/styles.css"])
 app.add_page(main_dashboard_page, route="/", title="Vedana Backoffice", on_load=DashboardState.load_dashboard)
 app.add_page(etl_page, route="/etl", title="ETL", on_load=EtlState.load_pipeline_metadata)
 app.add_page(chat_page, route="/chat", title="Chat", on_load=ChatState.reset_session)
