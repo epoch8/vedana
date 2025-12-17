@@ -9,7 +9,6 @@ def _message_row(msg: dict) -> rx.Component:
     return render_message_bubble(
         msg,
         on_toggle_details=ChatState.toggle_details_by_id(message_id=msg["id"]),  # type: ignore[call-arg,func-returns-value]
-        bubble_width_limit_vw="70vw",
     )
 
 
