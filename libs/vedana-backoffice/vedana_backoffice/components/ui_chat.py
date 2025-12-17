@@ -6,7 +6,6 @@ def render_message_bubble(
     on_toggle_details,
     extras: rx.Component | None = None,
     corner_tags_component: rx.Component | None = None,
-    bubble_width_limit_vw: str | None = None,
 ) -> rx.Component:  # type: ignore[valid-type]
     """Render a chat-style message bubble.
 
@@ -30,11 +29,9 @@ def render_message_bubble(
                             font_size="11px",
                             language="json",
                             # (bug in reflex?) code_block does not pass some custom styling (wordBreak, whiteSpace)
-                            # styling is actually enforced at message bubble here, with maxWidth=35vw
+                            # https://github.com/reflex-dev/reflex/issues/6051
+                            code_tag_props={"style": {"whiteSpace": "pre-wrap"}},
                             style={
-                                "whiteSpace": "pre-wrap",
-                                "wordBreak": "break-all",
-                                "overflowX": "auto",
                                 "display": "block",
                                 "maxWidth": "100%",
                                 "boxSizing": "border-box",
@@ -52,19 +49,13 @@ def render_message_bubble(
                             msg.get("vts_str", ""),
                             font_size="11px",
                             language="python",
+                            code_tag_props={"style": {"whiteSpace": "pre-wrap"}},
                             style={
-                                "whiteSpace": "pre-wrap",
-                                "wordBreak": "break-all",
-                                "overflowX": "auto",
                                 "display": "block",
                                 "maxWidth": "100%",
                                 "boxSizing": "border-box",
                             },
                         ),
-                        style={
-                            "whiteSpace": "pre-wrap",
-                            "wordBreak": "break-all",
-                        },
                         spacing="1",
                         width="100%",
                     ),
@@ -77,10 +68,8 @@ def render_message_bubble(
                             msg.get("cypher_str", ""),
                             font_size="11px",
                             language="cypher",
+                            code_tag_props={"style": {"whiteSpace": "pre-wrap"}},
                             style={
-                                "whiteSpace": "pre-wrap",
-                                "wordBreak": "break-all",
-                                "overflowX": "auto",
                                 "display": "block",
                                 "maxWidth": "100%",
                                 "boxSizing": "border-box",
@@ -95,10 +84,6 @@ def render_message_bubble(
             ),
             padding="0.75em",
             variant="surface",
-            style={
-                "maxWidth": "100%",
-                "overflowX": "auto",
-            },
         ),
         rx.box(),
     )
@@ -109,10 +94,8 @@ def render_message_bubble(
             msg.get("event_data_str", ""),
             font_size="11px",
             language="json",
+            code_tag_props={"style": {"whiteSpace": "pre-wrap"}},
             style={
-                "whiteSpace": "pre-wrap",
-                "word-break": "break-all",
-                "overflowX": "auto",
                 "display": "block",
                 "maxWidth": "100%",
                 "boxSizing": "border-box",
@@ -133,16 +116,14 @@ def render_message_bubble(
                         language="log",
                         wrap_long_lines=True,
                         style={
-                            "whiteSpace": "pre-wrap",
-                            "wordBreak": "break-all",
-                            "overflowX": "auto",
                             "display": "block",
                             "maxWidth": "100%",
                             "boxSizing": "border-box",
                         },
+                        code_tag_props={"style": {"whiteSpace": "pre-wrap"}},  # styling workaround
                     ),
                     type="always",
-                    scrollbars="both",
+                    scrollbars="vertical",
                     style={
                         "maxHeight": "25vh",
                         "width": "100%",
@@ -213,7 +194,7 @@ def render_message_bubble(
         body,
         padding="0.75em",
         style={
-            "maxWidth": bubble_width_limit_vw or "35vw",  # 35 vw is 70% of 50% parent card width in vw terms
+            "maxWidth": "70%",  # 35 vw is 70% of 50% parent card width in vw terms
             "backgroundColor": "#11182714",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
@@ -225,7 +206,7 @@ def render_message_bubble(
         body,
         padding="0.75em",
         style={
-            "maxWidth": bubble_width_limit_vw or "35vw",
+            "maxWidth": "70%",
             "backgroundColor": "#3b82f614",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
