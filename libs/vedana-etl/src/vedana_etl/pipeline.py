@@ -147,7 +147,6 @@ memgraph_steps = [
         outputs=[rag_anchor_embeddings],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["node_id", "node_type"],
-        chunk_size=100,
     ),
     BatchTransform(
         func=steps.store_pgvector_edges,
@@ -155,7 +154,6 @@ memgraph_steps = [
         outputs=[rag_edge_embeddings],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["from_node_id", "to_node_id", "edge_label"],
-        chunk_size=300,
     ),
 ]
 
