@@ -15,9 +15,9 @@ from jims_core.thread.thread_context import ThreadContext
 from jims_core.util import uuid7
 from neo4j import GraphDatabase
 from pydantic import BaseModel, Field
-from vedana_core.db import get_sessionmaker
-from vedana_core.data_model import DataModel, Attribute, Anchor, Link
+from vedana_core.data_model import Anchor, Attribute, DataModel, Link
 from vedana_core.data_provider import GristAPIDataProvider, GristCsvDataProvider
+from vedana_core.db import get_sessionmaker
 from vedana_core.graph import MemgraphGraph
 from vedana_core.rag_pipeline import RagPipeline
 from vedana_core.settings import settings as core_settings
@@ -639,11 +639,13 @@ def generate_embeddings(
 
     provider = LLMProvider()
 
-    texts = [t[2] for t in tasks]
-    vectors = provider.create_embeddings_sync(texts)
+    unique_texts = list(dict.fromkeys([t[2] for t in tasks]))
+    vectors = provider.create_embeddings_sync(unique_texts)
+    vector_by_text = dict(zip(unique_texts, vectors))
 
     # Apply embeddings to df
-    for (row_pos, attr_name, _), vec in zip(tasks, vectors):
+    for row_pos, attr_name, text in tasks:
+        vec = vector_by_text[text]
         attr_dict_any = df.iat[row_pos, attributes_col_idx]
         if pd.isna(attr_dict_any):
             updated_attrs = {}
@@ -689,7 +691,6 @@ def store_pgvector_nodes(df: pd.DataFrame) -> pd.DataFrame:
 
 def store_pgvector_edges(df: pd.DataFrame) -> pd.DataFrame:
     emb_model = core_settings.embeddings_model
-    dim = int(core_settings.embeddings_dim)
 
     edge_rows = []
     for _, row in df.iterrows():
@@ -712,7 +713,6 @@ def store_pgvector_edges(df: pd.DataFrame) -> pd.DataFrame:
                     "attribute_value": attr_val,
                     "embedding": vec,
                     "embedding_model": emb_model,
-                    "embedding_dim": dim,
                 }
             )
 
