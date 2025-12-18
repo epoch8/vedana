@@ -29,7 +29,18 @@ def test_generate_embeddings_for_nodes(monkeypatch):
             {"node_id": "u1", "node_type": "Author", "attributes": {"name": "Bob"}},  # без векторизации
         ]
     )
-    memgraph_vector_indexes = pd.DataFrame([{"attribute_name": "title", "anchor": "Article", "link": None}])
+
+    dm_node_attrs = pd.DataFrame(
+        [
+            {
+                "attribute_name": "title",
+                "anchor": "Article",
+                "embeddable": True,
+                "dtype": "str",
+                "embed_threshold": 0.8,
+            }
+        ]
+    )
 
     class DummyProv:
         def create_embeddings_sync(self, texts):
@@ -40,7 +51,7 @@ def test_generate_embeddings_for_nodes(monkeypatch):
     orig = steps.LLMProvider
     try:
         steps.LLMProvider = DummyProv  # type: ignore
-        out = steps.generate_embeddings(df.copy(), memgraph_vector_indexes)
+        out = steps.generate_embeddings(df.copy(), dm_node_attrs)
     finally:
         steps.LLMProvider = orig
 
@@ -57,7 +68,18 @@ def test_generate_embeddings_skips_uuid_text(monkeypatch):
             {"node_id": "a1", "node_type": "Article", "attributes": {"title": uuid_text}},
         ]
     )
-    mvi = pd.DataFrame([{"attribute_name": "title", "anchor": "Article", "link": None}])
+
+    dm_node_attrs = pd.DataFrame(
+        [
+            {
+                "attribute_name": "title",
+                "anchor": "Article",
+                "embeddable": True,
+                "dtype": "str",
+                "embed_threshold": 0.8,
+            }
+        ]
+    )
 
     class DummyProv:
         def create_embeddings_sync(self, texts):
@@ -67,7 +89,7 @@ def test_generate_embeddings_skips_uuid_text(monkeypatch):
     orig = steps.LLMProvider
     try:
         steps.LLMProvider = DummyProv  # type: ignore
-        out = steps.generate_embeddings(df.copy(), mvi)
+        out = steps.generate_embeddings(df.copy(), dm_node_attrs)
     finally:
         steps.LLMProvider = orig
 
@@ -87,8 +109,18 @@ def test_generate_embeddings_for_edges(monkeypatch):
             },
         ]
     )
-    # для рёбер используется колонка link
-    mvi = pd.DataFrame([{"attribute_name": "title", "anchor": None, "link": "WROTE"}])
+
+    dm_link_attrs = pd.DataFrame(
+        [
+            {
+                "attribute_name": "title",
+                "link": "WROTE",
+                "embeddable": True,
+                "dtype": "str",
+                "embed_threshold": 0.8,
+            }
+        ]
+    )
 
     class DummyProv:
         def create_embeddings_sync(self, texts):
@@ -98,7 +130,7 @@ def test_generate_embeddings_for_edges(monkeypatch):
     orig = steps.LLMProvider
     try:
         steps.LLMProvider = DummyProv  # type: ignore
-        out = steps.generate_embeddings(df.copy(), mvi)
+        out = steps.generate_embeddings(df.copy(), dm_link_attrs)
     finally:
         steps.LLMProvider = orig
 
