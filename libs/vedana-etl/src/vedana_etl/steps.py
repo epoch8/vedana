@@ -608,10 +608,7 @@ def generate_embeddings(
         attrs_needed = mapping.get(typ_val)
         if not attrs_needed:
             continue
-        attrs_any = row.get("attributes") or {}
-        if not isinstance(attrs_any, dict):
-            continue
-        row_attrs = cast(dict[str, object], attrs_any)
+        row_attrs = row.get("attributes", {})
         for attr_name in attrs_needed:
             text_val = row_attrs.get(attr_name)
             if text_val and isinstance(text_val, str) and not is_uuid(text_val):
@@ -629,9 +626,9 @@ def generate_embeddings(
     for (row_pos, attr_name, _), vec in zip(tasks, vectors):
         attr_dict_any = df.iat[row_pos, attributes_col_idx]
         if pd.isna(attr_dict_any):
-            updated_attrs: dict[str, object] = {}
+            updated_attrs = {}
         elif isinstance(attr_dict_any, dict):
-            updated_attrs = cast(dict[str, object], dict(attr_dict_any))
+            updated_attrs = attr_dict_any
         else:  # Unexpected shape - skip.
             continue
         updated_attrs[f"{attr_name}_embedding"] = vec
@@ -646,13 +643,7 @@ def store_pgvector_nodes(df: pd.DataFrame) -> pd.DataFrame:
 
     rows: list[dict[str, object]] = []
     for _, row in df.iterrows():
-        node_id = row.get("node_id")
-        label = row.get("node_type")
-        attrs_any = row.get("attributes")
-        if not isinstance(attrs_any, dict):
-            continue
-        attrs: dict[str, object] = attrs_any
-
+        attrs = row.get("attributes", {})
         for k, v in attrs.items():
             if not k.endswith("_embedding"):
                 continue
@@ -664,35 +655,25 @@ def store_pgvector_nodes(df: pd.DataFrame) -> pd.DataFrame:
 
             rows.append(
                 {
-                    "node_id": str(node_id),
+                    "node_id": row.node_id,
                     "attribute_name": attr_name,
-                    "label": str(label),
-                    "attribute_value": attr_val if isinstance(attr_val, str) else None,
+                    "label": row.node_type,
+                    "attribute_value": attr_val,
                     "embedding": vec,
                     "embedding_model": emb_model,
                 }
             )
 
-    rag_df = pd.DataFrame.from_records(rows)
-    return rag_df
+    return pd.DataFrame.from_records(rows)
 
 
 def store_pgvector_edges(df: pd.DataFrame) -> pd.DataFrame:
     emb_model = core_settings.embeddings_model
     dim = int(core_settings.embeddings_dim)
 
-    edge_rows: list[dict[str, object]] = []
+    edge_rows = []
     for _, row in df.iterrows():
-        from_node_id = row.get("from_node_id")
-        to_node_id = row.get("to_node_id")
-        edge_label = row.get("edge_label")
-        edge_id = f"{from_node_id}::{edge_label}::{to_node_id}"
-
-        attrs_any = row.get("attributes")
-        if not isinstance(attrs_any, dict):
-            continue
-        attrs = cast(dict[str, object], attrs_any)
-
+        attrs = row.get("attributes", {})
         for k, v in attrs.items():
             if not k.endswith("_embedding"):
                 continue
@@ -704,20 +685,18 @@ def store_pgvector_edges(df: pd.DataFrame) -> pd.DataFrame:
 
             edge_rows.append(
                 {
-                    "edge_id": str(edge_id),
+                    "from_node_id": row.from_node_id,
+                    "to_node_id": row.to_node_id,
+                    "edge_label": row.edge_label,
                     "attribute_name": attr_name,
-                    "edge_label": str(edge_label),
-                    "from_node_id": str(from_node_id),
-                    "to_node_id": str(to_node_id),
-                    "attribute_value": attr_val if isinstance(attr_val, str) else None,
+                    "attribute_value": attr_val,
                     "embedding": vec,
                     "embedding_model": emb_model,
                     "embedding_dim": dim,
                 }
             )
 
-    rag_df = pd.DataFrame.from_records(edge_rows)
-    return rag_df
+    return pd.DataFrame.from_records(edge_rows)
 
 
 def merge_attr_dicts(dicts):
