@@ -97,17 +97,14 @@ memgraph_steps = [
     BatchTransform(
         func=steps.ensure_memgraph_node_indexes,
         inputs=[dm_anchor_attributes],
-        outputs=[
-            memgraph_anchor_indexes,
-            memgraph_anchor_vector_indexes,
-        ],
+        outputs=[memgraph_anchor_indexes],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["attribute_name"],
     ),
     BatchTransform(
         func=steps.ensure_memgraph_edge_indexes,
         inputs=[dm_link_attributes],
-        outputs=[memgraph_link_indexes, memgraph_link_vector_indexes],
+        outputs=[memgraph_link_indexes],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["attribute_name"],
     ),
@@ -127,7 +124,7 @@ memgraph_steps = [
     ),
     BatchTransform(
         func=steps.generate_embeddings,
-        inputs=[nodes, memgraph_anchor_vector_indexes],
+        inputs=[nodes, dm_anchor_attributes],
         outputs=[embedded_nodes],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["node_id", "node_type"],
@@ -135,7 +132,7 @@ memgraph_steps = [
     ),
     BatchTransform(
         func=steps.generate_embeddings,
-        inputs=[edges, memgraph_link_vector_indexes],
+        inputs=[edges, dm_link_attributes],
         outputs=[embedded_edges],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["from_node_id", "to_node_id", "edge_label"],

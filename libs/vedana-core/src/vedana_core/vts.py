@@ -29,6 +29,9 @@ class VectorStore(abc.ABC):
 
 
 class MemgraphVectorStore(VectorStore):
+    """
+    Use Memgraph vector_search capabilities. Requires vector indices to be created separately.
+    """
     def __init__(self, uri: str, user: str, pwd: str, db_name: str = "") -> None:
         self.driver = AsyncGraphDatabase.driver(uri, auth=(user, pwd), database=db_name)
         # await self.driver.verify_connectivity()
