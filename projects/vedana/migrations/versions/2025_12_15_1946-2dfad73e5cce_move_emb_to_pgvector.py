@@ -132,26 +132,27 @@ def upgrade() -> None:
     )
     op.create_table(
         "rag_edge_embeddings",
-        sa.Column("edge_id", sa.String(), nullable=False),
-        sa.Column("attribute_name", sa.String(), nullable=False),
-        sa.Column("edge_label", sa.String(), nullable=False),
         sa.Column("from_node_id", sa.String(), nullable=False),
         sa.Column("to_node_id", sa.String(), nullable=False),
+        sa.Column("edge_label", sa.String(), nullable=False),
+        sa.Column("attribute_name", sa.String(), nullable=False),
         sa.Column("attribute_value", sa.String(), nullable=True),
         sa.Column("embedding", Vector(dim=1024), nullable=False),
         sa.Column("embedding_model", sa.String(), nullable=False),
-        sa.PrimaryKeyConstraint("edge_id", "attribute_name"),
+        sa.PrimaryKeyConstraint("from_node_id", "to_node_id", "edge_label", "attribute_name"),
     )
     op.create_table(
         "rag_edge_embeddings_meta",
-        sa.Column("edge_id", sa.String(), nullable=False),
+        sa.Column("from_node_id", sa.String(), nullable=False),
+        sa.Column("to_node_id", sa.String(), nullable=False),
+        sa.Column("edge_label", sa.String(), nullable=False),
         sa.Column("attribute_name", sa.String(), nullable=False),
         sa.Column("hash", sa.Integer(), nullable=True),
         sa.Column("create_ts", sa.Float(), nullable=True),
         sa.Column("update_ts", sa.Float(), nullable=True),
         sa.Column("process_ts", sa.Float(), nullable=True),
         sa.Column("delete_ts", sa.Float(), nullable=True),
-        sa.PrimaryKeyConstraint("edge_id", "attribute_name"),
+        sa.PrimaryKeyConstraint("from_node_id", "to_node_id", "edge_label", "attribute_name"),
     )
     op.create_table(
         "store_pgvector_edges_899a47ab38_meta",
