@@ -1175,7 +1175,7 @@ class ChatState(rx.State):
         async with self:
             va = await get_vedana_app()
             try:
-                self.data_model_text = va.data_model.to_text_descr()
+                self.data_model_text = await va.data_model.to_text_descr()
             except Exception:
                 self.data_model_text = "(failed to load data model text)"
 
@@ -1192,7 +1192,7 @@ class ChatState(rx.State):
                 run_pipeline(etl_app.ds, Catalog({}), get_data_model_pipeline())
 
                 va = await get_vedana_app()
-                self.data_model_text = va.data_model.to_text_descr()
+                self.data_model_text = await va.data_model.to_text_descr()
                 yield rx.toast.success("Data model reloaded")
             except Exception as e:
                 error_msg = str(e)
