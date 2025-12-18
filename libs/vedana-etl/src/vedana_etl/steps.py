@@ -602,11 +602,9 @@ def generate_embeddings(
     dm_attributes: pd.DataFrame,
 ) -> pd.DataFrame:
     """Generate embeddings for embeddable text attributes"""
-
-    if df.empty:
-        return df
-
+    emb_model = core_settings.embeddings_model
     type_col = "node_type" if "node_id" in df.columns else "edge_label"
+    pkeys = ["node_id", "node_type"] if type_col == "node_type" else ["from_node_id", "to_node_id", "edge_label"]
     dm_attributes = dm_attributes[dm_attributes["embeddable"]]  # & (dm_attributes["dtype"].str.lower() == "str")]
 
     # Build mapping type -> list[attribute_name] that need embedding
@@ -618,11 +616,6 @@ def generate_embeddings(
         mapping.setdefault(record_type, []).append(row["attribute_name"])
 
     tasks: list[tuple[int, str, str]] = []  # (row_pos, attr_name, text)
-    attr_loc = df.columns.get_loc("attributes")
-    if not isinstance(attr_loc, int):
-        raise KeyError("Unexpected non-int column location for 'attributes'")
-    attributes_col_idx = attr_loc
-
     for pos, (_, row) in enumerate(df.iterrows()):
         typ_val = row[type_col]
         attrs_needed = mapping.get(typ_val)
@@ -643,87 +636,21 @@ def generate_embeddings(
     vectors = provider.create_embeddings_sync(unique_texts)
     vector_by_text = dict(zip(unique_texts, vectors))
 
-    # Apply embeddings to df
+    # Apply embeddings
+    rows: list[dict[str, object]] = []
     for row_pos, attr_name, text in tasks:
         vec = vector_by_text[text]
-        attr_dict_any = df.iat[row_pos, attributes_col_idx]
-        if pd.isna(attr_dict_any):
-            updated_attrs = {}
-        elif isinstance(attr_dict_any, dict):
-            updated_attrs = attr_dict_any
-        else:  # Unexpected shape - skip.
-            continue
-        updated_attrs[f"{attr_name}_embedding"] = vec
-        # pandas typing stubs don't treat `object` columns as assignable.
-        df.iat[row_pos, attributes_col_idx] = updated_attrs  # type: ignore[index]
-
-    return df
-
-
-def store_pgvector_nodes(df: pd.DataFrame) -> pd.DataFrame:
-    emb_model = core_settings.embeddings_model
-
-    rows: list[dict[str, object]] = []
-    for _, row in df.iterrows():
-        attrs = row.get("attributes", {})
-        for k, v in attrs.items():
-            if not k.endswith("_embedding"):
-                continue
-            if not isinstance(v, list) or not v:
-                continue
-            attr_name = k[:-10]  # "_embedding" = 10 chars
-            attr_val = attrs.get(attr_name)
-            vec = [float(x) for x in v]
-
-            rows.append(
-                {
-                    "node_id": row.node_id,
-                    "attribute_name": attr_name,
-                    "label": row.node_type,
-                    "attribute_value": attr_val,
-                    "embedding": vec,
-                    "embedding_model": emb_model,
-                }
-            )
+        rows.append(
+            {
+                **df.loc[row_pos, pkeys],
+                "attribute_name": attr_name,
+                "attribute_value": text,
+                "embedding": vec,
+                "embedding_model": emb_model,
+            }
+        )
 
     return pd.DataFrame.from_records(rows)
-
-
-def store_pgvector_edges(df: pd.DataFrame) -> pd.DataFrame:
-    emb_model = core_settings.embeddings_model
-
-    edge_rows = []
-    for _, row in df.iterrows():
-        attrs = row.get("attributes", {})
-        for k, v in attrs.items():
-            if not k.endswith("_embedding"):
-                continue
-            if not isinstance(v, list) or not v:
-                continue
-            attr_name = k[:-10]  # "_embedding" = 10 chars
-            attr_val = attrs.get(attr_name)
-            vec = [float(x) for x in v]
-
-            edge_rows.append(
-                {
-                    "from_node_id": row.from_node_id,
-                    "to_node_id": row.to_node_id,
-                    "edge_label": row.edge_label,
-                    "attribute_name": attr_name,
-                    "attribute_value": attr_val,
-                    "embedding": vec,
-                    "embedding_model": emb_model,
-                }
-            )
-
-    return pd.DataFrame.from_records(edge_rows)
-
-
-def merge_attr_dicts(dicts):
-    result = {}
-    for d in dicts:
-        result.update(d)
-    return result
 
 
 def pass_df_to_memgraph(

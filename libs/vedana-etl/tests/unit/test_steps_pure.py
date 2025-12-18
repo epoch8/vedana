@@ -22,12 +22,6 @@ def test_is_uuid_true_false():
     assert not steps.is_uuid("not-a-uuid")
 
 
-def test_merge_attr_dicts():
-    out = steps.merge_attr_dicts([{"a": 1}, {"b": 2}, {"a": 3}])
-    # последний словарь перекрывает предыдущие
-    assert out == {"a": 3, "b": 2}
-
-
 def test_generate_embeddings_for_nodes(monkeypatch):
     df = pd.DataFrame(
         [
