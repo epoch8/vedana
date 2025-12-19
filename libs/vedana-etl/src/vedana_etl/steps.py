@@ -19,6 +19,7 @@ from vedana_core.data_model import Anchor, Attribute, DataModel, Link
 from vedana_core.data_provider import GristAPIDataProvider, GristCsvDataProvider
 from vedana_core.db import get_sessionmaker
 from vedana_core.graph import MemgraphGraph
+from vedana_core.vts import PGVectorStore
 from vedana_core.rag_pipeline import RagPipeline
 from vedana_core.settings import settings as core_settings
 
@@ -749,9 +750,11 @@ async def _run_tests_async(
     pipeline_model: str,
 ) -> list[dict[str, Any]]:
     graph = MemgraphGraph(core_settings.memgraph_uri, core_settings.memgraph_user, core_settings.memgraph_pwd)
+    vts = PGVectorStore()
 
     pipeline = RagPipeline(
         graph=graph,
+        vts=vts,
         data_model=dm,
         logger=logger,
     )
