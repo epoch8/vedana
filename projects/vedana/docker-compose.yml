@@ -78,7 +78,7 @@ services:
       - memgraph
 
   db:
-    image: ankane/pgvector:latest
+    image: pgvector/pgvector:latest
     environment:
       POSTGRES_PASSWORD: postgres
     ports:
