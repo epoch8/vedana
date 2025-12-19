@@ -59,7 +59,7 @@ def test_generate_embeddings_for_nodes(monkeypatch):
     assert out.iloc[0]["node_id"] == "a1"
     assert out.iloc[0]["node_type"] == "Article"
     assert out.iloc[0]["attribute_name"] == "title"
-    assert "title_embedding" not in out[out["node_id"] == "u1", "attribute_value"].values  # legacy naming
+    assert "title_embedding" not in out.loc[out["node_id"] == "u1", "attribute_value"].values  # legacy naming
     assert out.iloc[0]["attribute_value"] == "hello"
     assert out.iloc[0]["embedding"] == [1.0, 0.0]
     assert "embedding_model" in out.columns
