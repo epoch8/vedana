@@ -55,10 +55,14 @@ def test_generate_embeddings_for_nodes(monkeypatch):
     finally:
         steps.LLMProvider = orig
 
-    attrs = out[out["node_id"] == "a1"].iloc[0]["attributes"]
-    assert attrs["title_embedding"] == [1.0, 0.0]
-    # у автора нет добавленного embedding
-    assert "title_embedding" not in out[out["node_id"] == "u1"].iloc[0]["attributes"]
+    assert len(out) == 1
+    assert out.iloc[0]["node_id"] == "a1"
+    assert out.iloc[0]["node_type"] == "Article"
+    assert out.iloc[0]["attribute_name"] == "title"
+    assert "title_embedding" not in out[out["node_id"] == "u1", "attribute_value"].values  # legacy naming
+    assert out.iloc[0]["attribute_value"] == "hello"
+    assert out.iloc[0]["embedding"] == [1.0, 0.0]
+    assert "embedding_model" in out.columns
 
 
 def test_generate_embeddings_skips_uuid_text(monkeypatch):
@@ -93,6 +97,9 @@ def test_generate_embeddings_skips_uuid_text(monkeypatch):
     finally:
         steps.LLMProvider = orig
 
+    assert len(out) == 1
+    assert out.iloc[0]["node_id"] == "a1"
+    assert out.iloc[0]["node_type"] == "Article"
     assert out.iloc[0]["attributes"] == {"title": uuid_text}
 
 
@@ -134,5 +141,11 @@ def test_generate_embeddings_for_edges(monkeypatch):
     finally:
         steps.LLMProvider = orig
 
-    attrs = out.iloc[0]["attributes"]
-    assert attrs["title_embedding"] == [0.5, 0.5]
+    assert len(out) == 1
+    assert out.iloc[0]["from_node_id"] == "u1"
+    assert out.iloc[0]["to_node_id"] == "a1"
+    assert out.iloc[0]["edge_label"] == "WROTE"
+    assert out.iloc[0]["attribute_name"] == "title"
+    assert out.iloc[0]["attribute_value"] == "edge text"
+    assert out.iloc[0]["embedding"] == [0.5, 0.5]
+    assert "embedding_model" in out.columns
