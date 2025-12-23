@@ -603,7 +603,6 @@ def generate_embeddings(
     dm_attributes: pd.DataFrame,
 ) -> pd.DataFrame:
     """Generate embeddings for embeddable text attributes"""
-    emb_model = core_settings.embeddings_model
     type_col = "node_type" if "node_id" in df.columns else "edge_label"
     pkeys = ["node_id", "node_type"] if type_col == "node_type" else ["from_node_id", "to_node_id", "edge_label"]
     dm_attributes = dm_attributes[dm_attributes["embeddable"]]  # & (dm_attributes["dtype"].str.lower() == "str")]
