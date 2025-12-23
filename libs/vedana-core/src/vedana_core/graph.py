@@ -66,6 +66,7 @@ class Graph(abc.ABC):
     async def vector_search(
         self,
         label: str,
+        prop_type: str,
         prop_name: str,
         embedding: np.ndarray | list[float],
         threshold: float,
@@ -276,6 +277,7 @@ class MemgraphGraph(CypherGraph):
     async def vector_search(
         self,
         label: str,
+        prop_type: str,
         prop_name: str,
         embedding: np.ndarray | list[float],
         threshold: float,
@@ -283,14 +285,26 @@ class MemgraphGraph(CypherGraph):
     ) -> list[Record]:
         with tracer.start_as_current_span("memgraph.vector_search") as span:
             span.set_attribute("memgraph.label", label)
+            span.set_attribute("memgraph.prop_type", prop_type)
             span.set_attribute("memgraph.prop_name", prop_name)
             span.set_attribute("memgraph.top_n", top_n)
             span.set_attribute("memgraph.threshold", threshold)
 
-            query = (
-                "CALL vector_search.search($idx_name, $top_n, $embedding) YIELD similarity, node "
-                "WITH similarity, node WHERE similarity > $threshold RETURN *"
-            )
+            if prop_type == "edge":
+                query = (
+                    "CALL vector_search.search_edges($idx_name, $top_n, $embedding) "
+                    "YIELD similarity, edge "
+                    "WITH similarity, edge "
+                    "WHERE similarity > $threshold "
+                    "RETURN similarity, edge, startNode(edge) AS start, endNode(edge) AS end;"
+                )
+            else:  # node
+                query = (
+                    "CALL vector_search.search($idx_name, $top_n, $embedding) "
+                    "YIELD similarity, node "
+                    "WITH similarity, node WHERE similarity > $threshold RETURN *"
+                )
+
             span.set_attribute("memgraph.query", query)
 
             idx_name = f"{label}_{prop_name}_embed_idx"
