@@ -49,6 +49,7 @@ class ChatState(rx.State):
     openai_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
     openrouter_models: list[str] = []
     available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
+    enable_dm_filtering: bool = core_settings.enable_dm_filtering
 
     async def mount(self) -> None:
         self.fetch_openrouter_models()
@@ -63,6 +64,9 @@ class ChatState(rx.State):
 
     def set_custom_openrouter_key(self, value: str) -> None:
         self.custom_openrouter_key = value  # need validating?
+
+    def set_enable_dm_filtering(self, value: bool) -> None:
+        self.enable_dm_filtering = value
 
     def set_provider(self, value: str) -> None:
         self.provider = value
@@ -248,6 +252,7 @@ class ChatState(rx.State):
 
         pipeline = vedana_app.pipeline
         pipeline.model = f"{self.provider}/{self.model}"
+        pipeline.enable_filtering = self.enable_dm_filtering
 
         ctx = await ctl.make_context()
 
