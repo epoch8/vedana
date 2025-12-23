@@ -95,6 +95,68 @@ def _graph_stats_card() -> rx.Component:
     )
 
 
+def _changes_preview_table() -> rx.Component:
+    """Table with expandable cells for changes preview."""
+
+    def _expandable_cell(row: dict[str, rx.Var], col: rx.Var) -> rx.Component:
+        """Create an expandable/collapsible cell for long text content."""
+        row_id = row.get("row_id", "")
+        return rx.table.cell(
+            rx.box(
+                rx.cond(
+                    row.get("expanded", False),
+                    rx.text(
+                        row.get(col, "—"),
+                        size="1",
+                        white_space="pre-wrap",
+                        style={"wordBreak": "break-word"},
+                    ),
+                    rx.text(
+                        row.get(col, "—"),
+                        size="1",
+                        style={
+                            "display": "-webkit-box",
+                            "WebkitLineClamp": "2",
+                            "WebkitBoxOrient": "vertical",
+                            "overflow": "hidden",
+                            "textOverflow": "ellipsis",
+                            "maxWidth": "400px",
+                            "wordBreak": "break-word",
+                        },
+                    ),
+                ),
+                cursor="pointer",
+                on_click=DashboardState.toggle_changes_preview_row_expand(row_id=row_id),  # type: ignore[arg-type,call-arg,func-returns-value]
+                style={"minWidth": "0", "width": "100%"},
+            ),
+            style={"minWidth": "0"},
+        )
+
+    def _make_row_renderer(row: dict[str, rx.Var]):
+        """Create a column renderer that captures the row context."""
+        return lambda col: _expandable_cell(row, col)
+
+    def _row(r: dict[str, rx.Var]) -> rx.Component:
+        return rx.table.row(
+            rx.foreach(DashboardState.changes_preview_columns, _make_row_renderer(r)),  # type: ignore[arg-type]
+            style=r.get("row_style", {}),
+        )
+
+    return rx.table.root(
+        rx.table.header(
+            rx.table.row(
+                rx.foreach(
+                    DashboardState.changes_preview_columns,  # type: ignore[arg-type]
+                    lambda c: rx.table.column_header_cell(c),
+                )
+            )
+        ),
+        rx.table.body(rx.foreach(DashboardState.changes_preview_rows, _row)),  # type: ignore[arg-type]
+        variant="surface",
+        style={"width": "100%", "tableLayout": "auto"},
+    )
+
+
 def _changes_preview_dialog() -> rx.Component:
     return rx.dialog.root(
         rx.dialog.content(
@@ -119,40 +181,7 @@ def _changes_preview_dialog() -> rx.Component:
                     DashboardState.changes_has_preview,  # type: ignore[operator]
                     rx.vstack(
                         rx.scroll_area(
-                            rx.table.root(
-                                rx.table.header(
-                                    rx.table.row(
-                                        rx.foreach(
-                                            DashboardState.changes_preview_columns,  # type: ignore[arg-type]
-                                            lambda c: rx.table.column_header_cell(c),
-                                        )
-                                    )
-                                ),
-                                rx.table.body(
-                                    rx.foreach(
-                                        DashboardState.changes_preview_rows,  # type: ignore[arg-type]
-                                        lambda r: rx.table.row(
-                                            rx.foreach(
-                                                DashboardState.changes_preview_columns,  # type: ignore[arg-type]
-                                                lambda c: rx.table.cell(
-                                                    rx.text(
-                                                        r.get(c, "—"),
-                                                        style={
-                                                            "whiteSpace": "nowrap",
-                                                            "textOverflow": "ellipsis",
-                                                            "overflow": "hidden",
-                                                            "maxWidth": "400px",
-                                                        },
-                                                    )
-                                                ),
-                                            ),
-                                            style=r.get("row_style", {}),
-                                        ),
-                                    )
-                                ),
-                                variant="surface",
-                                style={"width": "100%", "tableLayout": "auto"},
-                            ),
+                            _changes_preview_table(),
                             type="always",
                             scrollbars="both",
                             style={"maxHeight": "68vh", "maxWidth": "calc(90vw - 3em)"},
