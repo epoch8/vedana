@@ -27,7 +27,7 @@ class ChatState(rx.State):
     messages: list[dict[str, Any]] = []
     chat_thread_id: str = ""
     data_model_text: str = ""
-    is_refreshing_dm: bool = True
+    is_refreshing_dm: bool = False
     provider: str = "openai"  # default llm provider
     model: str = core_settings.model
     _default_models: tuple[str, ...] = (
@@ -51,7 +51,6 @@ class ChatState(rx.State):
     available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
 
     async def mount(self) -> None:
-        self.data_model_last_sync: str = datetime.now().strftime("%Y-%m-%d %H:%M")
         self.fetch_openrouter_models()
         self._sync_available_models()
 
