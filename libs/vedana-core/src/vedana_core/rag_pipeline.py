@@ -27,9 +27,13 @@ class DataModelSelection(BaseModel):
         default_factory=list,
         description="List of link sentences (relationship types) needed to answer the question",
     )
-    attribute_names: list[str] = Field(
+    anchor_attribute_names: list[str] = Field(
         default_factory=list,
-        description="List of attribute names needed to answer the question",
+        description="List of anchor attribute names needed to answer the question (attributes belonging to nodes)",
+    )
+    link_attribute_names: list[str] = Field(
+        default_factory=list,
+        description="List of link attribute names needed to answer the question (attributes belonging to relationships)",
     )
     query_ids: list[str] = Field(
         default_factory=list,
@@ -46,6 +50,8 @@ dm_filter_base_system_prompt = """\
 1. Выбирай только те элементы, которые ДЕЙСТВИТЕЛЬНО нужны для ответа на вопрос
 2. Если вопрос касается связи между сущностями — выбери соответствующие узлы И связь между ними
 3. Выбирай атрибуты, которые могут содержать искомую информацию или использоваться для фильтрации
+   - anchor_attribute_names: атрибуты узлов (находятся в разделе "Атрибуты узлов")
+   - link_attribute_names: атрибуты связей (находятся в разделе "Атрибуты связей")
 4. Выбирай сценарий запроса, который лучше всего соответствует типу вопроса пользователя
 5. Лучше выбрать чуть больше, чем упустить важное — но не выбирай всё подряд
 
@@ -62,6 +68,7 @@ dm_filter_user_prompt_template = """\
 
 Проанализируй вопрос и выбери необходимые элементы модели данных для формирования ответа.
 """
+
 
 class StartPipeline:
     """
@@ -207,23 +214,34 @@ class RagPipeline:
 
         # Add filtering info if applicable
         if self.enable_filtering:
+            dm_anchors = await self.data_model.get_anchors()
+            dm_links = await self.data_model.get_links()
+            dm_queries = await self.data_model.get_queries()
+            
+            # Count total attributes for original_counts
+            total_anchor_attrs = sum(len(a.attributes) for a in dm_anchors)
+            total_link_attrs = sum(len(l.attributes) for l in dm_links)
+            
             technical_info["dm_filtering"] = {
                 "filter_model": self.filter_model,
                 "reasoning": filter_selection.reasoning,
                 "selected_anchors": filter_selection.anchor_nouns,
                 "selected_links": filter_selection.link_sentences,
-                "selected_attributes": filter_selection.attribute_names,
+                "selected_anchor_attributes": filter_selection.anchor_attribute_names,
+                "selected_link_attributes": filter_selection.link_attribute_names,
                 "selected_queries": filter_selection.query_ids,
                 "original_counts": {
-                    "anchors": len(self.data_model.anchors),
-                    "links": len(self.data_model.links),
-                    "attrs": len(self.data_model.attrs),
-                    "queries": len(self.data_model.queries),
+                    "anchors": len(dm_anchors),
+                    "links": len(dm_links),
+                    "anchor_attrs": total_anchor_attrs,
+                    "link_attrs": total_link_attrs,
+                    "queries": len(dm_queries),
                 },
                 "filtered_counts": {
                     "anchors": len(filter_selection.anchor_nouns),
                     "links": len(filter_selection.link_sentences),
-                    "attrs": len(filter_selection.attribute_names),
+                    "anchor_attrs": len(filter_selection.anchor_attribute_names),
+                    "link_attrs": len(filter_selection.link_attribute_names),
                     "queries": len(filter_selection.query_ids),
                 },
             }
@@ -280,7 +298,8 @@ class RagPipeline:
                 f"Data model filter selection: "
                 f"anchors={selection.anchor_nouns}, "
                 f"links={selection.link_sentences}, "
-                f"attrs={selection.attribute_names}, "
+                f"anchor_attrs={selection.anchor_attribute_names}, "
+                f"link_attrs={selection.link_attribute_names}, "
                 f"queries={query_names}",
             )
             self.logger.debug(f"Filter reasoning: {selection.reasoning}")
@@ -289,7 +308,8 @@ class RagPipeline:
             filtered_dm_descr = await self.data_model.to_text_descr(
                 anchor_nouns=selection.anchor_nouns,
                 link_sentences=selection.link_sentences,
-                attribute_names=selection.attribute_names,
+                anchor_attribute_names=selection.anchor_attribute_names,
+                link_attribute_names=selection.link_attribute_names,
                 query_names=query_names,
             )
 
@@ -302,6 +322,7 @@ class RagPipeline:
                 reasoning=f"Filtering failed: {e}. Using full data model.",
                 anchor_nouns=[],
                 link_sentences=[],
-                attribute_names=[],
+                anchor_attribute_names=[],
+                link_attribute_names=[],
                 query_ids=[],
             )
