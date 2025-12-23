@@ -10,6 +10,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -46,6 +47,8 @@ def upgrade() -> None:
     op.drop_table("store_pgvector_edges_899a47ab38_meta")
     op.drop_table("store_pgvector_nodes_572246caf2_meta")
     op.drop_table("generate_embeddings_e51be7175e_meta")
+    op.drop_table("embedded_edges")
+    op.drop_table("embedded_nodes")
     op.drop_table("embedded_edges_meta")
     op.drop_table("embedded_nodes_meta")
     op.drop_table("generate_embeddings_38d4236c15_meta")
@@ -66,6 +69,13 @@ def downgrade() -> None:
         sa.PrimaryKeyConstraint("node_id", "node_type", name=op.f("generate_embeddings_38d4236c15_meta_pkey")),
     )
     op.create_table(
+        "embedded_nodes",
+        sa.Column("node_id", sa.String(), nullable=False),
+        sa.Column("node_type", sa.String(), nullable=False),
+        sa.Column("attributes", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.PrimaryKeyConstraint("node_id", "node_type"),
+    )
+    op.create_table(
         "embedded_nodes_meta",
         sa.Column("node_id", sa.VARCHAR(), autoincrement=False, nullable=False),
         sa.Column("node_type", sa.VARCHAR(), autoincrement=False, nullable=False),
@@ -75,6 +85,16 @@ def downgrade() -> None:
         sa.Column("process_ts", sa.DOUBLE_PRECISION(precision=53), autoincrement=False, nullable=True),
         sa.Column("delete_ts", sa.DOUBLE_PRECISION(precision=53), autoincrement=False, nullable=True),
         sa.PrimaryKeyConstraint("node_id", "node_type", name=op.f("embedded_nodes_meta_pkey")),
+    )
+    op.create_table(
+        "embedded_edges",
+        sa.Column("from_node_id", sa.String(), nullable=False),
+        sa.Column("to_node_id", sa.String(), nullable=False),
+        sa.Column("from_node_type", sa.String(), nullable=False),
+        sa.Column("to_node_type", sa.String(), nullable=False),
+        sa.Column("edge_label", sa.String(), nullable=False),
+        sa.Column("attributes", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.PrimaryKeyConstraint("from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label"),
     )
     op.create_table(
         "embedded_edges_meta",

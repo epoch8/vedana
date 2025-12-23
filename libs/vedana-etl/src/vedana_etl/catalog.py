@@ -216,26 +216,6 @@ memgraph_edges = Table(
     ),
 )
 
-# --- Node/Edge tables with generated embeddings ---
-
-embedded_nodes = Table(
-    name="embedded_nodes",
-    store=TableStoreDB(
-        dbconn=DBCONN_DATAPIPE,
-        name="embedded_nodes",
-        data_sql_schema=schemas.GENERIC_NODE_DATA_SCHEMA,
-    ),
-)
-
-embedded_edges = Table(
-    name="embedded_edges",
-    store=TableStoreDB(
-        dbconn=DBCONN_DATAPIPE,
-        name="embedded_edges",
-        data_sql_schema=schemas.GENERIC_EDGE_DATA_SCHEMA,
-    ),
-)
-
 # --- VTS (pgvector) ---
 # embedding size column is fixed for indexing and is defined through settings. Definition is then fixed in migrations
 
