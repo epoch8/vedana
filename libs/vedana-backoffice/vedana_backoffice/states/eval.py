@@ -1,10 +1,9 @@
-import os
 import asyncio
 import difflib
 import hashlib
-import requests
 import json
 import logging
+import os
 import statistics
 import traceback
 from dataclasses import asdict, dataclass
@@ -13,18 +12,20 @@ from typing import Any, TypedDict, cast
 from uuid import UUID
 
 import reflex as rx
+import requests
 import sqlalchemy as sa
 from datapipe.compute import run_steps
 from jims_core.db import ThreadDB, ThreadEventDB
-from jims_core.llms.llm_provider import LLMProvider, env_settings as llm_settings
+from jims_core.llms.llm_provider import LLMProvider
+from jims_core.llms.llm_provider import env_settings as llm_settings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from pydantic import BaseModel, Field
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 
-from vedana_backoffice.states.common import get_vedana_app
 from vedana_backoffice.states.chat import ChatState
+from vedana_backoffice.states.common import get_vedana_app
 from vedana_backoffice.util import safe_render_value
 
 
@@ -1755,7 +1756,13 @@ class EvalState(rx.State):
                     self.error_message = "OPENROUTER_API_KEY is required for OpenRouter provider."
                     return
 
-            question_map = {str(row.get("id")): row for row in self.eval_gds_rows if row}
+            question_map = {}
+            for row in self.eval_gds_rows:
+                if not row:
+                    continue
+                row_id = str(row.get("id", "") or "").strip()
+                if row_id:  # Only include rows with non-empty IDs
+                    question_map[row_id] = row
             test_run_ts = datetime.now().strftime("%Y%m%d-%H%M%S")
             test_run_id = f"eval:{test_run_ts}"
             test_run_name = self.test_run_name.strip() or ""
@@ -1815,7 +1822,7 @@ class EvalState(rx.State):
                         return {"question": question, "status": None, "error": str(exc)}
 
             self._append_progress(f"Queued {len(selection)} question(s) with up to {max_parallel} parallel worker(s)")
-            tasks = [asyncio.create_task(_run_one(idx, question)) for idx, question in enumerate(selection)]
+            tasks = [asyncio.create_task(_run_one(question)) for question in selection]
 
             completed = 0
             for future in asyncio.as_completed(tasks):
