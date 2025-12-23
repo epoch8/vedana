@@ -5,6 +5,7 @@
 * optimize DataModel calls 
 * enable vector text search on edges / edge attributes
 * move vector text search to PGVector, introduce VectorStore class
+* [experimental] add data model filtering step before main pipeline
 
 # 2025.11.25
 
