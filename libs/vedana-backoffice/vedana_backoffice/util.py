@@ -1,6 +1,7 @@
 from datetime import datetime
-import orjson as json
 from typing import Any
+
+import orjson as json
 
 
 def datetime_to_age(created_at: datetime, compact: bool = True) -> str:

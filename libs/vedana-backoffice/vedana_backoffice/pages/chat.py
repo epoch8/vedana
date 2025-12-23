@@ -1,7 +1,7 @@
 import reflex as rx
 
 from vedana_backoffice.components.ui_chat import render_message_bubble
-from vedana_backoffice.state import ChatState
+from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.ui import app_header
 
 
