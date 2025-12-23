@@ -112,7 +112,7 @@ class PGVectorStore(VectorStore):
 
             async with self._sessionmaker() as session:
                 if prop_type == "edge":
-                    distance = self.rag_edge_embeddings_table.c.embedding.l2_distance(embedding)
+                    distance = self.rag_edge_embeddings_table.c.embedding.cosine_distance(embedding)
                     similarity = (1 - distance).label("similarity")
 
                     stmt = (
@@ -139,7 +139,7 @@ class PGVectorStore(VectorStore):
                     )
 
                 else:  # node
-                    distance = self.rag_anchor_embeddings_table.c.embedding.l2_distance(embedding)
+                    distance = self.rag_anchor_embeddings_table.c.embedding.cosine_distance(embedding)
                     similarity = (1 - distance).label("similarity")
 
                     stmt = (
