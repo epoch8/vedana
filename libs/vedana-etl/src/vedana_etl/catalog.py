@@ -7,8 +7,6 @@ from vedana_core.settings import settings as core_settings
 
 import vedana_etl.schemas as schemas
 from vedana_etl.config import DBCONN_DATAPIPE, MEMGRAPH_CONN_ARGS
-from vedana_etl.settings import settings
-from vedana_etl.store import GristStore
 
 dm_links = Table(
     name="dm_links",
