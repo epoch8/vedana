@@ -181,15 +181,6 @@ def _judge_card() -> rx.Component:
                 width="100%",
                 margin_top="0.5em",
             ),
-            rx.button(
-                "Refresh Judge Config",
-                variant="soft",
-                size="1",
-                on_click=EvalState.run_judge_refresh,
-                loading=EvalState.is_running,
-                width="100%",
-                margin_top="0.5em",
-            ),
             spacing="1",
             width="100%",
         ),
@@ -861,8 +852,8 @@ def _judge_prompt_dialog() -> rx.Component:
                 rx.box(
                     rx.text(
                         rx.cond(
-                            EvalState.selected_judge_prompt != "",
-                            EvalState.selected_judge_prompt,
+                            EvalState.judge_prompt != "",
+                            EvalState.judge_prompt,
                             "Prompt not loaded",
                         ),
                         size="2",
