@@ -1,13 +1,13 @@
 import logging
 import re
-from typing import Any, Hashable, Iterator, cast
+from typing import Any, Iterator, cast
 from unicodedata import normalize
 from uuid import UUID
 
 import pandas as pd
 from jims_core.llms.llm_provider import LLMProvider
 from neo4j import GraphDatabase
-from vedana_core.data_model import Attribute, Anchor, Link
+from vedana_core.data_model import Anchor, Attribute, Link
 from vedana_core.data_provider import GristAPIDataProvider, GristCsvDataProvider
 from vedana_core.settings import settings as core_settings
 
@@ -480,24 +480,24 @@ def ensure_memgraph_node_indexes(dm_anchor_attrs: pd.DataFrame) -> tuple[pd.Data
             except Exception as exc:
                 logger.debug(f"CREATE CONSTRAINT failed for label {label}: {exc}")  # probably index exists
 
-        # Vector indices - Anchors
-        for _, row in vec_a_attr_rows.iterrows():
-            attr: str = row["attribute_name"]
-            embeddings_dim = core_settings.embeddings_dim
-            label = row["anchor"]
-
-            idx_name = f"{label}_{attr}_embed_idx".replace(" ", "_")
-            prop_name = f"{attr}_embedding"
-
-            cypher = (
-                f"CREATE VECTOR INDEX `{idx_name}` ON :`{label}`(`{prop_name}`) "
-                f'WITH CONFIG {{"dimension": {embeddings_dim}, "capacity": 1024, "metric": "cos"}}'
-            )
-            try:
-                session.run(cypher)  # type: ignore
-            except Exception as exc:
-                logger.debug(f"CREATE VECTOR INDEX failed for {idx_name}: {exc}")  # probably index exists
-                continue
+        # Vector indices - Anchors. Deprecated due to move to pgvectorstore
+        # for _, row in vec_a_attr_rows.iterrows():
+        #     attr: str = row["attribute_name"]
+        #     embeddings_dim = core_settings.embeddings_dim
+        #     label = row["anchor"]
+        #
+        #     idx_name = f"{label}_{attr}_embed_idx".replace(" ", "_")
+        #     prop_name = f"{attr}_embedding"
+        #
+        #     cypher = (
+        #         f"CREATE VECTOR INDEX `{idx_name}` ON :`{label}`(`{prop_name}`) "
+        #         f'WITH CONFIG {{"dimension": {embeddings_dim}, "capacity": 1024, "metric": "cos"}}'
+        #     )
+        #     try:
+        #         session.run(cypher)  # type: ignore
+        #     except Exception as exc:
+        #         logger.debug(f"CREATE VECTOR INDEX failed for {idx_name}: {exc}")  # probably index exists
+        #         continue
 
     driver.close()
 
@@ -541,24 +541,24 @@ def ensure_memgraph_edge_indexes(dm_link_attrs: pd.DataFrame) -> tuple[pd.DataFr
             # except Exception as exc:
             #     logger.debug(f"CREATE CONSTRAINT failed for label {label}: {exc}")  # probably index exists
 
-        # Vector indices
-        for _, row in vec_l_attr_rows.iterrows():
-            attr: str = row["attribute_name"]
-            embeddings_dim = core_settings.embeddings_dim
-            label = row["link"]
-
-            idx_name = f"{label}_{attr}_embed_idx".replace(" ", "_")
-            prop_name = f"{attr}_embedding"
-
-            cypher = (
-                f"CREATE VECTOR EDGE INDEX `{idx_name}` ON :`{label}`(`{prop_name}`) "
-                f'WITH CONFIG {{"dimension": {embeddings_dim}, "capacity": 1024, "metric": "cos"}}'
-            )
-            try:
-                session.run(cypher)  # type: ignore
-            except Exception as exc:
-                logger.debug(f"CREATE VECTOR EDGE INDEX failed for {idx_name}: {exc}")  # probably index exists
-                continue
+        # Vector indices - Edges. Deprecated due to move to pgvectorstore
+        # for _, row in vec_l_attr_rows.iterrows():
+        #     attr: str = row["attribute_name"]
+        #     embeddings_dim = core_settings.embeddings_dim
+        #     label = row["link"]
+        #
+        #     idx_name = f"{label}_{attr}_embed_idx".replace(" ", "_")
+        #     prop_name = f"{attr}_embedding"
+        #
+        #     cypher = (
+        #         f"CREATE VECTOR EDGE INDEX `{idx_name}` ON :`{label}`(`{prop_name}`) "
+        #         f'WITH CONFIG {{"dimension": {embeddings_dim}, "capacity": 1024, "metric": "cos"}}'
+        #     )
+        #     try:
+        #         session.run(cypher)  # type: ignore
+        #     except Exception as exc:
+        #         logger.debug(f"CREATE VECTOR EDGE INDEX failed for {idx_name}: {exc}")  # probably index exists
+        #         continue
 
     driver.close()
 
@@ -570,69 +570,63 @@ def ensure_memgraph_edge_indexes(dm_link_attrs: pd.DataFrame) -> tuple[pd.DataFr
 
 def generate_embeddings(
     df: pd.DataFrame,
-    memgraph_vector_indexes: pd.DataFrame,
+    dm_attributes: pd.DataFrame,
 ) -> pd.DataFrame:
     """Generate embeddings for embeddable text attributes"""
-
-    if df.empty:
-        return df
-
     type_col = "node_type" if "node_id" in df.columns else "edge_label"
+    pkeys = ["node_id", "node_type"] if type_col == "node_type" else ["from_node_id", "to_node_id", "edge_label"]
+    dm_attributes = dm_attributes[dm_attributes["embeddable"]]  # & (dm_attributes["dtype"].str.lower() == "str")]
 
     # Build mapping type -> list[attribute_name] that need embedding
     mapping: dict[str, list[str]] = {}
-    for _, row in memgraph_vector_indexes.iterrows():
+    for _, row in dm_attributes.iterrows():
         record_type = row["anchor"] if type_col == "node_type" else row["link"]
         if pd.isna(record_type):
             continue
         mapping.setdefault(record_type, []).append(row["attribute_name"])
 
-    tasks: list[tuple[Hashable, str, str]] = []  # (row_idx, attr_name, text)
-
-    for idx, row in df.iterrows():
+    tasks: list[tuple[int, str, str]] = []  # (row_pos, attr_name, text)
+    for pos, (_, row) in enumerate(df.iterrows()):
         typ_val = row[type_col]
         attrs_needed = mapping.get(typ_val)
         if not attrs_needed:
             continue
-        attr_dict = row["attributes"] or {}
+        row_attrs = row.get("attributes", {})
         for attr_name in attrs_needed:
-            text_val = attr_dict.get(attr_name)
+            text_val = row_attrs.get(attr_name)
             if text_val and isinstance(text_val, str) and not is_uuid(text_val):
-                tasks.append((idx, attr_name, text_val))
+                tasks.append((pos, attr_name, text_val))
 
     if not tasks:
         return df
 
     provider = LLMProvider()
 
-    texts = [t[2] for t in tasks]
-    vectors = provider.create_embeddings_sync(texts)
+    unique_texts = list(dict.fromkeys([t[2] for t in tasks]))
+    vectors = provider.create_embeddings_sync(unique_texts)
+    vector_by_text = dict(zip(unique_texts, vectors))
 
-    # Re-init attributes to store only embeddings
-    # df = df.drop(columns=["attributes"])
-    # df["attributes"] = pd.NA
+    # Apply embeddings
+    rows: list[dict[str, object]] = []
+    for row_pos, attr_name, text in tasks:
+        vec = vector_by_text[text]
+        rows.append(
+            {
+                **df.loc[row_pos, pkeys],
+                "attribute_name": attr_name,
+                "attribute_value": text,
+                "embedding": vec,
+            }
+        )
 
-    # Apply embeddings to df
-    for (row_idx, attr_name, _), vec in zip(tasks, vectors):
-        attr_dict = df.at[row_idx, "attributes"]
-        if pd.isna(attr_dict):
-            attr_dict = {}
-        else:
-            attr_dict = dict(attr_dict)
-        attr_dict[f"{attr_name}_embedding"] = vec
-        df.at[row_idx, "attributes"] = attr_dict
-
-    # remove rows without embeddings
-    # df = df.dropna(subset=["attributes"])
-
-    return df
+    return pd.DataFrame.from_records(rows)
 
 
-def merge_attr_dicts(dicts):
-    result = {}
-    for d in dicts:
-        result.update(d)
-    return result
+def pass_df_to_memgraph(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    """dummy method for BatchTransform to MemgraphStore"""
+    return df.copy()
 
 
 # ---

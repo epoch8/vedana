@@ -2,6 +2,7 @@
 
 * handle vedana-core's DataModel through ETL
 * move Eval away from ETL, processing tests using JIMS & Backoffice now
+* store embeddings in tables for PGVector
 
 # 2025-09-19
 

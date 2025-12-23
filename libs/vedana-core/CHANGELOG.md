@@ -4,6 +4,7 @@
 * change DataModel attributes structure - split anchor/edge attributes
 * optimize DataModel calls 
 * enable vector text search on edges / edge attributes
+* move vector text search to PGVector, introduce VectorStore class
 
 # 2025.11.25
 

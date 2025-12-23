@@ -12,6 +12,7 @@ from jims_core.thread.thread_context import ThreadContext
 from pydantic import BaseModel, Field, create_model
 
 from vedana_core.graph import Graph, Record
+from vedana_core.vts import VectorStore
 from vedana_core.llm import LLM, Tool
 from vedana_core.settings import settings
 
@@ -66,6 +67,7 @@ class RagAgent:
     def __init__(
         self,
         graph: Graph,
+        vts: VectorStore,
         data_model_description: str,
         data_model_vts_indices,
         llm: LLM,
@@ -73,6 +75,7 @@ class RagAgent:
         logger: logging.Logger | None = None,
     ) -> None:
         self.graph = graph
+        self.vts = vts
         self.llm = llm
         self.logger = logger or logging.getLogger(__name__)
         self._vts_meta_args: dict[str, dict[str, tuple[str, float]]] = {}  # stuff not passed through toolcall
@@ -129,7 +132,7 @@ class RagAgent:
         top_n: int = 5,
     ) -> list[Record]:
         embed = await self.llm.llm.create_embedding(search_value)
-        return await self.graph.vector_search(label, prop_type, prop_name, embed, threshold=threshold, top_n=top_n)
+        return await self.vts.vector_search(label, prop_type, prop_name, embed, threshold=threshold, top_n=top_n)
 
     @staticmethod
     def result_to_text(query: str, result: list[Record] | Exception) -> str:
