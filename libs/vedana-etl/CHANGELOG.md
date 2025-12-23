@@ -1,3 +1,8 @@
+# WIP
+
+* handle vedana-core's DataModel through ETL
+* move Eval away from ETL, processing tests using JIMS & Backoffice now
+
 # 2025-09-19
 
 * Refactored evaluation script into a Datapipe pipeline

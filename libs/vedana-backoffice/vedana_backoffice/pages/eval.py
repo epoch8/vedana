@@ -76,11 +76,12 @@ def _questions_card() -> rx.Component:
         )
 
     def _row(row: dict[str, rx.Var]) -> rx.Component:
+        row_id_var = row.get("id", "")
         return rx.table.row(
             rx.table.cell(
                 rx.checkbox(
                     checked=row.get("selected", False),
-                    on_change=EvalState.toggle_question_selection(question=row.get("id", "")),  # type: ignore[arg-type,call-arg,func-returns-value]
+                    on_change=lambda checked: EvalState.toggle_question_selection(question=row_id_var, checked=checked),  # type: ignore[arg-type,call-arg,func-returns-value]
                 )
             ),
             _expandable_text(row, "gds_question"),
@@ -178,15 +179,6 @@ def _judge_card() -> rx.Component:
                 size="1",
                 on_click=EvalState.open_judge_prompt_dialog,
                 disabled=rx.cond(EvalState.judge_prompt_id != "", False, True),  # type: ignore[arg-type]
-                width="100%",
-                margin_top="0.5em",
-            ),
-            rx.button(
-                "Refresh Judge Config",
-                variant="soft",
-                size="1",
-                on_click=EvalState.run_judge_refresh,
-                loading=EvalState.is_running,
                 width="100%",
                 margin_top="0.5em",
             ),
@@ -861,8 +853,8 @@ def _judge_prompt_dialog() -> rx.Component:
                 rx.box(
                     rx.text(
                         rx.cond(
-                            EvalState.selected_judge_prompt != "",
-                            EvalState.selected_judge_prompt,
+                            EvalState.judge_prompt != "",
+                            EvalState.judge_prompt,
                             "Prompt not loaded",
                         ),
                         size="2",

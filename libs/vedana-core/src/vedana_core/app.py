@@ -26,19 +26,10 @@ class VedanaApp:
 async def make_vedana_app() -> VedanaApp:
     graph = MemgraphGraph(core_settings.memgraph_uri, core_settings.memgraph_user, core_settings.memgraph_pwd)
 
-    data_model = await DataModel.load_from_graph(graph)
-    if data_model is None:
-        logger.info("No DataModel found in graph – loading from Grist …")
-        data_model = DataModel.load_grist_online(
-            core_settings.grist_data_model_doc_id,
-            grist_server=core_settings.grist_server_url,
-            api_key=core_settings.grist_api_key,
-        )
+    # Jims setup
+    sessionmaker = get_sessionmaker()
 
-        try:
-            await data_model.update_data_model_node(graph)
-        except Exception as e:
-            logger.warning(f"Unable to cache DataModel in graph: {e}")
+    data_model = DataModel(sessionmaker=sessionmaker)
 
     pipeline = RagPipeline(
         graph=graph,
@@ -48,9 +39,6 @@ async def make_vedana_app() -> VedanaApp:
     )
 
     start_pipeline = StartPipeline(data_model=data_model)
-
-    # Jims setup
-    sessionmaker = get_sessionmaker()
 
     return VedanaApp(
         sessionmaker=sessionmaker,

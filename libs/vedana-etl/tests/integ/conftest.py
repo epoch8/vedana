@@ -15,11 +15,11 @@ load_dotenv()
 @pytest.fixture(scope="session")
 def dm_dfs():
     """Data Model из живой Grist: Anchors, Attributes, Links."""
-    anchors, attrs, links = next(steps.get_data_model())
+    anchors_df, a_attrs_df, l_attrs_df, links_df, q_df, p_df, cl_df = next(steps.get_data_model())
     # sanity: типы как в коде
-    assert attrs["embeddable"].dtype == bool
-    assert "embed_threshold" in attrs.columns
-    return anchors, attrs, links
+    assert a_attrs_df["embeddable"].dtype == bool and l_attrs_df["embeddable"].dtype == bool
+    assert "embed_threshold" in a_attrs_df.columns and "embed_threshold" in l_attrs_df.columns
+    return anchors_df, a_attrs_df, l_attrs_df, links_df, q_df, p_df, cl_df
 
 
 @pytest.fixture(scope="session")

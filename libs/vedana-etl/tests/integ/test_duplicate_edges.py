@@ -45,7 +45,7 @@ def _group_offenders_by_ordered_pair(edges: pd.Series) -> List[Tuple[str, str, s
 
 def test_duplicate_edges() -> None:
     # 1) Data Model: достаём метку нужного линка
-    anchors_df, attrs_df, links_df = next(steps.get_data_model())
+    anchors_df, a_attrs_df, l_attrs_df, links_df, _q_df, _p_df, _cl_df = next(steps.get_data_model())
     assert not links_df.empty, "Data Model Links пуст."
 
     dm = links_df.copy()

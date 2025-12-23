@@ -131,6 +131,28 @@ class EtlState(rx.State):
     # Show only changes from last run (with styling)
     preview_changes_only: bool = False
 
+    # Expandable row tracking for preview
+    preview_expanded_rows: list[str] = []
+
+    def toggle_preview_row_expand(self, row_id: str) -> None:
+        """Toggle expansion state for a preview row."""
+        row_id = str(row_id or "")
+        if not row_id:
+            return
+        current = set(self.preview_expanded_rows)
+        if row_id in current:
+            current.remove(row_id)
+        else:
+            current.add(row_id)
+        self.preview_expanded_rows = list(current)
+        # Update expanded state in rows to trigger UI refresh
+        updated_rows = []
+        for row in self.preview_rows:
+            new_row = dict(row)
+            new_row["expanded"] = row.get("row_id", "") in current
+            updated_rows.append(new_row)
+        self.preview_rows = updated_rows
+
     def _start_log_capture(self) -> tuple[Queue[str], logging.Handler, logging.Logger]:
         q: Queue[str] = Queue()
 
@@ -1110,14 +1132,6 @@ class EtlState(rx.State):
                     total_failed=0,
                 )
 
-    def _run_steps_sync(self, steps_to_run: list[Any]) -> None:
-        # Run each step sequentially to provide granular logs
-        for step in steps_to_run:
-            step_name = getattr(step, "name", type(step).__name__)
-            self._append_log(f"Running step: {step_name}")
-            run_steps(etl_app.ds, [step])  # type: ignore[arg-type]
-            self._append_log(f"Completed step: {step_name}")
-
     def run_selected(self):  # type: ignore[override]
         """Run the ETL for selected labels in background, streaming logs."""
         if self.is_running:
@@ -1230,6 +1244,7 @@ class EtlState(rx.State):
         self.has_preview = False
         self.preview_page = 0  # Reset to first page
         self.preview_is_meta_table = False
+        self.preview_expanded_rows = []  # Reset expanded rows
         # Rebuild immediately to reflect selection highlight in data view
         self._rebuild_graph()
 
@@ -1286,10 +1301,15 @@ class EtlState(rx.State):
         self.preview_columns = [str(c) for c in df.columns]
         records_any: list[dict[Any, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
 
+        expanded_set = set(self.preview_expanded_rows)
         coerced: list[dict[str, Any]] = []
-        for r in records_any:
+        for idx, r in enumerate(records_any):
             try:
-                coerced.append({str(k): safe_render_value(v) for k, v in dict(r).items()})
+                row_id = f"preview-{self.preview_page}-{idx}"
+                row_data: dict[str, Any] = {str(k): safe_render_value(v) for k, v in dict(r).items()}
+                row_data["row_id"] = row_id
+                row_data["expanded"] = bool(row_id in expanded_set)
+                coerced.append(row_data)
             except Exception:
                 coerced.append({})
 
@@ -1452,11 +1472,15 @@ class EtlState(rx.State):
             "deleted": {"backgroundColor": "rgba(239,68,68,0.12)"},
         }
 
+        expanded_set = set(self.preview_expanded_rows)
         styled: list[dict[str, Any]] = []
-        for r in records_any:
+        for idx, r in enumerate(records_any):
             try:
+                row_id = f"preview-{self.preview_page}-{idx}"
                 row_disp: dict[str, Any] = {str(k): safe_render_value(r.get(k)) for k in self.preview_columns}
                 row_disp["row_style"] = row_styling.get(r.get("change_type", ""), {})
+                row_disp["row_id"] = row_id
+                row_disp["expanded"] = row_id in expanded_set
                 styled.append(row_disp)
             except Exception:
                 styled.append({})
@@ -1537,6 +1561,7 @@ class EtlState(rx.State):
         self.preview_rows = []
         self.preview_columns = []
         self.has_preview = False
+        self.preview_expanded_rows = []
         try:
             self._rebuild_graph()
         except Exception:
