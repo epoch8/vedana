@@ -11,7 +11,6 @@ from vedana_etl.catalog import (
     dm_queries,
     dm_prompts,
     dm_conversation_lifecycle,
-    dm_version,
     edges,
     grist_edges,
     grist_nodes,
