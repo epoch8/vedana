@@ -8,6 +8,7 @@ from jims_core.thread.thread_context import ThreadContext
 
 from vedana_core.data_model import DataModel
 from vedana_core.graph import Graph
+from vedana_core.vts import VectorStore
 from vedana_core.llm import LLM
 from vedana_core.rag_agent import RagAgent
 from vedana_core.settings import settings
@@ -62,6 +63,20 @@ dm_filter_user_prompt_template = """\
 Проанализируй вопрос и выбери необходимые элементы модели данных для формирования ответа.
 """
 
+class StartPipeline:
+    """
+    Response for /start command
+    """
+    def __init__(self, data_model: DataModel) -> None:
+        self.data_model = data_model
+
+    async def __call__(self, ctx: ThreadContext) -> None:
+        lifecycle_events = await self.data_model.conversation_lifecycle_events()
+        start_response = lifecycle_events.get("/start")
+
+        message = start_response or "Bot online. No response for /start command in LifecycleEvents"
+        ctx.send_message(message)
+
 
 class RagPipeline:
     """RAG Pipeline with data model filtering for optimized query processing.
@@ -75,6 +90,7 @@ class RagPipeline:
     def __init__(
         self,
         graph: Graph,
+        vts: VectorStore,
         data_model: DataModel,
         logger,
         threshold: float = 0.8,
@@ -84,6 +100,7 @@ class RagPipeline:
         enable_filtering: bool | None = None,
     ):
         self.graph = graph
+        self.vts = vts
         self.data_model = data_model
         self.logger = logger or logging.getLogger(__name__)
         self.threshold = threshold
@@ -142,20 +159,17 @@ class RagPipeline:
         # 1. Filter data model
         if self.enable_filtering:
             await ctx.update_agent_status("Analyzing query structure...")
-            filtered_dm, filter_selection = await self.filter_data_model(query, ctx)
-            self.logger.info(
-                f"Data model filtered: "
-                f"{len(filtered_dm.anchors)}/{len(self.data_model.anchors)} anchors, "
-                f"{len(filtered_dm.links)}/{len(self.data_model.links)} links, "
-                f"{len(filtered_dm.attrs)}/{len(self.data_model.attrs)} attrs, "
-                f"{len(filtered_dm.queries)}/{len(self.data_model.queries)} queries"
-            )
+            data_model_description, filter_selection = await self.filter_data_model(query, ctx)
         else:
-            filtered_dm = self.data_model
+            data_model_description = await self.data_model.to_text_descr()
             filter_selection = DataModelSelection()
 
+        # Read required DataModel properties
+        prompt_templates = await self.data_model.prompt_templates()
+        data_model_vector_search_indices = await self.data_model.vector_indices()
+
         # 2. Create LLM and agent with filtered data model; Step 1 LLM costs are counted since same ctx.llm is used
-        llm = LLM(ctx.llm, prompt_templates=filtered_dm.prompt_templates(), logger=self.logger)
+        llm = LLM(ctx.llm, prompt_templates=prompt_templates, logger=self.logger)
         await ctx.update_agent_status("Searching knowledge base...")
 
         if self.model != llm.llm.model and settings.debug:
@@ -163,7 +177,9 @@ class RagPipeline:
 
         agent = RagAgent(
             graph=self.graph,
-            data_model=filtered_dm,
+            vts=self.vts,
+            data_model_description=data_model_description,
+            data_model_vts_indices=data_model_vector_search_indices,
             llm=llm,
             ctx=ctx,
             logger=self.logger,
@@ -205,10 +221,10 @@ class RagPipeline:
                     "queries": len(self.data_model.queries),
                 },
                 "filtered_counts": {
-                    "anchors": len(filtered_dm.anchors),
-                    "links": len(filtered_dm.links),
-                    "attrs": len(filtered_dm.attrs),
-                    "queries": len(filtered_dm.queries),
+                    "anchors": len(filter_selection.anchor_nouns),
+                    "links": len(filter_selection.link_sentences),
+                    "attrs": len(filter_selection.attribute_names),
+                    "queries": len(filter_selection.query_ids),
                 },
             }
 
@@ -218,14 +234,15 @@ class RagPipeline:
         self,
         query: str,
         ctx: ThreadContext,
-    ) -> tuple[DataModel, DataModelSelection]:
+    ) -> tuple[str, DataModelSelection]:
         # Get description for filtering
-        dm_json = self.data_model.to_compact_json()
+        dm_json = await self.data_model.to_compact_json()
+        dm_prompt_templates = await self.data_model.prompt_templates()
 
         # Build the prompt
-        system_prompt = self.data_model.prompt_templates().get("dm_filter_prompt", dm_filter_base_system_prompt)
+        system_prompt = dm_prompt_templates.get("dm_filter_prompt", dm_filter_base_system_prompt)
         user_prompt = (
-            self.data_model.prompt_templates()
+            dm_prompt_templates
             .get("dm_filter_user_prompt", dm_filter_user_prompt_template)
             .format(
                 user_query=query,
@@ -269,18 +286,19 @@ class RagPipeline:
             self.logger.debug(f"Filter reasoning: {selection.reasoning}")
 
             # Create filtered data model
-            filtered_dm = self.data_model.filter_by_selection(
+            filtered_dm_descr = await self.data_model.to_text_descr(
                 anchor_nouns=selection.anchor_nouns,
                 link_sentences=selection.link_sentences,
                 attribute_names=selection.attribute_names,
                 query_names=query_names,
             )
 
-            return filtered_dm, selection
+            return filtered_dm_descr, selection
 
         except Exception as e:  # return full data_model
             self.logger.exception(f"Data model filtering failed: {e}. Using full data model.")
-            return self.data_model, DataModelSelection(
+            descr = await self.data_model.to_text_descr()
+            return descr, DataModelSelection(
                 reasoning=f"Filtering failed: {e}. Using full data model.",
                 anchor_nouns=[],
                 link_sentences=[],

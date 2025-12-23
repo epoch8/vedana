@@ -1,10 +1,9 @@
-import os
 import asyncio
 import difflib
 import hashlib
-import requests
 import json
 import logging
+import os
 import statistics
 import traceback
 from dataclasses import asdict, dataclass
@@ -13,16 +12,19 @@ from typing import Any, TypedDict, cast
 from uuid import UUID
 
 import reflex as rx
+import requests
 import sqlalchemy as sa
 from datapipe.compute import run_steps
 from jims_core.db import ThreadDB, ThreadEventDB
-from jims_core.llms.llm_provider import LLMProvider, env_settings as llm_settings
+from jims_core.llms.llm_provider import LLMProvider
+from jims_core.llms.llm_provider import env_settings as llm_settings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from pydantic import BaseModel, Field
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 
+from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.states.common import get_vedana_app
 from vedana_backoffice.util import safe_render_value
 
@@ -180,7 +182,7 @@ class EvalState(rx.State):
     selected_scenario: str = "all"  # Filter by scenario
     judge_model: str = ""
     judge_prompt_id: str = ""
-    selected_judge_prompt: str = ""
+    judge_prompt: str = ""
     provider: str = "openai"
     pipeline_model: str = core_settings.model
     embeddings_model: str = core_settings.embeddings_model
@@ -260,7 +262,7 @@ class EvalState(rx.State):
     def available_scenarios(self) -> list[str]:
         """Get unique scenarios from eval_gds_rows."""
         scenarios = set()
-        for row in self.eval_gds_rows or []:
+        for row in self.eval_gds_rows:
             scenario = row.get("question_scenario")
             if scenario:
                 scenarios.add(str(scenario))
@@ -268,10 +270,10 @@ class EvalState(rx.State):
 
     @rx.var
     def eval_gds_rows_with_selection(self) -> list[dict[str, Any]]:
-        selected = set(self.selected_question_ids or [])
-        expanded = set(self.gds_expanded_rows or [])
+        selected = set(self.selected_question_ids)
+        expanded = set(self.gds_expanded_rows)
         rows: list[dict[str, Any]] = []
-        for row in self.eval_gds_rows or []:
+        for row in self.eval_gds_rows:
             # Apply scenario filter
             if self.selected_scenario != "all":
                 scenario = row.get("question_scenario")
@@ -378,8 +380,8 @@ class EvalState(rx.State):
             self.selected_question_ids = []
             return
         # Only select from filtered rows
-        ids = [str(row.get("id", "")) for row in self.eval_gds_rows_with_selection if row.get("id")]
-        self.selected_question_ids = ids
+        ids = [str(row.get("id", "") or "").strip() for row in self.eval_gds_rows_with_selection if row.get("id")]
+        self.selected_question_ids = [qid for qid in ids if qid]  # Filter out empty IDs
 
     def reset_selection(self) -> None:
         self.selected_question_ids = []
@@ -413,7 +415,7 @@ class EvalState(rx.State):
         # Drop selections that are not in the chosen scenario
         allowed_ids = {
             str(row.get("id"))
-            for row in (self.eval_gds_rows or [])
+            for row in self.eval_gds_rows
             if str(row.get("question_scenario", "")) == self.selected_scenario
         }
         self.selected_question_ids = [q for q in (self.selected_question_ids or []) if q in allowed_ids]
@@ -447,7 +449,7 @@ class EvalState(rx.State):
 
     def _prune_selection(self) -> None:
         # Validate against all rows (not filtered) to keep selections valid across filter changes
-        valid = {str(row.get("id")) for row in self.eval_gds_rows or [] if row.get("id")}
+        valid = {str(row.get("id")) for row in self.eval_gds_rows if row.get("id")}
         self.selected_question_ids = [q for q in (self.selected_question_ids or []) if q in valid]
 
     def _filter_chat_capable(self, models: list[dict[str, Any]]) -> list[str]:
@@ -459,7 +461,9 @@ class EvalState(rx.State):
 
             architecture = m.get("architecture", {}) or {}
             has_chat = False
-            if "text" in architecture.get("input_modalities", []) and "text" in architecture.get("output_modalities", []):
+            if "text" in architecture.get("input_modalities", []) and "text" in architecture.get(
+                "output_modalities", []
+            ):
                 has_chat = True
 
             has_tools = "tools" in (m.get("supported_parameters") or [])
@@ -529,7 +533,7 @@ class EvalState(rx.State):
 
         rows: list[dict[str, Any]] = []
         for rec in rs:
-            question = safe_render_value(rec.get("gds_question"))
+            question = str(safe_render_value(rec.get("gds_question")) or "").strip()
             rows.append(
                 {
                     "id": question,
@@ -546,21 +550,21 @@ class EvalState(rx.State):
     async def _load_judge_config(self) -> None:
         self.judge_model = core_settings.judge_model
         self.judge_prompt_id = ""
-        self.selected_judge_prompt = ""
+        self.judge_prompt = ""
 
         vedana_app = await get_vedana_app()
-
-        judge_prompt = vedana_app.data_model.prompt_templates().get("eval_judge_prompt")
+        dm_pt = await vedana_app.data_model.prompt_templates()
+        judge_prompt = dm_pt.get("eval_judge_prompt")
 
         if judge_prompt:
             text_b = bytearray(judge_prompt, "utf-8")
             self.judge_prompt_id = hashlib.sha256(text_b).hexdigest()
-            self.selected_judge_prompt = judge_prompt
+            self.judge_prompt = judge_prompt
 
     async def _load_pipeline_config(self) -> None:
         vedana_app = await get_vedana_app()
         dm = vedana_app.data_model
-        self.dm_description = dm.to_text_descr()
+        self.dm_description = await dm.to_text_descr()
         dm_text_b = bytearray(self.dm_description, "utf-8")
         self.dm_id = hashlib.sha256(dm_text_b).hexdigest()
 
@@ -1148,7 +1152,7 @@ class EvalState(rx.State):
         judge_meta = JudgeMeta(
             judge_model=self.judge_model,
             judge_prompt_id=self.judge_prompt_id,
-            judge_prompt=self.selected_judge_prompt,
+            judge_prompt=self.judge_prompt,
         )
         run_config = RunConfig(
             pipeline_model=self._resolved_pipeline_model(),
@@ -1670,7 +1674,7 @@ class EvalState(rx.State):
 
     async def _judge_answer(self, question_row: dict[str, Any], answer: str, tool_calls: str) -> tuple[str, str, int]:
         """Judge model answer with current judge prompt/model and rating."""
-        judge_prompt = self.selected_judge_prompt
+        judge_prompt = self.judge_prompt
         if not judge_prompt:
             return "fail", "Judge prompt not loaded", 0
 
@@ -1745,7 +1749,7 @@ class EvalState(rx.State):
             if not selection:
                 self.error_message = "Select at least one question to run tests."
                 return
-            if not self.selected_judge_prompt:
+            if not self.judge_prompt:
                 self.error_message = "Judge prompt not loaded. Refresh judge config first."
                 return
             if self.provider == "openrouter":
@@ -1754,7 +1758,13 @@ class EvalState(rx.State):
                     self.error_message = "OPENROUTER_API_KEY is required for OpenRouter provider."
                     return
 
-            question_map = {str(row.get("id")): row for row in (self.eval_gds_rows or [])}
+            question_map = {}
+            for row in self.eval_gds_rows:
+                if row:
+                    row_id = str(row.get("id", ""))
+                    if row_id:  # Only include rows with non-empty IDs
+                        question_map[row_id] = row
+
             test_run_ts = datetime.now().strftime("%Y%m%d-%H%M%S")
             test_run_id = f"eval:{test_run_ts}"
             test_run_name = self.test_run_name.strip() or ""
@@ -1774,9 +1784,9 @@ class EvalState(rx.State):
             max_parallel = max(1, int(self.max_parallel_tests or 1))
             sem = asyncio.Semaphore(max_parallel)
 
-            async def _run_one(idx: int, question: str) -> dict[str, Any]:
+            async def _run_one(question: str) -> dict[str, Any]:
                 async with sem:
-                    row = question_map.get(question)
+                    row = question_map.get(str(question or "").strip())
                     if row is None:
                         return {"question": question, "status": None, "error": "not found"}
                     try:
@@ -1814,7 +1824,7 @@ class EvalState(rx.State):
                         return {"question": question, "status": None, "error": str(exc)}
 
             self._append_progress(f"Queued {len(selection)} question(s) with up to {max_parallel} parallel worker(s)")
-            tasks = [asyncio.create_task(_run_one(idx, question)) for idx, question in enumerate(selection)]
+            tasks = [asyncio.create_task(_run_one(question)) for question in selection]
 
             completed = 0
             for future in asyncio.as_completed(tasks):
@@ -1868,27 +1878,6 @@ class EvalState(rx.State):
                 self.is_running = False
                 yield
 
-    def run_judge_refresh(self):
-        if self.is_running:
-            return
-        step = next((s for s in etl_app.steps if s._name == "get_eval_judge_config"), None)
-        if step is None:
-            self.error_message = "Unable to locate get_eval_judge_config step"
-            return
-        self.status_message = "Refreshing judge config…"
-        self.error_message = ""
-        self.is_running = True
-        yield
-        try:
-            run_steps(etl_app.ds, [step])
-            self._append_progress("Judge config refreshed")
-            yield EvalState.load_eval_data()
-        except Exception as e:
-            self.error_message = f"Failed to refresh judge config: {e}"
-        finally:
-            self.is_running = False
-            yield
-
     @rx.event(background=True)  # type: ignore[operator]
     async def load_eval_data(self):
         async with self:
@@ -1918,10 +1907,8 @@ class EvalState(rx.State):
             self.error_message = ""
             yield
             try:
-                from vedana_backoffice.states.chat import ChatState  # todo temp, will be removed after PR#235 is done
-
-                yield ChatState.refresh_data_model()
-                yield EvalState.load_eval_data()
+                yield ChatState.reload_data_model()
+                await self._load_judge_config()
             except Exception as e:
                 self.error_message = f"Data model refresh failed: {e}"
             finally:

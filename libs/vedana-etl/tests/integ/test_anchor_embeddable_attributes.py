@@ -29,22 +29,22 @@ def test_anchor_embeddable_attributes() -> None:
     """
 
     # 1) Живой data model
-    anchors_df, attrs_df, links_df = next(steps.get_data_model())
+    anchors_df, a_attrs_df, _l_attrs_df, links_df, _q_df, _p_df, _cl_df = next(steps.get_data_model())
 
     # 2) Ожидаемый набор по правилу (IN {str}; empty -> допустим)
-    dtype_norm: pd.Series = attrs_df["dtype"].where(attrs_df["dtype"].notna(), "").astype(str).str.strip().str.lower()
-    embeddable_mask: pd.Series = attrs_df["embeddable"].astype(bool)
+    dtype_norm: pd.Series = a_attrs_df["dtype"].where(a_attrs_df["dtype"].notna(), "").astype(str).str.strip().str.lower()
+    embeddable_mask: pd.Series = a_attrs_df["embeddable"].astype(bool)
 
     # Белый список типов, при желании можно расширить: {"str", "", "string", "text"}
     allowed_str_like = {"str", ""}
     allowed_type_mask: pd.Series = dtype_norm.isin(allowed_str_like)
 
-    expected_allowed: Set[str] = set(attrs_df.loc[embeddable_mask & allowed_type_mask, "attribute_name"].astype(str))
+    expected_allowed: Set[str] = set(a_attrs_df.loc[embeddable_mask & allowed_type_mask, "attribute_name"].astype(str))
 
     assert expected_allowed, "No embeddable attributes with dtype in {'str',''} found in Data Model."
 
     # 3) Реально создаём индексы в Memgraph и берём фактический набор
-    _, mem_vec_idx = steps.ensure_memgraph_indexes(attrs_df)
+    _, mem_vec_idx = steps.ensure_memgraph_node_indexes(a_attrs_df)
     actual: Set[str] = set(mem_vec_idx["attribute_name"].astype(str))
 
     # 4.1. Фактический набор — подмножество ожидаемого белого списка

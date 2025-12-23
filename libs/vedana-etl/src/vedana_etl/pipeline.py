@@ -4,24 +4,38 @@ from datapipe.step.batch_transform import BatchTransform
 
 import vedana_etl.steps as steps
 from vedana_etl.catalog import (
+    dm_anchor_attributes,
     dm_anchors,
-    dm_attributes,
+    dm_conversation_lifecycle,
+    dm_link_attributes,
     dm_links,
+    dm_prompts,
+    dm_queries,
     edges,
     grist_edges,
     grist_nodes,
+    memgraph_anchor_indexes,
     memgraph_edges,
-    memgraph_indexes,
+    memgraph_link_indexes,
     memgraph_nodes,
-    memgraph_vector_indexes,
     nodes,
+    rag_anchor_embeddings,
+    rag_edge_embeddings,
     eval_gds,
 )
 
 data_model_steps = [
     BatchGenerate(
         func=steps.get_data_model,  # Generator with main graph data
-        outputs=[dm_anchors, dm_attributes, dm_links],
+        outputs=[
+            dm_anchors,
+            dm_anchor_attributes,
+            dm_link_attributes,
+            dm_links,
+            dm_queries,
+            dm_prompts,
+            dm_conversation_lifecycle,
+        ],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "extract"), ("stage", "data-model")],
     ),
 ]
@@ -54,35 +68,50 @@ default_custom_steps = [
     ),
 ]
 
-# ---
+# --- Loading data to Memgraph and Vector Store ---
 
 memgraph_steps = [
     BatchTransform(
-        func=steps.ensure_memgraph_indexes,
-        inputs=[dm_attributes],
-        outputs=[memgraph_indexes, memgraph_vector_indexes],
+        func=steps.ensure_memgraph_node_indexes,
+        inputs=[dm_anchor_attributes],
+        outputs=[memgraph_anchor_indexes],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["attribute_name"],
     ),
-    # TODO move embeddings to pgvector, store embeddings persistently
-    # TODO add llm_embeddings_config as input
-    # Add embeddings and upload result to memgraph.
-    # generate_embeddings is a last processing step, making DataFrame ready for upload
     BatchTransform(
-        func=steps.generate_embeddings,
-        inputs=[nodes, memgraph_vector_indexes],
+        func=steps.ensure_memgraph_edge_indexes,
+        inputs=[dm_link_attributes],
+        outputs=[memgraph_link_indexes],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
+        transform_keys=["attribute_name"],
+    ),
+    BatchTransform(
+        func=steps.pass_df_to_memgraph,
+        inputs=[nodes],
         outputs=[memgraph_nodes],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["node_id", "node_type"],
-        chunk_size=100,
     ),
     BatchTransform(
-        func=steps.generate_embeddings,
-        inputs=[edges, memgraph_vector_indexes],
+        func=steps.pass_df_to_memgraph,
+        inputs=[edges],
         outputs=[memgraph_edges],
         labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
         transform_keys=["from_node_id", "to_node_id", "edge_label"],
-        chunk_size=300,
+    ),
+    BatchTransform(
+        func=steps.generate_embeddings,
+        inputs=[nodes, dm_anchor_attributes],
+        outputs=[rag_anchor_embeddings],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
+        transform_keys=["node_id", "node_type"],
+    ),
+    BatchTransform(
+        func=steps.generate_embeddings,
+        inputs=[edges, dm_link_attributes],
+        outputs=[rag_edge_embeddings],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "load")],
+        transform_keys=["from_node_id", "to_node_id", "edge_label"],
     ),
 ]
 
@@ -95,7 +124,11 @@ eval_steps = [
 ]
 
 
-def get_pipeline(custom_steps: list):
+def get_data_model_pipeline() -> Pipeline:
+    return Pipeline(data_model_steps)
+
+
+def get_pipeline(custom_steps: list) -> Pipeline:
     pipeline = Pipeline(
         [
             *data_model_steps,
