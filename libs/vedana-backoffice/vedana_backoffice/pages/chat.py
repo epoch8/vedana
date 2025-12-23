@@ -165,6 +165,11 @@ def page() -> rx.Component:
                                 width="16em",
                                 placeholder="Select model",
                             ),
+                            rx.checkbox(
+                                "Enable DM filtering",
+                                checked=ChatState.enable_dm_filtering,
+                                on_change=ChatState.set_enable_dm_filtering,
+                            ),
                             rx.button("Send", type="submit", loading=ChatState.is_running),
                             spacing="2",
                             width="100%",
