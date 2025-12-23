@@ -7,7 +7,7 @@ from jims_core.db import ThreadDB, ThreadEventDB
 from vedana_core.app import make_vedana_app
 
 from vedana_backoffice.components.ui_chat import render_message_bubble
-from vedana_backoffice.state import ThreadViewState
+from vedana_backoffice.states.jims import ThreadViewState
 from vedana_backoffice.ui import app_header
 from vedana_backoffice.util import datetime_to_age
 
@@ -609,6 +609,8 @@ def jims_thread_list_page() -> rx.Component:
             "vts_str": ev.vts_str,
             "cypher_str": ev.cypher_str,
             "show_details": ThreadViewState.expanded_event_id == ev.event_id,
+            "event_data_str": ev.event_data_str,
+            "generic_meta": ev.generic_meta,
         }
 
         tag_dialog = rx.dialog.root(
@@ -742,7 +744,13 @@ def jims_thread_list_page() -> rx.Component:
                             align="center",
                             width="100%",
                         ),
-                        rx.text(c["note"]),
+                        rx.text(
+                            c["note"],
+                            style={
+                                "whiteSpace": "pre-wrap",
+                                "wordBreak": "break-word",
+                            },
+                        ),
                         # Actions row
                         rx.hstack(
                             rx.button(
@@ -843,10 +851,18 @@ def jims_thread_list_page() -> rx.Component:
                     spacing="3",
                     width="100%",
                     padding_bottom="1em",
+                    style={
+                        "maxWidth": "100%",
+                        "overflowX": "hidden",
+                    },
                 ),
                 type="always",
                 scrollbars="vertical",
-                style={"height": "100%"},
+                style={
+                    "height": "100%",
+                    "maxWidth": "100%",
+                    "overflowX": "hidden",
+                },
             ),
             flex="1",
             min_height="0",

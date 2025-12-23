@@ -1,6 +1,6 @@
 import reflex as rx
 
-from vedana_backoffice.state import DashboardState
+from vedana_backoffice.states.main_dashboard import DashboardState
 from vedana_backoffice.ui import app_header
 
 
@@ -95,42 +95,29 @@ def _graph_stats_card() -> rx.Component:
     )
 
 
-def _changes_preview_popover() -> rx.Component:
-    return rx.cond(
-        DashboardState.changes_preview_open,  # type: ignore[operator]
-        rx.popover.root(
-            rx.popover.trigger(
-                rx.box(
-                    style={
-                        "position": "absolute",
-                        "left": DashboardState.changes_preview_anchor_left,  # type: ignore[arg-type]
-                        "top": DashboardState.changes_preview_anchor_top,  # type: ignore[arg-type]
-                        "width": "1px",
-                        "height": "1px",
-                        "pointerEvents": "none",
-                    }
-                )
-            ),
-            rx.popover.content(
-                rx.vstack(
-                    rx.hstack(
-                        rx.heading(
-                            rx.cond(
-                                DashboardState.changes_preview_table_name,  # type: ignore[operator]
-                                DashboardState.changes_preview_table_name,  # type: ignore[arg-type]
-                                "",
-                            ),
-                            size="3",
+def _changes_preview_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                rx.hstack(
+                    rx.dialog.title(
+                        rx.cond(
+                            DashboardState.changes_preview_table_name,  # type: ignore[operator]
+                            DashboardState.changes_preview_table_name,  # type: ignore[arg-type]
+                            "",
                         ),
-                        rx.spacer(),
-                        rx.popover.close(
-                            rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
-                        ),
-                        align="center",
-                        width="100%",
+                        size="4",
                     ),
-                    rx.cond(
-                        DashboardState.changes_has_preview,  # type: ignore[operator]
+                    rx.spacer(),
+                    rx.dialog.close(
+                        rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
+                    ),
+                    align="center",
+                    width="100%",
+                ),
+                rx.cond(
+                    DashboardState.changes_has_preview,  # type: ignore[operator]
+                    rx.vstack(
                         rx.scroll_area(
                             rx.table.root(
                                 rx.table.header(
@@ -164,33 +151,118 @@ def _changes_preview_popover() -> rx.Component:
                                     )
                                 ),
                                 variant="surface",
-                                style={"width": "100%", "tableLayout": "fixed"},
+                                style={"width": "100%", "tableLayout": "auto"},
                             ),
                             type="always",
-                            scrollbars="vertical",
-                            style={"maxHeight": "70vh", "width": "100%"},
+                            scrollbars="both",
+                            style={"maxHeight": "68vh", "maxWidth": "calc(90vw - 3em)"},
                         ),
-                        rx.box(rx.text("No data")),
+                        # Server-side pagination controls
+                        rx.hstack(
+                            rx.text(DashboardState.changes_preview_rows_display, size="2", color="gray"),  # type: ignore[arg-type]
+                            # Color legend
+                            rx.hstack(
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(34,197,94,0.08)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Added", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(245,158,11,0.08)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Updated", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(239,68,68,0.08)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Deleted", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                spacing="3",
+                                align="center",
+                            ),
+                            rx.spacer(),
+                            rx.hstack(
+                                rx.button(
+                                    "⏮",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=DashboardState.changes_preview_first_page,
+                                    disabled=~DashboardState.changes_preview_has_prev,  # type: ignore[operator]
+                                ),
+                                rx.button(
+                                    "← Prev",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=DashboardState.changes_preview_prev_page,
+                                    disabled=~DashboardState.changes_preview_has_prev,  # type: ignore[operator]
+                                ),
+                                rx.text(
+                                    DashboardState.changes_preview_page_display,  # type: ignore[arg-type]
+                                    size="2",
+                                    style={"minWidth": "100px", "textAlign": "center"},
+                                ),
+                                rx.button(
+                                    "Next →",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=DashboardState.changes_preview_next_page,
+                                    disabled=~DashboardState.changes_preview_has_next,  # type: ignore[operator]
+                                ),
+                                rx.button(
+                                    "⏭",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=DashboardState.changes_preview_last_page,
+                                    disabled=~DashboardState.changes_preview_has_next,  # type: ignore[operator]
+                                ),
+                                spacing="2",
+                                align="center",
+                            ),
+                            width="100%",
+                            align="center",
+                            padding_top="0.5em",
+                        ),
+                        width="100%",
+                        spacing="2",
                     ),
-                    spacing="2",
-                    padding="1em",
-                    width="fit-content",
-                    min_width="400px",
+                    rx.box(rx.text("No updates in selected span")),
                 ),
-                side="right",
-                align="center",
-                size="3",
-                avoid_collisions=True,
-                collision_padding=20,
-                style={
-                    "width": "fit-content",
-                    "maxWidth": "85vw",
-                },
+                spacing="3",
+                width="100%",
             ),
-            open=True,
-            on_open_change=DashboardState.set_changes_preview_open,  # type: ignore[arg-type]
+            style={
+                "maxWidth": "90vw",
+                "maxHeight": "85vh",
+                "width": "fit-content",
+                "minWidth": "400px",
+            },
         ),
-        rx.box(),
+        open=DashboardState.changes_preview_open,  # type: ignore[arg-type]
+        on_open_change=DashboardState.set_changes_preview_open,  # type: ignore[arg-type]
     )
 
 
@@ -339,6 +411,7 @@ def page() -> rx.Component:
                         rx.text("Timeframe (days):", size="1", color="gray"),
                         rx.select(
                             items=DashboardState.time_window_options,  # type: ignore[arg-type]
+                            value="1",
                             on_change=DashboardState.set_time_window_days,  # type: ignore[arg-type]
                             width="8em",
                         ),
@@ -373,7 +446,7 @@ def page() -> rx.Component:
             rx.callout(DashboardState.error_message, color_scheme="red", variant="soft"),  # type: ignore[arg-type]
             rx.box(),
         ),
-        _changes_preview_popover(),
+        _changes_preview_dialog(),
         spacing="4",
         align="start",
         padding="1em",
