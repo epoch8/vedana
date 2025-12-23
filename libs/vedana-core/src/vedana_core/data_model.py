@@ -285,7 +285,8 @@ class DataModel:
         self,
         anchor_nouns: list[str] | None = None,
         link_sentences: list[str] | None = None,
-        attribute_names: list[str] | None = None,
+        anchor_attribute_names: list[str] | None = None,
+        link_attribute_names: list[str] | None = None,
         query_names: list[str] | None = None,
     ) -> str:
         """Create a text description of the data model, optionally filtered.
@@ -293,7 +294,8 @@ class DataModel:
         Args:
             anchor_nouns: List of anchor nouns to include. If None, includes all.
             link_sentences: List of link sentences to include. If None, includes all.
-            attribute_names: List of attribute names to include. If None, includes all.
+            anchor_attribute_names: List of anchor attribute names to include. If None, includes all.
+            link_attribute_names: List of link attribute names to include. If None, includes all.
             query_names: List of query names to include. If None, includes all.
 
         Returns:
@@ -307,7 +309,8 @@ class DataModel:
         # Convert to sets for efficient lookup, None means include all
         anchor_set = set(anchor_nouns) if anchor_nouns is not None else None
         link_set = set(link_sentences) if link_sentences is not None else None
-        attr_set = set(attribute_names) if attribute_names is not None else None
+        anchor_attr_set = set(anchor_attribute_names) if anchor_attribute_names is not None else None
+        link_attr_set = set(link_attribute_names) if link_attribute_names is not None else None
         query_set = set(query_names) if query_names is not None else None
 
         # Filter anchors
@@ -334,7 +337,7 @@ class DataModel:
             dm_templates.get("dm_attr_descr_template", dm_attr_descr_template).format(anchor=anchor, attr=attr)
             for anchor in filtered_anchors
             for attr in anchor.attributes
-            if attr_set is None or attr.name in attr_set
+            if anchor_attr_set is None or attr.name in anchor_attr_set
         )
 
         link_descr = "\n".join(
@@ -346,7 +349,7 @@ class DataModel:
             dm_templates.get("dm_link_attr_descr_template", dm_link_attr_descr_template).format(link=link, attr=attr)
             for link in filtered_links
             for attr in link.attributes
-            if attr_set is None or attr.name in attr_set
+            if link_attr_set is None or attr.name in link_attr_set
         )
 
         filtered_queries = [q for q in queries if query_set is None or q.name in query_set]
