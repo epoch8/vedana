@@ -1,3 +1,7 @@
+# 0.3.2
+
+* New pipeline tests/evaluation page: view golden dataset, run tests, compare results
+
 # 0.3.1
 
 * Splitting ETL pipelines into tabs by new pipeline label 

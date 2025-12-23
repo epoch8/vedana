@@ -411,6 +411,7 @@ def page() -> rx.Component:
                         rx.text("Timeframe (days):", size="1", color="gray"),
                         rx.select(
                             items=DashboardState.time_window_options,  # type: ignore[arg-type]
+                            value="1",
                             on_change=DashboardState.set_time_window_days,  # type: ignore[arg-type]
                             width="8em",
                         ),
