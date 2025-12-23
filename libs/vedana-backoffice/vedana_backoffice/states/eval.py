@@ -189,6 +189,7 @@ class EvalState(rx.State):
     embeddings_dim: int = core_settings.embeddings_dim
     custom_openrouter_key: str = ""
     default_openrouter_key_present: bool = bool(os.environ.get("OPENROUTER_API_KEY"))
+    enable_dm_filtering: bool = core_settings.enable_dm_filtering
     _default_models: tuple[str, ...] = (
         "gpt-5.1-chat-latest",
         "gpt-5.1",
@@ -431,6 +432,9 @@ class EvalState(rx.State):
     def set_custom_openrouter_key(self, value: str) -> None:
         self.custom_openrouter_key = str(value or "").strip()
         # optional: could refetch models with the override; keep static to avoid extra calls
+
+    def set_enable_dm_filtering(self, value: bool) -> None:
+        self.enable_dm_filtering = value
 
     def set_provider(self, value: str) -> None:
         self.provider = str(value or "openai")
@@ -1655,6 +1659,7 @@ class EvalState(rx.State):
         pipeline = vedana_app.pipeline
         resolved_model = self._resolved_pipeline_model()
         pipeline.model = resolved_model
+        pipeline.enable_filtering = self.enable_dm_filtering
 
         ctx = await ctl.make_context()
         if self.provider == "openrouter" and self.custom_openrouter_key:
@@ -1774,7 +1779,7 @@ class EvalState(rx.State):
             self.is_running = True
             self.current_question_index = -1
             self.total_questions_to_run = len(selection)
-            self.status_message = f"Starting evaluation run '{test_run_name}' for {len(selection)} question(s)…"
+            self.status_message = f"Evaluation run '{test_run_name}' for {len(selection)} question(s)…"
             self.run_progress = []
             self.error_message = ""
             yield

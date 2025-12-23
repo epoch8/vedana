@@ -250,6 +250,12 @@ def _pipeline_card() -> rx.Component:
                             width="100%",
                             placeholder="Select model",
                         ),
+                        rx.checkbox(
+                            "Filter Data Model",
+                            checked=EvalState.enable_dm_filtering,
+                            on_change=EvalState.set_enable_dm_filtering,
+                            size="2",
+                        ),
                         spacing="2",
                         align="center",
                         wrap="wrap",
