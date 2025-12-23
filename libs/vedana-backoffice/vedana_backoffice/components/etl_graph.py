@@ -1,6 +1,6 @@
 import reflex as rx
 
-from vedana_backoffice.state import EtlState
+from vedana_backoffice.states.etl import EtlState
 
 
 def _node_card(node: dict) -> rx.Component:
@@ -26,16 +26,60 @@ def _node_card(node: dict) -> rx.Component:
                 rx.hstack(
                     rx.tooltip(rx.text(node.get("last_run", "—"), size="1", color="gray"), content="last update time"),
                     rx.hstack(
-                        rx.text(node.get("row_count", "—"), size="1", color="gray", weight="bold"),
-                        rx.text(node.get("last_add", "—"), size="1", color="green", weight="bold"),
-                        rx.text("/", size="1", color="gray", weight="bold"),
-                        rx.text(node.get("last_rm", "—"), size="1", color="red", weight="bold"),
+                        rx.tooltip(
+                            rx.text(node.get("row_count", "—"), size="1", color="gray", weight="bold"),
+                            content="rows total",
+                        ),
+                        rx.tooltip(
+                            rx.text(node.get("last_add", "—"), size="1", color="green"), content="added during last run"
+                        ),
+                        rx.text("/", size="1", color="gray"),
+                        rx.tooltip(
+                            rx.text(node.get("last_upd", "—"), size="1", color="gray"),
+                            content="updated during last run",
+                        ),
+                        rx.text("/", size="1", color="gray"),
+                        rx.tooltip(
+                            rx.text(node.get("last_rm", "—"), size="1", color="red"), content="deleted during last run"
+                        ),
                         spacing="1",
                     ),
                     width="100%",
                     justify="between",
                 ),
-                rx.box(),
+                # Step view: show last run time and rows processed
+                rx.cond(
+                    node.get("step_type") != "BatchGenerate",  # BatchGenerate has no meta table
+                    rx.hstack(
+                        rx.tooltip(
+                            rx.text(node.get("last_run", "—"), size="1", color="gray"),
+                            content="last run time",
+                        ),
+                        rx.hstack(
+                            rx.tooltip(
+                                rx.text(node.get("rows_processed", 0), size="1", color="gray"),
+                                content="rows processed in last run",
+                            ),
+                            rx.text("/", size="1", color="gray"),
+                            rx.tooltip(
+                                rx.text(node.get("total_success", 0), size="1", color="gray", weight="bold"),
+                                content="rows processed total",
+                            ),
+                            rx.cond(
+                                node.get("has_total_failed", False),
+                                rx.tooltip(
+                                    rx.text(node.get("total_failed_str", ""), size="1", color="red"),
+                                    content="total failed rows (all time)",
+                                ),
+                                rx.box(),
+                            ),
+                            spacing="1",
+                        ),
+                        width="100%",
+                        justify="between",
+                    ),
+                    rx.box(),
+                ),
             ),
             spacing="2",
             width="100%",
