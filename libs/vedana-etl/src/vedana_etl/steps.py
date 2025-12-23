@@ -448,7 +448,7 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
     yield nodes_df, edges_df
 
 
-def ensure_memgraph_node_indexes(dm_anchor_attrs: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def ensure_memgraph_node_indexes(dm_anchor_attrs: pd.DataFrame) -> tuple[pd.DataFrame]:
     """
     Create label / vector indices
     https://memgraph.com/docs/querying/vector-search
@@ -503,11 +503,11 @@ def ensure_memgraph_node_indexes(dm_anchor_attrs: pd.DataFrame) -> tuple[pd.Data
 
     # nominal outputs
     mg_anchor_indexes = pd.DataFrame({"anchor": list(anchor_types)})
-    mg_anchor_vector_indexes = vec_a_attr_rows[["anchor", "attribute_name"]].copy()
-    return mg_anchor_indexes, mg_anchor_vector_indexes
+    # mg_anchor_vector_indexes = vec_a_attr_rows[["anchor", "attribute_name"]].copy()
+    return mg_anchor_indexes
 
 
-def ensure_memgraph_edge_indexes(dm_link_attrs: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def ensure_memgraph_edge_indexes(dm_link_attrs: pd.DataFrame) -> tuple[pd.DataFrame]:
     """
     Create label / vector indices
     https://memgraph.com/docs/querying/vector-search
@@ -564,8 +564,8 @@ def ensure_memgraph_edge_indexes(dm_link_attrs: pd.DataFrame) -> tuple[pd.DataFr
 
     # nominal outputs
     mg_link_indexes = pd.DataFrame({"link": list(link_types)})
-    mg_link_vector_indexes = vec_l_attr_rows[["link", "attribute_name"]].copy()
-    return mg_link_indexes, mg_link_vector_indexes
+    # mg_link_vector_indexes = vec_l_attr_rows[["link", "attribute_name"]].copy()
+    return mg_link_indexes
 
 
 def generate_embeddings(
