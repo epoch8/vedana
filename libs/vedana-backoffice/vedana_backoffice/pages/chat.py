@@ -132,7 +132,6 @@ def page() -> rx.Component:
                                     spacing="1",
                                 ),
                             ),
-                            rx.text(f"model: {ChatState.model}", size="1", color="gray"),
                             rx.cond(
                                 ChatState.total_conversation_cost > 0,
                                 rx.text(
@@ -153,6 +152,35 @@ def page() -> rx.Component:
                                 value=ChatState.input_text,
                                 on_change=ChatState.set_input,
                                 width="100%",
+                            ),
+                            rx.select(
+                                items=["openai", "openrouter"],
+                                value=ChatState.provider,
+                                on_change=ChatState.set_provider,
+                                width="10em",
+                                placeholder="Provider",
+                            ),
+                            rx.cond(
+                                ChatState.provider == "openrouter",
+                                rx.input(
+                                    placeholder=rx.cond(
+                                        ChatState.default_openrouter_key_present,
+                                        "(Optional) custom OPENROUTER_API_KEY",
+                                        "(Required) OPENROUTER_API_KEY"
+                                    ),
+                                    type="password",
+                                    value=ChatState.custom_openrouter_key,
+                                    on_change=ChatState.set_custom_openrouter_key,
+                                    width="36em",
+                                    required=rx.cond(ChatState.default_openrouter_key_present, False, True)
+                                ),
+                            ),
+                            rx.select(
+                                items=ChatState.available_models,
+                                value=ChatState.model,
+                                on_change=ChatState.set_model,
+                                width="16em",
+                                placeholder="Select model",
                             ),
                             rx.button("Send", type="submit", loading=ChatState.is_running),
                             spacing="2",

@@ -1,8 +1,4 @@
-# 0.3.2
-
-* New pipeline tests/evaluation page: view golden dataset, run tests, compare results
-
-# 0.3.1
+# WIP
 
 * Splitting ETL pipelines into tabs by new pipeline label 
 * Improve data views: server-side pagination, custom styling
@@ -11,6 +7,8 @@
 * Refactor backoffice state.py - split into smaller states per-page 
 * Improve pipeline details view in assistant messages
 * Add pipeline logs to assistant message details on Chat page
+* New pipeline tests/evaluation page: view golden dataset, run tests, compare results
+* add LLM model selection to chat page - integration via openrouter
 
 # 0.3.0 - 2025.11.20
 
