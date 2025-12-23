@@ -11,8 +11,9 @@ def render_message_bubble(
 
     Expects msg dict with keys:
       - content, is_assistant (bool-like), created_at_fmt or created_at
-      - has_tech, show_details
+      - has_tech, has_logs, show_details
       - has_models, has_vts, has_cypher, models_str, vts_str, cypher_str (optional)
+      - logs_str (optional)
     """
 
     tech_block = rx.cond(
@@ -23,7 +24,19 @@ def render_message_bubble(
                     msg.get("has_models"),
                     rx.vstack(
                         rx.text("Models", weight="medium"),
-                        rx.code(msg.get("models_str", ""), font_size="11px"),
+                        rx.code_block(
+                            msg.get("models_str", ""),
+                            font_size="11px",
+                            language="json",
+                            # (bug in reflex?) code_block does not pass some custom styling (wordBreak, whiteSpace)
+                            # https://github.com/reflex-dev/reflex/issues/6051
+                            code_tag_props={"style": {"whiteSpace": "pre-wrap"}},
+                            style={
+                                "display": "block",
+                                "maxWidth": "100%",
+                                "boxSizing": "border-box",
+                            },
+                        ),
                         spacing="1",
                         width="100%",
                     ),
@@ -32,7 +45,17 @@ def render_message_bubble(
                     msg.get("has_vts"),
                     rx.vstack(
                         rx.text("VTS Queries", weight="medium"),
-                        rx.code(msg.get("vts_str", ""), font_size="11px"),
+                        rx.code_block(
+                            msg.get("vts_str", ""),
+                            font_size="11px",
+                            language="python",
+                            code_tag_props={"style": {"whiteSpace": "pre-wrap"}},
+                            style={
+                                "display": "block",
+                                "maxWidth": "100%",
+                                "boxSizing": "border-box",
+                            },
+                        ),
                         spacing="1",
                         width="100%",
                     ),
@@ -41,7 +64,17 @@ def render_message_bubble(
                     msg.get("has_cypher"),
                     rx.vstack(
                         rx.text("Cypher Queries", weight="medium"),
-                        rx.code(msg.get("cypher_str", ""), font_size="11px"),
+                        rx.code_block(
+                            msg.get("cypher_str", ""),
+                            font_size="11px",
+                            language="cypher",
+                            code_tag_props={"style": {"whiteSpace": "pre-wrap"}},
+                            style={
+                                "display": "block",
+                                "maxWidth": "100%",
+                                "boxSizing": "border-box",
+                            },
+                        ),
                         spacing="1",
                         width="100%",
                     ),
@@ -55,6 +88,65 @@ def render_message_bubble(
         rx.box(),
     )
 
+    generic_details_block = rx.cond(
+        msg.get("generic_meta"),
+        rx.code_block(
+            msg.get("event_data_str", ""),
+            font_size="11px",
+            language="json",
+            code_tag_props={"style": {"whiteSpace": "pre-wrap"}},
+            style={
+                "display": "block",
+                "maxWidth": "100%",
+                "boxSizing": "border-box",
+            },
+        ),
+        rx.box(),
+    )
+
+    logs_block = rx.cond(
+        msg.get("has_logs"),
+        rx.card(
+            rx.vstack(
+                rx.text("Logs", weight="medium"),
+                rx.scroll_area(
+                    rx.code_block(
+                        msg.get("logs_str", ""),
+                        font_size="11px",
+                        language="log",
+                        wrap_long_lines=True,
+                        style={
+                            "display": "block",
+                            "maxWidth": "100%",
+                            "boxSizing": "border-box",
+                        },
+                        code_tag_props={"style": {"whiteSpace": "pre-wrap"}},  # styling workaround
+                    ),
+                    type="always",
+                    scrollbars="vertical",
+                    style={
+                        "maxHeight": "25vh",
+                        "width": "100%",
+                    },
+                ),
+                spacing="1",
+                width="100%",
+            ),
+            padding="0.75em",
+            width="100%",
+            variant="surface",
+        ),
+        rx.box(),
+    )
+
+    details_block = rx.vstack(
+        tech_block,
+        generic_details_block,
+        logs_block,
+        spacing="2",
+        width="100%",
+    )
+
     # Tag badges for feedback
     tags_box = corner_tags_component or rx.box()
 
@@ -66,7 +158,7 @@ def render_message_bubble(
             rx.box(),
         ),
         rx.cond(
-            msg.get("has_tech"),
+            msg.get("has_tech") | msg.get("has_logs") | msg.get("generic_meta"),  # type: ignore[operator]
             rx.button(
                 "Details",
                 variant="ghost",
@@ -80,37 +172,34 @@ def render_message_bubble(
         align="center",
     )
 
-    header = rx.hstack(
-        header_left,
-        tags_box,
-        justify="between",
-        width="100%",
-        align="center",
-    )
-
-    body_children = [
-        header,
-        rx.text(msg.get("content", "")),
-        rx.cond(msg.get("show_details"), tech_block),
-        rx.cond(extras is not None, extras or rx.box()),
-    ]
-
-    # Comments are appended by caller via `extras`
-
     body = rx.vstack(
-        *body_children,
+        rx.hstack(header_left, tags_box, justify="between", width="100%", align="center"),  # header
+        rx.text(
+            msg.get("content", ""),
+            style={
+                "whiteSpace": "pre-wrap",
+                "wordBreak": "break-word",
+            },
+        ),
+        rx.cond(msg.get("show_details"), details_block),
+        rx.cond(extras is not None, extras or rx.box()),
         spacing="2",
         width="100%",
+        style={
+            "maxWidth": "100%",
+        },
     )
 
     assistant_bubble = rx.card(
         body,
         padding="0.75em",
         style={
-            "maxWidth": "70%",
+            "maxWidth": "70%",  # 35 vw is 70% of 50% parent card width in vw terms
             "backgroundColor": "#11182714",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
+            "wordBreak": "break-word",
+            "overflowX": "hidden",
         },
     )
     user_bubble = rx.card(
@@ -121,6 +210,8 @@ def render_message_bubble(
             "backgroundColor": "#3b82f614",
             "border": "1px solid #e5e7eb",
             "borderRadius": "12px",
+            "wordBreak": "break-word",
+            "overflowX": "hidden",
         },
     )
 
