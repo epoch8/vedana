@@ -10,8 +10,10 @@ import reflex as rx
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from jims_core.llms.llm_provider import env_settings as llm_settings
-from vedana_core.data_model import DataModel
 from vedana_core.settings import settings as core_settings
+from vedana_etl.app import app as etl_app
+from vedana_etl.pipeline import get_data_model_pipeline
+from datapipe.compute import Catalog, run_pipeline
 
 from vedana_backoffice.states.common import get_vedana_app
 from vedana_backoffice.states.jims import ThreadViewState
@@ -25,8 +27,7 @@ class ChatState(rx.State):
     messages: list[dict[str, Any]] = []
     chat_thread_id: str = ""
     data_model_text: str = ""
-    data_model_last_sync: str = ""
-    is_refreshing_dm: bool = True
+    is_refreshing_dm: bool = False
     provider: str = "openai"  # default llm provider
     model: str = core_settings.model
     _default_models: tuple[str, ...] = (
@@ -50,7 +51,6 @@ class ChatState(rx.State):
     available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
 
     async def mount(self) -> None:
-        self.data_model_last_sync: str = datetime.now().strftime("%Y-%m-%d %H:%M")
         self.fetch_openrouter_models()
         self._sync_available_models()
 
@@ -315,7 +315,7 @@ class ChatState(rx.State):
         async with self:
             va = await get_vedana_app()
             try:
-                self.data_model_text = va.data_model.to_text_descr()
+                self.data_model_text = await va.data_model.to_text_descr()
             except Exception:
                 self.data_model_text = "(failed to load data model text)"
 
@@ -323,44 +323,21 @@ class ChatState(rx.State):
             yield
 
     @rx.event(background=True)  # type: ignore[operator]
-    async def refresh_data_model(self):
+    async def reload_data_model(self):
+        """Reload the data model by running all data_model_steps from the pipeline."""
         async with self:
+            self.is_refreshing_dm = True
+            yield
             try:
-                # todo: UI updates are not triggered from async with self, need to fix
-                # https://reflex.dev/blog/2023-09-28-unlocking-new-workflows-with-background-tasks/
-                self.is_refreshing_dm = True
-                yield  # trigger UI update
+                run_pipeline(etl_app.ds, Catalog({}), get_data_model_pipeline())
 
-                # get App
                 va = await get_vedana_app()
-
-                # Get new DM
-                new_dm = DataModel.load_grist_online(
-                    core_settings.grist_data_model_doc_id,
-                    grist_server=core_settings.grist_server_url,
-                    api_key=core_settings.grist_api_key,
-                )
-                await new_dm.update_data_model_node(va.graph)
-
-                # update App
-                va.data_model = new_dm
-                try:
-                    va.pipeline.data_model = new_dm
-                except Exception:
-                    pass
-
-                # update UI
-                self.data_model_text = new_dm.to_text_descr()
-                self.data_model_last_sync = datetime.now().strftime("%Y-%m-%d %H:%M")
-                self.is_refreshing_dm = False
-                try:
-                    yield rx.toast.success("Data model refreshed")  # type: ignore[attr-defined]
-                except Exception:
-                    pass
+                self.data_model_text = await va.data_model.to_text_descr()
+                yield rx.toast.success("Data model reloaded")
             except Exception as e:
-                self.data_model_text = f"Error refreshing DataModel: {e}"
+                error_msg = str(e)
+                self.data_model_text = f"(error reloading data model: {error_msg})"
+                yield rx.toast.error(f"Failed to reload data model\n{error_msg}")
+            finally:
                 self.is_refreshing_dm = False
-                try:
-                    yield rx.toast.error(f"Failed to refresh data model: {e}")  # type: ignore[attr-defined]
-                except Exception:
-                    pass
+                yield

@@ -68,6 +68,28 @@ class DashboardState(rx.State):
     changes_preview_kind: str = ""  # "ingest", "nodes", or "edges"
     changes_preview_label: str = ""  # label for graph previews
 
+    # Expandable row tracking for changes preview
+    changes_preview_expanded_rows: list[str] = []
+
+    def toggle_changes_preview_row_expand(self, row_id: str) -> None:
+        """Toggle expansion state for a changes preview row."""
+        row_id = str(row_id or "")
+        if not row_id:
+            return
+        current = set(self.changes_preview_expanded_rows)
+        if row_id in current:
+            current.remove(row_id)
+        else:
+            current.add(row_id)
+        self.changes_preview_expanded_rows = list(current)
+        # Update expanded state in rows to trigger UI refresh
+        updated_rows = []
+        for row in self.changes_preview_rows:
+            new_row = dict(row)
+            new_row["expanded"] = row.get("row_id", "") in current
+            updated_rows.append(new_row)
+        self.changes_preview_rows = updated_rows
+
     def set_time_window_days(self, value: str) -> None:
         try:
             d = int(value)
@@ -378,6 +400,7 @@ class DashboardState(rx.State):
         self.changes_preview_total_rows = 0
         self.changes_preview_kind = ""
         self.changes_preview_label = ""
+        self.changes_preview_expanded_rows = []
 
     def open_changes_preview(self, table_name: str) -> None:
         """Load changed rows for the given ingest table using *_meta within the selected time window."""
@@ -387,6 +410,7 @@ class DashboardState(rx.State):
         self.changes_preview_page = 0
         self.changes_preview_kind = "ingest"
         self.changes_preview_label = ""
+        self.changes_preview_expanded_rows = []  # Reset expanded rows
 
         self._load_ingest_changes_page()
 
@@ -491,15 +515,19 @@ class DashboardState(rx.State):
         self.changes_preview_columns = [str(c) for c in display_cols]
         records_any: list[dict] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
 
+        expanded_set = set(self.changes_preview_expanded_rows)
         styled: list[dict[str, Any]] = []
         row_styling = {
             "added": {"backgroundColor": "rgba(34,197,94,0.08)"},
             "updated": {"backgroundColor": "rgba(245,158,11,0.08)"},
             "deleted": {"backgroundColor": "rgba(239,68,68,0.08)"},
         }
-        for r in records_any:  # Build display row with only data columns, coercing values to safe strings
+        for idx, r in enumerate(records_any):  # Build display row with only data columns, coercing values to safe strings
+            row_id = f"changes-{self.changes_preview_page}-{idx}"
             row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}
             row_disp["row_style"] = row_styling.get(r.get("change_type", ""), {})
+            row_disp["row_id"] = row_id
+            row_disp["expanded"] = row_id in expanded_set
             styled.append(row_disp)
 
         self.changes_preview_rows = styled
@@ -513,6 +541,7 @@ class DashboardState(rx.State):
         self.changes_preview_page = 0
         self.changes_preview_kind = kind
         self.changes_preview_label = label
+        self.changes_preview_expanded_rows = []  # Reset expanded rows
 
         await self._load_graph_changes_page()
 
@@ -621,6 +650,7 @@ class DashboardState(rx.State):
         records_any: list[dict] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
 
         # Build styled rows
+        expanded_set = set(self.changes_preview_expanded_rows)
         styled: list[dict[str, Any]] = []
         row_styling = {
             "added": {"backgroundColor": "rgba(34,197,94,0.08)"},
@@ -628,9 +658,12 @@ class DashboardState(rx.State):
             "deleted": {"backgroundColor": "rgba(239,68,68,0.08)"},
         }
 
-        for r in records_any:
+        for idx, r in enumerate(records_any):
+            row_id = f"changes-{self.changes_preview_page}-{idx}"
             row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}
             row_disp["row_style"] = row_styling.get(r.get("change_type", ""), {})
+            row_disp["row_id"] = row_id
+            row_disp["expanded"] = row_id in expanded_set
             styled.append(row_disp)
 
         self.changes_preview_rows = styled
