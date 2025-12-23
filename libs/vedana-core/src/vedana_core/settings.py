@@ -21,6 +21,7 @@ class VedanaCoreSettings(BaseSettings):
     model: str = "gpt-4.1"
     enable_dm_filtering: bool = False  # pipeline selection
     filter_model: str = "gpt-5-mini"
+    judge_model: str = "gpt-5-mini"
     embeddings_model: str = "text-embedding-3-large"
     embeddings_dim: int = 1024
 
