@@ -221,15 +221,15 @@ class RagPipeline:
             # Count total attributes for original_counts
             total_anchor_attrs = sum(len(anchor.attributes) for anchor in dm_anchors)
             total_link_attrs = sum(len(link.attributes) for link in dm_links)
-            
-            technical_info["dm_filtering"] = {
+
+            dm_filtering = {
                 "filter_model": self.filter_model,
                 "reasoning": filter_selection.reasoning,
                 "selected_anchors": filter_selection.anchor_nouns,
                 "selected_links": filter_selection.link_sentences,
                 "selected_anchor_attributes": filter_selection.anchor_attribute_names,
                 "selected_link_attributes": filter_selection.link_attribute_names,
-                "selected_queries": filter_selection.query_ids,
+                "selected_queries": [dm_queries[int(i)].name for i in filter_selection.query_ids],
                 "original_counts": {
                     "anchors": len(dm_anchors),
                     "links": len(dm_links),
@@ -245,6 +245,8 @@ class RagPipeline:
                     "queries": len(filter_selection.query_ids),
                 },
             }
+
+            ctx.send_event("rag.data_model_filtered", dm_filtering)
 
         return answer, agent_query_events, technical_info
 
