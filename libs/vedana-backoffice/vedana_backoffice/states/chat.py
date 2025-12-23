@@ -49,7 +49,7 @@ class ChatState(rx.State):
     openai_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
     openrouter_models: list[str] = []
     available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
-    enable_dm_filtering: bool = os.environ.get("ENABLE_DM_FILTERING", False)
+    enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
 
     async def mount(self) -> None:
         self.fetch_openrouter_models()
