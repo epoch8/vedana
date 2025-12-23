@@ -219,8 +219,8 @@ class RagPipeline:
             dm_queries = await self.data_model.get_queries()
             
             # Count total attributes for original_counts
-            total_anchor_attrs = sum(len(a.attributes) for a in dm_anchors)
-            total_link_attrs = sum(len(l.attributes) for l in dm_links)
+            total_anchor_attrs = sum(len(anchor.attributes) for anchor in dm_anchors)
+            total_link_attrs = sum(len(link.attributes) for link in dm_links)
             
             technical_info["dm_filtering"] = {
                 "filter_model": self.filter_model,
