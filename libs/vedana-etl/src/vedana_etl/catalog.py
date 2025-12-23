@@ -230,7 +230,6 @@ rag_anchor_embeddings = Table(
             Column("label", String, nullable=False),
             Column("attribute_value", String),
             Column("embedding", Vector(dim=core_settings.embeddings_dim), nullable=False),
-            Column("embedding_model", String, nullable=False),
         ],
     ),
 )
@@ -247,7 +246,6 @@ rag_edge_embeddings = Table(
             Column("attribute_name", String, primary_key=True),
             Column("attribute_value", String),
             Column("embedding", Vector(dim=core_settings.embeddings_dim), nullable=False),
-            Column("embedding_model", String, nullable=False),
         ],
     ),
 )

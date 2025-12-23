@@ -647,7 +647,6 @@ def generate_embeddings(
                 "attribute_name": attr_name,
                 "attribute_value": text,
                 "embedding": vec,
-                "embedding_model": emb_model,
             }
         )
 

@@ -62,7 +62,6 @@ def test_generate_embeddings_for_nodes(monkeypatch):
     assert "title_embedding" not in out.loc[out["node_id"] == "u1", "attribute_value"].values  # legacy naming
     assert out.iloc[0]["attribute_value"] == "hello"
     assert out.iloc[0]["embedding"] == [1.0, 0.0]
-    assert "embedding_model" in out.columns
 
 
 def test_generate_embeddings_skips_uuid_text(monkeypatch):
@@ -148,4 +147,3 @@ def test_generate_embeddings_for_edges(monkeypatch):
     assert out.iloc[0]["attribute_name"] == "title"
     assert out.iloc[0]["attribute_value"] == "edge text"
     assert out.iloc[0]["embedding"] == [0.5, 0.5]
-    assert "embedding_model" in out.columns

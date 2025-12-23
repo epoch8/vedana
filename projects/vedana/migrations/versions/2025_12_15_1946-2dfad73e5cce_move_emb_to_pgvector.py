@@ -116,7 +116,6 @@ def upgrade() -> None:
         sa.Column("label", sa.String(), nullable=False),
         sa.Column("attribute_value", sa.String(), nullable=True),
         sa.Column("embedding", Vector(dim=1024), nullable=False),
-        sa.Column("embedding_model", sa.String(), nullable=False),
         sa.PrimaryKeyConstraint("node_id", "attribute_name"),
     )
     op.create_table(
@@ -138,7 +137,6 @@ def upgrade() -> None:
         sa.Column("attribute_name", sa.String(), nullable=False),
         sa.Column("attribute_value", sa.String(), nullable=True),
         sa.Column("embedding", Vector(dim=1024), nullable=False),
-        sa.Column("embedding_model", sa.String(), nullable=False),
         sa.PrimaryKeyConstraint("from_node_id", "to_node_id", "edge_label", "attribute_name"),
     )
     op.create_table(
