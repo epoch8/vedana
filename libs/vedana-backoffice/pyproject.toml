@@ -1,6 +1,6 @@
 [project]
 name = "vedana-backoffice"
-version = "0.3.1"
+version = "0.3.2"
 description = "Reflex-based admin/backoffice UI for Vedana"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -10,7 +10,7 @@ authors = [
 ]
 
 dependencies = [
-    "reflex>=0.8.0,<0.9.0",
+    "reflex>=0.8.22,<0.9.0",
     "orjson>=3.11.3",
     "vedana-core",
     "vedana-etl",

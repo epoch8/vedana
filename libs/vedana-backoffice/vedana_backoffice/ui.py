@@ -36,6 +36,11 @@ def app_header() -> rx.Component:
             ),
             rx.hstack(
                 rx.link("ETL", href="/etl", font_size="1.1em"),
+                rx.cond(
+                    AppVersionState.eval_enabled,
+                    rx.link("Eval", href="/eval", font_size="1.1em"),
+                    rx.fragment(),
+                ),
                 rx.link("Chat", href="/chat", font_size="1.1em"),
                 rx.link("JIMS", href="/jims", font_size="1.1em"),
                 telegram_link_box(),
