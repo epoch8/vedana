@@ -1,18 +1,11 @@
-import asyncio
 import logging
 import re
-import secrets
-from datetime import date
-from hashlib import sha256
 from typing import Any, Iterator, cast
 from unicodedata import normalize
 from uuid import UUID
 
 import pandas as pd
 from jims_core.llms.llm_provider import LLMProvider
-from jims_core.thread.schema import CommunicationEvent
-from jims_core.thread.thread_context import ThreadContext
-from jims_core.util import uuid7
 from neo4j import GraphDatabase
 from pydantic import BaseModel, Field
 from vedana_core.data_model import Anchor, Attribute, DataModel, Link
@@ -158,24 +151,6 @@ def get_data_model() -> Iterator[
     conversation_lifecycle_df = conversation_lifecycle_df.astype(str)
 
     yield anchors_df, anchor_attrs_df, link_attrs_df, links_df, queries_df, prompts_df, conversation_lifecycle_df
-
-
-def get_data_model_snapshot() -> Iterator[pd.DataFrame]:
-    """
-    DataModel versioning with sha256 hash
-    """
-    dm = DataModel(sessionmaker=get_sessionmaker())
-
-    dm_text = asyncio.run(dm.to_text_descr())
-    dm_text_b = bytearray(dm_text, "utf-8")
-    dm_id = sha256(dm_text_b).hexdigest()
-
-    dm_version_snapshot = {
-        "dm_id": dm_id,
-        "dm_description": dm_text,
-    }
-
-    yield pd.DataFrame([dm_version_snapshot])
 
 
 def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
@@ -675,44 +650,6 @@ def prepare_edges(
     return grist_edges_df.copy()
 
 
-def get_llm_pipeline_config() -> Iterator[pd.DataFrame]:
-    llm_config = {
-        "pipeline_model": core_settings.model,
-    }
-    yield pd.DataFrame([llm_config])
-
-
-def get_llm_embeddings_config() -> Iterator[pd.DataFrame]:
-    llm_config = {
-        "embeddings_model": core_settings.embeddings_model,
-        "embeddings_dim": core_settings.embeddings_dim,
-    }
-    yield pd.DataFrame([llm_config])
-
-
-def get_eval_judge_config() -> Iterator[pd.DataFrame]:
-    """
-    versioning Judge prompt
-    """
-    dm = DataModel(sessionmaker=get_sessionmaker())
-    prompts = asyncio.run(dm.prompt_templates())
-
-    judge_prompt = prompts.get("eval_judge_prompt")
-
-    if judge_prompt:
-        text_b = bytearray(judge_prompt, "utf-8")
-        judge_prompt_id = sha256(text_b).hexdigest()
-
-        judge_prompt_version = {
-            "judge_model": etl_settings.judge_model,
-            "judge_prompt_id": judge_prompt_id,
-            "judge_prompt": judge_prompt,
-        }
-        yield pd.DataFrame([judge_prompt_version])
-    else:
-        yield pd.DataFrame(columns=["judge_model", "judge_prompt_id", "judge_prompt"])
-
-
 def get_eval_gds_from_grist() -> Iterator[pd.DataFrame]:
     """
     Loads evaluation dataset and config rows
@@ -734,260 +671,10 @@ def get_eval_gds_from_grist() -> Iterator[pd.DataFrame]:
 
     gds_df = gds_df.dropna(subset=["gds_question", "gds_answer"]).copy()
     gds_df = gds_df.loc[(gds_df["gds_question"] != "") & (gds_df["gds_answer"] != "")]
-    gds_df = gds_df[["gds_question", "gds_answer", "question_context"]].astype({"gds_question": str, "gds_answer": str})
+    gds_df = gds_df[["gds_question", "gds_answer", "question_scenario", "question_comment", "question_context"]].astype(
+        {"gds_question": str, "gds_answer": str, "question_scenario": str, "question_comment": str}
+    )
     yield gds_df
-
-
-async def _run_tests_async(
-    eval_gds: pd.DataFrame,
-    dm: DataModel,
-    dm_id: str,
-    embeddings_model: str,
-    embeddings_dim: int,
-    test_run_name: str,
-    pipeline_model: str,
-) -> list[dict[str, Any]]:
-    graph = MemgraphGraph(core_settings.memgraph_uri, core_settings.memgraph_user, core_settings.memgraph_pwd)
-    vts = PGVectorStore()
-
-    pipeline = RagPipeline(
-        graph=graph,
-        vts=vts,
-        data_model=dm,
-        logger=logger,
-    )
-
-    provider = LLMProvider()
-
-    def build_ctx(user_query: str) -> ThreadContext:
-        history: list[CommunicationEvent] = [CommunicationEvent(role="user", content=user_query)]
-        return ThreadContext(thread_id=uuid7(), history=history, events=[], llm=provider)
-
-    out_rows: list[dict[str, Any]] = []
-    try:
-        for _, row in eval_gds.iterrows():
-            gds_question = str(row.get("gds_question", ""))
-            question_context_obj = row.get("question_context")
-            if question_context_obj is None:
-                question_context = None
-            elif isinstance(question_context_obj, str):
-                question_context = question_context_obj
-            elif isinstance(question_context_obj, float):
-                question_context = None if question_context_obj != question_context_obj else str(question_context_obj)
-            else:
-                question_context = str(question_context_obj)
-            q_with_ctx = f"{gds_question} {question_context}".strip() if question_context else gds_question
-
-            llm_answer = ""
-            tool_calls_str = ""
-            try:
-                ctx = build_ctx(q_with_ctx)
-                await pipeline(ctx)  # type: ignore
-
-                technical_info: dict[str, Any] = {}
-                for event in ctx.outgoing_events:
-                    if event.event_type == "comm.assistant_message":
-                        llm_answer = str(event.event_data.get("content", ""))
-                    elif event.event_type == "rag.query_processed":
-                        technical_info = dict(event.event_data.get("technical_info", {}))
-
-                vts = technical_info.get("vts_queries", [])
-                cypher = technical_info.get("cypher_queries", [])
-                if isinstance(vts, list) or isinstance(cypher, list):
-                    vts_s = "\n".join(vts or [])
-                    cypher_s = "\n".join(cypher or [])
-                    tool_calls_str = f"{vts_s}\n---\n{cypher_s}".strip()
-                else:
-                    tool_calls_str = ""
-
-            except Exception as e:
-                logger.exception(f"Pipeline failed for question {gds_question}: {e}")
-                llm_answer = ""
-                tool_calls_str = "error: pipeline_failed"
-
-            out_rows.append(
-                {
-                    "dm_id": dm_id,
-                    "pipeline_model": pipeline_model,
-                    "embeddings_model": embeddings_model,
-                    "embeddings_dim": embeddings_dim,
-                    "gds_question": gds_question,
-                    "question_context": question_context if question_context is not None else None,
-                    "llm_answer": llm_answer,
-                    "tool_calls": tool_calls_str,
-                    "test_date": test_run_name,
-                }
-            )
-    finally:
-        try:
-            graph.close()
-        except Exception:
-            pass
-
-    return out_rows
-
-
-def run_tests(
-    eval_gds: pd.DataFrame,
-    dm_version: pd.DataFrame,
-    llm_pipeline_config: pd.DataFrame,
-    llm_embeddings_config: pd.DataFrame,
-) -> pd.DataFrame:
-    dm_version = dm_version.tail(1).squeeze()  # last row - last version
-    llm_embeddings_config = llm_embeddings_config.tail(1).squeeze()
-    pipeline_model = llm_pipeline_config.tail(1).squeeze()
-
-    # configs
-    dm_id = str(dm_version.get("dm_id"))
-    dm = DataModel(sessionmaker=get_sessionmaker())  # todo versioning data model
-    embeddings_model = str(llm_embeddings_config.get("embeddings_model"))
-    embeddings_dim = int(llm_embeddings_config.get("embeddings_dim"))
-
-    # Generate run id
-    today = date.today().isoformat()
-    slug = secrets.token_hex(3)
-    test_run_name = f"{today}-{etl_settings.test_environment}-{slug}"
-
-    out_rows = asyncio.run(
-        _run_tests_async(
-            eval_gds,
-            dm,
-            dm_id,
-            embeddings_model,
-            embeddings_dim,
-            test_run_name,
-            pipeline_model,
-        )
-    )
-    return pd.DataFrame(out_rows)
-
-
-async def _judge_tests_async(
-    eval_llm_answers: pd.DataFrame,
-    judge_model: str | None,
-    judge_prompt: str,
-    judge_prompt_id: str | None,
-    gds_map: dict[str, Any],
-) -> list[dict[str, Any]]:
-    provider = LLMProvider()
-    if judge_model:
-        provider.set_model(judge_model)
-
-    class JudgeResult(BaseModel):
-        test_status: str = Field(description="pass / fail")
-        comment: str = Field(description="justification and hints")
-        errors: str | list[str] | None = Field(description="Text description of errors found")
-
-    out_rows: list[dict[str, Any]] = []
-    for _, ans in eval_llm_answers.iterrows():
-        q = str(ans.get("gds_question", ""))
-        gold = gds_map.get(q, {})
-
-        sys_msg = {"role": "system", "content": judge_prompt}
-        user_msg = {
-            "role": "user",
-            "content": (
-                f"Golden answer:\n{gold.get('gds_answer', '')}\n\n"
-                f"Expected context (if any):\n{gold.get('question_context', '')}\n\n"
-                f"Model answer:\n{ans.get('llm_answer', '')}\n\n"
-                f"Technical info (for reference):\n{ans.get('tool_calls', '')}"
-            ),
-        }
-
-        try:
-            res = await provider.chat_completion_structured([sys_msg, user_msg], JudgeResult)  # type: ignore
-        except Exception as e:
-            logger.exception(f"Judge failed for question {q}: {e}")
-            res = None
-
-        if res is None:
-            test_status = "fail"
-            comment = ""
-        else:
-            test_status = res.test_status
-            comment = res.comment
-
-        out_rows.append(
-            {
-                "judge_model": judge_model,
-                "judge_prompt_id": judge_prompt_id,
-                "dm_id": ans.get("dm_id", ""),
-                "pipeline_model": ans.get("pipeline_model", ""),
-                "embeddings_model": ans.get("embeddings_model", ""),
-                "embeddings_dim": ans.get("embeddings_dim", 0),
-                "gds_question": q,
-                "question_context": ans.get("question_context", None),
-                "gds_answer": gold.get("gds_answer", ""),
-                "llm_answer": ans.get("llm_answer", ""),
-                "tool_calls": ans.get("tool_calls", ""),
-                "test_status": test_status,
-                "eval_judge_comment": comment,
-                "test_date": ans.get("test_date", ""),
-            }
-        )
-
-    return out_rows
-
-
-def judge_tests(
-    eval_llm_answers: pd.DataFrame,
-    judge_config: pd.DataFrame,
-) -> pd.DataFrame:
-    """
-    Judge model answers and return rows in tests format.
-    Inputs: eval_llm_answers, judge_config
-    """
-
-    if eval_llm_answers.empty or judge_config.empty:
-        return pd.DataFrame(
-            {
-                col: pd.Series(dtype=object)
-                for col in [
-                    "judge_model",
-                    "judge_prompt_id",
-                    "dm_id",
-                    "pipeline_model",
-                    "embeddings_model",
-                    "embeddings_dim",
-                    "gds_question",
-                    "question_context",
-                    "gds_answer",
-                    "llm_answer",
-                    "tool_calls",
-                    "test_status",
-                    "eval_judge_comment",
-                    "test_date",
-                ]
-            }
-        )
-
-    judge_config = judge_config.tail(1).squeeze()
-    judge_model = judge_config.get("judge_model")
-    judge_prompt_id = judge_config.get("judge_prompt_id")
-    judge_prompt = judge_config.get("judge_prompt")
-
-    # Build GDS lookup (golden answers)
-    dp = GristAPIDataProvider(
-        doc_id=etl_settings.grist_test_set_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
-    )
-
-    gds_df = dp.get_table(etl_settings.gds_table_name)
-
-    gds_df = gds_df.dropna(subset=["gds_question"]).copy()
-    gds_map = {str(r["gds_question"]): r for _, r in gds_df.iterrows()}
-
-    out_rows = asyncio.run(
-        _judge_tests_async(
-            eval_llm_answers,
-            str(judge_model) if judge_model is not None else None,
-            str(judge_prompt or ""),
-            str(judge_prompt_id) if judge_prompt_id is not None else None,
-            gds_map,
-        )
-    )
-    return pd.DataFrame(out_rows)
 
 
 if __name__ == "__main__":

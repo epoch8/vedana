@@ -1,6 +1,6 @@
 [project]
 name = "vedana-etl"
-version = "0.2.1"
+version = "0.2.2"
 description = "Pipeline template for Vedana"
 readme = "README.md"
 authors = [

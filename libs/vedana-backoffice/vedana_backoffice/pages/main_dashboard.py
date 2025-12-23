@@ -1,6 +1,6 @@
 import reflex as rx
 
-from vedana_backoffice.state import DashboardState
+from vedana_backoffice.states.main_dashboard import DashboardState
 from vedana_backoffice.ui import app_header
 
 
@@ -95,102 +95,203 @@ def _graph_stats_card() -> rx.Component:
     )
 
 
-def _changes_preview_popover() -> rx.Component:
-    return rx.cond(
-        DashboardState.changes_preview_open,  # type: ignore[operator]
-        rx.popover.root(
-            rx.popover.trigger(
-                rx.box(
-                    style={
-                        "position": "absolute",
-                        "left": DashboardState.changes_preview_anchor_left,  # type: ignore[arg-type]
-                        "top": DashboardState.changes_preview_anchor_top,  # type: ignore[arg-type]
-                        "width": "1px",
-                        "height": "1px",
-                        "pointerEvents": "none",
-                    }
-                )
-            ),
-            rx.popover.content(
-                rx.vstack(
-                    rx.hstack(
-                        rx.heading(
-                            rx.cond(
-                                DashboardState.changes_preview_table_name,  # type: ignore[operator]
-                                DashboardState.changes_preview_table_name,  # type: ignore[arg-type]
-                                "",
-                            ),
-                            size="3",
-                        ),
-                        rx.spacer(),
-                        rx.popover.close(
-                            rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
-                        ),
-                        align="center",
-                        width="100%",
+def _changes_preview_table() -> rx.Component:
+    """Table with expandable cells for changes preview."""
+
+    def _expandable_cell(row: dict[str, rx.Var], col: rx.Var) -> rx.Component:
+        """Create an expandable/collapsible cell for long text content."""
+        row_id = row.get("row_id", "")
+        return rx.table.cell(
+            rx.box(
+                rx.cond(
+                    row.get("expanded", False),
+                    rx.text(
+                        row.get(col, "—"),  # type: ignore[call-overload]
+                        size="1",
+                        white_space="pre-wrap",
+                        style={"wordBreak": "break-word"},
                     ),
-                    rx.cond(
-                        DashboardState.changes_has_preview,  # type: ignore[operator]
-                        rx.scroll_area(
-                            rx.table.root(
-                                rx.table.header(
-                                    rx.table.row(
-                                        rx.foreach(
-                                            DashboardState.changes_preview_columns,  # type: ignore[arg-type]
-                                            lambda c: rx.table.column_header_cell(c),
-                                        )
-                                    )
-                                ),
-                                rx.table.body(
-                                    rx.foreach(
-                                        DashboardState.changes_preview_rows,  # type: ignore[arg-type]
-                                        lambda r: rx.table.row(
-                                            rx.foreach(
-                                                DashboardState.changes_preview_columns,  # type: ignore[arg-type]
-                                                lambda c: rx.table.cell(
-                                                    rx.text(
-                                                        r.get(c, "—"),
-                                                        style={
-                                                            "whiteSpace": "nowrap",
-                                                            "textOverflow": "ellipsis",
-                                                            "overflow": "hidden",
-                                                            "maxWidth": "400px",
-                                                        },
-                                                    )
-                                                ),
-                                            ),
-                                            style=r.get("row_style", {}),
-                                        ),
-                                    )
-                                ),
-                                variant="surface",
-                                style={"width": "100%", "tableLayout": "fixed"},
-                            ),
-                            type="always",
-                            scrollbars="vertical",
-                            style={"maxHeight": "70vh", "width": "100%"},
-                        ),
-                        rx.box(rx.text("No data")),
+                    rx.text(
+                        row.get(col, "—"),  # type: ignore[call-overload]
+                        size="1",
+                        style={
+                            "display": "-webkit-box",
+                            "WebkitLineClamp": "2",
+                            "WebkitBoxOrient": "vertical",
+                            "overflow": "hidden",
+                            "textOverflow": "ellipsis",
+                            "maxWidth": "400px",
+                            "wordBreak": "break-word",
+                        },
                     ),
-                    spacing="2",
-                    padding="1em",
-                    width="fit-content",
-                    min_width="400px",
                 ),
-                side="right",
-                align="center",
-                size="3",
-                avoid_collisions=True,
-                collision_padding=20,
-                style={
-                    "width": "fit-content",
-                    "maxWidth": "85vw",
-                },
+                cursor="pointer",
+                on_click=DashboardState.toggle_changes_preview_row_expand(row_id=row_id),  # type: ignore[arg-type,call-arg,func-returns-value]
+                style={"minWidth": "0", "width": "100%"},
             ),
-            open=True,
-            on_open_change=DashboardState.set_changes_preview_open,  # type: ignore[arg-type]
+            style={"minWidth": "0"},
+        )
+
+    def _make_row_renderer(row: dict[str, rx.Var]):
+        """Create a column renderer that captures the row context."""
+        return lambda col: _expandable_cell(row, col)
+
+    def _row(r: dict[str, rx.Var]) -> rx.Component:
+        return rx.table.row(
+            rx.foreach(DashboardState.changes_preview_columns, _make_row_renderer(r)),  # type: ignore[arg-type]
+            style=r.get("row_style", {}),
+        )
+
+    return rx.table.root(
+        rx.table.header(
+            rx.table.row(
+                rx.foreach(
+                    DashboardState.changes_preview_columns,  # type: ignore[arg-type]
+                    lambda c: rx.table.column_header_cell(c),
+                )
+            )
         ),
-        rx.box(),
+        rx.table.body(rx.foreach(DashboardState.changes_preview_rows, _row)),  # type: ignore[arg-type]
+        variant="surface",
+        style={"width": "100%", "tableLayout": "auto"},
+    )
+
+
+def _changes_preview_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                rx.hstack(
+                    rx.dialog.title(
+                        rx.cond(
+                            DashboardState.changes_preview_table_name,  # type: ignore[operator]
+                            DashboardState.changes_preview_table_name,  # type: ignore[arg-type]
+                            "",
+                        ),
+                        size="4",
+                    ),
+                    rx.spacer(),
+                    rx.dialog.close(
+                        rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
+                    ),
+                    align="center",
+                    width="100%",
+                ),
+                rx.cond(
+                    DashboardState.changes_has_preview,  # type: ignore[operator]
+                    rx.vstack(
+                        rx.scroll_area(
+                            _changes_preview_table(),
+                            type="always",
+                            scrollbars="both",
+                            style={"maxHeight": "68vh", "maxWidth": "calc(90vw - 3em)"},
+                        ),
+                        # Server-side pagination controls
+                        rx.hstack(
+                            rx.text(DashboardState.changes_preview_rows_display, size="2", color="gray"),  # type: ignore[arg-type]
+                            # Color legend
+                            rx.hstack(
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(34,197,94,0.08)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Added", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(245,158,11,0.08)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Updated", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(239,68,68,0.08)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Deleted", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                spacing="3",
+                                align="center",
+                            ),
+                            rx.spacer(),
+                            rx.hstack(
+                                rx.button(
+                                    "⏮",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=DashboardState.changes_preview_first_page,
+                                    disabled=~DashboardState.changes_preview_has_prev,  # type: ignore[operator]
+                                ),
+                                rx.button(
+                                    "← Prev",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=DashboardState.changes_preview_prev_page,
+                                    disabled=~DashboardState.changes_preview_has_prev,  # type: ignore[operator]
+                                ),
+                                rx.text(
+                                    DashboardState.changes_preview_page_display,  # type: ignore[arg-type]
+                                    size="2",
+                                    style={"minWidth": "100px", "textAlign": "center"},
+                                ),
+                                rx.button(
+                                    "Next →",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=DashboardState.changes_preview_next_page,
+                                    disabled=~DashboardState.changes_preview_has_next,  # type: ignore[operator]
+                                ),
+                                rx.button(
+                                    "⏭",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=DashboardState.changes_preview_last_page,
+                                    disabled=~DashboardState.changes_preview_has_next,  # type: ignore[operator]
+                                ),
+                                spacing="2",
+                                align="center",
+                            ),
+                            width="100%",
+                            align="center",
+                            padding_top="0.5em",
+                        ),
+                        width="100%",
+                        spacing="2",
+                    ),
+                    rx.box(rx.text("No updates in selected span")),
+                ),
+                spacing="3",
+                width="100%",
+            ),
+            style={
+                "maxWidth": "90vw",
+                "maxHeight": "85vh",
+                "width": "fit-content",
+                "minWidth": "400px",
+            },
+        ),
+        open=DashboardState.changes_preview_open,  # type: ignore[arg-type]
+        on_open_change=DashboardState.set_changes_preview_open,  # type: ignore[arg-type]
     )
 
 
@@ -339,6 +440,7 @@ def page() -> rx.Component:
                         rx.text("Timeframe (days):", size="1", color="gray"),
                         rx.select(
                             items=DashboardState.time_window_options,  # type: ignore[arg-type]
+                            value="1",
                             on_change=DashboardState.set_time_window_days,  # type: ignore[arg-type]
                             width="8em",
                         ),
@@ -373,7 +475,7 @@ def page() -> rx.Component:
             rx.callout(DashboardState.error_message, color_scheme="red", variant="soft"),  # type: ignore[arg-type]
             rx.box(),
         ),
-        _changes_preview_popover(),
+        _changes_preview_dialog(),
         spacing="4",
         align="start",
         padding="1em",
