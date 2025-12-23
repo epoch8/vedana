@@ -22,12 +22,6 @@ def test_is_uuid_true_false():
     assert not steps.is_uuid("not-a-uuid")
 
 
-def test_merge_attr_dicts():
-    out = steps.merge_attr_dicts([{"a": 1}, {"b": 2}, {"a": 3}])
-    # последний словарь перекрывает предыдущие
-    assert out == {"a": 3, "b": 2}
-
-
 def test_generate_embeddings_for_nodes(monkeypatch):
     df = pd.DataFrame(
         [
@@ -35,7 +29,18 @@ def test_generate_embeddings_for_nodes(monkeypatch):
             {"node_id": "u1", "node_type": "Author", "attributes": {"name": "Bob"}},  # без векторизации
         ]
     )
-    memgraph_vector_indexes = pd.DataFrame([{"attribute_name": "title", "anchor": "Article", "link": None}])
+
+    dm_node_attrs = pd.DataFrame(
+        [
+            {
+                "attribute_name": "title",
+                "anchor": "Article",
+                "embeddable": True,
+                "dtype": "str",
+                "embed_threshold": 0.8,
+            }
+        ]
+    )
 
     class DummyProv:
         def create_embeddings_sync(self, texts):
@@ -46,14 +51,17 @@ def test_generate_embeddings_for_nodes(monkeypatch):
     orig = steps.LLMProvider
     try:
         steps.LLMProvider = DummyProv  # type: ignore
-        out = steps.generate_embeddings(df.copy(), memgraph_vector_indexes)
+        out = steps.generate_embeddings(df.copy(), dm_node_attrs)
     finally:
         steps.LLMProvider = orig
 
-    attrs = out[out["node_id"] == "a1"].iloc[0]["attributes"]
-    assert attrs["title_embedding"] == [1.0, 0.0]
-    # у автора нет добавленного embedding
-    assert "title_embedding" not in out[out["node_id"] == "u1"].iloc[0]["attributes"]
+    assert len(out) == 1
+    assert out.iloc[0]["node_id"] == "a1"
+    assert out.iloc[0]["node_type"] == "Article"
+    assert out.iloc[0]["attribute_name"] == "title"
+    assert "title_embedding" not in out.loc[out["node_id"] == "u1", "attribute_value"].values  # legacy naming
+    assert out.iloc[0]["attribute_value"] == "hello"
+    assert out.iloc[0]["embedding"] == [1.0, 0.0]
 
 
 def test_generate_embeddings_skips_uuid_text(monkeypatch):
@@ -63,7 +71,18 @@ def test_generate_embeddings_skips_uuid_text(monkeypatch):
             {"node_id": "a1", "node_type": "Article", "attributes": {"title": uuid_text}},
         ]
     )
-    mvi = pd.DataFrame([{"attribute_name": "title", "anchor": "Article", "link": None}])
+
+    dm_node_attrs = pd.DataFrame(
+        [
+            {
+                "attribute_name": "title",
+                "anchor": "Article",
+                "embeddable": True,
+                "dtype": "str",
+                "embed_threshold": 0.8,
+            }
+        ]
+    )
 
     class DummyProv:
         def create_embeddings_sync(self, texts):
@@ -73,10 +92,13 @@ def test_generate_embeddings_skips_uuid_text(monkeypatch):
     orig = steps.LLMProvider
     try:
         steps.LLMProvider = DummyProv  # type: ignore
-        out = steps.generate_embeddings(df.copy(), mvi)
+        out = steps.generate_embeddings(df.copy(), dm_node_attrs)
     finally:
         steps.LLMProvider = orig
 
+    assert len(out) == 1
+    assert out.iloc[0]["node_id"] == "a1"
+    assert out.iloc[0]["node_type"] == "Article"
     assert out.iloc[0]["attributes"] == {"title": uuid_text}
 
 
@@ -93,8 +115,18 @@ def test_generate_embeddings_for_edges(monkeypatch):
             },
         ]
     )
-    # для рёбер используется колонка link
-    mvi = pd.DataFrame([{"attribute_name": "title", "anchor": None, "link": "WROTE"}])
+
+    dm_link_attrs = pd.DataFrame(
+        [
+            {
+                "attribute_name": "title",
+                "link": "WROTE",
+                "embeddable": True,
+                "dtype": "str",
+                "embed_threshold": 0.8,
+            }
+        ]
+    )
 
     class DummyProv:
         def create_embeddings_sync(self, texts):
@@ -104,9 +136,14 @@ def test_generate_embeddings_for_edges(monkeypatch):
     orig = steps.LLMProvider
     try:
         steps.LLMProvider = DummyProv  # type: ignore
-        out = steps.generate_embeddings(df.copy(), mvi)
+        out = steps.generate_embeddings(df.copy(), dm_link_attrs)
     finally:
         steps.LLMProvider = orig
 
-    attrs = out.iloc[0]["attributes"]
-    assert attrs["title_embedding"] == [0.5, 0.5]
+    assert len(out) == 1
+    assert out.iloc[0]["from_node_id"] == "u1"
+    assert out.iloc[0]["to_node_id"] == "a1"
+    assert out.iloc[0]["edge_label"] == "WROTE"
+    assert out.iloc[0]["attribute_name"] == "title"
+    assert out.iloc[0]["attribute_value"] == "edge text"
+    assert out.iloc[0]["embedding"] == [0.5, 0.5]

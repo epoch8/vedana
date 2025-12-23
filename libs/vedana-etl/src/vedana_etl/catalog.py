@@ -1,11 +1,12 @@
 from datapipe.compute import Table
 from datapipe.store.database import TableStoreDB
 from datapipe.store.neo4j import Neo4JStore
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Boolean, Column, Float, String
+from vedana_core.settings import settings as core_settings
 
 import vedana_etl.schemas as schemas
 from vedana_etl.config import DBCONN_DATAPIPE, MEMGRAPH_CONN_ARGS
-
 
 dm_links = Table(
     name="dm_links",
@@ -210,6 +211,40 @@ memgraph_edges = Table(
     store=Neo4JStore(
         connection_kwargs=MEMGRAPH_CONN_ARGS,
         data_sql_schema=schemas.GENERIC_EDGE_DATA_SCHEMA,
+    ),
+)
+
+# --- VTS (pgvector) ---
+# embedding size column is fixed for indexing and is defined through settings. Definition is then fixed in migrations
+
+rag_anchor_embeddings = Table(
+    name="rag_anchor_embeddings",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="rag_anchor_embeddings",
+        data_sql_schema=[
+            Column("node_id", String, primary_key=True),
+            Column("attribute_name", String, primary_key=True),
+            Column("label", String, nullable=False),
+            Column("attribute_value", String),
+            Column("embedding", Vector(dim=core_settings.embeddings_dim), nullable=False),
+        ],
+    ),
+)
+
+rag_edge_embeddings = Table(
+    name="rag_edge_embeddings",
+    store=TableStoreDB(
+        dbconn=DBCONN_DATAPIPE,
+        name="rag_edge_embeddings",
+        data_sql_schema=[
+            Column("from_node_id", String, primary_key=True),
+            Column("to_node_id", String, primary_key=True),
+            Column("edge_label", String, primary_key=True),
+            Column("attribute_name", String, primary_key=True),
+            Column("attribute_value", String),
+            Column("embedding", Vector(dim=core_settings.embeddings_dim), nullable=False),
+        ],
     ),
 )
 
