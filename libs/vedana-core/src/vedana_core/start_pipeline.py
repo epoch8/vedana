@@ -8,9 +8,10 @@ class StartPipeline:
     """
 
     def __init__(self, data_model: DataModel) -> None:
-        self.lifecycle_events = data_model.conversation_lifecycle_events()
-        self.start_response = self.lifecycle_events.get("/start")
+        self.data_model = data_model
 
     async def __call__(self, ctx: ThreadContext) -> None:
-        message = self.start_response or "Bot online. No response for /start command in LifecycleEvents"
+        lifecycle_events = await self.data_model.conversation_lifecycle_events()
+        start_response = lifecycle_events.get("/start")
+        message = start_response or "Bot online. No response for /start command in LifecycleEvents"
         ctx.send_message(message)
