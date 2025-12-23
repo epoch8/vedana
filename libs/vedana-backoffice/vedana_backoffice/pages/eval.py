@@ -219,7 +219,7 @@ def _pipeline_card() -> rx.Component:
                     padding_bottom="0.75em",
                 ),
                 rx.box(
-                    rx.text("Pipeline model", weight="medium"),
+                    rx.text("Pipeline model", weight="medium", width="100%"),
                     rx.hstack(
                         rx.select(
                             items=["openai", "openrouter"],
@@ -256,6 +256,7 @@ def _pipeline_card() -> rx.Component:
                         width="100%",
                     ),
                     padding_bottom="0.75em",
+                    width="100%",
                 ),
                 rx.box(
                     rx.text("Embeddings", weight="medium"),

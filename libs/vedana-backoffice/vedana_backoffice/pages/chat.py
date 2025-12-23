@@ -100,6 +100,12 @@ def page() -> rx.Component:
                                 max_width="70vw",
                             ),
                         ),
+                        rx.checkbox(
+                            "Filter Data Model",
+                            checked=ChatState.enable_dm_filtering,
+                            on_change=ChatState.set_enable_dm_filtering,
+                            size="1",
+                        ),
                         rx.spacer(),
                         rx.hstack(
                             rx.cond(
@@ -149,13 +155,13 @@ def page() -> rx.Component:
                                     placeholder=rx.cond(
                                         ChatState.default_openrouter_key_present,
                                         "(Optional) custom OPENROUTER_API_KEY",
-                                        "(Required) OPENROUTER_API_KEY"
+                                        "(Required) OPENROUTER_API_KEY",
                                     ),
                                     type="password",
                                     value=ChatState.custom_openrouter_key,
                                     on_change=ChatState.set_custom_openrouter_key,
                                     width="36em",
-                                    required=rx.cond(ChatState.default_openrouter_key_present, False, True)
+                                    required=rx.cond(ChatState.default_openrouter_key_present, False, True),
                                 ),
                             ),
                             rx.select(
@@ -164,11 +170,6 @@ def page() -> rx.Component:
                                 on_change=ChatState.set_model,
                                 width="16em",
                                 placeholder="Select model",
-                            ),
-                            rx.checkbox(
-                                "Enable DM filtering",
-                                checked=ChatState.enable_dm_filtering,
-                                on_change=ChatState.set_enable_dm_filtering,
                             ),
                             rx.button("Send", type="submit", loading=ChatState.is_running),
                             spacing="2",
