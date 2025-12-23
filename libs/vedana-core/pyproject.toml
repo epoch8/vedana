@@ -1,6 +1,6 @@
 [project]
 name = "vedana-core"
-version = "0.5.1"
+version = "0.5.2"
 description = "Semantic Graph RAG App"
 readme = "README.md"
 authors = [

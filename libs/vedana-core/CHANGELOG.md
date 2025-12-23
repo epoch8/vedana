@@ -1,3 +1,10 @@
+# WIP
+
+* remove DataModel loading/caching from vedana-core, rely on vedana-etl for updates
+* change DataModel attributes structure - split anchor/edge attributes
+* optimize DataModel calls 
+* enable vector text search on edges / edge attributes
+
 # 2025.11.25
 
 * `RagPipeline`: Return `agent_query_events` from `process_rag_query`
