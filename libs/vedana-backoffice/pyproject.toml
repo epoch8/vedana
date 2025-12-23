@@ -1,6 +1,6 @@
 [project]
 name = "vedana-backoffice"
-version = "0.3.2"
+version = "0.4.0"
 description = "Reflex-based admin/backoffice UI for Vedana"
 readme = "README.md"
 requires-python = ">=3.12"
