@@ -106,13 +106,13 @@ def _changes_preview_table() -> rx.Component:
                 rx.cond(
                     row.get("expanded", False),
                     rx.text(
-                        row.get(col, "—"),
+                        row.get(col, "—"),  # type: ignore[call-overload]
                         size="1",
                         white_space="pre-wrap",
                         style={"wordBreak": "break-word"},
                     ),
                     rx.text(
-                        row.get(col, "—"),
+                        row.get(col, "—"),  # type: ignore[call-overload]
                         size="1",
                         style={
                             "display": "-webkit-box",

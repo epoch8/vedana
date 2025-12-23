@@ -1306,9 +1306,9 @@ class EtlState(rx.State):
         for idx, r in enumerate(records_any):
             try:
                 row_id = f"preview-{self.preview_page}-{idx}"
-                row_data = {str(k): safe_render_value(v) for k, v in dict(r).items()}
+                row_data: dict[str, Any] = {str(k): safe_render_value(v) for k, v in dict(r).items()}
                 row_data["row_id"] = row_id
-                row_data["expanded"] = row_id in expanded_set
+                row_data["expanded"] = bool(row_id in expanded_set)
                 coerced.append(row_data)
             except Exception:
                 coerced.append({})
