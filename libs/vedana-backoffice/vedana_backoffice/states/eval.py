@@ -380,8 +380,8 @@ class EvalState(rx.State):
             self.selected_question_ids = []
             return
         # Only select from filtered rows
-        ids = [str(row.get("id", "")) for row in self.eval_gds_rows_with_selection if row.get("id")]
-        self.selected_question_ids = ids
+        ids = [str(row.get("id", "") or "").strip() for row in self.eval_gds_rows_with_selection if row.get("id")]
+        self.selected_question_ids = [qid for qid in ids if qid]  # Filter out empty IDs
 
     def reset_selection(self) -> None:
         self.selected_question_ids = []
@@ -461,7 +461,9 @@ class EvalState(rx.State):
 
             architecture = m.get("architecture", {}) or {}
             has_chat = False
-            if "text" in architecture.get("input_modalities", []) and "text" in architecture.get("output_modalities", []):
+            if "text" in architecture.get("input_modalities", []) and "text" in architecture.get(
+                "output_modalities", []
+            ):
                 has_chat = True
 
             has_tools = "tools" in (m.get("supported_parameters") or [])
@@ -531,7 +533,7 @@ class EvalState(rx.State):
 
         rows: list[dict[str, Any]] = []
         for rec in rs:
-            question = str(safe_render_value(rec.get("gds_question")) or "")
+            question = str(safe_render_value(rec.get("gds_question")) or "").strip()
             rows.append(
                 {
                     "id": question,
@@ -1758,11 +1760,11 @@ class EvalState(rx.State):
 
             question_map = {}
             for row in self.eval_gds_rows:
-                if not row:
-                    continue
-                row_id = str(row.get("id", "") or "").strip()
-                if row_id:  # Only include rows with non-empty IDs
-                    question_map[row_id] = row
+                if row:
+                    row_id = str(row.get("id", ""))
+                    if row_id:  # Only include rows with non-empty IDs
+                        question_map[row_id] = row
+
             test_run_ts = datetime.now().strftime("%Y%m%d-%H%M%S")
             test_run_id = f"eval:{test_run_ts}"
             test_run_name = self.test_run_name.strip() or ""
@@ -1784,7 +1786,7 @@ class EvalState(rx.State):
 
             async def _run_one(question: str) -> dict[str, Any]:
                 async with sem:
-                    row = question_map.get(str(question or ""))
+                    row = question_map.get(str(question or "").strip())
                     if row is None:
                         return {"question": question, "status": None, "error": "not found"}
                     try:

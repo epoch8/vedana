@@ -76,11 +76,12 @@ def _questions_card() -> rx.Component:
         )
 
     def _row(row: dict[str, rx.Var]) -> rx.Component:
+        row_id_var = row.get("id", "")
         return rx.table.row(
             rx.table.cell(
                 rx.checkbox(
                     checked=row.get("selected", False),
-                    on_change=EvalState.toggle_question_selection(question=row.get("id", "")),  # type: ignore[arg-type,call-arg,func-returns-value]
+                    on_change=lambda checked: EvalState.toggle_question_selection(question=row_id_var, checked=checked),  # type: ignore[arg-type,call-arg,func-returns-value]
                 )
             ),
             _expandable_text(row, "gds_question"),
