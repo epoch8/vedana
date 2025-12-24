@@ -1,5 +1,6 @@
 import logging
 import os
+import traceback
 from datetime import datetime
 from typing import Any, Dict, Iterable, Tuple
 from uuid import UUID, uuid4
@@ -15,7 +16,7 @@ from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.pipeline import get_data_model_pipeline
 
-from vedana_backoffice.states.common import get_vedana_app
+from vedana_backoffice.states.common import MemLogger, get_vedana_app
 from vedana_backoffice.states.jims import ThreadViewState
 
 
@@ -175,6 +176,7 @@ class ChatState(rx.State):
         role: str,
         content: str,
         technical_info: dict[str, Any] | None = None,
+        debug_logs: str | None = None,
     ) -> None:
         message: dict[str, Any] = {
             "id": str(uuid4()),
@@ -210,6 +212,10 @@ class ChatState(rx.State):
             message["has_tech"] = bool(vts_list or cypher_list or models_list)
             message["model_stats"] = models_raw
 
+        logs = (debug_logs or "").replace("\r\n", "\n").rstrip()
+        message["logs_str"] = logs
+        message["has_logs"] = bool(logs)
+
         self.messages.append(message)
 
     async def _ensure_thread(self) -> str:
@@ -231,7 +237,7 @@ class ChatState(rx.State):
 
         return self.chat_thread_id
 
-    async def _run_message(self, thread_id: str, user_text: str) -> Tuple[str, Dict[str, Any]]:
+    async def _run_message(self, thread_id: str, user_text: str) -> Tuple[str, Dict[str, Any], str]:
         vedana_app = await get_vedana_app()
         try:
             tid = UUID(thread_id)
@@ -248,9 +254,12 @@ class ChatState(rx.State):
                 thread_config={"interface": "reflex"},
             )
 
+        mem_logger = MemLogger("rag_debug", level=logging.DEBUG)
+
         await ctl.store_user_message(uuid7(), user_text)
 
         pipeline = vedana_app.pipeline
+        pipeline.logger = mem_logger
         pipeline.model = f"{self.provider}/{self.model}"
         pipeline.enable_filtering = self.enable_dm_filtering
 
@@ -271,7 +280,8 @@ class ChatState(rx.State):
             elif ev.event_type == "rag.query_processed":
                 tech = dict(ev.event_data.get("technical_info", {}))
 
-        return answer, tech
+        logs = mem_logger.get_logs()
+        return answer, tech, logs
 
     # mypy raises error: "EventNamespace" not callable [operator], though event definition is according to reflex docs
     @rx.event(background=True)  # type: ignore[operator]
@@ -281,13 +291,13 @@ class ChatState(rx.State):
         async with self:
             try:
                 thread_id = await self._ensure_thread()
-                answer, tech = await self._run_message(thread_id, user_text)
+                answer, tech, logs = await self._run_message(thread_id, user_text)
                 # update shared session thread id
                 self.chat_thread_id = thread_id
             except Exception as e:
-                answer, tech = (f"Error: {e}", {})
+                answer, tech, logs = (f"Error: {e}", {}, traceback.format_exc())
 
-            self._append_message("assistant", answer, technical_info=tech)
+            self._append_message("assistant", answer, technical_info=tech, debug_logs=logs)
             self.is_running = False
 
     def send(self):
