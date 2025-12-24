@@ -1,25 +1,14 @@
-import asyncio
 import logging
 import re
-import secrets
-from datetime import date, datetime
-from hashlib import sha256
-from typing import Any, Hashable, Iterator, cast
+from typing import Any, Iterator, cast
 from unicodedata import normalize
 from uuid import UUID
 
 import pandas as pd
 from jims_core.llms.llm_provider import LLMProvider
-from jims_core.thread.schema import CommunicationEvent
-from jims_core.thread.thread_context import ThreadContext
-from jims_core.util import uuid7
 from neo4j import GraphDatabase
-from pydantic import BaseModel, Field
-from vedana_core.data_model import DataModel
+from vedana_core.data_model import Anchor, Attribute, Link
 from vedana_core.data_provider import GristAPIDataProvider, GristCsvDataProvider
-from vedana_core.graph import MemgraphGraph
-from vedana_core.rag_pipeline import RagPipeline
-from vedana_core.settings import VedanaCoreSettings
 from vedana_core.settings import settings as core_settings
 
 from vedana_etl.settings import settings as etl_settings
@@ -56,7 +45,9 @@ def clean_str(text: str) -> str:
     return text.strip()
 
 
-def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
+def get_data_model() -> Iterator[
+    tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]
+]:
     loader = GristCsvDataProvider(
         doc_id=core_settings.grist_data_model_doc_id,
         grist_server=core_settings.grist_server_url,
@@ -84,15 +75,14 @@ def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
     links_df["has_direction"] = _links_df["has_direction"].astype(bool)
     links_df = links_df.dropna(subset=["anchor1", "anchor2", "sentence"], inplace=False)
 
-    attrs_df = loader.get_table("Attributes")
-    attrs_df = cast(
+    anchor_attrs_df = loader.get_table("Anchor_attributes")
+    anchor_attrs_df = cast(
         pd.DataFrame,
-        attrs_df[
+        anchor_attrs_df[
             [
+                "anchor",
                 "attribute_name",
                 "description",
-                "anchor",
-                "link",
                 "data_example",
                 "embeddable",
                 "query",
@@ -101,10 +91,29 @@ def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
             ]
         ],
     )
-    attrs_df["embeddable"] = attrs_df["embeddable"].astype(bool)
-    attrs_df["embed_threshold"] = attrs_df["embed_threshold"].astype(float)
-    attrs_df = attrs_df.dropna(subset=["attribute_name"])
-    attrs_df = attrs_df.dropna(subset=["anchor", "link"], how="all")
+    anchor_attrs_df["embeddable"] = anchor_attrs_df["embeddable"].astype(bool)
+    anchor_attrs_df["embed_threshold"] = anchor_attrs_df["embed_threshold"].astype(float)
+    anchor_attrs_df = anchor_attrs_df.dropna(subset=["anchor", "attribute_name"], how="any")
+
+    link_attrs_df = loader.get_table("Link_attributes")
+    link_attrs_df = cast(
+        pd.DataFrame,
+        link_attrs_df[
+            [
+                "link",
+                "attribute_name",
+                "description",
+                "data_example",
+                "embeddable",
+                "query",
+                "dtype",
+                "embed_threshold",
+            ]
+        ],
+    )
+    link_attrs_df["embeddable"] = link_attrs_df["embeddable"].astype(bool)
+    link_attrs_df["embed_threshold"] = link_attrs_df["embed_threshold"].astype(float)
+    link_attrs_df = link_attrs_df.dropna(subset=["link", "attribute_name"], how="any")
 
     anchors_df = loader.get_table("Anchors")
     anchors_df = cast(
@@ -121,48 +130,106 @@ def get_data_model() -> Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
     anchors_df = anchors_df.dropna(subset=["noun"], inplace=False)
     anchors_df = anchors_df.astype(str)
 
-    yield anchors_df, attrs_df, links_df
+    queries_df = loader.get_table("Queries")
+    queries_df = cast(pd.DataFrame, queries_df[["query_name", "query_example"]])
+    queries_df = queries_df.dropna()
+    queries_df = queries_df.astype(str)
+
+    prompts_df = loader.get_table("Prompts")
+    prompts_df = cast(pd.DataFrame, prompts_df[["name", "text"]])
+    prompts_df = prompts_df.dropna()
+    prompts_df = prompts_df.astype(str)
+
+    conversation_lifecycle_df = loader.get_table("ConversationLifecycle")
+    conversation_lifecycle_df = cast(pd.DataFrame, conversation_lifecycle_df[["event", "text"]])
+    conversation_lifecycle_df = conversation_lifecycle_df.dropna()
+    conversation_lifecycle_df = conversation_lifecycle_df.astype(str)
+
+    yield anchors_df, anchor_attrs_df, link_attrs_df, links_df, queries_df, prompts_df, conversation_lifecycle_df
 
 
-def get_data_model_snapshot() -> Iterator[pd.DataFrame]:
-    """
-    DataModel.load_grist_online call repeats bc snapshot updates with delete_stale=False (to keep history)
-    """
-    dm = DataModel.load_grist_online(
-        doc_id=core_settings.grist_data_model_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
-    )
-
-    dm_text = dm.to_json()
-    dm_text_b = bytearray(dm_text, "utf-8")
-    dm_id = sha256(dm_text_b).hexdigest()
-
-    dm_version_snapshot = {
-        "dm_id": dm_id,
-        "dm_description": dm_text,
-    }
-
-    yield pd.DataFrame([dm_version_snapshot])
-
-
-def get_grist_data(
-    settings: VedanaCoreSettings = core_settings,
-) -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
+def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
     """
     Fetch all anchors and links from Grist into node/edge tables
     """
 
-    dm = DataModel.load_grist_online(
-        doc_id=settings.grist_data_model_doc_id,
-        grist_server=settings.grist_server_url,
-        api_key=settings.grist_api_key,
-    )
+    # Build necessary DataModel elements from input tables
+    dm_anchors_df, dm_anchor_attrs_df, dm_link_attrs_df, dm_links_df, _q, _p, _cl = next(get_data_model())
+
+    # Anchors
+    dm_anchors: dict[str, Anchor] = {}
+    for _, a_row in dm_anchors_df.iterrows():
+        noun = str(a_row.get("noun")).strip()
+        if not noun:
+            continue
+        dm_anchors[noun] = Anchor(
+            noun=noun,
+            description=a_row.get("description", ""),
+            id_example=a_row.get("id_example", ""),
+            query=a_row.get("query", ""),
+            attributes=[],
+        )
+
+    # Anchor attributes
+    for _, attr_row in dm_anchor_attrs_df.iterrows():
+        noun = str(attr_row.get("anchor")).strip()
+        if not noun or noun not in dm_anchors:
+            continue
+        dm_anchors[noun].attributes.append(
+            Attribute(
+                name=attr_row.get("attribute_name", ""),
+                description=attr_row.get("description", ""),
+                example=attr_row.get("data_example", ""),
+                dtype=attr_row.get("dtype", ""),
+                query=attr_row.get("query", ""),
+                embeddable=bool(attr_row.get("embeddable", False)),
+                embed_threshold=float(attr_row.get("embed_threshold", 1.0)),
+            )
+        )
+
+    # Links
+    dm_links: dict[str, Link] = {}
+    for _, l_row in dm_links_df.iterrows():
+        a1 = str(l_row.get("anchor1")).strip()
+        a2 = str(l_row.get("anchor2")).strip()
+        if not a1 or not a2 or a1 not in dm_anchors or a2 not in dm_anchors:
+            logger.error(f'Link type has invalid anchors "{a1} - {a2}", skipping')
+            continue
+        dm_links[l_row.get("sentence")] = Link(
+            anchor_from=dm_anchors[a1],
+            anchor_to=dm_anchors[a2],
+            sentence=l_row.get("sentence"),
+            description=l_row.get("description", ""),
+            query=l_row.get("query", ""),
+            attributes=[],
+            has_direction=bool(l_row.get("has_direction", False)),
+            anchor_from_link_attr_name=l_row.get("anchor1_link_column_name", ""),
+            anchor_to_link_attr_name=l_row.get("anchor2_link_column_name", ""),
+        )
+
+    # Link attributes
+    for _, lattr_row in dm_link_attrs_df.iterrows():
+        sent = str(lattr_row.get("link")).strip()
+        if sent not in dm_links:
+            continue
+        dm_links[sent].attributes.append(
+            Attribute(
+                name=str(lattr_row.get("attribute_name")),
+                description=str(lattr_row.get("description", "")),
+                example=str(lattr_row.get("data_example", "")),
+                dtype=str(lattr_row.get("dtype", "")),
+                query=str(lattr_row.get("query", "")),
+                embeddable=bool(lattr_row.get("embeddable", False)),
+                embed_threshold=float(lattr_row.get("embed_threshold", 1.0)),
+            )
+        )
+
+    # Get data from Grist
 
     dp = GristAPIDataProvider(
-        doc_id=settings.grist_data_doc_id,
-        grist_server=settings.grist_server_url,
-        api_key=settings.grist_api_key,
+        doc_id=core_settings.grist_data_doc_id,
+        grist_server=core_settings.grist_server_url,
+        api_key=core_settings.grist_api_key,
     )
 
     # Foreign key type links
@@ -176,21 +243,16 @@ def get_grist_data(
 
     for anchor_type in anchor_types:
         # check anchor's existence in data model
-        dm_anchor_list = [a for a in dm.anchors if a.noun == anchor_type]
-        if not dm_anchor_list:
+        dm_anchor = dm_anchors.get(anchor_type)
+        if not dm_anchor:
             logger.error(f'Anchor "{anchor_type}" not described in data model, skipping')
             continue
-        dm_anchor = dm_anchor_list[0]
         dm_anchor_attrs = [attr.name for attr in dm_anchor.attributes]
 
         # get anchor's links
         # todo check link column directions
-        anchor_from_link_cols = [
-            link for link in dm.links if link.anchor_from.noun == anchor_type and link.anchor_from_link_attr_name
-        ]
-        anchor_to_link_cols = [
-            link for link in dm.links if link.anchor_to.noun == anchor_type and link.anchor_to_link_attr_name
-        ]
+        anchor_from_link_cols = [link for link in dm_links.values() if link.anchor_from.noun == anchor_type and link.anchor_from_link_attr_name]
+        anchor_to_link_cols = [link for link in dm_links.values() if link.anchor_to.noun == anchor_type and link.anchor_to_link_attr_name]
 
         try:
             anchors = dp.get_anchors(anchor_type, dm_attrs=dm_anchor.attributes, dm_anchor_links=anchor_from_link_cols)
@@ -251,6 +313,15 @@ def get_grist_data(
                 "attributes": {k: v for k, v in a.data.items() if k in dm_anchor_attrs} or {},
             }
 
+    nodes_df = pd.DataFrame(
+        [
+            {"node_id": rec.get("node_id"), "node_type": rec.get("node_type"), "attributes": rec.get("attributes", {})}
+            for a in node_records.values()
+            for rec in a.values()
+        ],
+        columns=["node_id", "node_type", "attributes"],
+    )
+
     # Resolve links (database id <-> our id), if necessary
     for lk in fk_link_records_to:
         if isinstance(lk["from_node_dp_id"], int):
@@ -281,14 +352,8 @@ def get_grist_data(
     fk_df["attributes"] = [dict()] * fk_df.shape[0]
     fk_df = fk_df[["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label", "attributes"]]
 
-    nodes_df = pd.DataFrame(
-        [
-            {"node_id": rec.get("node_id"), "node_type": rec.get("node_type"), "attributes": rec.get("attributes", {})}
-            for a in node_records.values()
-            for rec in a.values()
-        ],
-        columns=["node_id", "node_type", "attributes"],
-    )
+    # keep only links with both nodes present (+done in the end on edges_df); todo add test for this case
+    fk_df = fk_df.loc[(fk_df["from_node_id"].isin(nodes_df["node_id"]) & fk_df["to_node_id"].isin(nodes_df["node_id"]))]
 
     # Edges
     edge_records = []
@@ -299,8 +364,9 @@ def get_grist_data(
         # check link's existence in data model (dm_link is used from anchor_from / to references only)
         dm_link_list = [
             link
-            for link in dm.links
-            if link.sentence.lower() == link_type.lower() or link_type.lower() == f"{link.anchor_from}_{link.anchor_to}"
+            for link in dm_links.values()
+            if link.sentence.lower() == link_type.lower()
+            or link_type.lower() == f"{link.anchor_from.noun}_{link.anchor_to.noun}".lower()
         ]
         if not dm_link_list:
             logger.error(f'Link type "{link_type}" not described in data model, skipping')
@@ -336,11 +402,14 @@ def get_grist_data(
             )
 
     edges_df = pd.DataFrame(edge_records)
+    edges_df = edges_df.loc[
+        (edges_df["from_node_id"].isin(nodes_df["node_id"]) & edges_df["to_node_id"].isin(nodes_df["node_id"]))
+    ]
 
     edges_df = pd.concat([edges_df, fk_df], ignore_index=True)
 
     # add reverse links (if already provided in data, duplicates will be removed later)
-    for link in dm.links:
+    for link in dm_links.values():
         if not link.has_direction:
             rev_edges = cast(
                 pd.DataFrame,
@@ -376,25 +445,19 @@ def get_grist_data(
         edges_df = edges_df.dropna(subset=["from_node_id", "to_node_id", "edge_label"]).drop_duplicates(
             subset=["from_node_id", "to_node_id", "edge_label"]
         )
-
-    # add DataModel node
-    dm_node = {"content": dm.to_json(), "id": "data_model", "updated_at": str(datetime.now())}
-    nodes_df.loc[nodes_df.shape[0]] = {"node_id": "data_model", "node_type": "DataModel", "attributes": dm_node}  # type: ignore
-
     yield nodes_df, edges_df
 
 
-def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def ensure_memgraph_node_indexes(dm_anchor_attrs: pd.DataFrame) -> pd.DataFrame:
     """
     Create label / vector indices
+    https://memgraph.com/docs/querying/vector-search
     """
 
-    # anchors for indices
-    dm_attributes = dm_attributes.dropna(subset="anchor")  # todo remove - temp until embeddable edge attrs are checked
-    anchor_types: set[str] = set(dm_attributes["anchor"].dropna().unique())
+    anchor_types: set[str] = set(dm_anchor_attrs["anchor"].dropna().unique())
 
     # embeddable attrs for vector indices
-    vec_attr_rows = dm_attributes[(dm_attributes["embeddable"]) & (dm_attributes["dtype"].str.lower() == "str")]
+    # vec_a_attr_rows = dm_anchor_attrs[dm_anchor_attrs["embeddable"]]  #  & (dm_anchor_attrs["dtype"].str.lower() == "str")]
 
     driver = GraphDatabase.driver(
         uri=core_settings.memgraph_uri,
@@ -405,7 +468,7 @@ def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, 
     )
 
     with driver.session() as session:
-        # Indices
+        # Indices on Anchors
         for label in anchor_types:
             try:
                 session.run(f"CREATE INDEX ON :`{label}`(id)")  # type: ignore
@@ -417,104 +480,153 @@ def ensure_memgraph_indexes(dm_attributes: pd.DataFrame) -> tuple[pd.DataFrame, 
             except Exception as exc:
                 logger.debug(f"CREATE CONSTRAINT failed for label {label}: {exc}")  # probably index exists
 
-        # Vector indices
-        for _, row in vec_attr_rows.iterrows():
-            attr: str = row["attribute_name"]
-            embeddings_dim = core_settings.embeddings_dim
-
-            if pd.notna(row["anchor"]):
-                label = row["anchor"]
-            elif pd.notna(row["link"]):
-                label = row["link"]  # relationship label
-            else:
-                continue  # cannot determine label
-
-            idx_name = f"{label}_{attr}_embed_idx".replace(" ", "_")
-            prop_name = f"{attr}_embedding"
-
-            cypher = (
-                f"CREATE VECTOR INDEX `{idx_name}` ON :`{label}`(`{prop_name}`) "
-                f'WITH CONFIG {{"dimension": {embeddings_dim}, "capacity": 1024, "metric": "cos"}}'
-            )
-            try:
-                session.run(cypher)  # type: ignore
-            except Exception as exc:
-                logger.debug(f"CREATE VECTOR INDEX failed for {idx_name}: {exc}")  # probably index exists
-                continue
+        # Vector indices - Anchors. Deprecated due to move to pgvectorstore
+        # for _, row in vec_a_attr_rows.iterrows():
+        #     attr: str = row["attribute_name"]
+        #     embeddings_dim = core_settings.embeddings_dim
+        #     label = row["anchor"]
+        #
+        #     idx_name = f"{label}_{attr}_embed_idx".replace(" ", "_")
+        #     prop_name = f"{attr}_embedding"
+        #
+        #     cypher = (
+        #         f"CREATE VECTOR INDEX `{idx_name}` ON :`{label}`(`{prop_name}`) "
+        #         f'WITH CONFIG {{"dimension": {embeddings_dim}, "capacity": 1024, "metric": "cos"}}'
+        #     )
+        #     try:
+        #         session.run(cypher)  # type: ignore
+        #     except Exception as exc:
+        #         logger.debug(f"CREATE VECTOR INDEX failed for {idx_name}: {exc}")  # probably index exists
+        #         continue
 
     driver.close()
 
     # nominal outputs
-    memgraph_indexes = pd.DataFrame({"attribute_name": list(anchor_types)})
-    memgraph_vector_indexes = vec_attr_rows[["attribute_name", "anchor", "link"]].copy()
-    return memgraph_indexes, memgraph_vector_indexes
+    mg_anchor_indexes = pd.DataFrame({"anchor": list(anchor_types)})
+    # mg_anchor_vector_indexes = vec_a_attr_rows[["anchor", "attribute_name"]].copy()
+    return mg_anchor_indexes
+
+
+def ensure_memgraph_edge_indexes(dm_link_attrs: pd.DataFrame) -> pd.DataFrame:
+    """
+    Create label / vector indices
+    https://memgraph.com/docs/querying/vector-search
+    """
+
+    link_types: set[str] = set(dm_link_attrs["link"].dropna().unique())
+
+    # embeddable attrs for vector indices
+    # vec_l_attr_rows = dm_link_attrs[dm_link_attrs["embeddable"]]  # & (dm_link_attrs["dtype"].str.lower() == "str")]
+
+    driver = GraphDatabase.driver(
+        uri=core_settings.memgraph_uri,
+        auth=(
+            core_settings.memgraph_user,
+            core_settings.memgraph_pwd,
+        ),
+    )
+
+    with driver.session() as session:
+        # Indices on Edges (optimizes queries such as MATCH ()-[r:EDGE_TYPE]->() RETURN r;)
+        # If queried by edge property, will need to add property index (similar to above for Anchor)
+        for label in link_types:
+            try:
+                session.run(f"CREATE EDGE INDEX ON :`{label}`")  # type: ignore
+            except Exception as exc:
+                logger.debug(f"CREATE EDGE INDEX failed for label {label}: {exc}")  # probably index exists
+
+            # todo edge constraints?
+            # try:
+            #     session.run(f"CREATE CONSTRAINT ON (n:`{label}`) ASSERT n.id IS UNIQUE")  # type: ignore
+            # except Exception as exc:
+            #     logger.debug(f"CREATE CONSTRAINT failed for label {label}: {exc}")  # probably index exists
+
+        # Vector indices - Edges. Deprecated due to move to pgvectorstore
+        # for _, row in vec_l_attr_rows.iterrows():
+        #     attr: str = row["attribute_name"]
+        #     embeddings_dim = core_settings.embeddings_dim
+        #     label = row["link"]
+        #
+        #     idx_name = f"{label}_{attr}_embed_idx".replace(" ", "_")
+        #     prop_name = f"{attr}_embedding"
+        #
+        #     cypher = (
+        #         f"CREATE VECTOR EDGE INDEX `{idx_name}` ON :`{label}`(`{prop_name}`) "
+        #         f'WITH CONFIG {{"dimension": {embeddings_dim}, "capacity": 1024, "metric": "cos"}}'
+        #     )
+        #     try:
+        #         session.run(cypher)  # type: ignore
+        #     except Exception as exc:
+        #         logger.debug(f"CREATE VECTOR EDGE INDEX failed for {idx_name}: {exc}")  # probably index exists
+        #         continue
+
+    driver.close()
+
+    # nominal outputs
+    mg_link_indexes = pd.DataFrame({"link": list(link_types)})
+    # mg_link_vector_indexes = vec_l_attr_rows[["link", "attribute_name"]].copy()
+    return mg_link_indexes
 
 
 def generate_embeddings(
     df: pd.DataFrame,
-    memgraph_vector_indexes: pd.DataFrame,
+    dm_attributes: pd.DataFrame,
 ) -> pd.DataFrame:
     """Generate embeddings for embeddable text attributes"""
-
-    if df.empty:
-        return df
-
     type_col = "node_type" if "node_id" in df.columns else "edge_label"
+    pkeys = ["node_id", "node_type"] if type_col == "node_type" else ["from_node_id", "to_node_id", "edge_label"]
+    dm_attributes = dm_attributes[dm_attributes["embeddable"]]  # & (dm_attributes["dtype"].str.lower() == "str")]
 
     # Build mapping type -> list[attribute_name] that need embedding
     mapping: dict[str, list[str]] = {}
-    for _, row in memgraph_vector_indexes.iterrows():
+    for _, row in dm_attributes.iterrows():
         record_type = row["anchor"] if type_col == "node_type" else row["link"]
         if pd.isna(record_type):
             continue
         mapping.setdefault(record_type, []).append(row["attribute_name"])
 
-    tasks: list[tuple[Hashable, str, str]] = []  # (row_idx, attr_name, text)
-
-    for idx, row in df.iterrows():
+    tasks: list[tuple[int, str, str]] = []  # (row_pos, attr_name, text)
+    for pos, (_, row) in enumerate(df.iterrows()):
         typ_val = row[type_col]
         attrs_needed = mapping.get(typ_val)
         if not attrs_needed:
             continue
-        attr_dict = row["attributes"] or {}
+        row_attrs = row.get("attributes", {})
         for attr_name in attrs_needed:
-            text_val = attr_dict.get(attr_name)
+            text_val = row_attrs.get(attr_name)
             if text_val and isinstance(text_val, str) and not is_uuid(text_val):
-                tasks.append((idx, attr_name, text_val))
+                tasks.append((pos, attr_name, text_val))
 
     if not tasks:
         return df
 
     provider = LLMProvider()
 
-    texts = [t[2] for t in tasks]
-    vectors = provider.create_embeddings_sync(texts)
+    unique_texts = list(dict.fromkeys([t[2] for t in tasks]))
+    vectors = provider.create_embeddings_sync(unique_texts)
+    vector_by_text = dict(zip(unique_texts, vectors))
 
-    # Re-init attributes to store only embeddings
-    # df = df.drop(columns=["attributes"])
-    # df["attributes"] = pd.NA
+    # Apply embeddings
+    rows: list[dict[str, object]] = []
+    for row_pos, attr_name, text in tasks:
+        vec = vector_by_text[text]
+        rows.append(
+            {
+                **df.loc[row_pos, pkeys],
+                "attribute_name": attr_name,
+                "attribute_value": text,
+                "embedding": vec,
+            }
+        )
 
-    # Apply embeddings to df
-    for (row_idx, attr_name, _), vec in zip(tasks, vectors):
-        attr_dict = df.at[row_idx, "attributes"]
-        if pd.isna(attr_dict):
-            attr_dict = {}
-        else:
-            attr_dict = dict(attr_dict)
-        attr_dict[f"{attr_name}_embedding"] = vec
-        df.at[row_idx, "attributes"] = attr_dict
-
-    # remove rows without embeddings
-    # df = df.dropna(subset=["attributes"])
-
-    return df
+    return pd.DataFrame.from_records(rows)
 
 
-def merge_attr_dicts(dicts):
-    result = {}
-    for d in dicts:
-        result.update(d)
-    return result
+def pass_df_to_memgraph(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    """dummy method for BatchTransform to MemgraphStore"""
+    return df.copy()
 
 
 # ---
@@ -531,47 +643,6 @@ def prepare_edges(
     grist_edges_df: pd.DataFrame,
 ) -> pd.DataFrame:
     return grist_edges_df.copy()
-
-
-def get_llm_pipeline_config() -> Iterator[pd.DataFrame]:
-    llm_config = {
-        "pipeline_model": core_settings.model,
-    }
-    yield pd.DataFrame([llm_config])
-
-
-def get_llm_embeddings_config() -> Iterator[pd.DataFrame]:
-    llm_config = {
-        "embeddings_model": core_settings.embeddings_model,
-        "embeddings_dim": core_settings.embeddings_dim,
-    }
-    yield pd.DataFrame([llm_config])
-
-
-def get_eval_judge_config() -> Iterator[pd.DataFrame]:
-    """
-    versioning Judge prompt
-    """
-    dm = DataModel.load_grist_online(
-        doc_id=core_settings.grist_data_model_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
-    )
-
-    judge_prompt = dm.prompt_templates().get("eval_judge_prompt", "")
-
-    if judge_prompt:
-        text_b = bytearray(judge_prompt, "utf-8")
-        judge_prompt_id = sha256(text_b).hexdigest()
-
-        judge_prompt_version = {
-            "judge_model": etl_settings.judge_model,
-            "judge_prompt_id": judge_prompt_id,
-            "judge_prompt": judge_prompt,
-        }
-        yield pd.DataFrame([judge_prompt_version])
-    else:
-        yield pd.DataFrame(columns=["judge_model", "judge_prompt_id", "judge_prompt"])
 
 
 def get_eval_gds_from_grist() -> Iterator[pd.DataFrame]:
@@ -595,258 +666,10 @@ def get_eval_gds_from_grist() -> Iterator[pd.DataFrame]:
 
     gds_df = gds_df.dropna(subset=["gds_question", "gds_answer"]).copy()
     gds_df = gds_df.loc[(gds_df["gds_question"] != "") & (gds_df["gds_answer"] != "")]
-    gds_df = gds_df[["gds_question", "gds_answer", "question_context"]].astype({"gds_question": str, "gds_answer": str})
+    gds_df = gds_df[["gds_question", "gds_answer", "question_scenario", "question_comment", "question_context"]].astype(
+        {"gds_question": str, "gds_answer": str, "question_scenario": str, "question_comment": str}
+    )
     yield gds_df
-
-
-async def _run_tests_async(
-    eval_gds: pd.DataFrame,
-    dm: DataModel,
-    dm_id: str,
-    embeddings_model: str,
-    embeddings_dim: int,
-    test_run_name: str,
-    pipeline_model: str,
-) -> list[dict[str, Any]]:
-    graph = MemgraphGraph(core_settings.memgraph_uri, core_settings.memgraph_user, core_settings.memgraph_pwd)
-
-    pipeline = RagPipeline(
-        graph=graph,
-        data_model=dm,
-        logger=logger,
-    )
-
-    provider = LLMProvider()
-
-    def build_ctx(user_query: str) -> ThreadContext:
-        history: list[CommunicationEvent] = [CommunicationEvent(role="user", content=user_query)]
-        return ThreadContext(thread_id=uuid7(), history=history, events=[], llm=provider)
-
-    out_rows: list[dict[str, Any]] = []
-    try:
-        for _, row in eval_gds.iterrows():
-            gds_question = str(row.get("gds_question", ""))
-            question_context_obj = row.get("question_context")
-            if question_context_obj is None:
-                question_context = None
-            elif isinstance(question_context_obj, str):
-                question_context = question_context_obj
-            elif isinstance(question_context_obj, float):
-                question_context = None if question_context_obj != question_context_obj else str(question_context_obj)
-            else:
-                question_context = str(question_context_obj)
-            q_with_ctx = f"{gds_question} {question_context}".strip() if question_context else gds_question
-
-            llm_answer = ""
-            tool_calls_str = ""
-            try:
-                ctx = build_ctx(q_with_ctx)
-                await pipeline(ctx)  # type: ignore
-
-                technical_info: dict[str, Any] = {}
-                for event in ctx.outgoing_events:
-                    if event.event_type == "comm.assistant_message":
-                        llm_answer = str(event.event_data.get("content", ""))
-                    elif event.event_type == "rag.query_processed":
-                        technical_info = dict(event.event_data.get("technical_info", {}))
-
-                vts = technical_info.get("vts_queries", [])
-                cypher = technical_info.get("cypher_queries", [])
-                if isinstance(vts, list) or isinstance(cypher, list):
-                    vts_s = "\n".join(vts or [])
-                    cypher_s = "\n".join(cypher or [])
-                    tool_calls_str = f"{vts_s}\n---\n{cypher_s}".strip()
-                else:
-                    tool_calls_str = ""
-
-            except Exception as e:
-                logger.exception(f"Pipeline failed for question {gds_question}: {e}")
-                llm_answer = ""
-                tool_calls_str = "error: pipeline_failed"
-
-            out_rows.append(
-                {
-                    "dm_id": dm_id,
-                    "pipeline_model": pipeline_model,
-                    "embeddings_model": embeddings_model,
-                    "embeddings_dim": embeddings_dim,
-                    "gds_question": gds_question,
-                    "question_context": question_context if question_context is not None else None,
-                    "llm_answer": llm_answer,
-                    "tool_calls": tool_calls_str,
-                    "test_date": test_run_name,
-                }
-            )
-    finally:
-        try:
-            graph.close()
-        except Exception:
-            pass
-
-    return out_rows
-
-
-def run_tests(
-    eval_gds: pd.DataFrame,
-    dm_version: pd.DataFrame,
-    llm_pipeline_config: pd.DataFrame,
-    llm_embeddings_config: pd.DataFrame,
-) -> pd.DataFrame:
-    dm_version = dm_version.tail(1).squeeze()  # last row - last version
-    llm_embeddings_config = llm_embeddings_config.tail(1).squeeze()
-    pipeline_model = llm_pipeline_config.tail(1).squeeze()
-
-    # configs
-    dm_id = str(dm_version.get("dm_id"))
-    dm = DataModel.from_json(dm_version.get("dm_description"))
-    embeddings_model = str(llm_embeddings_config.get("embeddings_model"))
-    embeddings_dim = int(llm_embeddings_config.get("embeddings_dim"))
-
-    # Generate run id
-    today = date.today().isoformat()
-    slug = secrets.token_hex(3)
-    test_run_name = f"{today}-{etl_settings.test_environment}-{slug}"
-
-    out_rows = asyncio.run(
-        _run_tests_async(
-            eval_gds,
-            dm,
-            dm_id,
-            embeddings_model,
-            embeddings_dim,
-            test_run_name,
-            pipeline_model,
-        )
-    )
-    return pd.DataFrame(out_rows)
-
-
-async def _judge_tests_async(
-    eval_llm_answers: pd.DataFrame,
-    judge_model: str | None,
-    judge_prompt: str,
-    judge_prompt_id: str | None,
-    gds_map: dict[str, Any],
-) -> list[dict[str, Any]]:
-    provider = LLMProvider()
-    if judge_model:
-        provider.set_model(judge_model)
-
-    class JudgeResult(BaseModel):
-        test_status: str = Field(description="pass / fail")
-        comment: str = Field(description="justification and hints")
-        errors: str | list[str] | None = Field(description="Text description of errors found")
-
-    out_rows: list[dict[str, Any]] = []
-    for _, ans in eval_llm_answers.iterrows():
-        q = str(ans.get("gds_question", ""))
-        gold = gds_map.get(q, {})
-
-        sys_msg = {"role": "system", "content": judge_prompt}
-        user_msg = {
-            "role": "user",
-            "content": (
-                f"Golden answer:\n{gold.get('gds_answer', '')}\n\n"
-                f"Expected context (if any):\n{gold.get('question_context', '')}\n\n"
-                f"Model answer:\n{ans.get('llm_answer', '')}\n\n"
-                f"Technical info (for reference):\n{ans.get('tool_calls', '')}"
-            ),
-        }
-
-        try:
-            res = await provider.chat_completion_structured([sys_msg, user_msg], JudgeResult)  # type: ignore
-        except Exception as e:
-            logger.exception(f"Judge failed for question {q}: {e}")
-            res = None
-
-        if res is None:
-            test_status = "fail"
-            comment = ""
-        else:
-            test_status = res.test_status
-            comment = res.comment
-
-        out_rows.append(
-            {
-                "judge_model": judge_model,
-                "judge_prompt_id": judge_prompt_id,
-                "dm_id": ans.get("dm_id", ""),
-                "pipeline_model": ans.get("pipeline_model", ""),
-                "embeddings_model": ans.get("embeddings_model", ""),
-                "embeddings_dim": ans.get("embeddings_dim", 0),
-                "gds_question": q,
-                "question_context": ans.get("question_context", None),
-                "gds_answer": gold.get("gds_answer", ""),
-                "llm_answer": ans.get("llm_answer", ""),
-                "tool_calls": ans.get("tool_calls", ""),
-                "test_status": test_status,
-                "eval_judge_comment": comment,
-                "test_date": ans.get("test_date", ""),
-            }
-        )
-
-    return out_rows
-
-
-def judge_tests(
-    eval_llm_answers: pd.DataFrame,
-    judge_config: pd.DataFrame,
-) -> pd.DataFrame:
-    """
-    Judge model answers and return rows in tests format.
-    Inputs: eval_llm_answers, judge_config
-    """
-
-    if eval_llm_answers.empty or judge_config.empty:
-        return pd.DataFrame(
-            {
-                col: pd.Series(dtype=object)
-                for col in [
-                    "judge_model",
-                    "judge_prompt_id",
-                    "dm_id",
-                    "pipeline_model",
-                    "embeddings_model",
-                    "embeddings_dim",
-                    "gds_question",
-                    "question_context",
-                    "gds_answer",
-                    "llm_answer",
-                    "tool_calls",
-                    "test_status",
-                    "eval_judge_comment",
-                    "test_date",
-                ]
-            }
-        )
-
-    judge_config = judge_config.tail(1).squeeze()
-    judge_model = judge_config.get("judge_model")
-    judge_prompt_id = judge_config.get("judge_prompt_id")
-    judge_prompt = judge_config.get("judge_prompt")
-
-    # Build GDS lookup (golden answers)
-    dp = GristAPIDataProvider(
-        doc_id=etl_settings.grist_test_set_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
-    )
-
-    gds_df = dp.get_table(etl_settings.gds_table_name)
-
-    gds_df = gds_df.dropna(subset=["gds_question"]).copy()
-    gds_map = {str(r["gds_question"]): r for _, r in gds_df.iterrows()}
-
-    out_rows = asyncio.run(
-        _judge_tests_async(
-            eval_llm_answers,
-            str(judge_model) if judge_model is not None else None,
-            str(judge_prompt or ""),
-            str(judge_prompt_id) if judge_prompt_id is not None else None,
-            gds_map,
-        )
-    )
-    return pd.DataFrame(out_rows)
 
 
 if __name__ == "__main__":

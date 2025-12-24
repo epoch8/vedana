@@ -72,8 +72,16 @@ def page() -> rx.Component:
                             rx.dialog.content(
                                 rx.vstack(
                                     rx.hstack(
-                                        rx.dialog.title("Current Data Model"),
+                                        rx.dialog.title("Data Model"),
                                         rx.spacer(),
+                                        rx.button(
+                                            "Reload",
+                                            variant="soft",
+                                            color_scheme="blue",
+                                            size="1",
+                                            on_click=ChatState.reload_data_model,
+                                            loading=ChatState.is_refreshing_dm,
+                                        ),
                                         rx.dialog.close(
                                             rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
                                         ),
@@ -84,38 +92,19 @@ def page() -> rx.Component:
                                         rx.markdown(ChatState.data_model_text),  # type: ignore[operator]
                                         type="always",
                                         scrollbars="vertical",
-                                        style={"height": "50vh"},
-                                    ),
-                                    rx.hstack(
-                                        rx.box(
-                                            rx.text(
-                                                rx.cond(
-                                                    ChatState.data_model_last_sync != "",
-                                                    "Last sync: " + ChatState.data_model_last_sync,
-                                                    "Last sync: —",
-                                                ),
-                                                size="1",
-                                                color="gray",
-                                            ),
-                                            width="100%",
-                                        ),
-                                        rx.button(
-                                            "Reload from Grist",
-                                            variant="classic",
-                                            color_scheme="gray",
-                                            size="2",
-                                            loading=ChatState.is_refreshing_dm,
-                                            on_click=ChatState.refresh_data_model,
-                                        ),
-                                        justify="end",
-                                        align="center",
-                                        width="100%",
+                                        style={"height": "70vh"},
                                     ),
                                     spacing="3",
                                     width="100%",
                                 ),
-                                max_width="900px",
+                                max_width="70vw",
                             ),
+                        ),
+                        rx.checkbox(
+                            "Filter Data Model",
+                            checked=ChatState.enable_dm_filtering,
+                            on_change=ChatState.set_enable_dm_filtering,
+                            size="1",
                         ),
                         rx.spacer(),
                         rx.hstack(
@@ -132,7 +121,6 @@ def page() -> rx.Component:
                                     spacing="1",
                                 ),
                             ),
-                            rx.text(f"model: {ChatState.model}", size="1", color="gray"),
                             rx.cond(
                                 ChatState.total_conversation_cost > 0,
                                 rx.text(
@@ -153,6 +141,35 @@ def page() -> rx.Component:
                                 value=ChatState.input_text,
                                 on_change=ChatState.set_input,
                                 width="100%",
+                            ),
+                            rx.select(
+                                items=["openai", "openrouter"],
+                                value=ChatState.provider,
+                                on_change=ChatState.set_provider,
+                                width="10em",
+                                placeholder="Provider",
+                            ),
+                            rx.cond(
+                                ChatState.provider == "openrouter",
+                                rx.input(
+                                    placeholder=rx.cond(
+                                        ChatState.default_openrouter_key_present,
+                                        "(Optional) custom OPENROUTER_API_KEY",
+                                        "(Required) OPENROUTER_API_KEY",
+                                    ),
+                                    type="password",
+                                    value=ChatState.custom_openrouter_key,
+                                    on_change=ChatState.set_custom_openrouter_key,
+                                    width="36em",
+                                    required=rx.cond(ChatState.default_openrouter_key_present, False, True),
+                                ),
+                            ),
+                            rx.select(
+                                items=ChatState.available_models,
+                                value=ChatState.model,
+                                on_change=ChatState.set_model,
+                                width="16em",
+                                placeholder="Select model",
                             ),
                             rx.button("Send", type="submit", loading=ChatState.is_running),
                             spacing="2",

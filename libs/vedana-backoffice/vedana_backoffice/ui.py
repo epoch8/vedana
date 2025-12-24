@@ -4,6 +4,7 @@ from typing import Any
 
 import reflex as rx
 
+from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.states.common import AppVersionState, TelegramBotState
 
 
@@ -25,6 +26,16 @@ def telegram_link_box() -> rx.Component:
     )
 
 
+def data_model_reload_btn() -> rx.Component:
+    return rx.button(
+        "Reload Data Model",
+        variant="soft",
+        color_scheme="blue",
+        on_click=ChatState.reload_data_model,
+        loading=ChatState.is_refreshing_dm,
+    )
+
+
 def app_header() -> rx.Component:
     return rx.box(
         rx.hstack(
@@ -35,7 +46,13 @@ def app_header() -> rx.Component:
                 spacing="3",
             ),
             rx.hstack(
+                data_model_reload_btn(),
                 rx.link("ETL", href="/etl", font_size="1.1em"),
+                rx.cond(
+                    AppVersionState.eval_enabled,
+                    rx.link("Eval", href="/eval", font_size="1.1em"),
+                    rx.fragment(),
+                ),
                 rx.link("Chat", href="/chat", font_size="1.1em"),
                 rx.link("JIMS", href="/jims", font_size="1.1em"),
                 telegram_link_box(),

@@ -124,7 +124,52 @@ def _logs_bottom() -> rx.Component:
 
 
 def _preview_styled_table() -> rx.Component:
-    """Table with row styling for changes view."""
+    """Table with row styling for changes view and expandable cells."""
+
+    def _expandable_cell(row: dict[str, rx.Var], col: rx.Var) -> rx.Component:
+        """Create an expandable/collapsible cell for long text content."""
+        row_id = row.get("row_id", "")
+        return rx.table.cell(
+            rx.box(
+                rx.cond(
+                    row.get("expanded", False),
+                    rx.text(
+                        row.get(col, "—"),  # type: ignore[call-overload]
+                        size="1",
+                        white_space="pre-wrap",
+                        style={"wordBreak": "break-word"},
+                    ),
+                    rx.text(
+                        row.get(col, "—"),  # type: ignore[call-overload]
+                        size="1",
+                        style={
+                            "display": "-webkit-box",
+                            "WebkitLineClamp": "2",
+                            "WebkitBoxOrient": "vertical",
+                            "overflow": "hidden",
+                            "textOverflow": "ellipsis",
+                            "maxWidth": "400px",
+                            "wordBreak": "break-word",
+                        },
+                    ),
+                ),
+                cursor="pointer",
+                on_click=EtlState.toggle_preview_row_expand(row_id=row_id),  # type: ignore[arg-type,call-arg,func-returns-value]
+                style={"minWidth": "0", "width": "100%"},
+            ),
+            style={"minWidth": "0"},
+        )
+
+    def _make_row_renderer(row: dict[str, rx.Var]):
+        """Create a column renderer that captures the row context."""
+        return lambda col: _expandable_cell(row, col)
+
+    def _row(r: dict[str, rx.Var]) -> rx.Component:
+        return rx.table.row(
+            rx.foreach(EtlState.preview_columns, _make_row_renderer(r)),
+            style=r.get("row_style", {}),
+        )
+
     return rx.table.root(
         rx.table.header(
             rx.table.row(
@@ -134,28 +179,7 @@ def _preview_styled_table() -> rx.Component:
                 )
             )
         ),
-        rx.table.body(
-            rx.foreach(
-                EtlState.preview_rows,
-                lambda r: rx.table.row(
-                    rx.foreach(
-                        EtlState.preview_columns,
-                        lambda c: rx.table.cell(
-                            rx.text(
-                                r.get(c, "—"),
-                                style={
-                                    "whiteSpace": "nowrap",
-                                    "textOverflow": "ellipsis",
-                                    "overflow": "hidden",
-                                    "maxWidth": "400px",
-                                },
-                            )
-                        ),
-                    ),
-                    style=r.get("row_style", {}),
-                ),
-            )
-        ),
+        rx.table.body(rx.foreach(EtlState.preview_rows, _row)),
         variant="surface",
         style={"width": "100%", "tableLayout": "auto"},
     )
