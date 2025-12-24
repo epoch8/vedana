@@ -1182,9 +1182,8 @@ class EtlState(rx.State):
                 self._stop_log_capture(handler, logger)
         finally:
             self.is_running = False
+            self.load_pipeline_metadata()
             self._append_log("ETL run finished")
-
-    # removed async runner; running synchronously with yields
 
     def run_one_step(self, index: int | None = None):  # type: ignore[override]
         if self.is_running:

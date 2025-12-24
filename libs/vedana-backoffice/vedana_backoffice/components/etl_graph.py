@@ -53,7 +53,7 @@ def _node_card(node: dict) -> rx.Component:
                     rx.hstack(
                         rx.tooltip(
                             rx.text(node.get("last_run", "—"), size="1", color="gray"),
-                            content="last run time",
+                            content="last run time (that produced changes)",
                         ),
                         rx.hstack(
                             rx.tooltip(
