@@ -1,6 +1,8 @@
 import logging
 import threading
 import time
+import traceback
+import uuid
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
@@ -17,6 +19,8 @@ from vedana_etl.app import pipeline
 from vedana_etl.config import DBCONN_DATAPIPE
 
 from vedana_backoffice.graph.build import build_canonical, derive_step_edges, derive_table_edges, refine_layer_orders
+from vedana_backoffice.k8s.config import k8s_config
+from vedana_backoffice.k8s.job_launcher import K8sJobLauncher
 from vedana_backoffice.util import safe_render_value
 
 
@@ -90,10 +94,24 @@ class EtlState(rx.State):
     is_running: bool = False
     logs: list[str] = []
     max_log_lines: int = 2000
+    current_job_name: str | None = None
+
+    # Execution mode: "local" or "k8s"
+    execution_mode: str = "local"
+
+    # Kubernetes jobs tracking
+    k8s_jobs: list[dict[str, Any]] = []  # List of job info dicts
+    k8s_jobs_loading: bool = False
+    k8s_jobs_refresh_interval: int = 5  # seconds
+
+    @rx.var
+    def k8s_enabled(self) -> bool:
+        return k8s_config.enable_jobs
 
     # UI toggles
     sidebar_open: bool = True
     logs_open: bool = True
+    k8s_jobs_open: bool = True
 
     # Multi-select of nodes (by step index)
     selected_node_ids: list[int] = []
@@ -197,6 +215,10 @@ class EtlState(rx.State):
         timestamp = time.strftime("%H:%M:%S")
         self.logs.append(f"[{timestamp}] {msg}")
         self.logs = self.logs[-self.max_log_lines :]
+
+    def load_etl_page_data(self) -> None:
+        self.load_pipeline_metadata()
+        self.load_k8s_jobs()
 
     def load_pipeline_metadata(self) -> None:
         """Populate metadata by introspecting the ETL pipeline definition."""
@@ -1132,6 +1154,167 @@ class EtlState(rx.State):
                     total_failed=0,
                 )
 
+    def _build_datapipe_command(
+        self, step_names: list[str] | None = None, labels: list[tuple[str, str]] | None = None
+    ) -> list[str]:
+        """TODO Build datapipe CLI command for running steps.
+
+        Args:
+            step_names: Optional list of step names to run (uses --name filter)
+            labels: Optional list of (key, value) label tuples (uses --labels filter)
+
+        Returns:
+            Command as list of strings
+        """
+        cmd = ["datapipe", "--pipeline", "vedana_etl.app:app", "step"]
+
+        if step_names:
+            # Use --name filter for specific steps
+            # Note: datapipe CLI uses name_prefix, so for multiple steps we use the first one
+            # For truly multiple specific steps, we'd need separate jobs or labels
+            if len(step_names) == 1:
+                cmd.extend(["--name", step_names[0]])
+            else:
+                # For multiple steps with same prefix, use first step name
+                # Otherwise, we'd need to run separate jobs for each step
+                cmd.extend(["--name", step_names[0]])
+        elif labels and len(labels) > 0:
+            # Build labels string: "key1=value1,key2=value2"
+            labels_str = ",".join([f"{k}={v}" for k, v in labels])
+            cmd.extend(["--labels", labels_str])
+        # If neither step_names nor labels, run all steps (no filter)
+
+        cmd.append("run")
+        return cmd
+
+    def _run_steps_k8s(self, step_names: list[str] | None = None, labels: list[tuple[str, str]] | None = None):  # type: ignore[override]
+        """Run ETL steps using Kubernetes jobs.
+
+        Args:
+            step_names: Optional list of step names to run
+            labels: Optional list of (key, value) label tuples for filtering
+
+        Yields:
+            Control back to Reflex for UI updates
+        """
+        try:
+            if not k8s_config.enable_jobs:
+                raise RuntimeError("K8s jobs are not enabled. Set K8S_ENABLE_JOBS=true")
+
+            launcher = K8sJobLauncher(k8s_config)
+
+            # Generate unique job name
+            job_suffix = str(uuid.uuid4())[:8]
+            if step_names:
+                job_name = f"etl-step-{step_names[0]}-{job_suffix}"
+            else:
+                job_name = f"etl-labels-{job_suffix}"
+
+            # Build command
+            command = self._build_datapipe_command(step_names=step_names, labels=labels)
+
+            # Create job
+            self._append_log(f"Creating Kubernetes job: {job_name}")
+            self._append_log(f"Command: {' '.join(command)}")
+            yield
+
+            launcher.create_job(
+                job_name=job_name,
+                command=command,
+                labels={"run-id": job_suffix, "type": "etl", "app": "vedana-etl", "managed-by": "vedana-backoffice"},
+            )
+
+            self.current_job_name = job_name
+            self._append_log(f"Job created: {job_name}")
+            yield
+
+            # Wait for pod to be created
+            pod_name = None
+            max_wait = 60
+            waited = 0
+            while not pod_name and waited < max_wait:
+                pod_name = launcher.get_job_pod_name(job_name)
+                if not pod_name:
+                    time.sleep(1)
+                    waited += 1
+                    yield
+
+            if not pod_name:
+                self._append_log(f"Pod for job {job_name} not found after {max_wait} seconds")
+                return
+
+            # Stream logs in real-time using polling (to allow yielding)
+            self._append_log(f"Streaming logs from pod: {pod_name}")
+            yield
+
+            # Poll for logs and job status
+            last_log_time = time.time()
+            log_stream_started = False
+
+            while True:
+                # Check job status
+                status = launcher.get_job_status(job_name)
+                job_status = status.get("status", "unknown")
+
+                # Stream new logs
+                try:
+                    namespace = launcher.namespace
+                    if namespace and launcher._k8s_core is not None:
+                        try:
+                            logs = launcher._k8s_core.read_namespaced_pod_log(
+                                name=pod_name,
+                                namespace=namespace,
+                                since_seconds=int(time.time() - last_log_time) if log_stream_started else None,
+                            )
+                            if logs:
+                                for line in logs.split("\n"):
+                                    if line.strip():
+                                        self._append_log(line)
+                                log_stream_started = True
+                                last_log_time = time.time()
+                        except Exception as log_error:
+                            # Pod might not be ready yet or logs might not be available
+                            if "not found" not in str(log_error).lower():
+                                logging.debug(f"Error reading logs: {log_error}")
+                except Exception as e:
+                    # General error handling
+                    logging.debug(f"Error in log streaming: {e}")
+
+                # Check if job is complete
+                if job_status in ("completed", "failed"):
+                    # Get final logs
+                    try:
+                        namespace = launcher.namespace
+                        if namespace and launcher._k8s_core is not None:
+                            final_logs = launcher._k8s_core.read_namespaced_pod_log(
+                                name=pod_name,
+                                namespace=namespace,
+                                since_seconds=int(time.time() - last_log_time),
+                            )
+                            if final_logs:
+                                for line in final_logs.split("\n"):
+                                    if line.strip():
+                                        self._append_log(line)
+                    except Exception:
+                        pass
+
+                    if job_status == "completed":
+                        self._append_log("Job completed successfully")
+                    else:
+                        self._append_log(f"Job failed: {status}")
+                    break
+
+                # Yield control and wait before next poll
+                yield
+                time.sleep(2)  # Poll every 2 seconds
+
+        except Exception as e:
+            error_msg = f"Failed to run steps via Kubernetes: {e}"
+            logging.error(error_msg, exc_info=True)
+            self._append_log(error_msg)
+            # Fall back to in-process execution
+            raise
+
     def run_selected(self):  # type: ignore[override]
         """Run the ETL for selected labels in background, streaming logs."""
         if self.is_running:
@@ -1139,10 +1322,13 @@ class EtlState(rx.State):
 
         self.is_running = True
         self.logs = []
+        self.current_job_name = None
         self._append_log("Starting ETL run …")
         yield
 
         try:
+            use_k8s = k8s_config.enable_jobs and self.execution_mode == "k8s"
+
             valid_pipeline_indices = self._get_current_pipeline_step_indices()
 
             if self.selection_source == "manual" and self.selected_node_ids:
@@ -1150,38 +1336,65 @@ class EtlState(rx.State):
                     i for i in self.selected_node_ids or [] if isinstance(i, int) and i in valid_pipeline_indices
                 ]
                 steps_to_run = [etl_app.steps[i] for i in sorted(selected) if 0 <= i < len(etl_app.steps)]
+                step_names = [getattr(s, "name", type(s).__name__) for s in steps_to_run]
             else:
                 steps_to_run = self._filter_steps_by_labels(etl_app.steps)
+                step_names = None
+                # Build labels for filtering
+                labels: list[tuple[str, str]] = []
+                if self.selected_flow != "all":
+                    labels.append(("flow", self.selected_flow))
+                if self.selected_stage != "all":
+                    labels.append(("stage", self.selected_stage))
+
             if not steps_to_run:
                 self._append_log("No steps match selected filters")
                 return
 
             self._append_log(f"Steps to execute: {[getattr(s, 'name', type(s).__name__) for s in steps_to_run]}")
 
-            # stream datapipe logs into UI while each step runs
-            q, handler, logger = self._start_log_capture()
-            try:
-                for step in steps_to_run:
-                    step_name = getattr(step, "name", type(step).__name__)
-                    self._append_log(f"Running step: {step_name}")
+            if use_k8s:
+                # Run via Kubernetes
+                try:
+                    if self.selection_source == "manual" and step_names:
+                        for _ in self._run_steps_k8s(step_names=step_names):
+                            yield
+                    else:
+                        for _ in self._run_steps_k8s(labels=labels if labels else None):
+                            yield
+                    # Refresh jobs list after completion
+                    self.load_k8s_jobs()
+                except Exception as e:
+                    # Fall back to in-process execution on error
+                    self._append_log(f"K8s execution failed, falling back to in-process: {e} {traceback.format_exc()}")
+                    use_k8s = False
 
-                    def _runner(s=step):
-                        run_steps(etl_app.ds, [s])  # type: ignore[arg-type]
+            if not use_k8s:
+                # stream datapipe logs into UI while each step runs
+                q, handler, logger = self._start_log_capture()
+                try:
+                    for step in steps_to_run:
+                        step_name = getattr(step, "name", type(step).__name__)
+                        self._append_log(f"Running step: {step_name}")
 
-                    t = threading.Thread(target=_runner, daemon=True)
-                    t.start()
-                    while t.is_alive():
+                        def _runner(s=step):
+                            run_steps(etl_app.ds, [s])  # type: ignore[arg-type]
+
+                        t = threading.Thread(target=_runner, daemon=True)
+                        t.start()
+                        while t.is_alive():
+                            self._drain_queue_into_logs(q)
+                            yield
+                            time.sleep(0.1)
+                        t.join(timeout=0)
                         self._drain_queue_into_logs(q)
+                        self._append_log(f"Completed step: {step_name}")
                         yield
-                        time.sleep(0.1)
-                    t.join(timeout=0)
-                    self._drain_queue_into_logs(q)
-                    self._append_log(f"Completed step: {step_name}")
-                    yield
-            finally:
-                self._stop_log_capture(handler, logger)
+                finally:
+                    self._stop_log_capture(handler, logger)
         finally:
             self.is_running = False
+            self.current_job_name = None
             self.load_pipeline_metadata()
             self._append_log("ETL run finished")
 
@@ -1204,28 +1417,47 @@ class EtlState(rx.State):
         step = etl_app.steps[idx]
         self.is_running = True
         self.logs = []
+        self.current_job_name = None
         self._append_log(f"Starting single step {step.name}")
         yield
 
         try:
-            q, handler, logger = self._start_log_capture()
-            try:
+            use_k8s = k8s_config.enable_jobs and self.execution_mode == "k8s"
 
-                def _runner():
-                    run_steps(etl_app.ds, [step])  # type: ignore[arg-type]
+            if use_k8s:
+                # Run via Kubernetes
+                try:
+                    step_name = getattr(step, "name", type(step).__name__)
+                    for _ in self._run_steps_k8s(step_names=[step_name]):
+                        yield
+                    # Refresh jobs list after completion
+                    self.load_k8s_jobs()
+                except Exception as e:
+                    # Fall back to in-process execution on error
+                    self._append_log(f"K8s execution failed, falling back to in-process: {e}")
+                    use_k8s = False
 
-                t = threading.Thread(target=_runner, daemon=True)
-                t.start()
-                while t.is_alive():
+            if not use_k8s:
+                # Fall back to in-process execution
+                q, handler, logger = self._start_log_capture()
+                try:
+
+                    def _runner():
+                        run_steps(etl_app.ds, [step])  # type: ignore[arg-type]
+
+                    t = threading.Thread(target=_runner, daemon=True)
+                    t.start()
+                    while t.is_alive():
+                        self._drain_queue_into_logs(q)
+                        yield
+                        time.sleep(0.1)
+                    t.join(timeout=0)
                     self._drain_queue_into_logs(q)
-                    yield
-                    time.sleep(0.1)
-                t.join(timeout=0)
-                self._drain_queue_into_logs(q)
-            finally:
-                self._stop_log_capture(handler, logger)
+                finally:
+                    self._stop_log_capture(handler, logger)
         finally:
             self.is_running = False
+            self.current_job_name = None
             self._append_log("Single step finished")
         return None
 
@@ -1570,3 +1802,110 @@ class EtlState(rx.State):
         """Handle popover open/close state changes."""
         if not open:
             self.close_preview()
+
+    def set_execution_mode(self, mode: str) -> None:
+        """Set execution mode: 'local' or 'k8s'."""
+        self.execution_mode = mode
+
+    def toggle_k8s_jobs(self) -> None:
+        """Toggle K8s jobs panel visibility."""
+        self.k8s_jobs_open = not self.k8s_jobs_open
+
+    def load_k8s_jobs(self) -> None:
+        """Load all ETL jobs from Kubernetes namespace."""
+        try:
+            if not k8s_config.enable_jobs:
+                return
+
+            self.k8s_jobs_loading = True
+            launcher = K8sJobLauncher(k8s_config)
+
+            # List all jobs with our label selector
+            if launcher._k8s_client is None:
+                raise RuntimeError("K8s client not initialized")
+            jobs = launcher._k8s_client.list_namespaced_job(
+                namespace=launcher.namespace,
+                label_selector="managed-by=vedana-backoffice,app=vedana-etl",
+            )
+
+            job_list = []
+            for job in jobs.items:
+                status = job.status
+                metadata = job.metadata
+
+                # Get pod name if available
+                pod_name = launcher.get_job_pod_name(metadata.name)
+
+                # Determine status
+                if status.succeeded:
+                    job_status = "completed"
+                elif status.failed:
+                    job_status = "failed"
+                elif status.active:
+                    job_status = "running"
+                else:
+                    job_status = "pending"
+
+                # Extract command/step info from job labels or annotations
+                step_info = metadata.labels.get("step", "unknown") if metadata.labels else "unknown"
+                run_id = metadata.labels.get("run-id", "") if metadata.labels else ""
+
+                # Get creation time
+                creation_time = metadata.creation_timestamp.timestamp() if metadata.creation_timestamp else 0
+
+                job_list.append(
+                    {
+                        "name": metadata.name,
+                        "namespace": launcher.namespace,
+                        "status": job_status,
+                        "pod_name": pod_name or "",
+                        "step_info": step_info,
+                        "run_id": run_id,
+                        "created": creation_time,
+                        "active": status.active or 0,
+                        "succeeded": status.succeeded or 0,
+                        "failed": status.failed or 0,
+                        "completion_time": status.completion_time.timestamp() if status.completion_time else None,
+                        "start_time": status.start_time.timestamp() if status.start_time else None,
+                    }
+                )
+
+            # Sort by creation time (newest first)
+            job_list.sort(key=lambda x: x["created"], reverse=True)
+            self.k8s_jobs = job_list
+
+        except Exception as e:
+            logging.error(f"Failed to load K8s jobs: {e}", exc_info=True)
+            self.k8s_jobs = []
+        finally:
+            self.k8s_jobs_loading = False
+
+    def delete_k8s_job(self, job_name: str) -> None:
+        """Delete a Kubernetes job."""
+        try:
+            launcher = K8sJobLauncher(k8s_config)
+            launcher.delete_job(job_name)
+            self.load_k8s_jobs()  # Refresh list
+        except Exception as e:
+            logging.error(f"Failed to delete K8s job {job_name}: {e}", exc_info=True)
+            self._append_log(f"Failed to delete job {job_name}: {e}")
+
+    def view_k8s_job_logs(self, job_name: str) -> None:
+        """View logs for a Kubernetes job."""
+        try:
+            launcher = K8sJobLauncher(k8s_config)
+            pod_name = launcher.get_job_pod_name(job_name)
+            if not pod_name:
+                self._append_log(f"Pod for job {job_name} not found")
+                return
+
+            if launcher._k8s_core is None:
+                raise RuntimeError("K8s core client not initialized")
+            logs = launcher._k8s_core.read_namespaced_pod_log(name=pod_name, namespace=launcher.namespace)
+
+            # Clear current logs and show job logs
+            self.logs = [f"[Job: {job_name}] {line}" for line in logs.split("\n") if line.strip()]
+            self.logs_open = True
+        except Exception as e:
+            logging.error(f"Failed to get logs for job {job_name}: {e}", exc_info=True)
+            self._append_log(f"Failed to get logs for job {job_name}: {e}")

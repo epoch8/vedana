@@ -1,4 +1,5 @@
 import reflex as rx
+from datetime import datetime
 
 from vedana_backoffice.components.etl_graph import etl_graph
 from vedana_backoffice.states.etl import EtlState
@@ -32,6 +33,21 @@ def _graph_card() -> rx.Component:
                     width="12em",
                 ),
                 rx.button("Reset", variant="soft", size="1", on_click=EtlState.reset_filters),
+                rx.cond(
+                    EtlState.k8s_enabled,
+                    rx.hstack(
+                        rx.text("Execution", size="1", color="gray"),
+                        rx.select(
+                            items=["local", "k8s"],
+                            value=EtlState.execution_mode,
+                            on_change=EtlState.set_execution_mode,
+                            width="8em",
+                        ),
+                        spacing="2",
+                        align="center",
+                    ),
+                    rx.box(),
+                ),
                 rx.button("Run Selected", size="1", on_click=EtlState.run_selected, loading=EtlState.is_running),
                 rx.tooltip(
                     rx.button(
@@ -67,9 +83,120 @@ def _graph_card() -> rx.Component:
     )
 
 
+def _k8s_jobs_card() -> rx.Component:
+    """Card showing Kubernetes jobs status and management."""
+
+    def _job_row(job: dict[str, rx.Var]) -> rx.Component:
+        """Render a single job row."""
+        job_name = job.get("name", "")
+        status = job.get("status", "unknown")
+        created = job.get("created", 0)
+
+        # Status color
+        status_colors = {
+            "completed": "green",
+            "running": "blue",
+            "failed": "red",
+            "pending": "gray",
+        }
+        status_color = status_colors.get(str(status), "gray")
+
+        # Format creation time
+        created_str = "—"
+        try:
+            if created:
+                dt = datetime.fromtimestamp(float(created))
+                created_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+
+        return rx.table.row(
+            rx.table.cell(rx.text(str(job_name), size="2", style={"fontFamily": "monospace"})),
+            rx.table.cell(
+                rx.badge(
+                    str(status).upper(),
+                    color_scheme=status_color,
+                    size="1",
+                )
+            ),
+            rx.table.cell(rx.text(created_str, size="1", color="gray")),
+            rx.table.cell(
+                rx.hstack(
+                    rx.button(
+                        "Logs",
+                        variant="ghost",
+                        size="1",
+                        on_click=EtlState.view_k8s_job_logs(job_name=job_name),  # type: ignore[arg-type,call-arg,func-returns-value]
+                    ),
+                    rx.button(
+                        "Delete",
+                        variant="ghost",
+                        size="1",
+                        color_scheme="red",
+                        on_click=EtlState.delete_k8s_job(job_name=job_name),  # type: ignore[arg-type,call-arg,func-returns-value]
+                    ),
+                    spacing="1",
+                )
+            ),
+        )
+
+    return rx.card(
+        rx.hstack(
+            rx.heading("Kubernetes Jobs", size="3"),
+            rx.spacer(),
+            rx.hstack(
+                rx.button(
+                    "↻",
+                    variant="ghost",
+                    color_scheme="gray",
+                    size="1",
+                    on_click=EtlState.load_k8s_jobs,
+                    loading=EtlState.k8s_jobs_loading,
+                ),
+                rx.button("Hide", variant="ghost", color_scheme="gray", size="1", on_click=EtlState.toggle_k8s_jobs),
+                spacing="2",
+                align="center",
+            ),
+            align="center",
+            width="100%",
+        ),
+        rx.cond(
+            EtlState.k8s_jobs_loading,
+            rx.box(rx.text("Loading jobs...", size="2", color="gray"), padding="1em"),
+            rx.cond(
+                EtlState.k8s_jobs,
+                rx.scroll_area(
+                    rx.table.root(
+                        rx.table.header(
+                            rx.table.row(
+                                rx.table.column_header_cell("Job Name"),
+                                rx.table.column_header_cell("Status"),
+                                rx.table.column_header_cell("Created"),
+                                rx.table.column_header_cell("Actions"),
+                            )
+                        ),
+                        rx.table.body(
+                            rx.foreach(EtlState.k8s_jobs, _job_row),
+                        ),
+                        variant="surface",
+                        style={"width": "100%"},
+                    ),
+                    type="always",
+                    scrollbars="vertical",
+                    style={"maxHeight": "30vh"},
+                ),
+                rx.box(rx.text("No Kubernetes jobs found", size="2", color="gray"), padding="1em"),
+            ),
+        ),
+        padding="1em",
+        width="100%",
+    )
+
+
 def _pipeline_panel() -> rx.Component:
     return rx.vstack(
         _graph_card(),
+        rx.cond(EtlState.k8s_jobs_open, _k8s_jobs_card(), rx.box(width="100%")),
         rx.cond(EtlState.logs_open, _logs_bottom(), rx.box(width="100%")),
         spacing="1",
         width="100%",
