@@ -78,13 +78,13 @@ services:
       - memgraph
 
   db:
-    image: postgres:17
+    image: pgvector/pgvector:latest
     environment:
       POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s

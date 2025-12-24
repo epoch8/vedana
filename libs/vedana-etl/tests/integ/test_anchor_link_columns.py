@@ -34,7 +34,7 @@ def _unordered(a: str, b: str) -> Tuple[str, str]:
 
 def test_anchor_link_columns() -> None:
     # 1) Берём из Data Model sentence для document <-> document_chunk
-    anchors_df, attrs_df, links_df = next(steps.get_data_model())
+    _anchors_df, _a_attrs_df, _l_attrs_df, links_df, _q_df, _p_df, _cl_df = next(steps.get_data_model())
     assert not links_df.empty, "Data Model Links пуст."
 
     dm = links_df.copy()
