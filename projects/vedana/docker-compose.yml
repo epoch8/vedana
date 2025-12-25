@@ -1,7 +1,7 @@
 x-app-common: &app-common
   build:
-    context: ../
-    dockerfile: vedana/Dockerfile
+    context: ../../
+    dockerfile: projects/vedana/Dockerfile
   volumes:
     - ./data:/app/vedana/data
   environment:
@@ -14,13 +14,13 @@ x-app-common: &app-common
     - db
 
 services:
- # db-migrate:
- #   <<: *app-common
- #   command: uv run alembic upgrade head
- #   working_dir: /app/vedana/packages/vedana-core
- #   depends_on:
- #     db:
- #       condition: service_healthy
+  db-migrate:
+    <<: *app-common
+    command: uv run alembic upgrade head
+    working_dir: /app/projects/vedana/
+    depends_on:
+      db:
+        condition: service_healthy
 
  # app:
  #   <<: *app-common
@@ -46,14 +46,19 @@ services:
   #     db:
   #       condition: service_healthy
 
-  # jims-backoffice:
-  #   <<: *app-common
-  #   command: uv run jims-backoffice
-  #   ports:
-  #     - "8000:8000"
-  #   depends_on:
-  #     db-migrate:
-  #       condition: service_completed_successfully
+  vedana-backoffice:
+    <<: *app-common
+    command: uv run reflex run
+    ports:
+      - "3002:3000"
+      - "8000:8000"
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      memgraph:
+        condition: service_started
+      db:
+        condition: service_healthy
 
   memgraph:
     image: memgraph/memgraph-mage
@@ -73,12 +78,12 @@ services:
   memgraph-lab:
     image: memgraph/lab
     ports:
-      - 3000:3000
+      - 3001:3000
     depends_on:
       - memgraph
 
   db:
-    image: pgvector/pgvector:latest
+    image: pgvector/pgvector:pg15
     environment:
       POSTGRES_PASSWORD: postgres
     ports:
