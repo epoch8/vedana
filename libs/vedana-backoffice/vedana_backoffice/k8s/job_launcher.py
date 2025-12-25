@@ -31,9 +31,9 @@ class K8sJobLauncher:
         """Initialize the job launcher with configuration."""
         self.config = k8s_config
 
-        if os.getenv("KUBERNETES_SERVICE_HOST"):
+        if os.getenv("KUBERNETES_SERVICE_HOST"):  # when running inside k8s
             config.load_incluster_config()
-        else:
+        else:  # outside (container, local development)
             config.load_kube_config()
 
         self._k8s_client: BatchV1Api = BatchV1Api()

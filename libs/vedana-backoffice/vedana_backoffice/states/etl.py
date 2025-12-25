@@ -1157,7 +1157,7 @@ class EtlState(rx.State):
     def _build_datapipe_command(
         self, step_names: list[str] | None = None, labels: list[tuple[str, str]] | None = None
     ) -> list[str]:
-        """TODO Build datapipe CLI command for running steps.
+        """Build datapipe CLI command for running steps.
 
         Args:
             step_names: Optional list of step names to run (uses --name filter)
@@ -1169,20 +1169,11 @@ class EtlState(rx.State):
         cmd = ["datapipe", "--pipeline", "vedana_etl.app:app", "step"]
 
         if step_names:
-            # Use --name filter for specific steps
-            # Note: datapipe CLI uses name_prefix, so for multiple steps we use the first one
-            # For truly multiple specific steps, we'd need separate jobs or labels
-            if len(step_names) == 1:
-                cmd.extend(["--name", step_names[0]])
-            else:
-                # For multiple steps with same prefix, use first step name
-                # Otherwise, we'd need to run separate jobs for each step
-                cmd.extend(["--name", step_names[0]])
+            cmd.extend(["--name", ",".join(step_names)])
         elif labels and len(labels) > 0:
             # Build labels string: "key1=value1,key2=value2"
             labels_str = ",".join([f"{k}={v}" for k, v in labels])
             cmd.extend(["--labels", labels_str])
-        # If neither step_names nor labels, run all steps (no filter)
 
         cmd.append("run")
         return cmd
