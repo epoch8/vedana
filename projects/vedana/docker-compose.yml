@@ -4,9 +4,12 @@ x-app-common: &app-common
     dockerfile: projects/vedana/Dockerfile
   volumes:
     - ./data:/app/vedana/data
+    - ${HOME}/.kube:/root/.kube:ro
+    - /var/run/docker.sock:/var/run/docker.sock:ro
   environment:
     JIMS_DB_CONN_URI: "postgresql://postgres:postgres@db:5432"
     MEMGRAPH_URI: "bolt://memgraph:7687"
+    K8S_ENABLE_JOBS: "true"
   env_file:
     - .env
   depends_on:
@@ -59,6 +62,10 @@ services:
         condition: service_started
       db:
         condition: service_healthy
+    # For local kind cluster, we need to access the cluster's API server
+    # The kind cluster API server is accessible via the host network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   memgraph:
     image: memgraph/memgraph-mage
