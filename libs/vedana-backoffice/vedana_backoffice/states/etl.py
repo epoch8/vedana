@@ -1,6 +1,8 @@
 import asyncio
 import logging
+import io
 import re
+import sys
 import threading
 import time
 import uuid
@@ -23,6 +25,81 @@ from vedana_backoffice.graph.build import build_canonical, derive_step_edges, de
 from vedana_backoffice.k8s.config import k8s_config
 from vedana_backoffice.k8s.job_launcher import K8sJobLauncher
 from vedana_backoffice.util import safe_render_value
+
+
+class _ProgressTracker:
+    """Tracks tqdm progress updates and stores the latest values."""
+
+    def __init__(self) -> None:
+        self.current: int = 0
+        self.total: int = 0
+        self.last_percentage: int = -1  # For milestone tracking
+
+    def parse_progress(self, line: str) -> bool:
+        """Parse tqdm progress line and update state. Returns True if progress was updated."""
+        # Match patterns like "13/142" or "100%|████| 31/31"
+        match = re.search(r"(\d+)/(\d+)", line)
+        if match:
+            self.current = int(match.group(1))
+            self.total = int(match.group(2))
+            return True
+        return False
+
+    def get_milestone(self) -> int | None:
+        """Returns milestone percentage (0, 25, 50, 75, 100) if we just crossed one, else None."""
+        if self.total == 0:
+            return None
+        pct = (self.current * 100) // self.total
+        milestones = [0, 25, 50, 75, 100]
+        for m in milestones:
+            if pct >= m > self.last_percentage:
+                self.last_percentage = m
+                return m
+        return None
+
+
+class _TeeWriter:
+    """A writer that sends output to both a queue and the original stream, tracking progress."""
+
+    def __init__(self, queue: Queue[str], original: io.TextIOBase, progress_tracker: _ProgressTracker):
+        self._queue = queue
+        self._original = original
+        self._progress = progress_tracker
+        self._buffer = ""
+
+    def write(self, text: str) -> int:
+        # Write to original stream
+        result = self._original.write(text)
+
+        # Buffer text and process
+        self._buffer += text
+
+        # Process complete lines
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
+            line = line.strip()
+            if line and "%" not in line:  # Don't log progress bar lines
+                self._queue.put(f"[stderr] {line}")
+
+        # Check for carriage returns (tqdm uses these for progress updates)
+        if "\r" in self._buffer and len(self._buffer) > 10:
+            line = self._buffer.strip()
+            if line and "%" in line:
+                # Parse progress and update tracker (don't log every update)
+                if self._progress.parse_progress(line):
+                    milestone = self._progress.get_milestone()
+                    if milestone is not None and milestone > 0:
+                        # Only log at milestones
+                        self._queue.put(f"[progress] {milestone}% complete ({self._progress.current}/{self._progress.total})")
+            self._buffer = ""
+
+        return result
+
+    def flush(self) -> None:
+        self._original.flush()
+
+    def isatty(self) -> bool:
+        return False
 
 
 @dataclass
@@ -54,6 +131,19 @@ class EtlStepRunStats:
     rows_failed: int  # Rows with is_success=False in last run
     total_success: int  # All rows with is_success=True (all time)
     total_failed: int  # All rows with is_success=False (all time)
+    pending_count: int = 0  # Number of records that need processing (changed_idx_count)
+
+
+@dataclass
+class StepExecutionProgress:
+    """Live execution progress for a running step."""
+
+    step_index: int
+    step_name: str
+    status: str  # "pending", "running", "completed", "failed"
+    total_batches: int
+    processed_batches: int
+    error_message: str = ""
 
 
 # Threshold in seconds to group consecutive process_ts values into a single "run"
@@ -114,7 +204,7 @@ class EtlState(rx.State):
     sidebar_open: bool = True
     logs_open: bool = True
     k8s_jobs_open: bool = True
-    
+
     # Log view mode: "system" or "k8s_job"
     log_view_mode: str = "system"
     viewing_k8s_job_name: str | None = None
@@ -177,36 +267,81 @@ class EtlState(rx.State):
             updated_rows.append(new_row)
         self.preview_rows = updated_rows
 
-    def _start_log_capture(self) -> tuple[Queue[str], logging.Handler, logging.Logger]:
+    # Live step execution tracking
+    step_execution_progress: dict[int, dict[str, Any]] = {}  # step_index -> progress dict
+    pending_step_indices: list[int] = []  # Steps waiting to run
+
+    def _start_log_capture(
+            self,
+    ) -> tuple[Queue[str], logging.Handler, list[logging.Logger], io.TextIOBase | None, _ProgressTracker]:
         q: Queue[str] = Queue()
+        seen_messages: set[str] = set()
+        progress_tracker = _ProgressTracker()
 
         class _QueueHandler(logging.Handler):
-            def __init__(self, queue: Queue[str]):
+            def __init__(self, queue: Queue[str], seen: set[str]):
                 super().__init__()
                 self._q = queue
+                self._seen = seen
 
             def emit(self, record: logging.LogRecord) -> None:  # type: ignore[override]
                 try:
                     msg = self.format(record)
-                    self._q.put(msg)
+                    # Deduplicate messages (can come from multiple loggers)
+                    if msg not in self._seen:
+                        self._seen.add(msg)
+                        self._q.put(msg)
+                        # Keep seen set from growing too large
+                        if len(self._seen) > 1000:
+                            self._seen.clear()
                 except Exception:
                     pass
 
-        handler = _QueueHandler(q)
+        handler = _QueueHandler(q, seen_messages)
         handler.setLevel(logging.INFO)
         handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
 
-        logger = logging.getLogger("datapipe")
-        logger.setLevel(logging.INFO)
-        logger.addHandler(handler)
+        # Capture logs from multiple sources including root logger
+        loggers_to_capture = [
+            logging.getLogger("datapipe"),
+            logging.getLogger("datapipe.compute"),
+            logging.getLogger("datapipe.step.batch_transform"),
+            logging.getLogger("datapipe.step.batch_generate"),
+            logging.getLogger("grist_api"),
+            logging.getLogger("vedana_etl"),
+            logging.getLogger("vedana_core"),
+            logging.getLogger(),  # root logger to catch everything else
+        ]
 
-        return q, handler, logger
+        for logger in loggers_to_capture:
+            logger.setLevel(logging.INFO)
+            logger.addHandler(handler)
 
-    def _stop_log_capture(self, handler: logging.Handler, logger: logging.Logger) -> None:
+        # Capture stderr for tqdm progress bars
+        original_stderr: io.TextIOBase | None = None
         try:
-            logger.removeHandler(handler)
+            original_stderr = sys.stderr  # type: ignore[assignment]
+            sys.stderr = _TeeWriter(q, sys.stderr, progress_tracker)  # type: ignore[assignment]
         except Exception:
-            pass
+            original_stderr = None
+
+        return q, handler, loggers_to_capture, original_stderr, progress_tracker
+
+    def _stop_log_capture(
+        self, handler: logging.Handler, loggers: list[logging.Logger], original_stderr: io.TextIOBase | None = None
+    ) -> None:
+        for logger in loggers:
+            try:
+                logger.removeHandler(handler)
+            except Exception:
+                pass
+
+        # Restore stderr
+        if original_stderr is not None:
+            try:
+                sys.stderr = original_stderr  # type: ignore[assignment]
+            except Exception:
+                pass
 
     def _drain_queue_into_logs(self, q: Queue[str]) -> None:
         while True:
@@ -759,6 +894,7 @@ class EtlState(rx.State):
                             rows_failed = step_stats.rows_failed
                             total_success = step_stats.total_success
                             total_failed = step_stats.total_failed
+                            pending_count = step_stats.pending_count
                         else:
                             last_run_str = "—"
                             rows_processed = 0
@@ -766,6 +902,34 @@ class EtlState(rx.State):
                             rows_failed = 0
                             total_success = 0
                             total_failed = 0
+                            pending_count = step_stats.pending_count if step_stats else 0
+
+                        # Get live execution status if available
+                        exec_progress = self.step_execution_progress.get(sid, {})
+                        exec_status = exec_progress.get("status", "idle")  # idle, pending, running, completed, failed
+                        exec_total = exec_progress.get("total_batches", 0)
+                        exec_processed = exec_progress.get("processed_batches", 0)
+                        exec_error = exec_progress.get("error_message", "")
+
+                        # Determine badge display
+                        is_running = exec_status == "running"
+                        is_pending = exec_status == "pending"
+                        is_exec_failed = exec_status == "failed"
+                        is_completed = exec_status == "completed"
+
+                        # Compute border color based on execution status
+                        if is_running:
+                            border_color = "2px solid #3b82f6"  # blue for running
+                        elif is_exec_failed:
+                            border_color = "2px solid #ef4444"  # red for failed
+                        elif is_pending:
+                            border_color = "2px solid #f59e0b"  # amber for pending
+                        elif is_completed:
+                            border_color = "2px solid #22c55e"  # green for completed
+                        elif sid in selected_ids:
+                            border_color = "2px solid #3b82f6"
+                        else:
+                            border_color = "1px solid #e5e7eb"
 
                         nodes.append(
                             {
@@ -797,8 +961,22 @@ class EtlState(rx.State):
                                 "total_failed": total_failed,
                                 "has_total_failed": total_failed > 0,  # Pre-computed for Reflex rx.cond
                                 "total_failed_str": f"({total_failed} ✗)" if total_failed > 0 else "",
+                                # Live execution status
+                                "exec_status": exec_status,
+                                "is_running": is_running,
+                                "is_pending": is_pending,
+                                "is_exec_failed": is_exec_failed,
+                                "is_completed": is_completed,
+                                "exec_total": exec_total,
+                                "exec_processed": exec_processed,
+                                "exec_progress_str": f"{exec_processed}/{exec_total}" if exec_total > 0 else "",
+                                "exec_error": exec_error,
+                                # Pending batch count (needs processing)
+                                "pending_count": pending_count,
+                                "has_pending": pending_count > 0,
+                                "pending_str": f"⚠ {pending_count} pending" if pending_count > 0 else "",
                                 "selected": sid in selected_ids,
-                                "border_css": "2px solid #3b82f6" if sid in selected_ids else "1px solid #e5e7eb",
+                                "border_css": border_color,
                             }
                         )
                     else:  # data view: nodes are tables
@@ -1104,6 +1282,13 @@ class EtlState(rx.State):
                 total_success = int(totals_row[0]) if totals_row and totals_row[0] else 0
                 total_failed = int(totals_row[1]) if totals_row and totals_row[1] else 0
 
+                # Get pending count using step.get_status()
+                try:
+                    step_status = step.get_status(etl_app.ds)
+                    pending_count = step_status.changed_idx_count
+                except Exception:
+                    pending_count = 0
+
                 if run_start == 0.0 and run_end == 0.0:
                     # No data
                     self.step_meta[idx] = EtlStepRunStats(
@@ -1116,6 +1301,7 @@ class EtlState(rx.State):
                         rows_failed=0,
                         total_success=total_success,
                         total_failed=total_failed,
+                        pending_count=pending_count,
                     )
                     continue
 
@@ -1143,6 +1329,7 @@ class EtlState(rx.State):
                     rows_failed=int(row[2]) if row and row[2] else 0,
                     total_success=total_success,
                     total_failed=total_failed,
+                    pending_count=pending_count,
                 )
 
             except Exception as e:
@@ -1158,7 +1345,64 @@ class EtlState(rx.State):
                     rows_failed=0,
                     total_success=0,
                     total_failed=0,
+                    pending_count=0,
                 )
+
+    def _run_steps_sync(self, steps_to_run: list[Any]) -> None:
+        # Run each step sequentially to provide granular logs
+        for step in steps_to_run:
+            step_name = getattr(step, "name", type(step).__name__)
+            self._append_log(f"Running step: {step_name}")
+            run_steps(etl_app.ds, [step])  # type: ignore[arg-type]
+            self._append_log(f"Completed step: {step_name}")
+
+    def _get_step_index(self, step: Any) -> int:
+        """Get the index of a step in the etl_app.steps list."""
+        for idx, s in enumerate(etl_app.steps):
+            if s is step:
+                return idx
+        return -1
+
+    def _init_step_progress(self, step: Any, step_idx: int) -> None:
+        """Initialize progress tracking for a step before execution."""
+        import math
+
+        step_name = getattr(step, "name", type(step).__name__)
+
+        # Get pending batch count for BatchTransform steps
+        total_batches = 0
+        if isinstance(step, BaseBatchTransformStep):
+            try:
+                # Use get_changed_idx_count directly to avoid creating generators
+                changed_count = step.get_changed_idx_count(etl_app.ds)
+                chunk_size = getattr(step, "chunk_size", 1000)
+                total_batches = math.ceil(changed_count / chunk_size) if changed_count > 0 else 0
+            except Exception as e:
+                logging.debug(f"Could not get batch count for step {step_name}: {e}")
+                total_batches = 0
+
+        self.step_execution_progress[step_idx] = {
+            "step_index": step_idx,
+            "step_name": step_name,
+            "status": "pending",
+            "total_batches": total_batches,
+            "processed_batches": 0,
+            "error_message": "",
+        }
+
+    def _update_step_status(self, step_idx: int, status: str, error_message: str = "") -> None:
+        """Update the status of a step in progress tracking."""
+        if step_idx in self.step_execution_progress:
+            self.step_execution_progress[step_idx]["status"] = status
+            if error_message:
+                self.step_execution_progress[step_idx]["error_message"] = error_message
+        self._rebuild_graph()
+
+    def _clear_step_progress(self) -> None:
+        """Clear all step execution progress tracking."""
+        self.step_execution_progress = {}
+        self.pending_step_indices = []
+        self._rebuild_graph()
 
     def _sanitize_k8s_name(self, name: str, len_limit: int = 43) -> str:
         """Sanitize a name to be RFC 1123 compliant for Kubernetes resource names.
@@ -1183,7 +1427,7 @@ class EtlState(rx.State):
             # Ensure it still ends with alphanumeric
             if not sanitized[-1].isalnum():
                 sanitized = sanitized[:-1] + '0'
-        
+
         return sanitized
 
     def _build_datapipe_command(
@@ -1335,7 +1579,7 @@ class EtlState(rx.State):
                         self.current_job_name = None
                         self.load_pipeline_metadata()
                         self._append_log("ETL run finished")
-                    
+
                     # Refresh jobs list
                     await self._load_k8s_jobs_async()
                     return
@@ -1394,9 +1638,8 @@ class EtlState(rx.State):
                 return EtlState.run_steps_k8s_background(step_names=step_names)
             else:
                 return EtlState.run_steps_k8s_background(labels=labels if labels else None)
-
-        # For local execution, use the yield-based approach
         return self.run_local_steps(steps_to_run=steps_to_run)
+
 
     def run_local_steps(self, steps_to_run: list):  # type: ignore[override]
         """Run ETL steps locally with log streaming"""
@@ -1426,7 +1669,41 @@ class EtlState(rx.State):
             self.load_pipeline_metadata()
             self._append_log("ETL run finished")
 
+
     def run_one_step(self, index: int | None = None):  # type: ignore[override]
+        """
+        This needs to be merged and taken care of
+
+                    # Initialize progress tracking for all steps
+            step_indices = []
+            for step in steps_to_run:
+                step_idx = self._get_step_index(step)
+                if step_idx >= 0:
+                    self._init_step_progress(step, step_idx)
+                    step_indices.append(step_idx)
+            self.pending_step_indices = step_indices
+            self._rebuild_graph()
+            yield
+
+            # stream datapipe logs into UI while each step runs
+            q, handler, loggers, original_stderr, progress_tracker = self._start_log_capture()
+            execution_error: Exception | None = None
+            try:
+                for step in steps_to_run:
+                    step_idx = self._get_step_index(step)
+                    step_name = getattr(step, "name", type(step).__name__)
+
+                    # Reset progress tracker for each step
+                    progress_tracker.current = 0
+                    progress_tracker.total = 0
+                    progress_tracker.last_percentage = -1
+
+                    # Update status to running
+                    self._update_step_status(step_idx, "running")
+                    self._append_log(f"Running step: {step_name}")
+                    yield
+
+        """
         if self.is_running:
             return None
 
@@ -1448,6 +1725,12 @@ class EtlState(rx.State):
         self.current_job_name = None
         self._append_log(f"Starting single step {step.name}")
 
+        # Initialize progress tracking
+        self._init_step_progress(step, idx)
+        self.pending_step_indices = [idx]
+        self._rebuild_graph()
+        yield
+
         use_k8s = k8s_config.enable_jobs and self.execution_mode == "k8s"
 
         if use_k8s:
@@ -1459,24 +1742,38 @@ class EtlState(rx.State):
 
     def _run_local_single_step(self, step):  # type: ignore[override]
         """Run a single ETL step locally with log streaming."""
-        q, handler, logger = self._start_log_capture()
-        try:
-            def _runner():
-                run_steps(etl_app.ds, [step])  # type: ignore[arg-type]
+        q, handler, loggers, original_stderr, progress_tracker = self._start_log_capture()
+            step_error: list[Exception] = []
+        try:self._update_step_status(idx, "running")
+                yield
+            def _runner():try:
+                run_steps(etl_app.ds, [step])  # type: ignore[arg-type]except Exception as e:
+                        step_error.append(e)
 
             t = threading.Thread(target=_runner, daemon=True)
             t.start()
             while t.is_alive():
                 self._drain_queue_into_logs(q)
-                yield
+                # Update batch progress from tracker
+                    if idx in self.step_execution_progress and progress_tracker.current > 0:
+                        self.step_execution_progress[idx]["processed_batches"] = progress_tracker.current
+                        if progress_tracker.total > 0:
+                            self.step_execution_progress[idx]["total_batches"] = progress_tracker.total
+                        self._rebuild_graph()yield
                 time.sleep(0.1)
             t.join(timeout=0)
             self._drain_queue_into_logs(q)
-        finally:
-            self._stop_log_capture(handler, logger)
+if step_error:
+                    self._update_step_status(idx, "failed", str(step_error[0]))
+                    self._append_log(f"Step failed: {step_error[0]}")
+                else:
+                    self._update_step_status(idx, "completed")
+                    self._append_log("Single step finished successfully")        finally:
+            self._stop_log_capture(handler, loggers, original_stderr)
             self.is_running = False
             self.current_job_name = None
-            self._append_log("Single step finished")
+            self._load_step_stats()
+            self._clear_step_progress()
         return None
 
     def preview_table(self, table_name: str) -> None:
@@ -1851,7 +2148,7 @@ class EtlState(rx.State):
             # List all jobs with our label selector
             if launcher._k8s_client is None:
                 raise RuntimeError("K8s client not initialized")
-            
+
             jobs = await asyncio.to_thread(
                 launcher._k8s_client.list_namespaced_job,
                 namespace=launcher.namespace,
@@ -1906,7 +2203,7 @@ class EtlState(rx.State):
 
             # Sort by creation time (newest first)
             job_list.sort(key=lambda x: x["created"], reverse=True)
-            
+
             async with self:
                 self.k8s_jobs = job_list
                 self.k8s_jobs_loading = False
@@ -1953,7 +2250,7 @@ class EtlState(rx.State):
 
             if launcher._k8s_core is None:
                 raise RuntimeError("K8s core client not initialized")
-            
+
             logs = await asyncio.to_thread(
                 launcher._k8s_core.read_namespaced_pod_log,
                 name=pod_name,
