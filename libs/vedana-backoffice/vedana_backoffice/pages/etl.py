@@ -88,38 +88,56 @@ def _k8s_jobs_card() -> rx.Component:
 
     def _job_row(job: dict) -> rx.Component:
         """Render a single job row."""
-        job_name = job.get("name", "")
-        status = job.get("status", "unknown")
-        created = job.get("created", 0)
-
-        # Status color
-        status_colors = {
-            "completed": "green",
-            "running": "blue",
-            "failed": "red",
-            "pending": "gray",
-        }
-        status_color = status_colors.get(str(status), "gray")
-
-        # Format creation time
-        created_str = "—"
-        try:
-            if created:
-                dt = datetime.fromtimestamp(float(created))
-                created_str = dt.strftime("%Y-%m-%d %H:%M:%S")
-        except Exception:
-            pass
-
         return rx.table.row(
-            rx.table.cell(rx.text(str(job_name), size="2", style={"fontFamily": "monospace"})),
+            rx.table.cell(
+                rx.text(
+                    job["name"],
+                    size="2",
+                    style={"fontFamily": "monospace"},
+                )
+            ),
             rx.table.cell(
                 rx.badge(
-                    str(status).upper(),
-                    color_scheme=status_color,
+                    rx.cond(
+                        job["status"] == "completed",
+                        "COMPLETED",
+                        rx.cond(
+                            job["status"] == "running",
+                            "RUNNING",
+                            rx.cond(
+                                job["status"] == "failed",
+                                "FAILED",
+                                rx.cond(
+                                    job["status"] == "pending",
+                                    "PENDING",
+                                    "UNKNOWN",
+                                ),
+                            ),
+                        ),
+                    ),
+                    color_scheme=rx.cond(
+                        job["status"] == "completed",
+                        "green",
+                        rx.cond(
+                            job["status"] == "running",
+                            "blue",
+                            rx.cond(
+                                job["status"] == "failed",
+                                "red",
+                                "gray",
+                            ),
+                        ),
+                    ),
                     size="1",
                 )
             ),
-            rx.table.cell(rx.text(created_str, size="1", color="gray")),
+            rx.table.cell(
+                rx.text(
+                    job.get("created_str", "—"),
+                    size="1",
+                    color="gray",
+                )
+            ),
             rx.table.cell(
                 rx.hstack(
                     rx.button(
