@@ -4,6 +4,8 @@ set -e
 CLUSTER_NAME="${KIND_CLUSTER_NAME:-vedana-local}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KIND_CONFIG="${SCRIPT_DIR}/kind-config.yaml"
+EXTERNAL_SERVICES="${SCRIPT_DIR}/external-services.yaml"
+
 
 echo "▶ Setting up kind cluster: ${CLUSTER_NAME}"
 
@@ -27,6 +29,10 @@ kubectl wait --for=condition=Ready nodes --all --timeout=120s \
   --context "kind-${CLUSTER_NAME}"
 
 echo "✔ kind cluster ready"
+
+echo "Configuring external services..."
+kubectl apply -f "${EXTERNAL_SERVICES}"
+echo "✔ done"
 
 # Create host kubeconfig
 HOST_KUBECONFIG="${HOME}/.kube/config-kind-${CLUSTER_NAME}"
