@@ -1,3 +1,4 @@
+import re
 import logging
 import threading
 import time
@@ -93,6 +94,7 @@ class EtlState(rx.State):
     # Run status
     is_running: bool = False
     logs: list[str] = []
+    k8s_job_logs: list[str] = []  # Separate logs for K8s jobs
     max_log_lines: int = 2000
     current_job_name: str | None = None
 
@@ -112,6 +114,10 @@ class EtlState(rx.State):
     sidebar_open: bool = True
     logs_open: bool = True
     k8s_jobs_open: bool = True
+    
+    # Log view mode: "system" or "k8s_job"
+    log_view_mode: str = "system"
+    viewing_k8s_job_name: str | None = None
 
     # Multi-select of nodes (by step index)
     selected_node_ids: list[int] = []
@@ -1154,6 +1160,32 @@ class EtlState(rx.State):
                     total_failed=0,
                 )
 
+    def _sanitize_k8s_name(self, name: str, len_limit: int = 43) -> str:
+        """Sanitize a name to be RFC 1123 compliant for Kubernetes resource names.
+
+        - Only lowercase alphanumeric characters, hyphens, and dots
+        - Must start and end with an alphanumeric character
+        - Max 63 characters (Kubernetes limit); account for prefix/suffix via len_limit.
+        """
+
+        sanitized = name.lower()
+        sanitized = re.sub(r'[^a-z0-9.-]', '-', sanitized)
+        sanitized = re.sub(r'[-.]+', '-', sanitized)  # Replace multiple consecutive hyphens/dots with a single hyphen
+        sanitized = sanitized.strip('-.').strip()  # Remove leading/trailing hyphens and dots
+
+        if not sanitized or not sanitized[0].isalnum():  # Ensure it starts and ends with alphanumeric
+            sanitized = 'a' + sanitized
+        if not sanitized[-1].isalnum():
+            sanitized = sanitized + '0'
+
+        if len(sanitized) > len_limit:
+            sanitized = sanitized[:len_limit]
+            # Ensure it still ends with alphanumeric
+            if not sanitized[-1].isalnum():
+                sanitized = sanitized[:-1] + '0'
+        
+        return sanitized
+
     def _build_datapipe_command(
         self, step_names: list[str] | None = None, labels: list[tuple[str, str]] | None = None
     ) -> list[str]:
@@ -1194,12 +1226,15 @@ class EtlState(rx.State):
 
             launcher = K8sJobLauncher(k8s_config)
 
-            # Generate unique job name
+            # Generate unique job name (RFC 1123 compliant, max 63 chars)
             job_suffix = str(uuid.uuid4())[:8]
             if step_names:
-                job_name = f"etl-step-{step_names[0]}-{job_suffix}"
+                job_prefix = "etl-step"
+                job_stem_name = self._sanitize_k8s_name(step_names[0], len_limit=43)
             else:
-                job_name = f"etl-labels-{job_suffix}"
+                job_prefix = "etl"
+                job_stem_name = "labels"
+            job_name = f"{job_prefix}-{job_stem_name}-{job_suffix}"
 
             # Build command
             command = self._build_datapipe_command(step_names=step_names, labels=labels)
@@ -1894,9 +1929,18 @@ class EtlState(rx.State):
                 raise RuntimeError("K8s core client not initialized")
             logs = launcher._k8s_core.read_namespaced_pod_log(name=pod_name, namespace=launcher.namespace)
 
-            # Clear current logs and show job logs
-            self.logs = [f"[Job: {job_name}] {line}" for line in logs.split("\n") if line.strip()]
+            # Store job logs separately and switch to K8s job log view
+            self.k8s_job_logs = [f"[Job: {job_name}] {line}" for line in logs.split("\n") if line.strip()]
+            self.viewing_k8s_job_name = job_name
+            self.log_view_mode = "k8s_job"
             self.logs_open = True
         except Exception as e:
             logging.error(f"Failed to get logs for job {job_name}: {e}", exc_info=True)
             self._append_log(f"Failed to get logs for job {job_name}: {e}")
+
+    def set_log_view_mode(self, mode: str) -> None:
+        """Set the log view mode (system or k8s_job)."""
+        self.log_view_mode = mode
+        if mode == "system":
+            # When switching back to system logs, clear the viewing job name
+            self.viewing_k8s_job_name = None
