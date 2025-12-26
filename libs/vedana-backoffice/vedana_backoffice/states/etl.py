@@ -1599,11 +1599,14 @@ class EtlState(rx.State):
                             self._append_log(f"Job failed: {status}")
                         self.is_running = False
                         self.current_job_name = None
-                        self.load_pipeline_metadata()
                         self._append_log("ETL run finished")
 
-                    # Refresh jobs list
+                    # Refresh K8s jobs list (runs fetch in thread, updates state properly)
                     await self._load_k8s_jobs_async()
+
+                    # Reload pipeline metadata within state lock
+                    async with self:
+                        self.load_pipeline_metadata()
                     return
 
                 # Non-blocking wait before next poll
@@ -2260,9 +2263,9 @@ class EtlState(rx.State):
             async with self:
                 self.k8s_jobs = []
 
-    def delete_k8s_job(self, job_name: str) -> None:
+    def delete_k8s_job(self, job_name: str):
         """Delete a Kubernetes job"""
-        self.delete_k8s_job_background(job_name)  # type: ignore[operator]
+        return type(self).delete_k8s_job_background(job_name)  # type: ignore[call-overload]
 
     @rx.event(background=True)  # type: ignore[operator]
     async def delete_k8s_job_background(self, job_name: str) -> None:
@@ -2276,13 +2279,13 @@ class EtlState(rx.State):
             async with self:
                 self._append_log(f"Failed to delete job {job_name}: {e}")
 
-    def view_k8s_job_logs(self, job_name: str) -> None:
+    def view_k8s_job_logs(self, job_name: str):
         """View logs for a Kubernetes job"""
         self.viewing_k8s_job_name = job_name
         self.log_view_mode = "k8s_job"
         self.logs_open = True
         self.k8s_job_logs = ["Loading logs..."]
-        self.view_k8s_job_logs_background(job_name)  # type: ignore[operator]
+        return type(self).view_k8s_job_logs_background(job_name)  # type: ignore[call-overload]
 
     @rx.event(background=True)  # type: ignore[operator]
     async def view_k8s_job_logs_background(self, job_name: str) -> None:
