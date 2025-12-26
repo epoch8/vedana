@@ -3,7 +3,6 @@ import logging
 import re
 import threading
 import time
-import traceback
 import uuid
 from collections import deque
 from dataclasses import dataclass

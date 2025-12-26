@@ -1,5 +1,4 @@
 import reflex as rx
-from datetime import datetime
 
 from vedana_backoffice.components.etl_graph import etl_graph
 from vedana_backoffice.states.etl import EtlState
