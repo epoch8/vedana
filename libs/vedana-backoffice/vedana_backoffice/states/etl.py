@@ -1,6 +1,6 @@
 import asyncio
-import logging
 import io
+import logging
 import re
 import sys
 import threading
@@ -1248,13 +1248,13 @@ class EtlState(rx.State):
 
         for idx, step in enumerate(etl_app.steps):
             try:
-                # Only BaseBatchTransformStep has meta_table
+                # Only BaseBatchTransformStep has meta
                 if not isinstance(step, BaseBatchTransformStep):
                     continue
 
-                # Get the meta table name from the step
-                meta_table = step.meta_table
-                meta_table_name = str(meta_table.sql_table.name)
+                # Get the meta table name from the step's transform meta
+                transform_meta = step.meta  # type: ignore[attr-defined]
+                meta_table_name = str(transform_meta.sql_table.name)
 
                 # Query all distinct process_ts values to detect runs
                 ts_query = sa.text(
@@ -1373,8 +1373,8 @@ class EtlState(rx.State):
         total_batches = 0
         if isinstance(step, BaseBatchTransformStep):
             try:
-                # Use get_changed_idx_count directly to avoid creating generators
-                changed_count = step.get_changed_idx_count(etl_app.ds)
+                # Use meta.get_changed_idx_count directly to avoid creating generators
+                changed_count = step.meta.get_changed_idx_count(etl_app.ds)  # type: ignore[attr-defined]
                 chunk_size = getattr(step, "chunk_size", 1000)
                 total_batches = math.ceil(changed_count / chunk_size) if changed_count > 0 else 0
             except Exception as e:
