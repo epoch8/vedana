@@ -89,10 +89,24 @@ def _k8s_jobs_card() -> rx.Component:
         """Render a single job row."""
         return rx.table.row(
             rx.table.cell(
-                rx.text(
-                    job["name"],
-                    size="2",
-                    style={"fontFamily": "monospace"},
+                rx.vstack(
+                    rx.text(
+                        job["name"],
+                        size="2",
+                        style={"fontFamily": "monospace"},
+                    ),
+                    rx.cond(
+                        job.get("steps_info", ""),
+                        rx.text(
+                            job.get("steps_info", ""),
+                            size="1",
+                            color="gray",
+                            style={"fontFamily": "monospace", "maxWidth": "300px", "overflow": "hidden", "textOverflow": "ellipsis"},
+                        ),
+                        rx.box(),
+                    ),
+                    spacing="0",
+                    align="start",
                 )
             ),
             rx.table.cell(

@@ -1486,16 +1486,33 @@ class EtlState(rx.State):
                 self._append_log(f"Creating Kubernetes job: {job_name}")
                 self._append_log(f"Command: {' '.join(command)}")
 
+            # Build descriptive label for UI
+            if step_names:
+                steps_label = ",".join(step_names[:3])  # Limit to first 3 for label length
+                if len(step_names) > 3:
+                    steps_label += f"...+{len(step_names) - 3}"
+            else:
+                steps_label = ",".join([f"{k}={v}" for k, v in (labels or [])])
+
             await asyncio.to_thread(
                 launcher.create_job,
                 job_name=job_name,
                 command=command,
-                labels={"run-id": job_suffix, "type": "etl", "app": "vedana-etl", "managed-by": "vedana-backoffice"},
+                labels={
+                    "run-id": job_suffix,
+                    "type": "etl",
+                    "app": "vedana-etl",
+                    "managed-by": "vedana-backoffice",
+                    "steps": self._sanitize_k8s_name(steps_label, len_limit=63) if steps_label else "all",
+                },
             )
 
             async with self:
                 self.current_job_name = job_name
                 self._append_log(f"Job created: {job_name}")
+
+            # Refresh jobs list immediately so the new job appears in the UI
+            await self._load_k8s_jobs_async()
 
             # Wait for pod to be created
             pod_name = None
