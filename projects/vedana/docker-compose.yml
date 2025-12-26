@@ -27,19 +27,6 @@ services:
       db:
         condition: service_healthy
 
- # app:
- #   <<: *app-common
- #   ports:
- #     - "7860:7860"  # gradio
- #   command: uv run python -m vedana_gradio.gradio_app
- #   depends_on:
- #     db-migrate:
- #       condition: service_completed_successfully
- #     memgraph:
- #       condition: service_started
- #     db:
- #       condition: service_healthy
-
   # tg:
   #   <<: *app-common
   #   command: uv run python -m vedana_tg.tg_app
