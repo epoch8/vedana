@@ -70,15 +70,12 @@ class K8sJobLauncher:
         return namespace, image
 
     def _get_env_vars(self) -> list[V1EnvVar]:
-        """Environment variables to pass to the job."""
-        env_vars: list[V1EnvVar] = []
-        env_dict = {key.upper(): value for key, value in etl_settings.model_dump().items()}
+        """Environment variables to pass to the job"""
+        etl_env_dict = {key.upper(): value for key, value in etl_settings.model_dump().items()}
+        core_env_dict = {key.upper(): value for key, value in core_settings.model_dump().items()}
+        etl_env_dict.update(core_env_dict)
 
-        # this is not represented in etl yet. todo fix?
-        env_dict["MEMGRAPH_URI"] = core_settings.memgraph_uri
-        env_dict["MEMGRAPH_USER"] = core_settings.memgraph_user
-        env_dict["MEMGRAPH_PWD"] = core_settings.memgraph_pwd
-
+        env_vars = [V1EnvVar(name=k, value=str(v)) for k, v in etl_env_dict.items()]
         return env_vars
 
     def build_job_manifest(
