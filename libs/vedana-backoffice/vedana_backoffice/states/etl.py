@@ -1878,6 +1878,9 @@ class EtlState(rx.State):
 
                 # Get creation time
                 creation_time = metadata.creation_timestamp.timestamp() if metadata.creation_timestamp else 0
+                created_str = "—"
+                if creation_time > 0:
+                    created_str = datetime.fromtimestamp(creation_time).strftime("%Y-%m-%d %H:%M:%S")
 
                 job_list.append(
                     {
@@ -1888,6 +1891,7 @@ class EtlState(rx.State):
                         "step_info": step_info,
                         "run_id": run_id,
                         "created": creation_time,
+                        "created_str": created_str,
                         "active": status.active or 0,
                         "succeeded": status.succeeded or 0,
                         "failed": status.failed or 0,
