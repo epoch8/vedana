@@ -1654,12 +1654,11 @@ class EtlState(rx.State):
         self._append_log(f"Steps to execute: {[getattr(s, 'name', type(s).__name__) for s in steps_to_run]}")
 
         if use_k8s:
+            # Return the background task to properly invoke it in Reflex
             if self.selection_source == "manual" and step_names:
-                self.run_steps_k8s_background(step_names=step_names)  # type: ignore[operator]
-                return None
+                return type(self).run_steps_k8s_background(step_names=step_names)  # type: ignore[call-overload]
             else:
-                self.run_steps_k8s_background(labels=labels if labels else None)  # type: ignore[operator]
-                return None
+                return type(self).run_steps_k8s_background(labels=labels if labels else None)  # type: ignore[call-overload]
         return self.run_local_steps(steps_to_run=steps_to_run)
 
     def run_local_steps(self, steps_to_run: list):  # type: ignore[override]
@@ -1761,18 +1760,19 @@ class EtlState(rx.State):
         self.current_job_name = None
         self._append_log(f"Starting single step {step.name}")
 
-        # Initialize progress tracking
-        self._init_step_progress(step, idx)
-        self.pending_step_indices = [idx]
-        self._rebuild_graph()
-        yield
-
+        # Check K8s mode BEFORE any yields to allow returning the background task
         use_k8s = k8s_config.enable_jobs and self.execution_mode == "k8s"
 
         if use_k8s:
             step_name = getattr(step, "name", type(step).__name__)
-            self.run_steps_k8s_background(step_names=[step_name])  # type: ignore[operator]
-            return None
+            # Return the background task to properly invoke it in Reflex
+            return type(self).run_steps_k8s_background(step_names=[step_name])  # type: ignore[call-overload]
+
+        # Initialize progress tracking (only for local execution)
+        self._init_step_progress(step, idx)
+        self.pending_step_indices = [idx]
+        self._rebuild_graph()
+        yield
 
         # For local execution, use the yield-based approach
         return self._run_local_single_step(step, idx)  # type: ignore[return-value]
@@ -2170,92 +2170,95 @@ class EtlState(rx.State):
         self.k8s_jobs_open = not self.k8s_jobs_open
 
     def load_k8s_jobs(self) -> None:
+        """Load K8s jobs synchronously for reliable page load."""
         if not k8s_config.enable_jobs:
             return
         self.k8s_jobs_loading = True
-        self.load_k8s_jobs_background()  # type: ignore[operator]
-
-    @rx.event(background=True)  # type: ignore[operator]
-    async def load_k8s_jobs_background(self):
-        await self._load_k8s_jobs_async()
-
-    async def _load_k8s_jobs_async(self):
         try:
-            if not k8s_config.enable_jobs:
-                return
-
-            launcher = K8sJobLauncher(k8s_config)
-
-            # List all jobs with our label selector
-            if launcher._k8s_client is None:
-                raise RuntimeError("K8s client not initialized")
-
-            jobs = await asyncio.to_thread(
-                launcher._k8s_client.list_namespaced_job,
-                namespace=launcher.namespace,
-                label_selector="managed-by=vedana-backoffice,app=vedana-etl",
-            )
-
-            job_list = []
-            for job in jobs.items:
-                status = job.status
-                metadata = job.metadata
-
-                # Get pod name if available
-                pod_name = await asyncio.to_thread(launcher.get_job_pod_name, metadata.name)
-
-                # Determine status
-                if status.succeeded:
-                    job_status = "completed"
-                elif status.failed:
-                    job_status = "failed"
-                elif status.active:
-                    job_status = "running"
-                else:
-                    job_status = "pending"
-
-                # Extract command/step info from job labels
-                steps_info = metadata.labels.get("steps", "") if metadata.labels else ""
-                run_id = metadata.labels.get("run-id", "") if metadata.labels else ""
-
-                # Get creation time
-                creation_time = metadata.creation_timestamp.timestamp() if metadata.creation_timestamp else 0
-                created_str = "—"
-                if creation_time > 0:
-                    created_str = datetime.fromtimestamp(creation_time).strftime("%Y-%m-%d %H:%M:%S")
-
-                job_list.append(
-                    {
-                        "name": metadata.name,
-                        "namespace": launcher.namespace,
-                        "status": job_status,
-                        "pod_name": pod_name or "",
-                        "steps_info": steps_info,
-                        "run_id": run_id,
-                        "created": creation_time,
-                        "created_str": created_str,
-                        "active": status.active or 0,
-                        "succeeded": status.succeeded or 0,
-                        "failed": status.failed or 0,
-                        "completion_time": status.completion_time.timestamp() if status.completion_time else None,
-                        "start_time": status.start_time.timestamp() if status.start_time else None,
-                    }
-                )
-
-            # Sort by creation time (newest first)
-            job_list.sort(key=lambda x: x["created"], reverse=True)
-
-            async with self:
-                self.k8s_jobs = job_list
-
+            job_list = self._fetch_k8s_jobs()
+            self.k8s_jobs = job_list
         except Exception as e:
             logging.error(f"Failed to load K8s jobs: {e}", exc_info=True)
+            self.k8s_jobs = []
+        finally:
+            self.k8s_jobs_loading = False
+
+    def _fetch_k8s_jobs(self) -> list[dict[str, Any]]:
+        """Fetch K8s jobs list (pure function, no state modification)."""
+        launcher = K8sJobLauncher(k8s_config)
+
+        # List all jobs with our label selector
+        if launcher._k8s_client is None:
+            logging.warning("K8s client not initialized")
+            return []
+
+        jobs = launcher._k8s_client.list_namespaced_job(
+            namespace=launcher.namespace,
+            label_selector="managed-by=vedana-backoffice,app=vedana-etl",
+        )
+
+        job_list = []
+        for job in jobs.items:
+            status = job.status
+            metadata = job.metadata
+
+            # Get pod name if available
+            pod_name = launcher.get_job_pod_name(metadata.name)
+
+            # Determine status
+            if status.succeeded:
+                job_status = "completed"
+            elif status.failed:
+                job_status = "failed"
+            elif status.active:
+                job_status = "running"
+            else:
+                job_status = "pending"
+
+            # Extract command/step info from job labels
+            steps_info = metadata.labels.get("steps", "") if metadata.labels else ""
+            run_id = metadata.labels.get("run-id", "") if metadata.labels else ""
+
+            # Get creation time
+            creation_time = metadata.creation_timestamp.timestamp() if metadata.creation_timestamp else 0
+            created_str = "—"
+            if creation_time > 0:
+                created_str = datetime.fromtimestamp(creation_time).strftime("%Y-%m-%d %H:%M:%S")
+
+            job_list.append(
+                {
+                    "name": metadata.name,
+                    "namespace": launcher.namespace,
+                    "status": job_status,
+                    "pod_name": pod_name or "",
+                    "steps_info": steps_info,
+                    "run_id": run_id,
+                    "created": creation_time,
+                    "created_str": created_str,
+                    "active": status.active or 0,
+                    "succeeded": status.succeeded or 0,
+                    "failed": status.failed or 0,
+                    "completion_time": status.completion_time.timestamp() if status.completion_time else None,
+                    "start_time": status.start_time.timestamp() if status.start_time else None,
+                }
+            )
+
+        # Sort by creation time (newest first)
+        job_list.sort(key=lambda x: x["created"], reverse=True)
+        return job_list
+
+    async def _load_k8s_jobs_async(self):
+        """Async version for loading K8s jobs - used from background tasks."""
+        try:
+            # Run the fetch in a thread to avoid blocking
+            job_list = await asyncio.to_thread(self._fetch_k8s_jobs)
+            # Update state within async context
+            async with self:
+                self.k8s_jobs = job_list
+        except Exception as e:
+            logging.error(f"Failed to load K8s jobs async: {e}", exc_info=True)
             async with self:
                 self.k8s_jobs = []
-        finally:
-            # Always reset loading state
-            async with self:
-                self.k8s_jobs_loading = False
 
     def delete_k8s_job(self, job_name: str) -> None:
         """Delete a Kubernetes job"""
