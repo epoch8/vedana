@@ -54,15 +54,16 @@ class K8sJobLauncher:
         if self.namespace and self.image:
             return self.namespace, self.image
 
-        # Get pod name from HOSTNAME (standard in K8s)
-        pod_name = os.environ["HOSTNAME"]
+        # Get namespace and image
+        if os.getenv("KUBERNETES_SERVICE_HOST"):  # when running inside k8s
+            pod_name = os.environ["HOSTNAME"]  # Get pod name from HOSTNAME (standard in K8s)
+            namespace = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read().strip()
+            pod = self._k8s_core.read_namespaced_pod(name=pod_name, namespace=namespace)
+            image = pod.spec.containers[0].image  # todo check which image
 
-        # Try to get namespace from service account file first (faster)
-        namespace = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read().strip()
-
-        # Get pod details to extract image
-        pod = self._k8s_core.read_namespaced_pod(name=pod_name, namespace=namespace)
-        image = pod.spec.containers[0].image  # todo check which image
+        else:  # running in docker / locally - development/demo/testing etc.
+            namespace = os.environ["K8S_NAMESPACE"]
+            image = os.environ["K8S_IMAGE"]
 
         self.namespace = namespace
         self.image = image
