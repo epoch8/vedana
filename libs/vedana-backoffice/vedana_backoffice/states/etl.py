@@ -1396,9 +1396,9 @@ class EtlState(rx.State):
                 return EtlState.run_steps_k8s_background(labels=labels if labels else None)
 
         # For local execution, use the yield-based approach
-        return EtlState._run_local_steps(steps_to_run)
+        return self.run_local_steps(steps_to_run=steps_to_run)
 
-    def _run_local_steps(self, steps_to_run: list):  # type: ignore[override]
+    def run_local_steps(self, steps_to_run: list):  # type: ignore[override]
         """Run ETL steps locally with log streaming"""
         q, handler, logger = self._start_log_capture()
         try:
