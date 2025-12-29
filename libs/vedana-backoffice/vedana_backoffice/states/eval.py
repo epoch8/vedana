@@ -1867,27 +1867,33 @@ class EvalState(rx.State):
             self.is_running = False
             yield
 
+    def refresh_golden_dataset(self):
+        """Connecting button with a background task. Used to trigger animations properly."""
+        if self.is_running:
+            return
+        self.status_message = "Refreshing golden dataset from Grist…"
+        self.error_message = ""
+        self.is_running = True
+        yield
+        yield EvalState.refresh_golden_dataset_background()
+
     @rx.event(background=True)  # type: ignore[operator]
-    async def refresh_golden_dataset(self):
-        """Refresh the golden dataset from Grist."""
-        async with self:
-            if self.is_running:
-                return
-            self.status_message = "Refreshing golden dataset from Grist…"
-            self.error_message = ""
-            self.is_running = True
-            yield
-            try:
-                self.get_eval_gds_from_grist()
+    async def refresh_golden_dataset_background(self):
+        """Background task that refreshes the golden dataset from Grist."""
+        try:
+            await asyncio.to_thread(self.get_eval_gds_from_grist)
+            async with self:
                 self._append_progress("Golden dataset refreshed from Grist")
                 await self._load_eval_questions()
                 self.status_message = "Golden dataset refreshed successfully"
-            except Exception as e:
+        except Exception as e:
+            async with self:
                 self.error_message = f"Failed to refresh golden dataset: {e}"
-                logging.error(f"Failed to refresh golden dataset: {e}", exc_info=True)
-            finally:
+            logging.error(f"Failed to refresh golden dataset: {e}", exc_info=True)
+        finally:
+            async with self:
                 self.is_running = False
-                yield
+            yield
 
     def load_eval_data(self):
         """Connecting button with a background task. Used to trigger animations properly."""
