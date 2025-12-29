@@ -1905,17 +1905,3 @@ class EvalState(rx.State):
                 self.loading = False
                 yield
 
-    @rx.event(background=True)  # type: ignore[operator]
-    async def refresh_data_model(self):
-        async with self:
-            self.status_message = "Refreshing data model…"
-            self.error_message = ""
-            yield
-            try:
-                yield ChatState.reload_data_model()
-                await self._load_judge_config()
-            except Exception as e:
-                self.error_message = f"Data model refresh failed: {e}"
-            finally:
-                self.status_message = ""
-                yield
