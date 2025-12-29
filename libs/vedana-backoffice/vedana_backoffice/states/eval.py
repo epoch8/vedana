@@ -1889,25 +1889,33 @@ class EvalState(rx.State):
                 self.is_running = False
                 yield
 
+    def load_eval_data(self):
+        """Connecting button with a background task. Used to trigger animations properly."""
+        if self.loading:
+            return
+        self.loading = True
+        self.error_message = ""
+        self.status_message = ""
+        self.tests_page = 0  # Reset to first page
+        yield
+        yield EvalState.load_eval_data_background()
+
     @rx.event(background=True)  # type: ignore[operator]
-    async def load_eval_data(self):
-        async with self:
-            self.loading = True
-            self.error_message = ""
-            self.status_message = ""
-            self.tests_page = 0  # Reset to first page
-            self.fetch_openrouter_models()
-            self._sync_available_models()
-            yield
-            try:
+    async def load_eval_data_background(self):
+        """Background task that loads eval data."""
+        try:
+            async with self:
+                await asyncio.to_thread(self.fetch_openrouter_models)
+                self._sync_available_models()
                 await self._load_eval_questions()
                 self.tests_page_size = max(1, len(self.eval_gds_rows) * 2)
                 await self._load_judge_config()
                 await self._load_pipeline_config()
                 await self._load_tests()
-            except Exception as e:
+        except Exception as e:
+            async with self:
                 self.error_message = f"Failed to load eval data: {e} {traceback.format_exc()}"
-            finally:
+        finally:
+            async with self:
                 self.loading = False
-                yield
-
+            yield
