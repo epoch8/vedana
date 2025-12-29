@@ -873,115 +873,120 @@ class EvalState(rx.State):
         """Toggle compact diff view for data model diff."""
         self.compare_dm_compact = bool(checked)
 
-    @rx.event(background=True)  # type: ignore[operator]
-    async def compare_runs(self):
-        """Load and align two runs for comparison."""
-        async with self:
-            if self.compare_loading:
-                return
-            if not self.compare_run_a or not self.compare_run_b or self.compare_run_a == self.compare_run_b:
-                self.compare_error = "Select two different runs to compare."
-                self.compare_dialog_open = True
-                return
-
-            run_a_id = self._resolve_run_contact(self.compare_run_a)
-            run_b_id = self._resolve_run_contact(self.compare_run_b)
-            if not run_a_id or not run_b_id:
-                self.compare_error = "Unable to resolve selected runs."
-                self.compare_dialog_open = True
-                return
-
-            self.compare_loading = True
-            self.compare_error = ""
+    def compare_runs(self):
+        """Connecting button with a background task. Used to trigger animations properly."""
+        if self.compare_loading:
+            return
+        if not self.compare_run_a or not self.compare_run_b or self.compare_run_a == self.compare_run_b:
+            self.compare_error = "Select two different runs to compare."
             self.compare_dialog_open = True
-            yield
+            return
 
-            try:
-                vedana_app = await get_vedana_app()
-                async with vedana_app.sessionmaker() as session:
-                    threads_res = (
-                        (
-                            await session.execute(
-                                sa.select(ThreadDB)
-                                .where(
-                                    ThreadDB.thread_config.contains({"source": "eval"}),
-                                    ThreadDB.contact_id.in_([run_a_id, run_b_id]),
-                                )
-                                .order_by(ThreadDB.created_at.desc())
+        run_a_id = self._resolve_run_contact(self.compare_run_a)
+        run_b_id = self._resolve_run_contact(self.compare_run_b)
+        if not run_a_id or not run_b_id:
+            self.compare_error = "Unable to resolve selected runs."
+            self.compare_dialog_open = True
+            return
+
+        self.compare_loading = True
+        self.compare_error = ""
+        self.compare_dialog_open = True
+        yield
+        yield EvalState.compare_runs_background(run_a_id, run_b_id)
+
+    @rx.event(background=True)  # type: ignore[operator]
+    async def compare_runs_background(self, run_a_id: str, run_b_id: str):
+        try:
+            vedana_app = await get_vedana_app()
+            async with vedana_app.sessionmaker() as session:
+                threads_res = (
+                    (
+                        await session.execute(
+                            sa.select(ThreadDB)
+                            .where(
+                                ThreadDB.thread_config.contains({"source": "eval"}),
+                                ThreadDB.contact_id.in_([run_a_id, run_b_id]),
                             )
+                            .order_by(ThreadDB.created_at.desc())
                         )
-                        .scalars()
-                        .all()
                     )
+                    .scalars()
+                    .all()
+                )
 
-                    if not threads_res:
+                if not threads_res:
+                    async with self:
                         self.compare_error = "No threads found for selected runs."
-                        return
+                    return
 
-                    thread_ids = [t.thread_id for t in threads_res]
-                    events_res = (
-                        (
-                            await session.execute(
-                                sa.select(ThreadEventDB)
-                                .where(ThreadEventDB.thread_id.in_(thread_ids))
-                                .order_by(ThreadEventDB.created_at)
-                            )
+                thread_ids = [t.thread_id for t in threads_res]
+                events_res = (
+                    (
+                        await session.execute(
+                            sa.select(ThreadEventDB)
+                            .where(ThreadEventDB.thread_id.in_(thread_ids))
+                            .order_by(ThreadEventDB.created_at)
                         )
-                        .scalars()
-                        .all()
                     )
+                    .scalars()
+                    .all()
+                )
 
-                events_by_thread: dict[UUID, list[ThreadEventDB]] = {}
-                for ev in events_res:
-                    events_by_thread.setdefault(ev.thread_id, []).append(ev)
+            events_by_thread: dict[UUID, list[ThreadEventDB]] = {}
+            for ev in events_res:
+                events_by_thread.setdefault(ev.thread_id, []).append(ev)
 
-                threads_a = [t for t in threads_res if t.contact_id == run_a_id]
-                threads_b = [t for t in threads_res if t.contact_id == run_b_id]
+            threads_a = [t for t in threads_res if t.contact_id == run_a_id]
+            threads_b = [t for t in threads_res if t.contact_id == run_b_id]
 
+            async with self:
                 run_a_data = self._collect_run_data(run_a_id, threads_a, events_by_thread)
                 run_b_data = self._collect_run_data(run_b_id, threads_b, events_by_thread)
 
-                # Align questions across both runs
-                run_a_results = run_a_data.results
-                run_b_results = run_b_data.results
-                all_questions = set(run_a_results.keys()) | set(run_b_results.keys())
+            # Align questions across both runs
+            run_a_results = run_a_data.results
+            run_b_results = run_b_data.results
+            all_questions = set(run_a_results.keys()) | set(run_b_results.keys())
 
-                aligned_rows: list[CompareRow] = []
-                for q in sorted(all_questions):
-                    ra = run_a_results.get(q, EMPTY_RESULT)
-                    rb = run_b_results.get(q, EMPTY_RESULT)
-                    aligned_rows.append(
-                        CompareRow(
-                            question=q,
-                            golden_answer=ra["golden_answer"] or rb["golden_answer"],
-                            status_a=ra["status"],
-                            rating_a=ra["rating"],
-                            comment_a=ra["comment"],
-                            answer_a=ra["answer"],
-                            tool_calls_a=ra["tool_calls"],
-                            status_b=rb["status"],
-                            rating_b=rb["rating"],
-                            comment_b=rb["comment"],
-                            answer_b=rb["answer"],
-                            tool_calls_b=rb["tool_calls"],
-                        )
+            aligned_rows: list[CompareRow] = []
+            for q in sorted(all_questions):
+                ra = run_a_results.get(q, EMPTY_RESULT)
+                rb = run_b_results.get(q, EMPTY_RESULT)
+                aligned_rows.append(
+                    CompareRow(
+                        question=q,
+                        golden_answer=ra["golden_answer"] or rb["golden_answer"],
+                        status_a=ra["status"],
+                        rating_a=ra["rating"],
+                        comment_a=ra["comment"],
+                        answer_a=ra["answer"],
+                        tool_calls_a=ra["tool_calls"],
+                        status_b=rb["status"],
+                        rating_b=rb["rating"],
+                        comment_b=rb["comment"],
+                        answer_b=rb["answer"],
+                        tool_calls_b=rb["tool_calls"],
                     )
+                )
 
-                cfg_a = asdict(run_a_data.config_summary)
-                cfg_b = asdict(run_b_data.config_summary)
+            cfg_a = asdict(run_a_data.config_summary)
+            cfg_b = asdict(run_b_data.config_summary)
+            async with self:
                 diff_keys = self._diff_config_keys(cfg_a, cfg_b)
 
-                # Prompt and data model diffs
-                meta_a = run_a_data.meta
-                meta_b = run_b_data.meta
-                prompt_a = meta_a.judge.judge_prompt
-                prompt_b = meta_b.judge.judge_prompt
+            # Prompt and data model diffs
+            meta_a = run_a_data.meta
+            meta_b = run_b_data.meta
+            prompt_a = meta_a.judge.judge_prompt
+            prompt_b = meta_b.judge.judge_prompt
 
-                dm_a_str = meta_a.dm.dm_description
-                dm_b_str = meta_b.dm.dm_description
+            dm_a_str = meta_a.dm.dm_description
+            dm_b_str = meta_b.dm.dm_description
 
-                prompt_diff = "\n".join(difflib.unified_diff(prompt_a.splitlines(), prompt_b.splitlines(), lineterm=""))
-                dm_diff = "\n".join(difflib.unified_diff(dm_a_str.splitlines(), dm_b_str.splitlines(), lineterm=""))
+            prompt_diff = "\n".join(difflib.unified_diff(prompt_a.splitlines(), prompt_b.splitlines(), lineterm=""))
+            dm_diff = "\n".join(difflib.unified_diff(dm_a_str.splitlines(), dm_b_str.splitlines(), lineterm=""))
+            async with self:
                 prompt_diff_rows = self._build_side_by_side_diff(prompt_a, prompt_b)
                 dm_diff_rows = self._build_side_by_side_diff(dm_a_str, dm_b_str)
 
@@ -1001,9 +1006,11 @@ class EvalState(rx.State):
                 self.compare_config_b = cfg_b
                 self.compare_config_a_rows = self._config_rows(cfg_a, diff_keys)
                 self.compare_config_b_rows = self._config_rows(cfg_b, diff_keys)
-            except Exception as e:
+        except Exception as e:
+            async with self:
                 self.compare_error = f"Failed to compare runs: {e}"
-            finally:
+        finally:
+            async with self:
                 self.compare_loading = False
             yield
 
