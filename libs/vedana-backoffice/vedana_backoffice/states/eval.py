@@ -1783,7 +1783,6 @@ class EvalState(rx.State):
 
     @rx.event(background=True)  # type: ignore[operator]
     async def run_selected_tests_background(self):
-        """Background task that runs the selected tests."""
         async with self:
             selection = [str(q) for q in (self.selected_question_ids or []) if str(q)]
 
@@ -1895,7 +1894,6 @@ class EvalState(rx.State):
 
     @rx.event(background=True)  # type: ignore[operator]
     async def refresh_golden_dataset_background(self):
-        """Background task that refreshes the golden dataset from Grist."""
         try:
             await asyncio.to_thread(self.get_eval_gds_from_grist)
             async with self:
@@ -1924,7 +1922,6 @@ class EvalState(rx.State):
 
     @rx.event(background=True)  # type: ignore[operator]
     async def load_eval_data_background(self):
-        """Background task that loads eval data."""
         try:
             async with self:
                 await asyncio.to_thread(self.fetch_openrouter_models)
