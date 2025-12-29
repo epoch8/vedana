@@ -24,7 +24,6 @@ from pydantic import BaseModel, Field
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 
-from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.states.common import get_vedana_app
 from vedana_backoffice.util import safe_render_value
 
@@ -1905,17 +1904,3 @@ class EvalState(rx.State):
                 self.loading = False
                 yield
 
-    @rx.event(background=True)  # type: ignore[operator]
-    async def refresh_data_model(self):
-        async with self:
-            self.status_message = "Refreshing data model…"
-            self.error_message = ""
-            yield
-            try:
-                yield ChatState.reload_data_model()
-                await self._load_judge_config()
-            except Exception as e:
-                self.error_message = f"Data model refresh failed: {e}"
-            finally:
-                self.status_message = ""
-                yield
