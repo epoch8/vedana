@@ -24,7 +24,6 @@ from pydantic import BaseModel, Field
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 
-from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.states.common import get_vedana_app
 from vedana_backoffice.util import safe_render_value
 
