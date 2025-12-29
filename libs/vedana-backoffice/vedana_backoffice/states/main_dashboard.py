@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from typing import Any
@@ -103,23 +104,33 @@ class DashboardState(rx.State):
         """Log a message (for consistency with EtlState pattern)."""
         logging.warning(msg)
 
+    def load_dashboard(self):
+        """Connecting with a background task. Used to trigger animations properly."""
+        if self.loading:
+            return
+        self.loading = True
+        self.error_message = ""
+        yield
+        yield DashboardState.load_dashboard_background()
+
     @rx.event(background=True)  # type: ignore[operator]
-    async def load_dashboard(self):
-        """Load all dashboard data in background."""
-        async with self:
-            self.loading = True
-            self.error_message = ""
-            try:
+    async def load_dashboard_background(self):
+        """Background task that loads all dashboard data."""
+        try:
+            async with self:
                 await self._load_graph_counters()
-                self._load_datapipe_counters()
+            async with self:
+                await asyncio.to_thread(self._load_datapipe_counters)
                 self._compute_consistency()
                 self._load_change_metrics_window()
                 self._load_ingest_metrics_window()
-            except Exception as e:
+        except Exception as e:
+            async with self:
                 self.error_message = f"Failed to load dashboard: {e}"
-            finally:
+        finally:
+            async with self:
                 self.loading = False
-                yield
+            yield
 
     async def _load_graph_counters(self) -> None:
         """Query Memgraph for totals and per-label counts."""
