@@ -1904,7 +1904,6 @@ class EvalState(rx.State):
     async def load_eval_data_background(self):
         try:
             async with self:
-                # These might do HTTP requests, run in thread pool
                 await asyncio.to_thread(self.fetch_openrouter_models)
                 self._sync_available_models()
                 await self._load_eval_questions()
