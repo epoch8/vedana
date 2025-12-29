@@ -872,116 +872,121 @@ class EvalState(rx.State):
     def set_compare_dm_compact(self, checked: bool) -> None:
         """Toggle compact diff view for data model diff."""
         self.compare_dm_compact = bool(checked)
-
-    @rx.event(background=True)  # type: ignore[operator]
-    async def compare_runs(self):
-        """Load and align two runs for comparison."""
-        async with self:
-            if self.compare_loading:
-                return
-            if not self.compare_run_a or not self.compare_run_b or self.compare_run_a == self.compare_run_b:
-                self.compare_error = "Select two different runs to compare."
-                self.compare_dialog_open = True
-                return
-
-            run_a_id = self._resolve_run_contact(self.compare_run_a)
-            run_b_id = self._resolve_run_contact(self.compare_run_b)
-            if not run_a_id or not run_b_id:
-                self.compare_error = "Unable to resolve selected runs."
-                self.compare_dialog_open = True
-                return
-
-            self.compare_loading = True
-            self.compare_error = ""
+    
+    def compare_runs(self):
+        """Connecting button with a background task. Used to trigger animations properly."""
+        if self.compare_loading:
+            return
+        if not self.compare_run_a or not self.compare_run_b or self.compare_run_a == self.compare_run_b:
+            self.compare_error = "Select two different runs to compare."
             self.compare_dialog_open = True
-            yield
+            return
 
-            try:
-                vedana_app = await get_vedana_app()
-                async with vedana_app.sessionmaker() as session:
-                    threads_res = (
-                        (
-                            await session.execute(
-                                sa.select(ThreadDB)
-                                .where(
-                                    ThreadDB.thread_config.contains({"source": "eval"}),
-                                    ThreadDB.contact_id.in_([run_a_id, run_b_id]),
-                                )
-                                .order_by(ThreadDB.created_at.desc())
+        run_a_id = self._resolve_run_contact(self.compare_run_a)
+        run_b_id = self._resolve_run_contact(self.compare_run_b)
+        if not run_a_id or not run_b_id:
+            self.compare_error = "Unable to resolve selected runs."
+            self.compare_dialog_open = True
+            return
+
+        self.compare_loading = True
+        self.compare_error = ""
+        self.compare_dialog_open = True
+        yield
+        yield EvalState.compare_runs_background(run_a_id, run_b_id)
+    
+    @rx.event(background=True)  # type: ignore[operator]
+    async def compare_runs_background(self, run_a_id: str, run_b_id: str):
+        try:
+            vedana_app = await get_vedana_app()
+            async with vedana_app.sessionmaker() as session:
+                threads_res = (
+                    (
+                        await session.execute(
+                            sa.select(ThreadDB)
+                            .where(
+                                ThreadDB.thread_config.contains({"source": "eval"}),
+                                ThreadDB.contact_id.in_([run_a_id, run_b_id]),
                             )
+                            .order_by(ThreadDB.created_at.desc())
                         )
-                        .scalars()
-                        .all()
                     )
+                    .scalars()
+                    .all()
+                )
 
-                    if not threads_res:
+                if not threads_res:
+                    async with self:
                         self.compare_error = "No threads found for selected runs."
-                        return
+                    return
 
-                    thread_ids = [t.thread_id for t in threads_res]
-                    events_res = (
-                        (
-                            await session.execute(
-                                sa.select(ThreadEventDB)
-                                .where(ThreadEventDB.thread_id.in_(thread_ids))
-                                .order_by(ThreadEventDB.created_at)
-                            )
+                thread_ids = [t.thread_id for t in threads_res]
+                events_res = (
+                    (
+                        await session.execute(
+                            sa.select(ThreadEventDB)
+                            .where(ThreadEventDB.thread_id.in_(thread_ids))
+                            .order_by(ThreadEventDB.created_at)
                         )
-                        .scalars()
-                        .all()
                     )
+                    .scalars()
+                    .all()
+                )
 
-                events_by_thread: dict[UUID, list[ThreadEventDB]] = {}
-                for ev in events_res:
-                    events_by_thread.setdefault(ev.thread_id, []).append(ev)
+            events_by_thread: dict[UUID, list[ThreadEventDB]] = {}
+            for ev in events_res:
+                events_by_thread.setdefault(ev.thread_id, []).append(ev)
 
-                threads_a = [t for t in threads_res if t.contact_id == run_a_id]
-                threads_b = [t for t in threads_res if t.contact_id == run_b_id]
+            threads_a = [t for t in threads_res if t.contact_id == run_a_id]
+            threads_b = [t for t in threads_res if t.contact_id == run_b_id]
 
+            async with self:
                 run_a_data = self._collect_run_data(run_a_id, threads_a, events_by_thread)
                 run_b_data = self._collect_run_data(run_b_id, threads_b, events_by_thread)
 
-                # Align questions across both runs
-                run_a_results = run_a_data.results
-                run_b_results = run_b_data.results
-                all_questions = set(run_a_results.keys()) | set(run_b_results.keys())
+            # Align questions across both runs
+            run_a_results = run_a_data.results
+            run_b_results = run_b_data.results
+            all_questions = set(run_a_results.keys()) | set(run_b_results.keys())
 
-                aligned_rows: list[CompareRow] = []
-                for q in sorted(all_questions):
-                    ra = run_a_results.get(q, EMPTY_RESULT)
-                    rb = run_b_results.get(q, EMPTY_RESULT)
-                    aligned_rows.append(
-                        CompareRow(
-                            question=q,
-                            golden_answer=ra["golden_answer"] or rb["golden_answer"],
-                            status_a=ra["status"],
-                            rating_a=ra["rating"],
-                            comment_a=ra["comment"],
-                            answer_a=ra["answer"],
-                            tool_calls_a=ra["tool_calls"],
-                            status_b=rb["status"],
-                            rating_b=rb["rating"],
-                            comment_b=rb["comment"],
-                            answer_b=rb["answer"],
-                            tool_calls_b=rb["tool_calls"],
-                        )
+            aligned_rows: list[CompareRow] = []
+            for q in sorted(all_questions):
+                ra = run_a_results.get(q, EMPTY_RESULT)
+                rb = run_b_results.get(q, EMPTY_RESULT)
+                aligned_rows.append(
+                    CompareRow(
+                        question=q,
+                        golden_answer=ra["golden_answer"] or rb["golden_answer"],
+                        status_a=ra["status"],
+                        rating_a=ra["rating"],
+                        comment_a=ra["comment"],
+                        answer_a=ra["answer"],
+                        tool_calls_a=ra["tool_calls"],
+                        status_b=rb["status"],
+                        rating_b=rb["rating"],
+                        comment_b=rb["comment"],
+                        answer_b=rb["answer"],
+                        tool_calls_b=rb["tool_calls"],
                     )
+                )
 
-                cfg_a = asdict(run_a_data.config_summary)
-                cfg_b = asdict(run_b_data.config_summary)
+            cfg_a = asdict(run_a_data.config_summary)
+            cfg_b = asdict(run_b_data.config_summary)
+            async with self:
                 diff_keys = self._diff_config_keys(cfg_a, cfg_b)
 
-                # Prompt and data model diffs
-                meta_a = run_a_data.meta
-                meta_b = run_b_data.meta
-                prompt_a = meta_a.judge.judge_prompt
-                prompt_b = meta_b.judge.judge_prompt
+            # Prompt and data model diffs
+            meta_a = run_a_data.meta
+            meta_b = run_b_data.meta
+            prompt_a = meta_a.judge.judge_prompt
+            prompt_b = meta_b.judge.judge_prompt
 
-                dm_a_str = meta_a.dm.dm_description
-                dm_b_str = meta_b.dm.dm_description
+            dm_a_str = meta_a.dm.dm_description
+            dm_b_str = meta_b.dm.dm_description
 
-                prompt_diff = "\n".join(difflib.unified_diff(prompt_a.splitlines(), prompt_b.splitlines(), lineterm=""))
-                dm_diff = "\n".join(difflib.unified_diff(dm_a_str.splitlines(), dm_b_str.splitlines(), lineterm=""))
+            prompt_diff = "\n".join(difflib.unified_diff(prompt_a.splitlines(), prompt_b.splitlines(), lineterm=""))
+            dm_diff = "\n".join(difflib.unified_diff(dm_a_str.splitlines(), dm_b_str.splitlines(), lineterm=""))
+            async with self:
                 prompt_diff_rows = self._build_side_by_side_diff(prompt_a, prompt_b)
                 dm_diff_rows = self._build_side_by_side_diff(dm_a_str, dm_b_str)
 
@@ -1001,12 +1006,14 @@ class EvalState(rx.State):
                 self.compare_config_b = cfg_b
                 self.compare_config_a_rows = self._config_rows(cfg_a, diff_keys)
                 self.compare_config_b_rows = self._config_rows(cfg_b, diff_keys)
-            except Exception as e:
+        except Exception as e:
+            async with self:
                 self.compare_error = f"Failed to compare runs: {e}"
-            finally:
+        finally:
+            async with self:
                 self.compare_loading = False
             yield
-
+    
     def toggle_gds_row(self, row_id: str) -> None:
         """Toggle expansion for a golden dataset row."""
         row_id = str(row_id or "")
@@ -1743,30 +1750,47 @@ class EvalState(rx.State):
         data.pop("thread_id", None)
         await ctl.store_event_dict(uuid7(), "eval.result", data)
 
+    def run_selected_tests(self):
+        """Trigger test run - validates, sets loading state and starts background task."""
+        if self.is_running:
+            return
+
+        # Validation
+        selection = [str(q) for q in (self.selected_question_ids or []) if str(q)]
+        if not selection:
+            self.error_message = "Select at least one question to run tests."
+            return
+        if not self.judge_prompt:
+            self.error_message = "Judge prompt not loaded. Refresh judge config first."
+            return
+        if self.provider == "openrouter":
+            key = (self.custom_openrouter_key or os.environ.get("OPENROUTER_API_KEY") or "").strip()
+            if not key:
+                self.error_message = "OPENROUTER_API_KEY is required for OpenRouter provider."
+                return
+
+        test_run_name = self.test_run_name.strip() or ""
+
+        # Initialize run state
+        self.is_running = True
+        self.current_question_index = -1
+        self.total_questions_to_run = len(selection)
+        self.status_message = f"Evaluation run '{test_run_name}' for {len(selection)} question(s)…"
+        self.run_progress = []
+        self.error_message = ""
+        yield
+        yield EvalState.run_selected_tests_background()
+
     @rx.event(background=True)  # type: ignore[operator]
-    async def run_selected_tests(self):
-        """Run tests via JIMS sessions, one question at a time."""
+    async def run_selected_tests_background(self):
         async with self:
-            if self.is_running:
-                return
             selection = [str(q) for q in (self.selected_question_ids or []) if str(q)]
-            if not selection:
-                self.error_message = "Select at least one question to run tests."
-                return
-            if not self.judge_prompt:
-                self.error_message = "Judge prompt not loaded. Refresh judge config first."
-                return
-            if self.provider == "openrouter":
-                key = (self.custom_openrouter_key or os.environ.get("OPENROUTER_API_KEY") or "").strip()
-                if not key:
-                    self.error_message = "OPENROUTER_API_KEY is required for OpenRouter provider."
-                    return
 
             question_map = {}
             for row in self.eval_gds_rows:
                 if row:
                     row_id = str(row.get("id", ""))
-                    if row_id:  # Only include rows with non-empty IDs
+                    if row_id:
                         question_map[row_id] = row
 
             test_run_ts = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1774,66 +1798,62 @@ class EvalState(rx.State):
             test_run_name = self.test_run_name.strip() or ""
             resolved_pipeline_model = self._resolved_pipeline_model()
 
-            # Initialize run state
-            self.is_running = True
-            self.current_question_index = -1
-            self.total_questions_to_run = len(selection)
-            self.status_message = f"Evaluation run '{test_run_name}' for {len(selection)} question(s)…"
-            self.run_progress = []
-            self.error_message = ""
-            yield
-
-            vedana_app = await get_vedana_app()
+        vedana_app = await get_vedana_app()
+        async with self:
             eval_meta_base = await self._build_eval_meta_payload(vedana_app, test_run_id, test_run_name)
             max_parallel = max(1, int(self.max_parallel_tests or 1))
-            sem = asyncio.Semaphore(max_parallel)
 
-            async def _run_one(question: str) -> dict[str, Any]:
-                async with sem:
-                    row = question_map.get(str(question or "").strip())
-                    if row is None:
-                        return {"question": question, "status": None, "error": "not found"}
-                    try:
-                        thread_id, answer, tech = await self._run_question_thread(
-                            vedana_app, row, test_run_name, test_run_id, eval_meta_base
-                        )
-                        tool_calls = self._format_tool_calls(tech)
+        sem = asyncio.Semaphore(max_parallel)
+
+        async def _run_one(question: str) -> dict[str, Any]:
+            async with sem:
+                row = question_map.get(str(question or "").strip())
+                if row is None:
+                    return {"question": question, "status": None, "error": "not found"}
+                try:
+                    thread_id, answer, tech = await self._run_question_thread(
+                        vedana_app, row, test_run_name, test_run_id, eval_meta_base
+                    )
+                    tool_calls = self._format_tool_calls(tech)
+                    async with self:
                         status, comment, rating = await self._judge_answer(row, answer, tool_calls)
 
-                        result_row = {
-                            "judge_model": self.judge_model,
-                            "judge_prompt_id": self.judge_prompt_id,
-                            "dm_id": self.dm_id,
-                            "pipeline_model": resolved_pipeline_model,
-                            "embeddings_model": self.embeddings_model,
-                            "embeddings_dim": self.embeddings_dim,
-                            "test_run_id": test_run_id,
-                            "test_run_name": test_run_name,
-                            "gds_question": row.get("gds_question"),
-                            "question_context": row.get("question_context"),
-                            "gds_answer": row.get("gds_answer"),
-                            "llm_answer": answer,
-                            "tool_calls": tool_calls,
-                            "test_status": status,
-                            "eval_judge_comment": comment,
-                            "eval_judge_rating": rating,
-                            "test_date": test_run_ts,
-                            "thread_id": thread_id,
-                        }
+                    result_row = {
+                        "judge_model": self.judge_model,
+                        "judge_prompt_id": self.judge_prompt_id,
+                        "dm_id": self.dm_id,
+                        "pipeline_model": resolved_pipeline_model,
+                        "embeddings_model": self.embeddings_model,
+                        "embeddings_dim": self.embeddings_dim,
+                        "test_run_id": test_run_id,
+                        "test_run_name": test_run_name,
+                        "gds_question": row.get("gds_question"),
+                        "question_context": row.get("question_context"),
+                        "gds_answer": row.get("gds_answer"),
+                        "llm_answer": answer,
+                        "tool_calls": tool_calls,
+                        "test_status": status,
+                        "eval_judge_comment": comment,
+                        "eval_judge_rating": rating,
+                        "test_date": test_run_ts,
+                        "thread_id": thread_id,
+                    }
 
-                        await self._store_eval_result_event(thread_id, result_row)
-                        return {"question": question, "status": status, "rating": rating, "error": None}
-                    except Exception as exc:
-                        logging.error(f"Failed for '{question}': {exc}", exc_info=True)
-                        return {"question": question, "status": None, "error": str(exc)}
+                    await self._store_eval_result_event(thread_id, result_row)
+                    return {"question": question, "status": status, "rating": rating, "error": None}
+                except Exception as exc:
+                    logging.error(f"Failed for '{question}': {exc}", exc_info=True)
+                    return {"question": question, "status": None, "error": str(exc)}
 
+        async with self:
             self._append_progress(f"Queued {len(selection)} question(s) with up to {max_parallel} parallel worker(s)")
-            tasks = [asyncio.create_task(_run_one(question)) for question in selection]
+        tasks = [asyncio.create_task(_run_one(question)) for question in selection]
 
-            completed = 0
-            for future in asyncio.as_completed(tasks):
-                res = await future
-                completed += 1
+        completed = 0
+        for future in asyncio.as_completed(tasks):
+            res = await future
+            completed += 1
+            async with self:
                 self.current_question_index = completed - 1
                 question = res.get("question", "")
                 if res.get("error"):
@@ -1844,63 +1864,77 @@ class EvalState(rx.State):
                     msg = f"Completed: '{question}' (status: {status}, rating: {rating})"
                 self._append_progress(msg)
                 self.status_message = f"Completed {completed} of {len(selection)} question(s)"
-                yield  # Yield after each completion to update UI
+            yield  # Yield after each completion to update UI
 
-            # Finalize
+        # Finalize
+        async with self:
             self.status_message = f"Evaluation complete: {completed} of {len(selection)} question(s) processed"
             self.current_question_index = -1
             self.total_questions_to_run = 0
 
-            # Reload data to show new test results
-            try:
-                yield EvalState.load_eval_data()
-            except Exception as e:
-                logging.warning(f"Failed to reload eval data after test run: {e}")
+        # Reload data to show new test results
+        try:
+            yield EvalState.load_eval_data_background()
+        except Exception as e:
+            logging.warning(f"Failed to reload eval data after test run: {e}")
 
+        async with self:
             self.is_running = False
-            yield
+        yield
+
+    def refresh_golden_dataset(self):
+        """Connecting button with a background task. Used to trigger animations properly."""
+        if self.is_running:
+            return
+        self.status_message = "Refreshing golden dataset from Grist…"
+        self.error_message = ""
+        self.is_running = True
+        yield
+        yield EvalState.refresh_golden_dataset_background()
 
     @rx.event(background=True)  # type: ignore[operator]
-    async def refresh_golden_dataset(self):
-        """Refresh the golden dataset from Grist."""
-        async with self:
-            if self.is_running:
-                return
-            self.status_message = "Refreshing golden dataset from Grist…"
-            self.error_message = ""
-            self.is_running = True
-            yield
-            try:
-                self.get_eval_gds_from_grist()
+    async def refresh_golden_dataset_background(self):
+        try:
+            await asyncio.to_thread(self.get_eval_gds_from_grist)
+            async with self:
                 self._append_progress("Golden dataset refreshed from Grist")
                 await self._load_eval_questions()
                 self.status_message = "Golden dataset refreshed successfully"
-            except Exception as e:
+        except Exception as e:
+            async with self:
                 self.error_message = f"Failed to refresh golden dataset: {e}"
-                logging.error(f"Failed to refresh golden dataset: {e}", exc_info=True)
-            finally:
+            logging.error(f"Failed to refresh golden dataset: {e}", exc_info=True)
+        finally:
+            async with self:
                 self.is_running = False
-                yield
+            yield
+
+    def load_eval_data(self):
+        """Connecting button with a background task. Used to trigger animations properly."""
+        if self.loading:
+            return
+        self.loading = True
+        self.error_message = ""
+        self.status_message = ""
+        self.tests_page = 0  # Reset to first page
+        yield
+        yield EvalState.load_eval_data_background()
 
     @rx.event(background=True)  # type: ignore[operator]
-    async def load_eval_data(self):
-        async with self:
-            self.loading = True
-            self.error_message = ""
-            self.status_message = ""
-            self.tests_page = 0  # Reset to first page
-            self.fetch_openrouter_models()
-            self._sync_available_models()
-            yield
-            try:
+    async def load_eval_data_background(self):
+        try:
+            async with self:
+                await asyncio.to_thread(self.fetch_openrouter_models)
+                self._sync_available_models()
                 await self._load_eval_questions()
                 self.tests_page_size = max(1, len(self.eval_gds_rows) * 2)
                 await self._load_judge_config()
                 await self._load_pipeline_config()
                 await self._load_tests()
-            except Exception as e:
+        except Exception as e:
+            async with self:
                 self.error_message = f"Failed to load eval data: {e} {traceback.format_exc()}"
-            finally:
+        finally:
+            async with self:
                 self.loading = False
-                yield
-
+            yield
