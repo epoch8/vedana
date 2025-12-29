@@ -1750,30 +1750,47 @@ class EvalState(rx.State):
         data.pop("thread_id", None)
         await ctl.store_event_dict(uuid7(), "eval.result", data)
 
+    def run_selected_tests(self):
+        """Trigger test run - validates, sets loading state and starts background task."""
+        if self.is_running:
+            return
+
+        # Validation
+        selection = [str(q) for q in (self.selected_question_ids or []) if str(q)]
+        if not selection:
+            self.error_message = "Select at least one question to run tests."
+            return
+        if not self.judge_prompt:
+            self.error_message = "Judge prompt not loaded. Refresh judge config first."
+            return
+        if self.provider == "openrouter":
+            key = (self.custom_openrouter_key or os.environ.get("OPENROUTER_API_KEY") or "").strip()
+            if not key:
+                self.error_message = "OPENROUTER_API_KEY is required for OpenRouter provider."
+                return
+
+        test_run_name = self.test_run_name.strip() or ""
+
+        # Initialize run state
+        self.is_running = True
+        self.current_question_index = -1
+        self.total_questions_to_run = len(selection)
+        self.status_message = f"Evaluation run '{test_run_name}' for {len(selection)} question(s)…"
+        self.run_progress = []
+        self.error_message = ""
+        yield
+        yield EvalState.run_selected_tests_background()
+
     @rx.event(background=True)  # type: ignore[operator]
-    async def run_selected_tests(self):
-        """Run tests via JIMS sessions, one question at a time."""
+    async def run_selected_tests_background(self):
         async with self:
-            if self.is_running:
-                return
             selection = [str(q) for q in (self.selected_question_ids or []) if str(q)]
-            if not selection:
-                self.error_message = "Select at least one question to run tests."
-                return
-            if not self.judge_prompt:
-                self.error_message = "Judge prompt not loaded. Refresh judge config first."
-                return
-            if self.provider == "openrouter":
-                key = (self.custom_openrouter_key or os.environ.get("OPENROUTER_API_KEY") or "").strip()
-                if not key:
-                    self.error_message = "OPENROUTER_API_KEY is required for OpenRouter provider."
-                    return
 
             question_map = {}
             for row in self.eval_gds_rows:
                 if row:
                     row_id = str(row.get("id", ""))
-                    if row_id:  # Only include rows with non-empty IDs
+                    if row_id:
                         question_map[row_id] = row
 
             test_run_ts = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1781,66 +1798,62 @@ class EvalState(rx.State):
             test_run_name = self.test_run_name.strip() or ""
             resolved_pipeline_model = self._resolved_pipeline_model()
 
-            # Initialize run state
-            self.is_running = True
-            self.current_question_index = -1
-            self.total_questions_to_run = len(selection)
-            self.status_message = f"Evaluation run '{test_run_name}' for {len(selection)} question(s)…"
-            self.run_progress = []
-            self.error_message = ""
-            yield
-
-            vedana_app = await get_vedana_app()
+        vedana_app = await get_vedana_app()
+        async with self:
             eval_meta_base = await self._build_eval_meta_payload(vedana_app, test_run_id, test_run_name)
             max_parallel = max(1, int(self.max_parallel_tests or 1))
-            sem = asyncio.Semaphore(max_parallel)
 
-            async def _run_one(question: str) -> dict[str, Any]:
-                async with sem:
-                    row = question_map.get(str(question or "").strip())
-                    if row is None:
-                        return {"question": question, "status": None, "error": "not found"}
-                    try:
-                        thread_id, answer, tech = await self._run_question_thread(
-                            vedana_app, row, test_run_name, test_run_id, eval_meta_base
-                        )
-                        tool_calls = self._format_tool_calls(tech)
+        sem = asyncio.Semaphore(max_parallel)
+
+        async def _run_one(question: str) -> dict[str, Any]:
+            async with sem:
+                row = question_map.get(str(question or "").strip())
+                if row is None:
+                    return {"question": question, "status": None, "error": "not found"}
+                try:
+                    thread_id, answer, tech = await self._run_question_thread(
+                        vedana_app, row, test_run_name, test_run_id, eval_meta_base
+                    )
+                    tool_calls = self._format_tool_calls(tech)
+                    async with self:
                         status, comment, rating = await self._judge_answer(row, answer, tool_calls)
 
-                        result_row = {
-                            "judge_model": self.judge_model,
-                            "judge_prompt_id": self.judge_prompt_id,
-                            "dm_id": self.dm_id,
-                            "pipeline_model": resolved_pipeline_model,
-                            "embeddings_model": self.embeddings_model,
-                            "embeddings_dim": self.embeddings_dim,
-                            "test_run_id": test_run_id,
-                            "test_run_name": test_run_name,
-                            "gds_question": row.get("gds_question"),
-                            "question_context": row.get("question_context"),
-                            "gds_answer": row.get("gds_answer"),
-                            "llm_answer": answer,
-                            "tool_calls": tool_calls,
-                            "test_status": status,
-                            "eval_judge_comment": comment,
-                            "eval_judge_rating": rating,
-                            "test_date": test_run_ts,
-                            "thread_id": thread_id,
-                        }
+                    result_row = {
+                        "judge_model": self.judge_model,
+                        "judge_prompt_id": self.judge_prompt_id,
+                        "dm_id": self.dm_id,
+                        "pipeline_model": resolved_pipeline_model,
+                        "embeddings_model": self.embeddings_model,
+                        "embeddings_dim": self.embeddings_dim,
+                        "test_run_id": test_run_id,
+                        "test_run_name": test_run_name,
+                        "gds_question": row.get("gds_question"),
+                        "question_context": row.get("question_context"),
+                        "gds_answer": row.get("gds_answer"),
+                        "llm_answer": answer,
+                        "tool_calls": tool_calls,
+                        "test_status": status,
+                        "eval_judge_comment": comment,
+                        "eval_judge_rating": rating,
+                        "test_date": test_run_ts,
+                        "thread_id": thread_id,
+                    }
 
-                        await self._store_eval_result_event(thread_id, result_row)
-                        return {"question": question, "status": status, "rating": rating, "error": None}
-                    except Exception as exc:
-                        logging.error(f"Failed for '{question}': {exc}", exc_info=True)
-                        return {"question": question, "status": None, "error": str(exc)}
+                    await self._store_eval_result_event(thread_id, result_row)
+                    return {"question": question, "status": status, "rating": rating, "error": None}
+                except Exception as exc:
+                    logging.error(f"Failed for '{question}': {exc}", exc_info=True)
+                    return {"question": question, "status": None, "error": str(exc)}
 
+        async with self:
             self._append_progress(f"Queued {len(selection)} question(s) with up to {max_parallel} parallel worker(s)")
-            tasks = [asyncio.create_task(_run_one(question)) for question in selection]
+        tasks = [asyncio.create_task(_run_one(question)) for question in selection]
 
-            completed = 0
-            for future in asyncio.as_completed(tasks):
-                res = await future
-                completed += 1
+        completed = 0
+        for future in asyncio.as_completed(tasks):
+            res = await future
+            completed += 1
+            async with self:
                 self.current_question_index = completed - 1
                 question = res.get("question", "")
                 if res.get("error"):
@@ -1851,21 +1864,23 @@ class EvalState(rx.State):
                     msg = f"Completed: '{question}' (status: {status}, rating: {rating})"
                 self._append_progress(msg)
                 self.status_message = f"Completed {completed} of {len(selection)} question(s)"
-                yield  # Yield after each completion to update UI
+            yield  # Yield after each completion to update UI
 
-            # Finalize
+        # Finalize
+        async with self:
             self.status_message = f"Evaluation complete: {completed} of {len(selection)} question(s) processed"
             self.current_question_index = -1
             self.total_questions_to_run = 0
 
-            # Reload data to show new test results
-            try:
-                yield EvalState.load_eval_data()
-            except Exception as e:
-                logging.warning(f"Failed to reload eval data after test run: {e}")
+        # Reload data to show new test results
+        try:
+            yield EvalState.load_eval_data_background()
+        except Exception as e:
+            logging.warning(f"Failed to reload eval data after test run: {e}")
 
+        async with self:
             self.is_running = False
-            yield
+        yield
 
     def refresh_golden_dataset(self):
         """Connecting button with a background task. Used to trigger animations properly."""
