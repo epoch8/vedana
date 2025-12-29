@@ -1,6 +1,7 @@
 import reflex as rx
 
 from vedana_backoffice.states.eval import EvalState, RunSummary
+from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.ui import app_header
 
 
@@ -203,6 +204,15 @@ def _pipeline_card() -> rx.Component:
                         size="1",
                         on_click=EvalState.open_data_model_dialog,
                         disabled=rx.cond(EvalState.dm_id != "", False, True),  # type: ignore[arg-type]
+                        width="100%",
+                        margin_top="0.5em",
+                    ),
+                    rx.button(
+                        "Refresh Data Model",
+                        variant="soft",
+                        size="1",
+                        on_click=ChatState.reload_data_model,
+                        loading=ChatState.is_refreshing_dm,
                         width="100%",
                         margin_top="0.5em",
                     ),
