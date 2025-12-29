@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import traceback
@@ -337,22 +338,29 @@ class ChatState(rx.State):
             self.is_refreshing_dm = False  # make the update button available
             yield
 
-    @rx.event(background=True)  # type: ignore[operator]
-    async def reload_data_model(self):
-        """Reload the data model by running all data_model_steps from the pipeline."""
-        async with self:
-            self.is_refreshing_dm = True
-            yield
-            try:
-                run_pipeline(etl_app.ds, Catalog({}), get_data_model_pipeline())
+    def reload_data_model(self):
+        """Connecting button with a background task. Used to trigger animations properly."""
+        if self.is_refreshing_dm:
+            return
+        self.is_refreshing_dm = True
+        yield
+        yield ChatState.reload_data_model_background()
 
+    @rx.event(background=True)  # type: ignore[operator]
+    async def reload_data_model_background(self):
+        try:
+            """Reload the data model by running all data_model_steps from the pipeline."""
+            await asyncio.to_thread(run_pipeline, etl_app.ds, Catalog({}), get_data_model_pipeline())
+            async with self:
                 va = await get_vedana_app()
                 self.data_model_text = await va.data_model.to_text_descr()
-                yield rx.toast.success("Data model reloaded")
-            except Exception as e:
+            yield rx.toast.success("Data model reloaded")
+        except Exception as e:
+            async with self:
                 error_msg = str(e)
                 self.data_model_text = f"(error reloading data model: {error_msg})"
-                yield rx.toast.error(f"Failed to reload data model\n{error_msg}")
-            finally:
+            yield rx.toast.error(f"Failed to reload data model\n{error_msg}")
+        finally:
+            async with self:
                 self.is_refreshing_dm = False
-                yield
+            yield
