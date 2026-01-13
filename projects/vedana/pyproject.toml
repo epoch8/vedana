@@ -9,7 +9,6 @@ dependencies = [
     "google-cloud-kms >= 2.21.3",
     "google-cloud-iam >= 2.19.1",
     "jims-core",
-    "vedana-gradio",
     "vedana-backoffice",
     "vedana-etl",
     "jims-tui",
