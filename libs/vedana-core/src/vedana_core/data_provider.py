@@ -74,13 +74,16 @@ class GristDataProvider(DataProvider):
         return [t[prefix_len:] for t in self.list_anchor_tables()]
 
     @abc.abstractmethod
-    def list_anchor_tables(self) -> list[str]: ...
+    def list_anchor_tables(self) -> list[str]:
+        ...
 
     @abc.abstractmethod
-    def list_link_tables(self) -> list[str]: ...
+    def list_link_tables(self) -> list[str]:
+        ...
 
     @abc.abstractmethod
-    def get_table(self, table_name: str) -> pd.DataFrame: ...
+    def get_table(self, table_name: str) -> pd.DataFrame:
+        ...
 
     def get_anchor_types(self) -> list[str]:
         prefix_len = len(self.anchor_table_prefix)

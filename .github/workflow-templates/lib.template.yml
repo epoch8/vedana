@@ -12,7 +12,7 @@ on:
       - "{{ package.path }}/**"
       - "pyproject.toml"
       - "uv.lock"
-  
+
 jobs:
   test:
     runs-on: ubuntu-latest

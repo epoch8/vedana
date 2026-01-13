@@ -31,4 +31,3 @@ enable_incomplete_feature = ["NewGenericSyntax"]
 
 [tool.ruff]
 line-length = 120
-

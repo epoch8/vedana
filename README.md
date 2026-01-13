@@ -84,7 +84,7 @@ The ETL pipeline ingests data from Grist into the graph and vector databases.
 
 #### Pipeline Stages
 
-1. **Extract**: Load data model and data. In the most basic form data is loaded from Grist, 
+1. **Extract**: Load data model and data. In the most basic form data is loaded from Grist,
 but the pipeline can be easily extended to incorporate other sources
 2. **Transform**: Process data into nodes and edges, generate embeddings
 3. **Load**: Update knowledge graph and store pgvector embeddings
@@ -127,8 +127,8 @@ The data model is configured via tables in Grist workspace:
 
 ### LLM Models
 
-Models are handled via [LiteLLM](https://www.litellm.ai/) 
-(with [OpenRouter](https://openrouter.ai/) support inside for easier usage and access management), 
+Models are handled via [LiteLLM](https://www.litellm.ai/)
+(with [OpenRouter](https://openrouter.ai/) support inside for easier usage and access management),
 configurable via environment variables for production and in backoffice UI for testing:
 
 | Variable           | Purpose                                                               |
@@ -149,7 +149,7 @@ Fill the `.env` based on the `.env.example` [here](projects/vedana/.env.example)
 
 ```bash
 cd projects/vedana
-docker-compose up -d 
+docker-compose up -d
 ```
 
 ## Observability
@@ -160,10 +160,10 @@ docker-compose up -d
 
 ## CI / CD
 
-This repository uses automated workflow generation for libraries. 
+This repository uses automated workflow generation for libraries.
 Workflows are generated based on configuration in each library's pyproject.toml.
 
-For details on configuring and using the CI/CD code generation tool, 
+For details on configuring and using the CI/CD code generation tool,
 see [uv-workspace-codegen](https://github.com/epoch8/uv-workspace-codegen).
 
 ## Contributing

@@ -44,6 +44,6 @@ def test_duplicate_anchor_ids_keep_first() -> None:
     attrs: Dict[str, object] = masked.iloc[0]["attributes"] or {}
     got_name = attrs.get("document_name")
     assert got_name == "doc_a", f"""
-        Deduplication didn't preserve the first record for 'document:1'. 
+        Deduplication didn't preserve the first record for 'document:1'.
         Expected document_name == 'doc_a', got {got_name!r}.
         """

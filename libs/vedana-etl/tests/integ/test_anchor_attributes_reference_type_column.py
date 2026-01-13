@@ -33,9 +33,9 @@ def test_anchor_attributes_reference_type_column() -> None:
     assert not anchors_df.empty and not a_attrs_df.empty, "Data Model must not be empty (Anchors)."
 
     dm_attr_names = set(a_attrs_df["attribute_name"].astype(str))
-    assert "document_reference_attr" in dm_attr_names, (
-        "Precondition: 'document_reference_attr' must be present in Data Model."
-    )
+    assert (
+        "document_reference_attr" in dm_attr_names
+    ), "Precondition: 'document_reference_attr' must be present in Data Model."
 
     # --- 2) Данные из живой Grist
     nodes_df, _ = next(steps.get_grist_data())
@@ -54,13 +54,13 @@ def test_anchor_attributes_reference_type_column() -> None:
             break
 
     assert ref_node_attrs is not None, """
-        Reference column 'document_reference_attr' must appear as a non-empty string 
+        Reference column 'document_reference_attr' must appear as a non-empty string
         in at least one 'document' node (raw data).
         """
 
     # --- 2.2) Проверить, что gristHelper_* ключи не протекли в attributes
     assert not any(k.startswith("gristHelper_") for k in ref_node_attrs.keys()), """
-        gristHelper_* keys leaked into attributes; the SQL provider should have 
+        gristHelper_* keys leaked into attributes; the SQL provider should have
         used them to reconstruct the final string value and NOT keep helper keys.
         """
 
@@ -74,6 +74,6 @@ def test_anchor_attributes_reference_type_column() -> None:
         if isinstance(attrs.get("document_reference_attr"), str):
             preserved_any = True
             break
-    assert preserved_any, (
-        "Expected 'document_reference_attr' to be preserved by filtering logic because it is present in Data Model."
-    )
+    assert (
+        preserved_any
+    ), "Expected 'document_reference_attr' to be preserved by filtering logic because it is present in Data Model."

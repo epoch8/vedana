@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=/root/.cache uv sync
 #########################################
 FROM base AS build
 
-RUN cp .env.ci-cd .env 
+RUN cp .env.ci-cd .env
 # Builds to .web/build/client/
 RUN reflex export --loglevel debug --frontend-only --no-zip
 
