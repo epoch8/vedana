@@ -16,7 +16,7 @@ on:
       - "libs/vedana-etl/**"
       - "pyproject.toml"
       - "uv.lock"
-  
+
 jobs:
   test:
     runs-on: ubuntu-latest

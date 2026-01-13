@@ -16,7 +16,7 @@ on:
       - "libs/jims-telegram/**"
       - "pyproject.toml"
       - "uv.lock"
-  
+
 jobs:
   test:
     runs-on: ubuntu-latest

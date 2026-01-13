@@ -17,7 +17,7 @@ from vedana_core.settings import settings
 class DataModelSelection(BaseModel):
     reasoning: str = Field(
         default="",
-        description="Brief explanation of why these elements were selected for answering the user's question"
+        description="Brief explanation of why these elements were selected for answering the user's question",
     )
     anchor_nouns: list[str] = Field(
         default_factory=list,
@@ -42,7 +42,7 @@ class DataModelSelection(BaseModel):
 
 
 dm_filter_base_system_prompt = """\
-Ты — помощник по анализу структуры графовой базы данных. 
+Ты — помощник по анализу структуры графовой базы данных.
 
 Твоя задача: проанализировать вопрос пользователя и определить, какие элементы модели данных (узлы, связи, атрибуты, сценарии запросов) необходимы для формирования ответа.
 
@@ -74,6 +74,7 @@ class StartPipeline:
     """
     Response for /start command
     """
+
     def __init__(self, data_model: DataModel) -> None:
         self.data_model = data_model
 
@@ -162,7 +163,6 @@ class RagPipeline:
             )
 
     async def process_rag_query(self, query: str, ctx: ThreadContext) -> tuple[str, list, dict[str, Any]]:
-
         # 1. Filter data model
         if self.enable_filtering:
             await ctx.update_agent_status("Analyzing query structure...")
@@ -217,7 +217,7 @@ class RagPipeline:
             dm_anchors = await self.data_model.get_anchors()
             dm_links = await self.data_model.get_links()
             dm_queries = await self.data_model.get_queries()
-            
+
             # Count total attributes for original_counts
             total_anchor_attrs = sum(len(anchor.attributes) for anchor in dm_anchors)
             total_link_attrs = sum(len(link.attributes) for link in dm_links)
@@ -261,13 +261,9 @@ class RagPipeline:
 
         # Build the prompt
         system_prompt = dm_prompt_templates.get("dm_filter_prompt", dm_filter_base_system_prompt)
-        user_prompt = (
-            dm_prompt_templates
-            .get("dm_filter_user_prompt", dm_filter_user_prompt_template)
-            .format(
-                user_query=query,
-                compact_data_model=dm_json,
-            )
+        user_prompt = dm_prompt_templates.get("dm_filter_user_prompt", dm_filter_user_prompt_template).format(
+            user_query=query,
+            compact_data_model=dm_json,
         )
 
         messages: list[dict[str, Any]] = [

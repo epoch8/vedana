@@ -75,9 +75,9 @@ def test_edge_attribute_dtype() -> None:
                 assert isinstance(val, bool), f"{key} должен быть bool, а получен {type(val).__name__}: {val!r}"
             elif typ is int:
                 # не принимаем True/False как int
-                assert isinstance(val, int) and not isinstance(val, bool), (
-                    f"{key} должен быть int (не bool), а получен {type(val).__name__}: {val!r}"
-                )
+                assert isinstance(val, int) and not isinstance(
+                    val, bool
+                ), f"{key} должен быть int (не bool), а получен {type(val).__name__}: {val!r}"
             elif typ is float:
                 assert isinstance(val, float), f"{key} должен быть float, а получен {type(val).__name__}: {val!r}"
             elif typ is str:

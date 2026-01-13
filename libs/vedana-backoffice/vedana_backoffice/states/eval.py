@@ -872,7 +872,7 @@ class EvalState(rx.State):
     def set_compare_dm_compact(self, checked: bool) -> None:
         """Toggle compact diff view for data model diff."""
         self.compare_dm_compact = bool(checked)
-    
+
     def compare_runs(self):
         """Connecting button with a background task. Used to trigger animations properly."""
         if self.compare_loading:
@@ -894,7 +894,7 @@ class EvalState(rx.State):
         self.compare_dialog_open = True
         yield
         yield EvalState.compare_runs_background(run_a_id, run_b_id)
-    
+
     @rx.event(background=True)  # type: ignore[operator]
     async def compare_runs_background(self, run_a_id: str, run_b_id: str):
         try:
@@ -1013,7 +1013,7 @@ class EvalState(rx.State):
             async with self:
                 self.compare_loading = False
             yield
-    
+
     def toggle_gds_row(self, row_id: str) -> None:
         """Toggle expansion for a golden dataset row."""
         row_id = str(row_id or "")

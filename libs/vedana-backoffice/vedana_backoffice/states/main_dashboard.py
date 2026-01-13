@@ -460,7 +460,7 @@ class DashboardState(rx.State):
                 f"""
                 SELECT COUNT(*)
                 FROM "{meta}" AS m
-                WHERE 
+                WHERE
                     (m.delete_ts IS NOT NULL AND m.delete_ts >= {since_ts})
                     OR
                     (m.update_ts IS NOT NULL AND m.update_ts >= {since_ts}
@@ -491,9 +491,9 @@ class DashboardState(rx.State):
             f"""
             SELECT
                 {select_cols},
-                CASE 
+                CASE
                     WHEN m.delete_ts IS NOT NULL AND m.delete_ts >= {since_ts} THEN 'deleted'
-                    WHEN m.update_ts IS NOT NULL AND m.update_ts >= {since_ts} 
+                    WHEN m.update_ts IS NOT NULL AND m.update_ts >= {since_ts}
                          AND (m.create_ts IS NULL OR m.create_ts < m.update_ts)
                          AND (m.delete_ts IS NULL OR m.delete_ts < m.update_ts) THEN 'updated'
                     WHEN m.create_ts IS NOT NULL AND m.create_ts >= {since_ts} AND m.delete_ts IS NULL THEN 'added'
@@ -503,7 +503,7 @@ class DashboardState(rx.State):
             FROM "{meta}" AS m
             LEFT JOIN "{table_name}" AS b
                 ON {on_cond}
-            WHERE 
+            WHERE
                 (m.delete_ts IS NOT NULL AND m.delete_ts >= {since_ts})
                 OR
                 (m.update_ts IS NOT NULL AND m.update_ts >= {since_ts}
@@ -533,7 +533,9 @@ class DashboardState(rx.State):
             "updated": {"backgroundColor": "rgba(245,158,11,0.08)"},
             "deleted": {"backgroundColor": "rgba(239,68,68,0.08)"},
         }
-        for idx, r in enumerate(records_any):  # Build display row with only data columns, coercing values to safe strings
+        for idx, r in enumerate(
+            records_any
+        ):  # Build display row with only data columns, coercing values to safe strings
             row_id = f"changes-{self.changes_preview_page}-{idx}"
             row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}
             row_disp["row_style"] = row_styling.get(r.get("change_type", ""), {})
@@ -587,7 +589,7 @@ class DashboardState(rx.State):
                 f"""
                 SELECT COUNT(*)
                 FROM "{meta}" AS m
-                WHERE 
+                WHERE
                     m."{label_col}" = '{label_escaped}' AND (
                         (m.delete_ts IS NOT NULL AND m.delete_ts >= {since_ts})
                         OR
@@ -618,9 +620,9 @@ class DashboardState(rx.State):
             f"""
             SELECT
                 {select_cols},
-                CASE 
+                CASE
                     WHEN m.delete_ts IS NOT NULL AND m.delete_ts >= {since_ts} THEN 'deleted'
-                    WHEN m.update_ts IS NOT NULL AND m.update_ts >= {since_ts} 
+                    WHEN m.update_ts IS NOT NULL AND m.update_ts >= {since_ts}
                          AND (m.create_ts IS NULL OR m.create_ts < m.update_ts)
                          AND (m.delete_ts IS NULL OR m.delete_ts < m.update_ts) THEN 'updated'
                     WHEN m.create_ts IS NOT NULL AND m.create_ts >= {since_ts} AND m.delete_ts IS NULL THEN 'added'
@@ -630,7 +632,7 @@ class DashboardState(rx.State):
             FROM "{meta}" AS m
             LEFT JOIN "{base_table}" AS b
                 ON {on_cond}
-            WHERE 
+            WHERE
                 m."{label_col}" = '{label_escaped}' AND (
                     (m.delete_ts IS NOT NULL AND m.delete_ts >= {since_ts})
                     OR
