@@ -1,0 +1,96 @@
+name: Test project {{ package.name }}
+
+on:
+  pull_request:
+    paths:
+      - "{{ package.path }}/**"
+      - "libs/jims*/**"
+      - "libs/vedana*/**"
+      # - "pyproject.toml"
+      # - "uv.lock"
+  push:
+    branches: [master]
+    paths:
+      - "{{ package.path }}/**"
+      - "pyproject.toml"
+      - "uv.lock"
+  
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    {%- if package.generate_alembic_migration_check_step %}
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    {%- endif %}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install
+        shell: bash
+        run: |
+          cd {{ package.path }}
+          uv sync --all-groups
+      {%- if package.custom_steps %}
+      {%- for step in package.custom_steps %}
+
+      - {{ step | to_nice_yaml | indent(8) }}
+      {%- endfor %}
+      {%- endif %}
+      {%- if package.generate_standard_pytest_step %}
+
+      - name: Run tests
+        env:
+          {% raw %}OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}{% endraw %}
+        shell: bash
+        run: |
+          uv run pytest {{ package.path }}/
+      {%- endif %}
+
+      - name: Check formatting
+        shell: bash
+        run: |
+          uv run ruff check {{ package.path }}
+      {%- if package.generate_typechecking_step and package.typechecker == "mypy" %}
+
+      - name: Check typing
+        shell: bash
+        run: |
+          uv run mypy -p {{ package.package_name }}
+      {%- endif %}
+      {%- if package.generate_typechecking_step and package.typechecker == "ty" %}
+
+      - name: Check typing
+        shell: bash
+        run: |
+          uv run ty check {{ package.path }}
+      {%- endif %}
+      {%- if package.generate_alembic_migration_check_step %}
+
+      - name: Check Alembic migrations
+        shell: bash
+        run: |
+          cd {{ package.path }}
+          env $(cat .env.ci-cd | grep -v '^#') uv run alembic upgrade heads
+          env $(cat .env.ci-cd | grep -v '^#') uv run alembic check
+      {%- endif %}
