@@ -164,9 +164,15 @@ The `projects/vedana/deploy/` directory contains Terraform configurations for:
 - Kubernetes deployment (k8s-memgraph)
 - Yandex Cloud deployment (yc-vedana-app)
 
-## Contributing & Development
+## CI / CD
 
-GitHub Actions pipelines are generated automatically using [uv-workspace-codegen](https://github.com/epoch8/uv-workspace-codegen)
+This repository uses automated workflow generation for libraries. 
+Workflows are generated based on configuration in each library's pyproject.toml.
+
+For details on configuring and using the CI/CD code generation tool, 
+see [uv-workspace-codegen](https://github.com/epoch8/uv-workspace-codegen).
+
+## Contributing
 
 TODO
 
