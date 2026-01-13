@@ -158,9 +158,15 @@ docker-compose up -d
 - **Prometheus** metrics for LLM usage, pipeline duration
 - **Sentry** integration for error tracking (optional)
 
-## Contributing & Development
+## CI / CD
 
-GitHub Actions pipelines are generated automatically using [uv-workspace-codegen](https://github.com/epoch8/uv-workspace-codegen)
+This repository uses automated workflow generation for libraries. 
+Workflows are generated based on configuration in each library's pyproject.toml.
+
+For details on configuring and using the CI/CD code generation tool, 
+see [uv-workspace-codegen](https://github.com/epoch8/uv-workspace-codegen).
+
+## Contributing
 
 TODO
 
