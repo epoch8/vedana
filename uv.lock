@@ -3083,7 +3083,7 @@ requires-dist = [
     { name = "jims-core", editable = "libs/jims-core" },
     { name = "jims-tui", editable = "libs/jims-tui" },
     { name = "orjson", specifier = ">=3.11.3" },
-    { name = "reflex", specifier = ">=0.7.5.post1" },
+    { name = "reflex", specifier = ">=0.8.25" },
     { name = "vedana-backoffice", editable = "libs/vedana-backoffice" },
     { name = "vedana-etl", editable = "libs/vedana-etl" },
 ]

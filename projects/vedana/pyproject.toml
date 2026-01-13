@@ -12,7 +12,7 @@ dependencies = [
     "vedana-backoffice",
     "vedana-etl",
     "jims-tui",
-    "reflex>=0.7.5.post1",
+    "reflex>=0.8.25",
     "orjson>=3.11.3",
 ]
 
