@@ -1,7 +1,7 @@
 x-app-common: &app-common
   build:
-    context: ../
-    dockerfile: vedana/Dockerfile
+    context: ../../
+    dockerfile: projects/vedana/Dockerfile
   volumes:
     - ./data:/app/vedana/data
   environment:
@@ -79,7 +79,7 @@ services:
       - memgraph
 
   db:
-    image: pgvector/pgvector:latest
+    image: pgvector/pgvector:pg15
     environment:
       POSTGRES_PASSWORD: postgres
     ports:
