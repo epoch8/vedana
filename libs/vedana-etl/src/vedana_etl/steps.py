@@ -45,9 +45,9 @@ def clean_str(text: str) -> str:
     return text.strip()
 
 
-def get_data_model() -> (
-    Iterator[tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]]
-):
+def get_data_model() -> Iterator[
+    tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]
+]:
     loader = GristCsvDataProvider(
         doc_id=core_settings.grist_data_model_doc_id,
         grist_server=core_settings.grist_server_url,
