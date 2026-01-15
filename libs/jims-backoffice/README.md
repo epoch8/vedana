@@ -1,3 +1,3 @@
 # JIMS UI
 
-Веб-интерфейс для JIMS.
+Simple FastUI viewer of JIMS threads
