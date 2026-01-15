@@ -22,11 +22,11 @@ dependencies = [
 google = ["google-cloud-aiplatform>=1.105.0"]
 dev = [
     "aiosqlite>=0.21.0",
-    "mypy>=1.17.1",
+    "mypy>=1.19.0",
     "pytest>=8.3.5",
     "pytest-asyncio>=1.0.0",
     "pytest-vcr>=1.0.2",
-    "ruff>=0.12.9",
+    "ruff>=0.14.10",
 ]
 sentry = ["sentry-sdk>=2.35.0"]
 
