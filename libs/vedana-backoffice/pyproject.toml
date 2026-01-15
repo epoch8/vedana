@@ -19,11 +19,12 @@ dependencies = [
 [project.scripts]
 vedana-backoffice-with-caddy = "vedana_backoffice.start_services:main"
 
-[tool.hatch.build.targets.wheel]
+[tool.uv.build.wheel]
 packages = ["vedana_backoffice"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"vedana_backoffice/Caddyfile" = "vedana_backoffice/Caddyfile"
+include = [
+  { path = "vedana_backoffice/Caddyfile" }
+]
 
 [build-system]
 requires = ["uv_build>=0.9.25, <0.10.0"]
