@@ -17,7 +17,7 @@ services:
   db-migrate:
     <<: *app-common
     command: uv run alembic upgrade head
-    working_dir: /app/vedana/packages/vedana-core
+    working_dir: /app/projects/vedana
     depends_on:
       db:
         condition: service_healthy
@@ -25,7 +25,7 @@ services:
   app:
     <<: *app-common
     ports:
-      - "3000:3000"
+      - "3002:3000"
       - "8000:8000"
     command: uv run reflex run
     depends_on:
