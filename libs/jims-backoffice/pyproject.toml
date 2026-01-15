@@ -4,23 +4,28 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
+authors = [
+    { name = "Andrey Tatarinov", email = "a@tatarinov.co" },
+]
 
 dependencies = [
     "fastapi>=0.115.0",
     "fastui>=0.7.0",
     "pydantic-settings>=2.10.1",
     "sqlalchemy>=2.0.41",
+    "psycopg2-binary>=2.9.10",
     "uvicorn>=0.29.0",
     "pydantic==2.9.2",
     "jims-core",
     "python-multipart>=0.0.18",
+    "asyncpg>=0.31.0",
 ]
 
 [dependency-groups]
 dev = [
-    "mypy>=1.17.1",
+    "mypy>=1.19.0",
     "pytest>=8.4.1",
-    "ruff>=0.12.9",
+    "ruff>=0.14.10",
     "types-pyyaml>=6.0.12.20250822",
 ]
 
