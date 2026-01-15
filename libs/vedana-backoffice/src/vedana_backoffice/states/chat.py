@@ -84,7 +84,9 @@ class ChatState(rx.State):
             has_chat = False
             architecture = m.get("architecture", {})
             if architecture:
-                if "text" in architecture.get("input_modalities", []) and "text" in  architecture.get("output_modalities", []):
+                if "text" in architecture.get("input_modalities", []) and "text" in architecture.get(
+                    "output_modalities", []
+                ):
                     has_chat = True
 
             has_tools = False  # only accept models with tool calls

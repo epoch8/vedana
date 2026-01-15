@@ -10,7 +10,7 @@ authors = [
 ]
 
 dependencies = [
-    "reflex>=0.8.22,<0.9.0",
+    "reflex>=0.8.25,<0.9.0",
     "orjson>=3.11.3",
     "kubernetes>=34.1.0",
     "vedana-core",
@@ -20,23 +20,24 @@ dependencies = [
 [project.scripts]
 vedana-backoffice-with-caddy = "vedana_backoffice.start_services:main"
 
-[tool.hatch.build.targets.wheel]
+[tool.uv.build.wheel]
 packages = ["vedana_backoffice"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"vedana_backoffice/Caddyfile" = "vedana_backoffice/Caddyfile"
+include = [
+  { path = "vedana_backoffice/Caddyfile" }
+]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.9.25, <0.10.0"]
+build-backend = "uv_build"
 
 [tool.mypy]
 plugins = ['pydantic.mypy']
 
 [dependency-groups]
 dev = [
-    "ruff>=0.11.1",
-    "mypy>=1.15.0",
+    "ruff>=0.14.10",
+    "mypy>=1.19.0",
     "pytest>=8.4.0",
     "pandas-stubs>=2.3.2.250827",
     "types-requests>=2.32.4.20250913",

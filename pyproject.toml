@@ -1,0 +1,33 @@
+[project]
+name = "ai-assistants-oss-ws"
+version = "1"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+
+[tool.uv.workspace]
+members = [
+    "libs/jims-*",
+    "libs/vedana-*",
+    "projects/vedana",
+    "projects/vedana-*",
+    "projects/jims-*",
+]
+
+[tool.uv.sources]
+jims-backoffice = { workspace = true }
+jims-core = { workspace = true }
+jims-telegram = { workspace = true }
+jims-tui = { workspace = true }
+vedana-backoffice = { workspace = true }
+vedana-core = { workspace = true }
+vedana-etl = { workspace = true }
+
+[tool.mypy]
+ignore_missing_imports = true
+follow_imports = "silent"
+namespace_packages = true
+enable_incomplete_feature = ["NewGenericSyntax"]
+
+[tool.ruff]
+line-length = 120

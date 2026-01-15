@@ -86,12 +86,12 @@ def test_edge_bidirectional() -> None:
         b_to_a = sub.iloc[1]
 
         # Проверим, что действительно противоположные направления
-        assert str(a_to_b["from_node_id"]).strip() == str(b_to_a["to_node_id"]).strip(), (
-            f"Ожидались противоположные направления у пары {pair}."
-        )
-        assert str(a_to_b["to_node_id"]).strip() == str(b_to_a["from_node_id"]).strip(), (
-            f"Ожидались противоположные направления у пары {pair}."
-        )
+        assert (
+            str(a_to_b["from_node_id"]).strip() == str(b_to_a["to_node_id"]).strip()
+        ), f"Ожидались противоположные направления у пары {pair}."
+        assert (
+            str(a_to_b["to_node_id"]).strip() == str(b_to_a["from_node_id"]).strip()
+        ), f"Ожидались противоположные направления у пары {pair}."
 
         # Типы узлов тоже должны меняться местами
         assert _norm(a_to_b["from_node_type"]) == _norm(b_to_a["to_node_type"])

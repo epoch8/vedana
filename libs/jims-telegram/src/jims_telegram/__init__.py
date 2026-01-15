@@ -82,11 +82,13 @@ class TelegramController:
 
     @overload
     @classmethod
-    async def create(cls, app: JimsApp) -> "TelegramController": ...
+    async def create(cls, app: JimsApp) -> "TelegramController":
+        ...
 
     @overload
     @classmethod
-    async def create(cls, app: Awaitable[JimsApp]) -> "TelegramController": ...
+    async def create(cls, app: Awaitable[JimsApp]) -> "TelegramController":
+        ...
 
     @classmethod
     async def create(cls, app: JimsApp | Awaitable[JimsApp]) -> "TelegramController":

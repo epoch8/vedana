@@ -66,9 +66,9 @@ def test_duplicate_anchor_id_references() -> None:
     # 2) Дедуп по "document:1": в графе должен остаться один узел с таким node_id
     doc1_rows = nodes_df[nodes_df["node_id"].astype(str) == "document:1"]
     assert not doc1_rows.empty, "В графе нет узла 'document:1'. Проверь тестовые данные."
-    assert doc1_rows.shape[0] == 1, (
-        f"Ожидался ровно один узел 'document: 1' после дедупликации, получено {doc1_rows.shape[0]}."
-    )
+    assert (
+        doc1_rows.shape[0] == 1
+    ), f"Ожидался ровно один узел 'document: 1' после дедупликации, получено {doc1_rows.shape[0]}."
     assert doc1_rows.iloc[0]["node_type"] == "document", "Узел 'document:1' должен быть типа 'document'."
 
     # 3) Межузловые связи: document:1 ↔ document_chunk:{02,03,05}

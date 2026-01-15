@@ -251,8 +251,14 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
 
         # get anchor's links
         # todo check link column directions
-        anchor_from_link_cols = [link for link in dm_links.values() if link.anchor_from.noun == anchor_type and link.anchor_from_link_attr_name]
-        anchor_to_link_cols = [link for link in dm_links.values() if link.anchor_to.noun == anchor_type and link.anchor_to_link_attr_name]
+        anchor_from_link_cols = [
+            link
+            for link in dm_links.values()
+            if link.anchor_from.noun == anchor_type and link.anchor_from_link_attr_name
+        ]
+        anchor_to_link_cols = [
+            link for link in dm_links.values() if link.anchor_to.noun == anchor_type and link.anchor_to_link_attr_name
+        ]
 
         try:
             anchors = dp.get_anchors(anchor_type, dm_attrs=dm_anchor.attributes, dm_anchor_links=anchor_from_link_cols)

@@ -42,11 +42,7 @@ def _has_edge(
     lbl = df["edge_label"].astype(str).str.lower().str.strip()
 
     mask = (
-        (f == from_id)
-        & (t == to_id)
-        & (ft == from_type.lower())
-        & (tt == to_type.lower())
-        & (lbl == sentence.lower())
+        (f == from_id) & (t == to_id) & (ft == from_type.lower()) & (tt == to_type.lower()) & (lbl == sentence.lower())
     )
     return bool(df[mask].shape[0])
 

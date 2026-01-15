@@ -1154,12 +1154,14 @@ class EtlState(rx.State):
                 meta_table_name = f"{tname}_meta"
 
                 # Get all distinct update_ts values to detect runs
-                ts_query = sa.text(f"""
-                    SELECT DISTINCT update_ts FROM "{meta_table_name}" 
-                    WHERE update_ts IS NOT NULL 
-                    ORDER BY update_ts DESC 
+                ts_query = sa.text(
+                    f"""
+                    SELECT DISTINCT update_ts FROM "{meta_table_name}"
+                    WHERE update_ts IS NOT NULL
+                    ORDER BY update_ts DESC
                     LIMIT 1000
-                """)
+                """
+                )
 
                 with con.begin() as conn:
                     result = conn.execute(ts_query)
@@ -1169,8 +1171,9 @@ class EtlState(rx.State):
 
                 # Now query stats using the run window
                 if run_start > 0.0:
-                    query = sa.text(f"""
-                        SELECT 
+                    query = sa.text(
+                        f"""
+                        SELECT
                             MAX(process_ts) AS process_ts,
                             COUNT(*) FILTER (WHERE delete_ts IS NULL) AS row_count,
                             {run_end} AS last_update_ts,
@@ -1178,14 +1181,16 @@ class EtlState(rx.State):
                             COUNT(*) FILTER (WHERE create_ts IS NOT NULL AND create_ts >= {run_start} AND create_ts <= {run_end}) AS last_added_rows,
                             COUNT(*) FILTER (WHERE delete_ts IS NOT NULL AND delete_ts >= {run_start} AND delete_ts <= {run_end}) AS last_deleted_rows
                         FROM "{meta_table_name}";
-                    """)
+                    """
+                    )
                 else:
                     # Fallback to original query if no timestamps found
-                    query = sa.text(f"""
+                    query = sa.text(
+                        f"""
                         WITH max_update_ts AS (
                             SELECT MAX(update_ts) AS max_ts FROM "{meta_table_name}"
                         )
-                        SELECT 
+                        SELECT
                             MAX(process_ts) AS process_ts,
                             COUNT(*) FILTER (WHERE delete_ts IS NULL) AS row_count,
                             (SELECT max_ts FROM max_update_ts) AS last_update_ts,
@@ -1193,7 +1198,8 @@ class EtlState(rx.State):
                             COUNT(*) FILTER (WHERE create_ts IS NOT NULL AND create_ts = (SELECT max_ts FROM max_update_ts)) AS last_added_rows,
                             COUNT(*) FILTER (WHERE delete_ts IS NOT NULL AND delete_ts = (SELECT max_ts FROM max_update_ts)) AS last_deleted_rows
                         FROM "{meta_table_name}", max_update_ts;
-                    """)
+                    """
+                    )
 
                 with con.begin() as conn:
                     result = conn.execute(query)
@@ -1273,12 +1279,14 @@ class EtlState(rx.State):
                 run_start, run_end = self._detect_last_run_window(timestamps)
 
                 # Query all-time totals first
-                totals_query = sa.text(f"""
-                    SELECT 
+                totals_query = sa.text(
+                    f"""
+                    SELECT
                         COUNT(*) FILTER (WHERE is_success = TRUE) AS total_success,
                         COUNT(*) FILTER (WHERE is_success = FALSE) AS total_failed
                     FROM "{meta_table_name}"
-                """)
+                """
+                )
 
                 with con.begin() as conn:
                     totals_result = conn.execute(totals_query)
@@ -1311,14 +1319,16 @@ class EtlState(rx.State):
                     continue
 
                 # Query rows in the last run window
-                stats_query = sa.text(f"""
-                    SELECT 
+                stats_query = sa.text(
+                    f"""
+                    SELECT
                         COUNT(*) AS total,
                         COUNT(*) FILTER (WHERE is_success = TRUE) AS success,
                         COUNT(*) FILTER (WHERE is_success = FALSE) AS failed
                     FROM "{meta_table_name}"
                     WHERE process_ts >= {run_start} AND process_ts <= {run_end}
-                """)
+                """
+                )
 
                 with con.begin() as conn:
                     result = conn.execute(stats_query)
@@ -1924,12 +1934,14 @@ class EtlState(rx.State):
 
         # Get the last run window using the same logic as _load_table_stats
         try:
-            ts_query = sa.text(f"""
-                SELECT DISTINCT update_ts FROM "{meta_table}" 
-                WHERE update_ts IS NOT NULL 
-                ORDER BY update_ts DESC 
+            ts_query = sa.text(
+                f"""
+                SELECT DISTINCT update_ts FROM "{meta_table}"
+                WHERE update_ts IS NOT NULL
+                ORDER BY update_ts DESC
                 LIMIT 1000
-            """)
+            """
+            )
             with engine.begin() as conn:
                 result = conn.execute(ts_query)
                 timestamps = [float(row[0]) for row in result.fetchall() if row[0] is not None]
@@ -1967,18 +1979,20 @@ class EtlState(rx.State):
 
         # Get total count of changed records on first page
         if self.preview_page == 0:
-            q_count = sa.text(f"""
+            q_count = sa.text(
+                f"""
                 SELECT COUNT(*)
                 FROM "{meta_table}" AS m
-                WHERE 
+                WHERE
                     (m.delete_ts IS NOT NULL AND m.delete_ts >= {run_start} AND m.delete_ts <= {run_end})
                     OR
                     (m.update_ts IS NOT NULL AND m.update_ts >= {run_start} AND m.update_ts <= {run_end}
                         AND m.update_ts > m.create_ts)
                     OR
-                    (m.create_ts IS NOT NULL AND m.create_ts >= {run_start} AND m.create_ts <= {run_end} 
+                    (m.create_ts IS NOT NULL AND m.create_ts >= {run_start} AND m.create_ts <= {run_end}
                         AND m.delete_ts IS NULL)
-            """)
+            """
+            )
             try:
                 with engine.begin() as conn:
                     self.preview_total_rows = int(conn.execute(q_count).scalar() or 0)
@@ -1996,10 +2010,11 @@ class EtlState(rx.State):
             select_cols = ", ".join(select_exprs)
             on_cond = " AND ".join([f'b."{c}" = m."{c}"' for c in data_cols])
 
-            q_data = sa.text(f"""
+            q_data = sa.text(
+                f"""
                 SELECT
                     {select_cols},
-                    CASE 
+                    CASE
                         WHEN m.delete_ts IS NOT NULL AND m.delete_ts >= {run_start} AND m.delete_ts <= {run_end} THEN 'deleted'
                         WHEN m.update_ts IS NOT NULL AND m.update_ts >= {run_start} AND m.update_ts <= {run_end}
                              AND m.update_ts > m.create_ts THEN 'updated'
@@ -2009,7 +2024,7 @@ class EtlState(rx.State):
                     END AS change_type
                 FROM "{meta_table}" AS m
                 LEFT JOIN "{table_name}" AS b ON {on_cond}
-                WHERE 
+                WHERE
                     (m.delete_ts IS NOT NULL AND m.delete_ts >= {run_start} AND m.delete_ts <= {run_end})
                     OR
                     (m.update_ts IS NOT NULL AND m.update_ts >= {run_start} AND m.update_ts <= {run_end}
@@ -2019,14 +2034,16 @@ class EtlState(rx.State):
                         AND m.delete_ts IS NULL)
                 ORDER BY COALESCE(m.update_ts, m.create_ts, m.delete_ts) DESC
                 LIMIT {self.preview_page_size} OFFSET {offset}
-            """)
+            """
+            )
         else:
             # No base table, query meta only
             select_cols = ", ".join([f'm."{c}"' for c in display_cols])
-            q_data = sa.text(f"""
+            q_data = sa.text(
+                f"""
                 SELECT
                     {select_cols},
-                    CASE 
+                    CASE
                         WHEN m.delete_ts IS NOT NULL AND m.delete_ts >= {run_start} AND m.delete_ts <= {run_end} THEN 'deleted'
                         WHEN m.update_ts IS NOT NULL AND m.update_ts >= {run_start} AND m.update_ts <= {run_end}
                              AND m.update_ts > m.create_ts THEN 'updated'
@@ -2035,7 +2052,7 @@ class EtlState(rx.State):
                         ELSE NULL
                     END AS change_type
                 FROM "{meta_table}" AS m
-                WHERE 
+                WHERE
                     (m.delete_ts IS NOT NULL AND m.delete_ts >= {run_start} AND m.delete_ts <= {run_end})
                     OR
                     (m.update_ts IS NOT NULL AND m.update_ts >= {run_start} AND m.update_ts <= {run_end}
@@ -2045,7 +2062,8 @@ class EtlState(rx.State):
                         AND m.delete_ts IS NULL)
                 ORDER BY COALESCE(m.update_ts, m.create_ts, m.delete_ts) DESC
                 LIMIT {self.preview_page_size} OFFSET {offset}
-            """)
+            """
+            )
 
         try:
             df = pd.read_sql(q_data, con=engine)

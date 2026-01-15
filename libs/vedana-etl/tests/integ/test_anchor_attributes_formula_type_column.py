@@ -33,9 +33,9 @@ def test_anchor_attributes_formula_type_column() -> None:
     dm_attr_names = set(a_attrs_df["attribute_name"].astype(str))
 
     # В этом кейсе ожидаем, что формульный атрибут описан в Data Model.
-    assert "document_filepath" in dm_attr_names, (
-        "Test precondition failed: 'document_filepath' must be present in Data Model."
-    )
+    assert (
+        "document_filepath" in dm_attr_names
+    ), "Test precondition failed: 'document_filepath' must be present in Data Model."
 
     # 2) Данные из живой Grist
     nodes_df, _ = next(steps.get_grist_data())
@@ -55,7 +55,7 @@ def test_anchor_attributes_formula_type_column() -> None:
             break
 
     assert raw_value is not None and str(raw_value).strip(), """
-        Formula column 'document_filepath' must appear as a computed, non-empty value 
+        Formula column 'document_filepath' must appear as a computed, non-empty value
         in at least one 'document' node (raw data).
         """
 
@@ -67,9 +67,9 @@ def test_anchor_attributes_formula_type_column() -> None:
     if raw_node_id is not None and (docs_f["node_id"] == raw_node_id).any():
         row = docs_f.loc[docs_f["node_id"] == raw_node_id].iloc[0]
         attrs_f: Dict[str, Any] = row["attributes"] or {}
-        assert "document_filepath" in attrs_f and str(attrs_f["document_filepath"]).strip(), (
-            "Expected 'document_filepath' to be preserved by filtering logic because it is present in Data Model."
-        )
+        assert (
+            "document_filepath" in attrs_f and str(attrs_f["document_filepath"]).strip()
+        ), "Expected 'document_filepath' to be preserved by filtering logic because it is present in Data Model."
     else:
         # Иначе просто убедимся, что у какого-то document-узла поле присутствует
         found_any = False
@@ -79,6 +79,6 @@ def test_anchor_attributes_formula_type_column() -> None:
                 found_any = True
                 break
         assert found_any, """
-            Expected 'document_filepath' to be present on at least one 'document' node 
+            Expected 'document_filepath' to be present on at least one 'document' node
             after filtering logic (it's in Data Model).
             """

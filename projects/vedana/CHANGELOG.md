@@ -107,7 +107,7 @@
 
 # 0.5.0
 
-* (vedana) Refactor Vedana into packages: 
+* (vedana) Refactor Vedana into packages:
   * `vedana-core`
   * `vedana-gradio`
   * `vedana-tg`
