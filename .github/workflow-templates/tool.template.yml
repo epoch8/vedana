@@ -1,0 +1,68 @@
+name: Test tool {{ package.name }}
+
+on:
+  pull_request:
+    paths:
+      - "{{ package.path }}/**"
+      # - "pyproject.toml"
+      # - "uv.lock"
+  push:
+    branches: [master]
+    paths:
+      - "{{ package.path }}/**"
+      - "pyproject.toml"
+      - "uv.lock"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install
+        shell: bash
+        run: |
+          cd {{ package.path }}
+          uv sync
+      {%- if package.custom_steps %}
+      {%- for step in package.custom_steps %}
+
+      - {{ step | to_nice_yaml | indent(8) }}
+      {%- endfor %}
+      {%- endif %}
+      {%- if package.generate_standard_pytest_step %}
+
+      - name: Run tests
+        shell: bash
+        run: |
+          uv run pytest {{ package.path }}/tests/
+      {%- endif %}
+
+      - name: Check formatting
+        shell: bash
+        run: |
+          uv run ruff check {{ package.path }}
+      {%- if package.generate_typechecking_step and package.typechecker == "mypy" %}
+
+      - name: Check typing
+        shell: bash
+        run: |
+          uv run mypy -p {{ package.package_name }}
+      {%- endif %}
+      {%- if package.generate_typechecking_step and package.typechecker == "ty" %}
+
+      - name: Check typing
+        shell: bash
+        run: |
+          uv run ty check {{ package.path }}
+      {%- endif %}

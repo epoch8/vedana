@@ -80,14 +80,14 @@ def test_edge_attribute_filtering() -> None:
             union_keys.update(map(str, attrs.keys()))
 
     # 5.1 Лишний ключ из тестовых данных не должен попадать
-    assert "edge_attribute_extra" not in union_keys, (
-        "Found unexpected edge attribute 'edge_attribute_extra' not present in Data Model."
-    )
+    assert (
+        "edge_attribute_extra" not in union_keys
+    ), "Found unexpected edge attribute 'edge_attribute_extra' not present in Data Model."
 
     # 5.2 Все ключи из рёбер должны быть подмножеством DM-описания
     if not allowed_edge_attrs:
         assert not has_any_attrs, f"DM has no edge attributes for '{sentence}', but edges carry: {sorted(union_keys)}"
     else:
-        assert union_keys.issubset(allowed_edge_attrs), (
-            f"Edge attributes not described in DM: {sorted(union_keys - allowed_edge_attrs)}"
-        )
+        assert union_keys.issubset(
+            allowed_edge_attrs
+        ), f"Edge attributes not described in DM: {sorted(union_keys - allowed_edge_attrs)}"

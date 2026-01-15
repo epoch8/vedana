@@ -9,11 +9,10 @@ dependencies = [
     "google-cloud-kms >= 2.21.3",
     "google-cloud-iam >= 2.19.1",
     "jims-core",
-    "vedana-gradio",
     "vedana-backoffice",
     "vedana-etl",
     "jims-tui",
-    "reflex>=0.7.5.post1",
+    "reflex>=0.8.25",
     "orjson>=3.11.3",
 ]
 
@@ -37,8 +36,8 @@ line-length = 120
 [dependency-groups]
 dev = [
     "ipykernel>=6.30.0",
-    "mypy>=1.16.1",
+    "mypy>=1.19.0",
     "py-spy>=0.4.1",
-    "ruff>=0.12.2",
+    "ruff>=0.14.10",
     "types-requests>=2.32.4.20250611",
 ]

@@ -1,10 +1,10 @@
-# WIP
+# 0.4.0
 
-* Splitting ETL pipelines into tabs by new pipeline label 
+* Splitting ETL pipelines into tabs by new pipeline label
 * Improve data views: server-side pagination, custom styling
 * Add stats to ETL step / data table cards - last run time, row changes, row counts
 * Improve ETL Graph rendering logic
-* Refactor backoffice state.py - split into smaller states per-page 
+* Refactor backoffice state.py - split into smaller states per-page
 * Improve pipeline details view in assistant messages
 * Add pipeline logs to assistant message details on Chat page
 * New pipeline tests/evaluation page: view golden dataset, run tests, compare results

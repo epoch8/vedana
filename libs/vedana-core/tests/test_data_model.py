@@ -81,38 +81,38 @@ INSERT_TEST_DATA_SQL = [
     """
     INSERT INTO dm_anchors (noun, description, id_example, query) VALUES
     ('document', 'document', 'document:doc42', ''),
-    ('document_chunk', 'document chunk', 'document_chunk_id:doc42_001', 
+    ('document_chunk', 'document chunk', 'document_chunk_id:doc42_001',
      'MATCH (d:document_chunk) WHERE ID(d)="document_chunk_id:doc42_001" RETURN d'),
-    ('consultation', 'main anchor', '', 
+    ('consultation', 'main anchor', '',
      'MATCH (c:consultation) WHERE c.consultation_text CONTAINS "keyword" RETURN c, c.consultation_text'),
     ('faq', 'frequent questions and answers', 'answer:001', '')
     """,
     """
-    INSERT INTO dm_links (anchor1, anchor2, sentence, description, query, 
+    INSERT INTO dm_links (anchor1, anchor2, sentence, description, query,
                         anchor1_link_column_name, anchor2_link_column_name, has_direction) VALUES
-    ('document', 'document_chunk', 'DOCUMENT_has_DOCUMENT_CHUNK', '', 
+    ('document', 'document_chunk', 'DOCUMENT_has_DOCUMENT_CHUNK', '',
      'MATCH (d:document)-[rel:DOCUMENT_has_DOCUMENT_CHUNK]->(c:document_chunk) RETURN d, c',
      'link_document_has_document_chunk', 'link_document_has_document_chunk', 0),
-    ('document_chunk', 'faq', 'DOCUMENT_CHUNK_has_FAQ', '', 
+    ('document_chunk', 'faq', 'DOCUMENT_CHUNK_has_FAQ', '',
      'MATCH (d:document_chunk)-[rel:DOCUMENT_CHUNK_has_FAQ]->(f:faq) RETURN d, f',
      'link_document_chunk_has_faq', 'link_document_chunk_has_faq', 0)
     """,
     """
-    INSERT INTO dm_anchor_attributes (anchor, attribute_name, description, data_example, 
+    INSERT INTO dm_anchor_attributes (anchor, attribute_name, description, data_example,
                                      embeddable, query, dtype, embed_threshold) VALUES
-    ('consultation', 'consultation_text', 'text', '', 1, 
-     'vts_fn(label=''consultation'', property=''consultation_text'', text=''<user question>'')', 
+    ('consultation', 'consultation_text', 'text', '', 1,
+     'vts_fn(label=''consultation'', property=''consultation_text'', text=''<user question>'')',
      'str', 0.05),
-    ('faq', 'faq_question_text', 'extract topic and search using faq_question_text', '', 1, 
+    ('faq', 'faq_question_text', 'extract topic and search using faq_question_text', '', 1,
      'vts_fn(label=''faq'', property=''faq_question_text'', text=''<entity>'')', 'str', 0.01),
     ('faq', 'faq_answer_text', '', '', 1, '', 'str', 0.2)
     """,
     """
-    INSERT INTO dm_link_attributes (link, attribute_name, description, data_example, 
+    INSERT INTO dm_link_attributes (link, attribute_name, description, data_example,
                                    embeddable, query, dtype, embed_threshold) VALUES
-    ('DOCUMENT_has_DOCUMENT_CHUNK', 'chunk_order', 'order of chunk in document', '1', 0, 
+    ('DOCUMENT_has_DOCUMENT_CHUNK', 'chunk_order', 'order of chunk in document', '1', 0,
      '', 'int', 0.0),
-    ('DOCUMENT_CHUNK_has_FAQ', 'relevance_score', 'relevance score', '0.85', 1, 
+    ('DOCUMENT_CHUNK_has_FAQ', 'relevance_score', 'relevance score', '0.85', 1,
      '', 'float', 0.1)
     """,
     """
@@ -121,7 +121,7 @@ INSERT_TEST_DATA_SQL = [
     """,
     """
     INSERT INTO dm_prompts (name, text) VALUES
-    ('dm_descr_template', 
+    ('dm_descr_template',
      '## Nodes:\\n{anchors}\\n\\n## Node attributes:\\n{anchor_attrs}\\n\\n## Links:\\n{links}\\n\\n## Link attributes:\\n{link_attrs}\\n\\n## Frequent questions:\\n{queries}'),
     ('generate_no_answer_tmplt', 'Tell the user we could not find the answer.')
     """,

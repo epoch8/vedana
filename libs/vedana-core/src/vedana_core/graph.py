@@ -58,7 +58,8 @@ class Graph(abc.ABC):
         if create_basic_indices:
             await self.create_basic_indices()
 
-    async def create_basic_indices(self) -> None: ...
+    async def create_basic_indices(self) -> None:
+        ...
 
     async def execute_ro_cypher_query(
         self,
@@ -68,9 +69,11 @@ class Graph(abc.ABC):
     ) -> Iterable[Record]:
         return await self.run_cypher(query, parameters, limit=limit)
 
-    async def clear(self) -> None: ...
+    async def clear(self) -> None:
+        ...
 
-    def close(self) -> None: ...
+    def close(self) -> None:
+        ...
 
     def __enter__(self):
         return self

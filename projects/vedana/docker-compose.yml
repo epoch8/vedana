@@ -22,8 +22,22 @@ services:
   db-migrate:
     <<: *app-common
     command: uv run alembic upgrade head
-    working_dir: /app/projects/vedana/
+    working_dir: /app/projects/vedana
     depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    <<: *app-common
+    ports:
+      - "3002:3000"
+      - "8000:8000"
+    command: uv run reflex run
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      memgraph:
+        condition: service_started
       db:
         condition: service_healthy
 
@@ -38,26 +52,14 @@ services:
   #     db:
   #       condition: service_healthy
 
-  vedana-backoffice:
-    <<: *app-common
-    command: uv run reflex run
-    ports:
-      - "3002:3000"
-      - "8000:8000"
-    environment:
-      KUBECONFIG: /root/.kube/config
-      K8S_ENABLE_JOBS: "true"
-      K8S_NAMESPACE: default
-      K8S_IMAGE: vedana/vedana:dev
-    depends_on:
-      db-migrate:
-        condition: service_completed_successfully
-      memgraph:
-        condition: service_started
-      db:
-        condition: service_healthy
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+  # jims-backoffice:
+  #   <<: *app-common
+  #   command: uv run jims-backoffice
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     db-migrate:
+  #       condition: service_completed_successfully
 
   memgraph:
     image: memgraph/memgraph-mage
@@ -77,7 +79,7 @@ services:
   memgraph-lab:
     image: memgraph/lab
     ports:
-      - 3001:3000
+      - 3000:3000
     depends_on:
       - memgraph
 
@@ -93,7 +95,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
-      retries: 5    
+      retries: 5
 
 
 volumes:

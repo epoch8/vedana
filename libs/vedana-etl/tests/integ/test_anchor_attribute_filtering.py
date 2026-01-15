@@ -48,7 +48,7 @@ def test_anchor_attribute_filtering_removes_unknown() -> None:
         embedding_keys = {k for k in keys if k.endswith("_embedding")}
         unknown = keys - allowed_attrs - embedding_keys
         assert not unknown, f"""
-            Node {row["node_id"]} ({row["node_type"]}) contains attributes not described in 
+            Node {row["node_id"]} ({row["node_type"]}) contains attributes not described in
             Data Model: {sorted(unknown)}
             """
 
@@ -58,9 +58,9 @@ def test_anchor_attribute_filtering_removes_unknown() -> None:
     still_has_random = [
         row["node_id"] for _, row in docs.iterrows() if "document_random_attr" in (row["attributes"] or {})
     ]
-    assert not still_has_random, (
-        f"Unexpected attribute 'document_random_attr' is still present in document nodes: {still_has_random}"
-    )
+    assert (
+        not still_has_random
+    ), f"Unexpected attribute 'document_random_attr' is still present in document nodes: {still_has_random}"
 
     # Убедимся, что у document осталось хотя бы одно валидное поле из DM, чтобы тест не проходил
     # «пустым» набором атрибутов.

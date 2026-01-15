@@ -46,7 +46,7 @@ def test_table_filtering() -> None:
 
     # 2.1) Все типы узлов из данных должны соответствовать якорям Data Model.
     assert actual_node_types.issubset(allowed_node_types), f"""
-        Found node types that do not correspond to Data Model Anchors (allowed={sorted(allowed_node_types)}, 
+        Found node types that do not correspond to Data Model Anchors (allowed={sorted(allowed_node_types)},
         actual={sorted(actual_node_types)}, extra={sorted(actual_node_types - allowed_node_types)})
         """
 
@@ -59,6 +59,6 @@ def test_table_filtering() -> None:
 
     # Фиксируем наличие хотя бы одного «нормального» типа из Data Model.
     assert any(t in lower_types for t in ("document", "document_chunk", "regulation")), """
-        Expected at least one of typical anchor types ('document', 'document_chunk', 'regulation') 
+        Expected at least one of typical anchor types ('document', 'document_chunk', 'regulation')
         to be present in the nodes. Adjust this assertion if your DM differs.
         """
