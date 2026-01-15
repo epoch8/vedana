@@ -1,4 +1,4 @@
-# WIP
+# 0.4.0
 
 * Splitting ETL pipelines into tabs by new pipeline label
 * Improve data views: server-side pagination, custom styling

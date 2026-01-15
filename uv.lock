@@ -3089,7 +3089,7 @@ requires-dist = [
     { name = "orjson", specifier = ">=3.11.3" },
     { name = "reflex", specifier = ">=0.8.25" },
     { name = "vedana-backoffice", editable = "libs/vedana-backoffice" },
-    { name = "vedana-etl", virtual = "libs/vedana-etl" },
+    { name = "vedana-etl", editable = "libs/vedana-etl" },
 ]
 
 [package.metadata.requires-dev]
@@ -3126,7 +3126,7 @@ requires-dist = [
     { name = "orjson", specifier = ">=3.11.3" },
     { name = "reflex", specifier = ">=0.8.25,<0.9.0" },
     { name = "vedana-core", editable = "libs/vedana-core" },
-    { name = "vedana-etl", virtual = "libs/vedana-etl" },
+    { name = "vedana-etl", editable = "libs/vedana-etl" },
 ]
 
 [package.metadata.requires-dev]
@@ -3200,7 +3200,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.9.1" },
     { name = "sentry-sdk", extras = ["fastapi", "opentelemetry"], specifier = ">=2.32.0" },
     { name = "sqlalchemy", specifier = ">=2.0.41" },
-    { name = "vedana-etl", virtual = "libs/vedana-etl" },
+    { name = "vedana-etl", editable = "libs/vedana-etl" },
 ]
 
 [package.metadata.requires-dev]
@@ -3220,7 +3220,7 @@ dev = [
 [[package]]
 name = "vedana-etl"
 version = "0.2.3"
-source = { virtual = "libs/vedana-etl" }
+source = { editable = "libs/vedana-etl" }
 dependencies = [
     { name = "alembic" },
     { name = "datapipe-app" },
