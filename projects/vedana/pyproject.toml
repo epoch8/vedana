@@ -36,8 +36,8 @@ line-length = 120
 [dependency-groups]
 dev = [
     "ipykernel>=6.30.0",
-    "mypy>=1.16.1",
+    "mypy>=1.19.0",
     "py-spy>=0.4.1",
-    "ruff>=0.12.2",
+    "ruff>=0.14.10",
     "types-requests>=2.32.4.20250611",
 ]

@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = "==3.12.*"
 
 [manifest]
@@ -1111,9 +1111,11 @@ name = "jims-backoffice"
 version = "0.1.0"
 source = { editable = "libs/jims-backoffice" }
 dependencies = [
+    { name = "asyncpg" },
     { name = "fastapi" },
     { name = "fastui" },
     { name = "jims-core" },
+    { name = "psycopg2-binary" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
@@ -1131,9 +1133,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "fastui", specifier = ">=0.7.0" },
     { name = "jims-core", editable = "libs/jims-core" },
+    { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pydantic", specifier = "==2.9.2" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "python-multipart", specifier = ">=0.0.18" },
@@ -1143,9 +1147,9 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.17.1" },
+    { name = "mypy", specifier = ">=1.19.0" },
     { name = "pytest", specifier = ">=8.4.1" },
-    { name = "ruff", specifier = ">=0.12.9" },
+    { name = "ruff", specifier = ">=0.14.10" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250822" },
 ]
 
@@ -1226,11 +1230,11 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "aiosqlite", specifier = ">=0.21.0" },
-    { name = "mypy", specifier = ">=1.17.1" },
+    { name = "mypy", specifier = ">=1.19.0" },
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "pytest-asyncio", specifier = ">=1.0.0" },
     { name = "pytest-vcr", specifier = ">=1.0.2" },
-    { name = "ruff", specifier = ">=0.12.9" },
+    { name = "ruff", specifier = ">=0.14.10" },
 ]
 google = [{ name = "google-cloud-aiplatform", specifier = ">=1.105.0" }]
 sentry = [{ name = "sentry-sdk", specifier = ">=2.35.0" }]
@@ -1270,9 +1274,9 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.17.1" },
+    { name = "mypy", specifier = ">=1.19.0" },
     { name = "pytest", specifier = ">=8.4.1" },
-    { name = "ruff", specifier = ">=0.12.9" },
+    { name = "ruff", specifier = ">=0.14.10" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250822" },
 ]
 
@@ -1297,9 +1301,9 @@ requires-dist = [{ name = "textual", specifier = ">=3.1.0" }]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.17.1" },
+    { name = "mypy", specifier = ">=1.19.0" },
     { name = "pytest", specifier = ">=8.4.1" },
-    { name = "ruff", specifier = ">=0.12.9" },
+    { name = "ruff", specifier = ">=0.14.10" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250822" },
 ]
 
@@ -3085,15 +3089,15 @@ requires-dist = [
     { name = "orjson", specifier = ">=3.11.3" },
     { name = "reflex", specifier = ">=0.8.25" },
     { name = "vedana-backoffice", editable = "libs/vedana-backoffice" },
-    { name = "vedana-etl", editable = "libs/vedana-etl" },
+    { name = "vedana-etl", virtual = "libs/vedana-etl" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "ipykernel", specifier = ">=6.30.0" },
-    { name = "mypy", specifier = ">=1.16.1" },
+    { name = "mypy", specifier = ">=1.19.0" },
     { name = "py-spy", specifier = ">=0.4.1" },
-    { name = "ruff", specifier = ">=0.12.2" },
+    { name = "ruff", specifier = ">=0.14.10" },
     { name = "types-requests", specifier = ">=2.32.4.20250611" },
 ]
 
@@ -3120,17 +3124,17 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "orjson", specifier = ">=3.11.3" },
-    { name = "reflex", specifier = ">=0.8.22,<0.9.0" },
+    { name = "reflex", specifier = ">=0.8.25,<0.9.0" },
     { name = "vedana-core", editable = "libs/vedana-core" },
-    { name = "vedana-etl", editable = "libs/vedana-etl" },
+    { name = "vedana-etl", virtual = "libs/vedana-etl" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.15.0" },
+    { name = "mypy", specifier = ">=1.19.0" },
     { name = "pandas-stubs", specifier = ">=2.3.2.250827" },
     { name = "pytest", specifier = ">=8.4.0" },
-    { name = "ruff", specifier = ">=0.11.1" },
+    { name = "ruff", specifier = ">=0.14.10" },
     { name = "types-requests", specifier = ">=2.32.4.20250913" },
 ]
 
@@ -3196,7 +3200,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.9.1" },
     { name = "sentry-sdk", extras = ["fastapi", "opentelemetry"], specifier = ">=2.32.0" },
     { name = "sqlalchemy", specifier = ">=2.0.41" },
-    { name = "vedana-etl", editable = "libs/vedana-etl" },
+    { name = "vedana-etl", virtual = "libs/vedana-etl" },
 ]
 
 [package.metadata.requires-dev]
@@ -3204,19 +3208,19 @@ dev = [
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "ipykernel", specifier = ">=6.29.5" },
     { name = "litellm", extras = ["caching"], specifier = ">=1.76.2" },
-    { name = "mypy", specifier = ">=1.15.0" },
+    { name = "mypy", specifier = ">=1.19.0" },
     { name = "pandas-stubs", specifier = ">=2.3.0.250703" },
     { name = "pytest", specifier = ">=8.4.0" },
     { name = "pytest-asyncio", specifier = ">=1.1.0" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
-    { name = "ruff", specifier = ">=0.11.1" },
+    { name = "ruff", specifier = ">=0.14.10" },
     { name = "types-requests", specifier = ">=2.32.4.20250611" },
 ]
 
 [[package]]
 name = "vedana-etl"
 version = "0.2.3"
-source = { editable = "libs/vedana-etl" }
+source = { virtual = "libs/vedana-etl" }
 dependencies = [
     { name = "alembic" },
     { name = "datapipe-app" },
@@ -3258,9 +3262,9 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.17.1" },
+    { name = "mypy", specifier = ">=1.19.0" },
     { name = "pytest", specifier = ">=8.4.1" },
-    { name = "ruff", specifier = ">=0.12.9" },
+    { name = "ruff", specifier = ">=0.14.10" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250822" },
 ]
 
