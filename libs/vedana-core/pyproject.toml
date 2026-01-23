@@ -29,6 +29,7 @@ dependencies = [
     "litellm>=1.79.0",
     "aioitertools>=0.12.0",
     "async-lru>=2.0.5",
+    "config-plane",
 ]
 
 [build-system]
@@ -76,3 +77,6 @@ custom_steps = """
   run: |
     uv run pytest libs/vedana-core/
 """
+
+[tool.uv.sources]
+config-plane = { git = "https://github.com/epoch8/config-plane.git", subdirectory = "packages/config-plane", tag = "v0.1.0" }
