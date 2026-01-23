@@ -210,6 +210,7 @@ class RagPipeline:
             "num_cypher_queries": len(cypher_queries),
             "model_used": self.model,
             "model_stats": {m: asdict(u) for m, u in ctx.llm.usage.items()},
+            "dm_snapshot_id": self.data_model.get_snapshot_id(),
         }
 
         # Add filtering info if applicable

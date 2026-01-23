@@ -47,6 +47,7 @@ def app_header() -> rx.Component:
             ),
             rx.hstack(
                 data_model_reload_btn(),
+                rx.link("Data Model", href="/data-model", font_size="1.1em"),
                 rx.link("ETL", href="/etl", font_size="1.1em"),
                 rx.cond(
                     AppVersionState.eval_enabled,

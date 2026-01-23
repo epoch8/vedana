@@ -29,6 +29,7 @@ class ChatState(rx.State):
     messages: list[dict[str, Any]] = []
     chat_thread_id: str = ""
     data_model_text: str = ""
+    data_model_snapshot_id: str = ""
     is_refreshing_dm: bool = False
     provider: str = "openai"  # default llm provider
     model: str = core_settings.model
@@ -52,6 +53,8 @@ class ChatState(rx.State):
     openrouter_models: list[str] = []
     available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
     enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
+    data_model_branch: str = core_settings.config_plane_dev_branch
+    data_model_snapshot_input: str = ""
 
     async def mount(self) -> None:
         self.fetch_openrouter_models()
@@ -70,6 +73,26 @@ class ChatState(rx.State):
     def set_enable_dm_filtering(self, value: bool) -> None:
         self.enable_dm_filtering = value
 
+    def set_data_model_branch(self, value: str) -> None:
+        self.data_model_branch = value
+
+    def set_data_model_snapshot_input(self, value: str) -> None:
+        self.data_model_snapshot_input = value
+
+    def _resolve_data_model_snapshot(self) -> int | None:
+        raw = (self.data_model_snapshot_input or "").strip()
+        if not raw:
+            return None
+        try:
+            return int(raw)
+        except Exception:
+            return None
+
+    async def _apply_data_model_selection(self) -> None:
+        va = await get_vedana_app()
+        va.data_model.set_branch(self.data_model_branch)
+        va.data_model.set_snapshot_override(self._resolve_data_model_snapshot())
+
     def set_provider(self, value: str) -> None:
         self.provider = value
         self._sync_available_models()
@@ -84,9 +107,7 @@ class ChatState(rx.State):
             has_chat = False
             architecture = m.get("architecture", {})
             if architecture:
-                if "text" in architecture.get("input_modalities", []) and "text" in architecture.get(
-                    "output_modalities", []
-                ):
+                if "text" in architecture.get("input_modalities", []) and "text" in  architecture.get("output_modalities", []):
                     has_chat = True
 
             has_tools = False  # only accept models with tool calls
@@ -197,6 +218,7 @@ class ChatState(rx.State):
             vts_list = [str(x) for x in technical_info.get("vts_queries") or []]
             cypher_list = [str(x) for x in technical_info.get("cypher_queries") or []]
             models_raw = technical_info.get("model_stats", {})
+            message["dm_snapshot_id"] = str(technical_info.get("dm_snapshot_id", "") or "")
             model_pairs: list[tuple[str, str]] = []
             if isinstance(models_raw, dict):
                 for mk, mv in models_raw.items():
@@ -212,7 +234,7 @@ class ChatState(rx.State):
             message["has_vts"] = bool(vts_list)
             message["has_cypher"] = bool(cypher_list)
             message["has_models"] = bool(models_list)
-            message["has_tech"] = bool(vts_list or cypher_list or models_list)
+            message["has_tech"] = bool(vts_list or cypher_list or models_list or message.get("dm_snapshot_id"))
             message["model_stats"] = models_raw
 
         logs = (debug_logs or "").replace("\r\n", "\n").rstrip()
@@ -242,6 +264,7 @@ class ChatState(rx.State):
 
     async def _run_message(self, thread_id: str, user_text: str) -> Tuple[str, Dict[str, Any], str]:
         vedana_app = await get_vedana_app()
+        await self._apply_data_model_selection()
         try:
             tid = UUID(thread_id)
         except Exception:
@@ -333,9 +356,13 @@ class ChatState(rx.State):
         async with self:
             va = await get_vedana_app()
             try:
+                await self._apply_data_model_selection()
+                snapshot_id = va.data_model.get_snapshot_id()
+                self.data_model_snapshot_id = str(snapshot_id) if snapshot_id is not None else ""
                 self.data_model_text = await va.data_model.to_text_descr()
             except Exception:
                 self.data_model_text = "(failed to load data model text)"
+                self.data_model_snapshot_id = ""
 
             self.is_refreshing_dm = False  # make the update button available
             yield
@@ -351,12 +378,23 @@ class ChatState(rx.State):
     @rx.event(background=True)  # type: ignore[operator]
     async def reload_data_model_background(self):
         try:
-            """Reload the data model by running all data_model_steps from the pipeline."""
-            await asyncio.to_thread(run_pipeline, etl_app.ds, Catalog({}), get_data_model_pipeline())
+            """Reload the data model from Grist into config-plane dev branch."""
             async with self:
                 va = await get_vedana_app()
+                snapshot_id = await asyncio.to_thread(
+                    va.data_model.update_from_grist,
+                    core_settings.config_plane_dev_branch,
+                )
+                await self._apply_data_model_selection()
+                snapshot_id = va.data_model.get_snapshot_id()
+                self.data_model_snapshot_id = str(snapshot_id) if snapshot_id is not None else ""
                 self.data_model_text = await va.data_model.to_text_descr()
-            yield rx.toast.success("Data model reloaded")
+            msg = (
+                f"Data model updated in dev (snapshot {snapshot_id})"
+                if snapshot_id is not None
+                else "Data model unchanged"
+            )
+            yield rx.toast.success(msg)
         except Exception as e:
             async with self:
                 error_msg = str(e)

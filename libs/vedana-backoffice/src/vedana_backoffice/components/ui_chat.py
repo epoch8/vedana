@@ -1,5 +1,41 @@
 import reflex as rx
 
+from vedana_backoffice.states.data_model import DataModelState
+from vedana_backoffice.ui import themed_data_table
+
+
+def _table_accordion(tables: rx.Var) -> rx.Component:
+    return rx.accordion.root(
+        rx.foreach(
+            tables,
+            lambda t: rx.accordion.item(
+                rx.accordion.trigger(
+                    rx.hstack(
+                        rx.text(t["name"]),
+                        rx.badge(t["row_count"], variant="soft", size="1", color_scheme="gray"),
+                        spacing="2",
+                        align="center",
+                    )
+                ),
+                rx.accordion.content(
+                    themed_data_table(
+                        data=t["rows"],
+                        columns=t["columns"],
+                        pagination=True,
+                        search=True,
+                        sort=True,
+                        max_width="100%",
+                    )
+                ),
+                value=t["name"],
+            ),
+        ),
+        type="multiple",
+        collapsible=True,
+        variant="outline",
+        width="100%",
+    )
+
 
 def render_message_bubble(
     msg: dict,
@@ -78,6 +114,98 @@ def render_message_bubble(
                         spacing="1",
                         width="100%",
                     ),
+                ),
+                rx.cond(
+                    msg.get("dm_snapshot_id"),
+                    rx.hstack(
+                        rx.text("Data Model ID: "),
+                        rx.text(msg.get("dm_snapshot_id")),
+                        rx.popover.root(
+                            rx.popover.trigger(
+                                rx.button(
+                                    "Open",
+                                    size="1",
+                                    variant="soft",
+                                    on_click=DataModelState.open_quick_view(
+                                        snapshot_id=msg.get("dm_snapshot_id")
+                                    ),  # type: ignore[arg-type,call-arg,func-returns-value]
+                                )
+                            ),
+                            rx.popover.content(
+                                rx.vstack(
+                                    rx.hstack(
+                                        rx.text("Snapshot", weight="medium"),
+                                        rx.spacer(),
+                                        rx.text(DataModelState.quick_view_snapshot_id, color="gray"),
+                                        width="100%",
+                                    ),
+                                    rx.cond(
+                                        DataModelState.quick_view_error_message != "",
+                                        rx.callout(
+                                            DataModelState.quick_view_error_message,
+                                            icon="triangle_alert",
+                                            color_scheme="red",
+                                        ),
+                                        rx.fragment(),
+                                    ),
+                                    rx.cond(
+                                        DataModelState.quick_view_is_loading,
+                                        rx.center(rx.spinner(size="3"), height="200px"),
+                                        _table_accordion(DataModelState.quick_view_tables),
+                                    ),
+                                    spacing="3",
+                                    width="100%",
+                                ),
+                                style={"maxWidth": "90vw", "maxHeight": "80vh", "overflow": "auto"},
+                            ),
+                            open=DataModelState.quick_view_open,
+                            on_open_change=DataModelState.set_quick_view_open,
+                        ),
+                        rx.popover.root(
+                            rx.popover.trigger(
+                                rx.button(
+                                    "Show diff",
+                                    size="1",
+                                    variant="soft",
+                                    on_click=DataModelState.open_quick_diff(
+                                        snapshot_id=msg.get("dm_snapshot_id"),
+                                        compare_branch=DataModelState.prod_branch,
+                                    ),  # type: ignore[arg-type,call-arg,func-returns-value]
+                                )
+                            ),
+                            rx.popover.content(
+                                rx.vstack(
+                                    rx.hstack(
+                                        rx.text("Diff vs prod", weight="medium"),
+                                        rx.spacer(),
+                                        rx.text(DataModelState.quick_diff_snapshot_id, color="gray"),
+                                        width="100%",
+                                    ),
+                                    rx.cond(
+                                        DataModelState.quick_diff_error_message != "",
+                                        rx.callout(
+                                            DataModelState.quick_diff_error_message,
+                                            icon="triangle_alert",
+                                            color_scheme="red",
+                                        ),
+                                        rx.fragment(),
+                                    ),
+                                    rx.cond(
+                                        DataModelState.quick_diff_is_loading,
+                                        rx.center(rx.spinner(size="3"), height="200px"),
+                                        _table_accordion(DataModelState.quick_diff_tables),
+                                    ),
+                                    spacing="3",
+                                    width="100%",
+                                ),
+                                style={"maxWidth": "90vw", "maxHeight": "80vh", "overflow": "auto"},
+                            ),
+                            open=DataModelState.quick_diff_open,
+                            on_open_change=DataModelState.set_quick_diff_open,
+                        ),
+                        spacing="2",
+                        align="center",
+                    )
                 ),
                 spacing="2",
                 width="100%",

@@ -8,10 +8,11 @@ import pandas as pd
 from jims_core.llms.llm_provider import LLMProvider
 from neo4j import GraphDatabase
 from vedana_core.data_model import Anchor, Attribute, Link
-from vedana_core.data_provider import GristAPIDataProvider, GristCsvDataProvider
+from vedana_core.data_provider import GristAPIDataProvider
 from vedana_core.settings import settings as core_settings
 
 from vedana_etl.settings import settings as etl_settings
+from vedana_etl.config_plane import load_data_model_from_branch
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
 # https://github.com/pandas-dev/pandas/issues/57734
@@ -48,102 +49,15 @@ def clean_str(text: str) -> str:
 def get_data_model() -> Iterator[
     tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]
 ]:
-    loader = GristCsvDataProvider(
-        doc_id=core_settings.grist_data_model_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
-    )
-
-    _links_df = loader.get_table("Links")
-    links_df = cast(
-        pd.DataFrame,
-        _links_df[
-            [
-                "anchor1",
-                "anchor2",
-                "sentence",
-                "description",
-                "query",
-                "anchor1_link_column_name",
-                "anchor2_link_column_name",
-                "has_direction",
-            ]
-        ],
-    )
-    assert links_df is not None
-
-    links_df["has_direction"] = _links_df["has_direction"].astype(bool)
-    links_df = links_df.dropna(subset=["anchor1", "anchor2", "sentence"], inplace=False)
-
-    anchor_attrs_df = loader.get_table("Anchor_attributes")
-    anchor_attrs_df = cast(
-        pd.DataFrame,
-        anchor_attrs_df[
-            [
-                "anchor",
-                "attribute_name",
-                "description",
-                "data_example",
-                "embeddable",
-                "query",
-                "dtype",
-                "embed_threshold",
-            ]
-        ],
-    )
-    anchor_attrs_df["embeddable"] = anchor_attrs_df["embeddable"].astype(bool)
-    anchor_attrs_df["embed_threshold"] = anchor_attrs_df["embed_threshold"].astype(float)
-    anchor_attrs_df = anchor_attrs_df.dropna(subset=["anchor", "attribute_name"], how="any")
-
-    link_attrs_df = loader.get_table("Link_attributes")
-    link_attrs_df = cast(
-        pd.DataFrame,
-        link_attrs_df[
-            [
-                "link",
-                "attribute_name",
-                "description",
-                "data_example",
-                "embeddable",
-                "query",
-                "dtype",
-                "embed_threshold",
-            ]
-        ],
-    )
-    link_attrs_df["embeddable"] = link_attrs_df["embeddable"].astype(bool)
-    link_attrs_df["embed_threshold"] = link_attrs_df["embed_threshold"].astype(float)
-    link_attrs_df = link_attrs_df.dropna(subset=["link", "attribute_name"], how="any")
-
-    anchors_df = loader.get_table("Anchors")
-    anchors_df = cast(
-        pd.DataFrame,
-        anchors_df[
-            [
-                "noun",
-                "description",
-                "id_example",
-                "query",
-            ]
-        ],
-    )
-    anchors_df = anchors_df.dropna(subset=["noun"], inplace=False)
-    anchors_df = anchors_df.astype(str)
-
-    queries_df = loader.get_table("Queries")
-    queries_df = cast(pd.DataFrame, queries_df[["query_name", "query_example"]])
-    queries_df = queries_df.dropna()
-    queries_df = queries_df.astype(str)
-
-    prompts_df = loader.get_table("Prompts")
-    prompts_df = cast(pd.DataFrame, prompts_df[["name", "text"]])
-    prompts_df = prompts_df.dropna()
-    prompts_df = prompts_df.astype(str)
-
-    conversation_lifecycle_df = loader.get_table("ConversationLifecycle")
-    conversation_lifecycle_df = cast(pd.DataFrame, conversation_lifecycle_df[["event", "text"]])
-    conversation_lifecycle_df = conversation_lifecycle_df.dropna()
-    conversation_lifecycle_df = conversation_lifecycle_df.astype(str)
+    (
+        anchors_df,
+        anchor_attrs_df,
+        link_attrs_df,
+        links_df,
+        queries_df,
+        prompts_df,
+        conversation_lifecycle_df,
+    ) = load_data_model_from_branch()
 
     yield anchors_df, anchor_attrs_df, link_attrs_df, links_df, queries_df, prompts_df, conversation_lifecycle_df
 
@@ -251,14 +165,8 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
 
         # get anchor's links
         # todo check link column directions
-        anchor_from_link_cols = [
-            link
-            for link in dm_links.values()
-            if link.anchor_from.noun == anchor_type and link.anchor_from_link_attr_name
-        ]
-        anchor_to_link_cols = [
-            link for link in dm_links.values() if link.anchor_to.noun == anchor_type and link.anchor_to_link_attr_name
-        ]
+        anchor_from_link_cols = [link for link in dm_links.values() if link.anchor_from.noun == anchor_type and link.anchor_from_link_attr_name]
+        anchor_to_link_cols = [link for link in dm_links.values() if link.anchor_to.noun == anchor_type and link.anchor_to_link_attr_name]
 
         try:
             anchors = dp.get_anchors(anchor_type, dm_attrs=dm_anchor.attributes, dm_anchor_links=anchor_from_link_cols)

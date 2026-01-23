@@ -63,6 +63,8 @@ class GraphMeta:
 class DmMeta:
     dm_id: str = ""
     dm_description: str = ""
+    dm_snapshot_id: str = ""
+    dm_branch: str = ""
 
 
 @dataclass
@@ -107,6 +109,8 @@ class RunConfigSummary:
     judge_prompt_hash: str
     dm_hash: str
     dm_id: str
+    dm_snapshot_id: str
+    dm_branch: str
     graph_nodes: dict[str, int]
     graph_edges: dict[str, int]
     vector_indexes: list[dict[str, object]]
@@ -207,6 +211,9 @@ class EvalState(rx.State):
     openrouter_models: list[str] = []
     available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
     dm_id: str = ""
+    dm_snapshot_id: str = ""
+    dm_branch: str = core_settings.config_plane_dev_branch
+    dm_snapshot_input: str = ""
     tests_rows: list[dict[str, Any]] = []
     tests_cost_total: float = 0.0
     run_passed: int = 0
@@ -435,6 +442,33 @@ class EvalState(rx.State):
     def set_enable_dm_filtering(self, value: bool) -> None:
         self.enable_dm_filtering = value
 
+    def set_dm_branch(self, value: str) -> None:
+        self.dm_branch = value
+
+    def set_dm_snapshot_input(self, value: str) -> None:
+        self.dm_snapshot_input = value
+
+    def _resolve_dm_snapshot(self) -> int | None:
+        raw = (self.dm_snapshot_input or "").strip()
+        if not raw:
+            return None
+        try:
+            return int(raw)
+        except Exception:
+            return None
+
+    async def _apply_data_model_selection(self) -> None:
+        vedana_app = await get_vedana_app()
+        dm = vedana_app.data_model
+        dm.set_branch(self.dm_branch)
+        dm.set_snapshot_override(self._resolve_dm_snapshot())
+
+    def set_dm_branch(self, value: str) -> None:
+        self.dm_branch = value
+
+    def set_dm_snapshot_input(self, value: str) -> None:
+        self.dm_snapshot_input = value
+
     def set_provider(self, value: str) -> None:
         self.provider = str(value or "openai")
         if self.provider == "openrouter" and not self.openrouter_models:
@@ -566,7 +600,10 @@ class EvalState(rx.State):
 
     async def _load_pipeline_config(self) -> None:
         vedana_app = await get_vedana_app()
+        await self._apply_data_model_selection()
         dm = vedana_app.data_model
+        snapshot_id = dm.get_snapshot_id()
+        self.dm_snapshot_id = str(snapshot_id) if snapshot_id is not None else ""
         self.dm_description = await dm.to_text_descr()
         dm_text_b = bytearray(self.dm_description, "utf-8")
         self.dm_id = hashlib.sha256(dm_text_b).hexdigest()
@@ -1153,6 +1190,8 @@ class EvalState(rx.State):
             # "dm_json": dm_json,  # may get used later
             "dm_id": self.dm_id,
             "dm_description": self.dm_description,
+            "dm_snapshot_id": self.dm_snapshot_id,
+            "dm_branch": self.dm_branch,
         }
 
     async def _build_eval_meta_payload(self, vedana_app, test_run_id: str, test_run_name: str) -> dict[str, Any]:
@@ -1341,6 +1380,8 @@ class EvalState(rx.State):
             judge_prompt_hash=judge_prompt_hash,
             dm_hash=str(cfg_fallback.get("dm_hash", "")),
             dm_id=dm.dm_id,
+            dm_snapshot_id=dm.dm_snapshot_id,
+            dm_branch=dm.dm_branch,
             graph_nodes=graph.nodes_by_label,
             graph_edges=graph.edges_by_type,
             vector_indexes=graph.vector_indexes,
@@ -1447,6 +1488,8 @@ class EvalState(rx.State):
         dm = DmMeta(
             dm_id=str(dm_src["dm_id"]) if "dm_id" in dm_src else str(cfg_fallback.get("dm_id", "")),
             dm_description=str(dm_src["dm_description"]) if "dm_description" in dm_src else "",
+            dm_snapshot_id=str(dm_src["dm_snapshot_id"]) if "dm_snapshot_id" in dm_src else str(cfg_fallback.get("dm_snapshot_id", "")),
+            dm_branch=str(dm_src["dm_branch"]) if "dm_branch" in dm_src else str(cfg_fallback.get("dm_branch", "")),
         )
         return RunMeta(graph=graph, judge=judge, run_config=run_config, dm=dm)
 
@@ -1482,6 +1525,8 @@ class EvalState(rx.State):
             rating_val: float | None = None
             question_text = str(cfg["gds_question"]) if "gds_question" in cfg else ""
             golden_answer = str(cfg["gds_answer"]) if "gds_answer" in cfg else ""
+            user_ts = None
+            answer_ts = None
 
             for ev in evs:
                 if not isinstance(ev.event_data, dict):
@@ -1595,6 +1640,8 @@ class EvalState(rx.State):
             ("Embeddings", "embeddings_model"),
             ("Embedding dims", "embeddings_dim"),
             ("Judge model", "judge_model"),
+            ("Data model branch", "dm_branch"),
+            ("Data model snapshot", "dm_snapshot_id"),
             ("Graph nodes", "graph_nodes"),
             ("Graph edges", "graph_edges"),
             # ("Vector indexes", "vector_indexes"),  # takes a lot of space
@@ -1624,6 +1671,8 @@ class EvalState(rx.State):
             "embeddings_model": self.embeddings_model,
             "embeddings_dim": self.embeddings_dim,
             "dm_id": self.dm_id,
+            "dm_snapshot_id": self.dm_snapshot_id,
+            "dm_branch": self.dm_branch,
         }
 
     async def _run_question_thread(
@@ -1636,6 +1685,7 @@ class EvalState(rx.State):
     ) -> tuple[str, str, dict[str, Any]]:
         """Create a JIMS thread, post the question, run pipeline, return answer + tech info."""
         thread_id = uuid7()
+        await self._apply_data_model_selection()
         ctl = await ThreadController.new_thread(
             vedana_app.sessionmaker,
             contact_id=test_run_id,
