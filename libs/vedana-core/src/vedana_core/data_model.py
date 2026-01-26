@@ -7,6 +7,7 @@ import pandas as pd
 import sqlalchemy.ext.asyncio as sa_aio
 
 from config_plane.impl.sql import create_sql_config_repo
+from vedana_core.db import get_config_plane_sessionmaker
 from vedana_core.settings import settings as core_settings
 
 @dataclass
@@ -79,7 +80,10 @@ class DataModel:
         self._config_cache_snapshot_id: int | None = None
         self._config_cache_payload: dict[str, Any] | None = None
         self._config_cache_parsed: dict[str, Any] | None = None
-        self.config_repo = create_sql_config_repo(self.sessionmaker, branch=self.config_plane_branch)
+        self._config_repo_sessionmaker = get_config_plane_sessionmaker()  # todo mv declaration up?
+        self._config_repo = create_sql_config_repo(
+            self._config_repo_sessionmaker, branch=self.config_plane_branch
+        )
 
     @classmethod
     def create(cls, sessionmaker) -> "DataModel":
@@ -87,7 +91,7 @@ class DataModel:
 
     def set_branch(self, branch: str) -> None:
         self.config_plane_branch = branch
-        self.config_repo.switch_branch(branch)
+        self._config_repo.switch_branch(branch)
         self._config_snapshot_override = None
         self._config_cache_snapshot_id = None
         self._config_cache_payload = None
@@ -95,7 +99,7 @@ class DataModel:
 
     def set_snapshot_override(self, snapshot_id: int | None) -> None:
         self._config_snapshot_override = snapshot_id
-        self.config_repo.set_branch_snapshot_id(snapshot_id=snapshot_id, branch=self.config_plane_branch)
+        self._config_repo.set_branch_snapshot_id(snapshot_id=snapshot_id, branch=self.config_plane_branch)
         self._config_cache_snapshot_id = None
         self._config_cache_payload = None
         self._config_cache_parsed = None
@@ -103,7 +107,7 @@ class DataModel:
     def get_snapshot_id(self) -> int | None:
         if self._config_snapshot_override is not None:
             return self._config_snapshot_override
-        return self._get_branch_snapshot_id(self.config_plane_branch)
+        return self._config_repo.get_branch_snapshot_id(self.config_plane_branch)
 
     async def _get_config_payload(self) -> dict[str, Any]:
         snapshot_id = (
@@ -120,9 +124,13 @@ class DataModel:
         ):
             return self._config_cache_payload
 
-        raw = await asyncio.to_thread(self._get_snapshot_blob, snapshot_id)
+        raw = await asyncio.to_thread(
+            self._config_repo.get, "vedana.data_model", snapshot_id=str(snapshot_id)
+        )
         if raw is None:
-            exists = await asyncio.to_thread(self._snapshot_exists, snapshot_id)
+            exists = await asyncio.to_thread(
+                self._config_repo.snapshot_exists, str(snapshot_id)
+            )
             if not exists:
                 raise RuntimeError(f"Data model snapshot ID {snapshot_id} does not exist")
             raise RuntimeError(f"Data model snapshot ID {snapshot_id} is missing key 'vedana.data_model'")
@@ -238,10 +246,14 @@ class DataModel:
         payload = _build_payload_from_grist()
         blob = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         target_branch = branch or core_settings.config_plane_dev_branch
-        repo = create_sql_config_repo(self.sessionmaker, branch=target_branch)
-        repo.set("vedana.data_model", blob)
-        repo.commit()
-        snapshot_id = repo.get_branch_snapshot_id()
+        current_branch = self.config_plane_branch
+        if target_branch != current_branch:
+            self._config_repo.switch_branch(target_branch)
+        self._config_repo.set("vedana.data_model", blob)
+        self._config_repo.commit()
+        snapshot_id = self._config_repo.get_branch_snapshot_id(target_branch)
+        if target_branch != current_branch:
+            self._config_repo.switch_branch(current_branch)
         return int(snapshot_id) if snapshot_id is not None else None
 
     async def get_anchors(self) -> list[Anchor]:
