@@ -9,9 +9,9 @@ requires-python = ">=3.12,<3.13"
 members = [
     "libs/jims-*",
     "libs/vedana-*",
-    "projects/vedana",
-    "projects/vedana-*",
-    "projects/jims-*",
+    "apps/vedana",
+    "apps/vedana-*",
+    "apps/jims-*",
 ]
 
 [tool.uv.sources]
