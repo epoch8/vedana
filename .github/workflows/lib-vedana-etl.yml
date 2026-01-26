@@ -5,17 +5,18 @@
 name: Test lib vedana-etl
 
 on:
-  pull_request:
-    paths:
-      - "libs/vedana-etl/**"
-      # - "pyproject.toml"
-      # - "uv.lock"
-  push:
-    branches: [master]
-    paths:
-      - "libs/vedana-etl/**"
-      - "pyproject.toml"
-      - "uv.lock"
+  workflow_dispatch:
+  # pull_request:
+  #   paths:
+  #     - "libs/vedana-etl/**"
+  #     # - "pyproject.toml"
+  #     # - "uv.lock"
+  # push:
+  #   branches: [master]
+  #   paths:
+  #     - "libs/vedana-etl/**"
+  #     - "pyproject.toml"
+  #     - "uv.lock"
 
 jobs:
   test:

@@ -5,17 +5,18 @@
 name: Test lib jims-telegram
 
 on:
-  pull_request:
-    paths:
-      - "libs/jims-telegram/**"
-      # - "pyproject.toml"
-      # - "uv.lock"
-  push:
-    branches: [master]
-    paths:
-      - "libs/jims-telegram/**"
-      - "pyproject.toml"
-      - "uv.lock"
+  workflow_dispatch:
+  # pull_request:
+  #   paths:
+  #     - "libs/jims-telegram/**"
+  #     # - "pyproject.toml"
+  #     # - "uv.lock"
+  # push:
+  #   branches: [master]
+  #   paths:
+  #     - "libs/jims-telegram/**"
+  #     - "pyproject.toml"
+  #     - "uv.lock"
 
 jobs:
   test:

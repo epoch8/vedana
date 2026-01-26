@@ -5,17 +5,18 @@
 name: Test lib jims-backoffice
 
 on:
-  pull_request:
-    paths:
-      - "libs/jims-backoffice/**"
-      # - "pyproject.toml"
-      # - "uv.lock"
-  push:
-    branches: [master]
-    paths:
-      - "libs/jims-backoffice/**"
-      - "pyproject.toml"
-      - "uv.lock"
+  workflow_dispatch:
+  # pull_request:
+  #   paths:
+  #     - "libs/jims-backoffice/**"
+  #     # - "pyproject.toml"
+  #     # - "uv.lock"
+  # push:
+  #   branches: [master]
+  #   paths:
+  #     - "libs/jims-backoffice/**"
+  #     - "pyproject.toml"
+  #     - "uv.lock"
 
 jobs:
   test:
