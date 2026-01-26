@@ -5,6 +5,7 @@
 name: Publish jims-backoffice
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'

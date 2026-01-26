@@ -5,6 +5,7 @@
 name: Publish jims-telegram
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'

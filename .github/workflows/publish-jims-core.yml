@@ -5,6 +5,7 @@
 name: Publish jims-core
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
