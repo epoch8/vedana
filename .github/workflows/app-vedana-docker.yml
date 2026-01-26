@@ -1,16 +1,16 @@
 name: Build and push vedana Docker image
 
 on:
-  push:
-    branches: [master]
-    paths:
-      - "apps/vedana/**"
-      - "libs/jims*/**"
-      - "libs/vedana*/**"
-      - "pyproject.toml"
-      - "uv.lock"
-    tags:
-      - "v*"
+  # push:
+  #   branches: [master]
+  #   paths:
+  #     - "apps/vedana/**"
+  #     - "libs/jims*/**"
+  #     - "libs/vedana*/**"
+  #     - "pyproject.toml"
+  #     - "uv.lock"
+  #   tags:
+  #     - "v*"
   workflow_dispatch:
 
 env:
