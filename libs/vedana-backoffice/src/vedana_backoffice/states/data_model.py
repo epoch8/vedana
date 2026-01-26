@@ -5,7 +5,7 @@ from typing import Any
 
 import reflex as rx
 
-from vedana_core.config_plane_service import ConfigPlaneService
+from config_plane.impl.sql import create_sql_config_repo
 from vedana_core.settings import settings as core_settings
 
 
