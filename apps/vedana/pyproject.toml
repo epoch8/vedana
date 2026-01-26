@@ -1,6 +1,6 @@
 [project]
 name = "vedana"
-version = "2025.11.25-dev.26"
+dynamic = ["version"]
 description = "Vedana"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -15,6 +15,18 @@ dependencies = [
     "reflex>=0.8.25",
     "orjson>=3.11.3",
 ]
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+enable = true
+vcs = "git"
+pattern = "default"
 
 [tool.uv-workspace-codegen]
 generate = true
