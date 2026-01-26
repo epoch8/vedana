@@ -50,7 +50,6 @@ jobs:
 
 
       - env:
-            DB_CONN_URI: postgresql://postgres:postgres@localhost:5432
             EMBEDDINGS_DIM: '1536'
             GRIST_API_KEY: e30d2f274a538c05fecd14510887f8a3b7eab718
             GRIST_DATA_DOC_ID: qAxQ1gcBKcW7

@@ -18,7 +18,7 @@ dependencies = [
 
 [tool.uv-workspace-codegen]
 generate = true
-template_type = "project"
+template_type = "app"
 generate_standard_pytest_step = false
 generate_typechecking_step = false
 generate_alembic_migration_check_step = true

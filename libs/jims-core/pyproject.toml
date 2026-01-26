@@ -36,6 +36,6 @@ build-backend = "uv_build"
 
 [tool.uv-workspace-codegen]
 generate = true
-template_type = "lib"
+template_type = ["lib", "publish"]
 generate_standard_pytest_step = true
 typechecker = "mypy"

@@ -1,6 +1,6 @@
 FROM python:3.12 AS base
 
-ARG PROJECT_SRC=projects/vedana
+ARG PROJECT_SRC=apps/vedana
 ARG JIMS_APP=vedana_core.app
 ARG DATAPIPE_PIPELINE=vedana_etl.app
 

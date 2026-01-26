@@ -7,7 +7,7 @@ name: Test project vedana
 on:
   pull_request:
     paths:
-      - "projects/vedana/**"
+      - "apps/vedana/**"
       - "libs/jims*/**"
       - "libs/vedana*/**"
       # - "pyproject.toml"
@@ -15,7 +15,7 @@ on:
   push:
     branches: [master]
     paths:
-      - "projects/vedana/**"
+      - "apps/vedana/**"
       - "pyproject.toml"
       - "uv.lock"
 
@@ -51,17 +51,17 @@ jobs:
       - name: Install
         shell: bash
         run: |
-          cd projects/vedana
+          cd apps/vedana
           uv sync --all-groups
 
       - name: Check formatting
         shell: bash
         run: |
-          uv run ruff check projects/vedana
+          uv run ruff check apps/vedana
 
       - name: Check Alembic migrations
         shell: bash
         run: |
-          cd projects/vedana
+          cd apps/vedana
           env $(cat .env.ci-cd | grep -v '^#') uv run alembic upgrade heads
           env $(cat .env.ci-cd | grep -v '^#') uv run alembic check
