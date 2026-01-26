@@ -1,4 +1,4 @@
-name: Test project {{ package.name }}
+name: Test app {{ package.name }}
 
 on:
   pull_request:
