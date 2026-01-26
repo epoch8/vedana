@@ -5,9 +5,11 @@ requires-python = "==3.12.*"
 members = [
     "ai-assistants-oss-ws",
     "jims-backoffice",
+    "jims-cli-demo",
     "jims-core",
     "jims-telegram",
     "jims-tui",
+    "vedana",
     "vedana-backoffice",
     "vedana-core",
     "vedana-etl",
@@ -682,6 +684,40 @@ wheels = [
 ]
 
 [[package]]
+name = "google-cloud-iam"
+version = "2.21.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpc-google-iam-v1" },
+    { name = "grpcio" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/aa/0b/037b1e1eb601646d6f49bc06d62094c1d0996b373dcbf70c426c6c51572e/google_cloud_iam-2.21.0.tar.gz", hash = "sha256:fc560527e22b97c6cbfba0797d867cf956c727ba687b586b9aa44d78e92281a3", size = 499038 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c8/44/02ac4e147ea034a3d641c11b54c9d8d0b80fc1ea6a8b7d6c1588d208d42a/google_cloud_iam-2.21.0-py3-none-any.whl", hash = "sha256:1b4a21302b186a31f3a516ccff303779638308b7c801fb61a2406b6a0c6293c4", size = 458958 },
+]
+
+[[package]]
+name = "google-cloud-kms"
+version = "3.10.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpc-google-iam-v1" },
+    { name = "grpcio" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f7/37/77e84143399a9c542015061d190847e95651a971c33b6a69bae83563df4b/google_cloud_kms-3.10.0.tar.gz", hash = "sha256:2060d56cebe856ecdff04b6ea6b477a498b620ed57577804e0aea2950a2edab1", size = 419219 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/94/84/827cc43dc02ad3a4ba6626ca7e1933425b657f96843a2a03d3ee77f7ea45/google_cloud_kms-3.10.0-py3-none-any.whl", hash = "sha256:adc9924ec7bafe1b01236f8f5aba706902b39d64abceef0b4f739725dc66d08b", size = 339034 },
+]
+
+[[package]]
 name = "google-cloud-resource-manager"
 version = "1.15.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1071,7 +1107,6 @@ wheels = [
 
 [[package]]
 name = "jims-backoffice"
-version = "0.1.0"
 source = { editable = "libs/jims-backoffice" }
 dependencies = [
     { name = "asyncpg" },
@@ -1117,8 +1152,34 @@ dev = [
 ]
 
 [[package]]
+name = "jims-cli-demo"
+version = "0.1.0"
+source = { virtual = "apps/jims-demo" }
+dependencies = [
+    { name = "aiosqlite" },
+    { name = "alembic" },
+    { name = "asyncpg" },
+    { name = "jims-core" },
+    { name = "jims-telegram" },
+    { name = "jims-tui" },
+    { name = "psycopg2-binary" },
+    { name = "sentry-sdk", extra = ["fastapi", "opentelemetry"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiosqlite", specifier = ">=0.21.0" },
+    { name = "alembic", specifier = ">=1.15.2" },
+    { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "jims-core", editable = "libs/jims-core" },
+    { name = "jims-telegram", editable = "libs/jims-telegram" },
+    { name = "jims-tui", editable = "libs/jims-tui" },
+    { name = "psycopg2-binary", specifier = ">=2.9.10" },
+    { name = "sentry-sdk", extras = ["fastapi", "opentelemetry"], specifier = ">=2.32.0" },
+]
+
+[[package]]
 name = "jims-core"
-version = "0.3.1"
 source = { editable = "libs/jims-core" }
 dependencies = [
     { name = "backoff" },
@@ -1177,7 +1238,6 @@ sentry = [{ name = "sentry-sdk", specifier = ">=2.35.0" }]
 
 [[package]]
 name = "jims-telegram"
-version = "0.3.0"
 source = { editable = "libs/jims-telegram" }
 dependencies = [
     { name = "aiogram" },
@@ -1218,7 +1278,6 @@ dev = [
 
 [[package]]
 name = "jims-tui"
-version = "0.1.0"
 source = { editable = "libs/jims-tui" }
 dependencies = [
     { name = "textual" },
@@ -2126,6 +2185,21 @@ wheels = [
 ]
 
 [[package]]
+name = "py-spy"
+version = "0.4.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/e2/ff811a367028b87e86714945bb9ecb5c1cc69114a8039a67b3a862cef921/py_spy-0.4.1.tar.gz", hash = "sha256:e53aa53daa2e47c2eef97dd2455b47bb3a7e7f962796a86cc3e7dbde8e6f4db4", size = 244726 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/14/e3/3a32500d845bdd94f6a2b4ed6244982f42ec2bc64602ea8fcfe900678ae7/py_spy-0.4.1-py2.py3-none-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:809094208c6256c8f4ccadd31e9a513fe2429253f48e20066879239ba12cd8cc", size = 3682508 },
+    { url = "https://files.pythonhosted.org/packages/4f/bf/e4d280e9e0bec71d39fc646654097027d4bbe8e04af18fb68e49afcff404/py_spy-0.4.1-py2.py3-none-macosx_11_0_arm64.whl", hash = "sha256:1fb8bf71ab8df95a95cc387deed6552934c50feef2cf6456bc06692a5508fd0c", size = 1796395 },
+    { url = "https://files.pythonhosted.org/packages/df/79/9ed50bb0a9de63ed023aa2db8b6265b04a7760d98c61eb54def6a5fddb68/py_spy-0.4.1-py2.py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ee776b9d512a011d1ad3907ed53ae32ce2f3d9ff3e1782236554e22103b5c084", size = 2034938 },
+    { url = "https://files.pythonhosted.org/packages/53/a5/36862e3eea59f729dfb70ee6f9e14b051d8ddce1aa7e70e0b81d9fe18536/py_spy-0.4.1-py2.py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:532d3525538254d1859b49de1fbe9744df6b8865657c9f0e444bf36ce3f19226", size = 2658968 },
+    { url = "https://files.pythonhosted.org/packages/08/f8/9ea0b586b065a623f591e5e7961282ec944b5fbbdca33186c7c0296645b3/py_spy-0.4.1-py2.py3-none-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:4972c21890b6814017e39ac233c22572c4a61fd874524ebc5ccab0f2237aee0a", size = 2147541 },
+    { url = "https://files.pythonhosted.org/packages/68/fb/bc7f639aed026bca6e7beb1e33f6951e16b7d315594e7635a4f7d21d63f4/py_spy-0.4.1-py2.py3-none-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:6a80ec05eb8a6883863a367c6a4d4f2d57de68466f7956b6367d4edd5c61bb29", size = 2763338 },
+    { url = "https://files.pythonhosted.org/packages/e1/da/fcc9a9fcd4ca946ff402cff20348e838b051d69f50f5d1f5dca4cd3c5eb8/py_spy-0.4.1-py2.py3-none-win_amd64.whl", hash = "sha256:d92e522bd40e9bf7d87c204033ce5bb5c828fca45fa28d970f58d71128069fdc", size = 1818784 },
+]
+
+[[package]]
 name = "pyasn1"
 version = "0.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2972,8 +3046,54 @@ wheels = [
 ]
 
 [[package]]
+name = "vedana"
+version = "0.1.0"
+source = { virtual = "apps/vedana" }
+dependencies = [
+    { name = "alembic" },
+    { name = "google-cloud-iam" },
+    { name = "google-cloud-kms" },
+    { name = "jims-core" },
+    { name = "jims-tui" },
+    { name = "orjson" },
+    { name = "reflex" },
+    { name = "vedana-backoffice" },
+    { name = "vedana-etl" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "ipykernel" },
+    { name = "mypy" },
+    { name = "py-spy" },
+    { name = "ruff" },
+    { name = "types-requests" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "alembic", specifier = ">=1.16.4" },
+    { name = "google-cloud-iam", specifier = ">=2.19.1" },
+    { name = "google-cloud-kms", specifier = ">=2.21.3" },
+    { name = "jims-core", editable = "libs/jims-core" },
+    { name = "jims-tui", editable = "libs/jims-tui" },
+    { name = "orjson", specifier = ">=3.11.3" },
+    { name = "reflex", specifier = ">=0.8.25" },
+    { name = "vedana-backoffice", editable = "libs/vedana-backoffice" },
+    { name = "vedana-etl", editable = "libs/vedana-etl" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "ipykernel", specifier = ">=6.30.0" },
+    { name = "mypy", specifier = ">=1.19.0" },
+    { name = "py-spy", specifier = ">=0.4.1" },
+    { name = "ruff", specifier = ">=0.14.10" },
+    { name = "types-requests", specifier = ">=2.32.4.20250611" },
+]
+
+[[package]]
 name = "vedana-backoffice"
-version = "0.4.0"
 source = { editable = "libs/vedana-backoffice" }
 dependencies = [
     { name = "orjson" },
@@ -3010,7 +3130,6 @@ dev = [
 
 [[package]]
 name = "vedana-core"
-version = "0.5.4"
 source = { editable = "libs/vedana-core" }
 dependencies = [
     { name = "aiohttp" },
@@ -3089,7 +3208,6 @@ dev = [
 
 [[package]]
 name = "vedana-etl"
-version = "0.2.3"
 source = { editable = "libs/vedana-etl" }
 dependencies = [
     { name = "alembic" },
