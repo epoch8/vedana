@@ -1,17 +1,10 @@
 name: Build and push vedana Docker image
 
 on:
-  # push:
-  #   branches: [master]
-  #   paths:
-  #     - "apps/vedana/**"
-  #     - "libs/jims*/**"
-  #     - "libs/vedana*/**"
-  #     - "pyproject.toml"
-  #     - "uv.lock"
-  #   tags:
-  #     - "v*"
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 env:
   REGISTRY: ghcr.io
