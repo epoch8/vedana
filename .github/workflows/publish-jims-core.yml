@@ -27,7 +27,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: python-package-distributions
-          path: libs/jims-core/dist/
+          path: dist/
 
   publish-to-test-pypi:
     environment:
