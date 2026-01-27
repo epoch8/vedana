@@ -47,7 +47,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
-            type=ref,event=tag
+            type=match,pattern=vedana-(.*),group=1
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
 
