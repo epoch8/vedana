@@ -34,6 +34,7 @@ source = "uv-dynamic-versioning"
 enable = true
 vcs = "git"
 pattern = "default"
+pattern-prefix = "vedana-"
 
 [dependency-groups]
 dev = [

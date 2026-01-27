@@ -4,13 +4,21 @@ on:
   workflow_dispatch:
   push:
     tags:
+{%- if package.name.startswith('jims-') %}
+      - 'jims-*'
+{%- elif package.name.startswith('vedana-') %}
+      - 'vedana-*'
+{%- else %}
       - 'v*'
+{%- endif %}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7

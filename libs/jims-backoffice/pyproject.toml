@@ -43,6 +43,7 @@ source = "uv-dynamic-versioning"
 enable = true
 vcs = "git"
 pattern = "default"
+pattern-prefix = "jims-"
 
 [tool.uv-workspace-codegen]
 generate = true
