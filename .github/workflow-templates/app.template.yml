@@ -1,20 +1,17 @@
 name: Test app {{ package.name }}
 
 on:
-  # pull_request:
-  #   paths:
-  #     - "{{ package.path }}/**"
-  #     - "libs/jims*/**"
-  #     - "libs/vedana*/**"
-  #     # - "pyproject.toml"
-  #     # - "uv.lock"
-  # push:
-  #   branches: [master]
-  #   paths:
-  #     - "{{ package.path }}/**"
-  #     - "pyproject.toml"
-  #     - "uv.lock"
-  workflow_dispatch:
+  pull_request:
+    paths:
+      - "{{ package.path }}/**"
+      - "libs/jims*/**"
+      - "libs/vedana*/**"
+  push:
+    branches: [master]
+    paths:
+      - "{{ package.path }}/**"
+      - "pyproject.toml"
+      - "uv.lock"
 
 jobs:
   test:
