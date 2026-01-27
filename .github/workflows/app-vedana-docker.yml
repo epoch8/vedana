@@ -27,6 +27,7 @@ jobs:
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
             VERSION=${VERSION#vedana-}
+            VERSION=${VERSION#v}
           else
             VERSION="0.0.0-dev"
           fi
