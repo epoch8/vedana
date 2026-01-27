@@ -46,25 +46,25 @@ def _payload_to_tables(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
     link_rows = [
         {
-            "sentence": l.get("sentence", ""),
-            "anchor1": l.get("anchor1", ""),
-            "anchor2": l.get("anchor2", ""),
-            "description": l.get("description", ""),
-            "query": l.get("query", ""),
-            "anchor1_link_column_name": l.get("anchor1_link_column_name", ""),
-            "anchor2_link_column_name": l.get("anchor2_link_column_name", ""),
-            "has_direction": bool(l.get("has_direction", False)),
-            "attributes": len(l.get("attributes", []) or []),
+            "sentence": link.get("sentence", ""),
+            "anchor1": link.get("anchor1", ""),
+            "anchor2": link.get("anchor2", ""),
+            "description": link.get("description", ""),
+            "query": link.get("query", ""),
+            "anchor1_link_column_name": link.get("anchor1_link_column_name", ""),
+            "anchor2_link_column_name": link.get("anchor2_link_column_name", ""),
+            "has_direction": bool(link.get("has_direction", False)),
+            "attributes": len(link.get("attributes", []) or []),
         }
-        for l in links
+        for link in links
     ]
 
     link_attr_rows: list[dict[str, Any]] = []
-    for l in links:
-        for attr in l.get("attributes", []) or []:
+    for link in links:
+        for attr in link.get("attributes", []) or []:
             link_attr_rows.append(
                 {
-                    "link": l.get("sentence", ""),
+                    "link": link.get("sentence", ""),
                     "attribute_name": attr.get("attribute_name", ""),
                     "description": attr.get("description", ""),
                     "data_example": attr.get("data_example", ""),

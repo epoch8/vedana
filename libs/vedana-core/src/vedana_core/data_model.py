@@ -96,7 +96,7 @@ class DataModel:
 
     def set_snapshot_override(self, snapshot_id: int | None) -> None:
         self._config_snapshot_override = snapshot_id
-        self._config_repo.set_branch_snapshot_id(snapshot_id=snapshot_id, branch=self.config_plane_branch)
+        # self._config_repo.set_branch_snapshot_id(snapshot_id=snapshot_id, branch=self.config_plane_branch)
         self._config_cache_snapshot_id = None
         self._config_cache_payload = None
         self._config_cache_parsed = None
@@ -186,31 +186,31 @@ class DataModel:
                 )
 
         links: dict[str, Link] = {}
-        for l in payload.get("links", []) or []:
-            sentence = str(l.get("sentence", "")).strip()
+        for li in payload.get("links", []) or []:
+            sentence = str(li.get("sentence", "")).strip()
             if not sentence:
                 continue
-            anchor_from = anchors.get(str(l.get("anchor1", "")).strip())
-            anchor_to = anchors.get(str(l.get("anchor2", "")).strip())
+            anchor_from = anchors.get(str(li.get("anchor1", "")).strip())
+            anchor_to = anchors.get(str(li.get("anchor2", "")).strip())
             if anchor_from is None or anchor_to is None:
                 continue
             links[sentence] = Link(
                 anchor_from=anchor_from,
                 anchor_to=anchor_to,
                 sentence=sentence,
-                description=str(l.get("description", "")),
-                query=str(l.get("query", "")),
+                description=str(li.get("description", "")),
+                query=str(li.get("query", "")),
                 attributes=[],
-                has_direction=bool(l.get("has_direction", False)),
-                anchor_from_link_attr_name=str(l.get("anchor1_link_column_name", "")),
-                anchor_to_link_attr_name=str(l.get("anchor2_link_column_name", "")),
+                has_direction=bool(li.get("has_direction", False)),
+                anchor_from_link_attr_name=str(li.get("anchor1_link_column_name", "")),
+                anchor_to_link_attr_name=str(li.get("anchor2_link_column_name", "")),
             )
 
-        for l in payload.get("links", []) or []:
-            sentence = str(l.get("sentence", "")).strip()
+        for li in payload.get("links", []) or []:
+            sentence = str(li.get("sentence", "")).strip()
             if sentence not in links:
                 continue
-            for attr in l.get("attributes", []) or []:
+            for attr in li.get("attributes", []) or []:
                 links[sentence].attributes.append(
                     Attribute(
                         name=str(attr.get("attribute_name", "")),
@@ -664,19 +664,19 @@ def _build_payload_from_grist() -> dict[str, Any]:
         )
 
     links_by: dict[str, dict[str, Any]] = {}
-    for l in links:
-        sentence = str(l.get("sentence", "")).strip()
+    for li in links:
+        sentence = str(li.get("sentence", "")).strip()
         if not sentence:
             continue
         links_by[sentence] = {
-            "anchor1": l.get("anchor1", ""),
-            "anchor2": l.get("anchor2", ""),
+            "anchor1": li.get("anchor1", ""),
+            "anchor2": li.get("anchor2", ""),
             "sentence": sentence,
-            "description": l.get("description", ""),
-            "query": l.get("query", ""),
-            "anchor1_link_column_name": l.get("anchor1_link_column_name", ""),
-            "anchor2_link_column_name": l.get("anchor2_link_column_name", ""),
-            "has_direction": bool(l.get("has_direction", False)),
+            "description": li.get("description", ""),
+            "query": li.get("query", ""),
+            "anchor1_link_column_name": li.get("anchor1_link_column_name", ""),
+            "anchor2_link_column_name": li.get("anchor2_link_column_name", ""),
+            "has_direction": bool(li.get("has_direction", False)),
             "attributes": [],
         }
 

@@ -1,5 +1,6 @@
 import logging
 import re
+import json
 from typing import Any, Iterator, cast
 from unicodedata import normalize
 from uuid import UUID
@@ -7,12 +8,13 @@ from uuid import UUID
 import pandas as pd
 from jims_core.llms.llm_provider import LLMProvider
 from neo4j import GraphDatabase
+from config_plane.impl.sql import create_sql_config_repo
 from vedana_core.data_model import Anchor, Attribute, Link
+from vedana_core.db import get_config_plane_sessionmaker
 from vedana_core.data_provider import GristAPIDataProvider
 from vedana_core.settings import settings as core_settings
 
 from vedana_etl.settings import settings as etl_settings
-from vedana_etl.config_plane import load_data_model_from_branch
 
 # pd.replace() throws warnings due to type downcasting. Behavior will change only in pandas 3.0
 # https://github.com/pandas-dev/pandas/issues/57734
@@ -49,17 +51,99 @@ def clean_str(text: str) -> str:
 def get_data_model() -> Iterator[
     tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]
 ]:
-    (
-        anchors_df,
-        anchor_attrs_df,
-        link_attrs_df,
-        links_df,
-        queries_df,
-        prompts_df,
-        conversation_lifecycle_df,
-    ) = load_data_model_from_branch()
+    """
+    Read Data Model from config-plane
+    """
 
-    yield anchors_df, anchor_attrs_df, link_attrs_df, links_df, queries_df, prompts_df, conversation_lifecycle_df
+    repo = create_sql_config_repo(get_config_plane_sessionmaker(), branch=core_settings.config_plane_prod_branch)
+
+    snapshot_id = repo.get_branch_snapshot_id(core_settings.config_plane_prod_branch)
+    if snapshot_id is None:
+        raise RuntimeError(f"No committed snapshot for branch '{core_settings.config_plane_prod_branch}'")
+    blob = repo.get("vedana.data_model", snapshot_id=snapshot_id)
+    if blob is None:
+        raise RuntimeError(f"Snapshot {snapshot_id} missing key 'vedana.data_model'")
+    payload = json.loads(blob.decode("utf-8"))
+
+    anchors = payload.get("anchors", []) or []
+    links = payload.get("links", []) or []
+    queries = payload.get("queries", []) or []
+    prompts = payload.get("prompts", []) or []
+    lifecycle = payload.get("conversation_lifecycle", []) or []
+
+    anchors_df = pd.DataFrame.from_records(
+        [
+            {
+                "noun": a.get("noun", ""),
+                "description": a.get("description", ""),
+                "id_example": a.get("id_example", ""),
+                "query": a.get("query", ""),
+            }
+            for a in anchors
+        ]
+    )
+
+    anchor_attrs_df = pd.DataFrame.from_records(
+        [
+            {
+                "anchor": a.get("noun", ""),
+                "attribute_name": attr.get("attribute_name", ""),
+                "description": attr.get("description", ""),
+                "data_example": attr.get("data_example", ""),
+                "embeddable": bool(attr.get("embeddable", False)),
+                "query": attr.get("query", ""),
+                "dtype": attr.get("dtype", ""),
+                "embed_threshold": attr.get("embed_threshold", 1.0),
+            }
+            for a in anchors
+            for attr in (a.get("attributes", []) or [])
+        ]
+    )
+
+    links_df = pd.DataFrame.from_records(
+        [
+            {
+                "anchor1": link.get("anchor1", ""),
+                "anchor2": link.get("anchor2", ""),
+                "sentence": link.get("sentence", ""),
+                "description": link.get("description", ""),
+                "query": link.get("query", ""),
+                "anchor1_link_column_name": link.get("anchor1_link_column_name", ""),
+                "anchor2_link_column_name": link.get("anchor2_link_column_name", ""),
+                "has_direction": bool(link.get("has_direction", False)),
+            }
+            for link in links
+        ]
+    )
+
+    link_attrs_df = pd.DataFrame.from_records(
+        [
+            {
+                "link": link.get("sentence", ""),
+                "attribute_name": attr.get("attribute_name", ""),
+                "description": attr.get("description", ""),
+                "data_example": attr.get("data_example", ""),
+                "embeddable": bool(attr.get("embeddable", False)),
+                "query": attr.get("query", ""),
+                "dtype": attr.get("dtype", ""),
+                "embed_threshold": attr.get("embed_threshold", 1.0),
+            }
+            for link in links
+            for attr in (link.get("attributes", []) or [])
+        ]
+    )
+
+    queries_df = pd.DataFrame.from_records(
+        [{"query_name": q.get("name", ""), "query_example": q.get("example", "")} for q in queries]
+    )
+    prompts_df = pd.DataFrame.from_records(
+        [{"name": p.get("name", ""), "text": p.get("text", "")} for p in prompts]
+    )
+    lifecycle_df = pd.DataFrame.from_records(
+        [{"event": e.get("event", ""), "text": e.get("text", "")} for e in lifecycle]
+    )
+
+    yield anchors_df, anchor_attrs_df, link_attrs_df, links_df, queries_df, prompts_df, lifecycle_df,
 
 
 def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:

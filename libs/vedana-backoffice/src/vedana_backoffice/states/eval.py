@@ -463,12 +463,6 @@ class EvalState(rx.State):
         dm.set_branch(self.dm_branch)
         dm.set_snapshot_override(self._resolve_dm_snapshot())
 
-    def set_dm_branch(self, value: str) -> None:
-        self.dm_branch = value
-
-    def set_dm_snapshot_input(self, value: str) -> None:
-        self.dm_snapshot_input = value
-
     def set_provider(self, value: str) -> None:
         self.provider = str(value or "openai")
         if self.provider == "openrouter" and not self.openrouter_models:
