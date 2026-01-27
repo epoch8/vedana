@@ -80,10 +80,7 @@ class DataModel:
         self._config_cache_snapshot_id: int | None = None
         self._config_cache_payload: dict[str, Any] | None = None
         self._config_cache_parsed: dict[str, Any] | None = None
-        self._config_repo_sessionmaker = get_config_plane_sessionmaker()  # todo mv declaration up?
-        self._config_repo = create_sql_config_repo(
-            self._config_repo_sessionmaker, branch=self.config_plane_branch
-        )
+        self._config_repo = create_sql_config_repo(get_config_plane_sessionmaker(), branch=self.config_plane_branch)
 
     @classmethod
     def create(cls, sessionmaker) -> "DataModel":
@@ -107,14 +104,25 @@ class DataModel:
     def get_snapshot_id(self) -> int | None:
         if self._config_snapshot_override is not None:
             return self._config_snapshot_override
-        return self._config_repo.get_branch_snapshot_id(self.config_plane_branch)
+        snapshot_id = self._config_repo.get_branch_snapshot_id(self.config_plane_branch)
+        if snapshot_id is None:
+            return None
+        try:
+            return int(snapshot_id)
+        except ValueError:
+            return None
 
     async def _get_config_payload(self) -> dict[str, Any]:
-        snapshot_id = (
-            self._config_snapshot_override
-            if self._config_snapshot_override is not None
-            else await asyncio.to_thread(self._get_branch_snapshot_id)
-        )
+        snapshot_id = self._config_snapshot_override
+        if snapshot_id is None:
+            snapshot_id_str = await asyncio.to_thread(
+                self._config_repo.get_branch_snapshot_id, self.config_plane_branch
+            )
+            if snapshot_id_str is not None:
+                try:
+                    snapshot_id = int(snapshot_id_str)
+                except ValueError:
+                    snapshot_id = None
         if snapshot_id is None:
             raise RuntimeError(f"No committed config-plane snapshot for branch '{self.config_plane_branch}'")
 

@@ -6,6 +6,7 @@ from typing import Any
 import reflex as rx
 
 from config_plane.impl.sql import create_sql_config_repo
+from vedana_core.db import get_config_plane_sessionmaker
 from vedana_core.settings import settings as core_settings
 
 
@@ -268,6 +269,8 @@ class DataModelState(rx.State):
     is_loading: bool = False
     error_message: str = ""
 
+    repo = create_sql_config_repo(get_config_plane_sessionmaker(), branch=core_settings.config_plane_dev_branch)
+
     diff_branch_left: str = core_settings.config_plane_dev_branch
     diff_branch_right: str = core_settings.config_plane_prod_branch
     diff_tables: list[dict[str, Any]] = []
@@ -315,9 +318,16 @@ class DataModelState(rx.State):
             self.is_loading = True
             self.error_message = ""
             try:
-                svc = ConfigPlaneService(branch=self.dev_branch)
-                self.dev_snapshot_id = svc.get_branch_snapshot_id_for(self.dev_branch)
-                self.prod_snapshot_id = svc.get_branch_snapshot_id_for(self.prod_branch)
+                dev_snapshot_id = self.repo.get_branch_snapshot_id(self.dev_branch)
+                prod_snapshot_id = self.repo.get_branch_snapshot_id(self.prod_branch)
+                try:
+                    self.dev_snapshot_id = int(dev_snapshot_id) if dev_snapshot_id else None
+                except ValueError:
+                    self.dev_snapshot_id = None
+                try:
+                    self.prod_snapshot_id = int(prod_snapshot_id) if prod_snapshot_id else None
+                except ValueError:
+                    self.prod_snapshot_id = None
             except Exception as exc:
                 self.error_message = str(exc)
                 self.dev_snapshot_id = None
@@ -332,11 +342,12 @@ class DataModelState(rx.State):
             self.diff_is_loading = True
             self.diff_error_message = ""
             try:
-                svc = ConfigPlaneService(branch=self.dev_branch)
-                left_id = svc.get_branch_snapshot_id_for(self.diff_branch_left)
-                right_id = svc.get_branch_snapshot_id_for(self.diff_branch_right)
-                left_blob = svc.get_snapshot_blob(left_id, "vedana.data_model")
-                right_blob = svc.get_snapshot_blob(right_id, "vedana.data_model")
+                left_id = self.repo.get_branch_snapshot_id(self.diff_branch_left)
+                right_id = self.repo.get_branch_snapshot_id(self.diff_branch_right)
+                if left_id is None or right_id is None:
+                    raise RuntimeError("Missing config-plane snapshot for diff")
+                left_blob = self.repo.get("vedana.data_model", snapshot_id=left_id)
+                right_blob = self.repo.get("vedana.data_model", snapshot_id=right_id)
                 if left_blob is None or right_blob is None:
                     raise RuntimeError("Missing config-plane blob for diff")
                 left_payload = json.loads(left_blob.decode("utf-8"))
@@ -355,15 +366,26 @@ class DataModelState(rx.State):
             self.view_is_loading = True
             self.view_error_message = ""
             try:
-                svc = ConfigPlaneService(branch=self.view_branch)
-                snapshot_id = None
-                if self.view_snapshot_input.strip():
+                if self.view_snapshot_input.strip():  # view snapshot by id
                     snapshot_id = int(self.view_snapshot_input.strip())
-                else:
-                    snapshot_id = svc.get_branch_snapshot_id_for(self.view_branch)
-                if snapshot_id is None:
-                    raise RuntimeError(f"No snapshot for branch '{self.view_branch}'")
-                blob = svc.get_snapshot_blob(snapshot_id, "vedana.data_model")
+                    snapshot_exists = self.repo.snapshot_exists(str(snapshot_id))
+                    if not snapshot_exists:
+                        raise RuntimeError(f"Snapshot {snapshot_id} not found")
+                else:  # view latest branch snapshot
+                    snapshot_id_str = self.repo.get_branch_snapshot_id(self.view_branch)
+                    if snapshot_id_str is None:
+                        snapshot_id = None
+                    else:
+                        try:
+                            snapshot_id = int(snapshot_id_str)
+                        except ValueError as exc:
+                            raise RuntimeError(
+                                f"Invalid snapshot ID for branch '{self.view_branch}'"
+                            ) from exc
+                    if snapshot_id is None:
+                        raise RuntimeError(f"No snapshot for branch '{self.view_branch}'")
+
+                blob = self.repo.get("vedana.data_model", snapshot_id=str(snapshot_id))
                 if blob is None:
                     raise RuntimeError(f"Snapshot {snapshot_id} missing key 'vedana.data_model'")
                 payload = json.loads(blob.decode("utf-8"))
@@ -384,8 +406,7 @@ class DataModelState(rx.State):
             self.quick_view_snapshot_id = str(snapshot_id or "")
             try:
                 snap = int(str(snapshot_id))
-                svc = ConfigPlaneService(branch=self.dev_branch)
-                blob = svc.get_snapshot_blob(snap, "vedana.data_model")
+                blob = self.repo.get("vedana.data_model", snapshot_id=str(snap))
                 if blob is None:
                     raise RuntimeError(f"Snapshot {snap} missing key 'vedana.data_model'")
                 payload = json.loads(blob.decode("utf-8"))
@@ -407,12 +428,11 @@ class DataModelState(rx.State):
             try:
                 snap = int(str(snapshot_id))
                 branch = compare_branch or self.prod_branch
-                svc = ConfigPlaneService(branch=branch)
-                compare_id = svc.get_branch_snapshot_id_for(branch)
+                compare_id = self.repo.get_branch_snapshot_id(branch)
                 if compare_id is None:
                     raise RuntimeError(f"No snapshot for branch '{branch}'")
-                left_blob = svc.get_snapshot_blob(snap, "vedana.data_model")
-                right_blob = svc.get_snapshot_blob(compare_id, "vedana.data_model")
+                left_blob = self.repo.get("vedana.data_model", snapshot_id=str(snap))
+                right_blob = self.repo.get("vedana.data_model", snapshot_id=compare_id)
                 if left_blob is None or right_blob is None:
                     raise RuntimeError("Missing config-plane blob for diff")
                 left_payload = json.loads(left_blob.decode("utf-8"))
@@ -429,8 +449,10 @@ class DataModelState(rx.State):
     async def sync_prod_with_dev(self):
         async with self:
             try:
-                svc = ConfigPlaneService(branch=self.prod_branch)
-                snapshot_id = svc.sync_branch(self.prod_branch, self.dev_branch)
+                snapshot_id = self.repo.get_branch_snapshot_id(self.dev_branch)
+                if snapshot_id is None:
+                    raise RuntimeError(f"No snapshot for branch '{self.dev_branch}'")
+                self.repo.set_branch_snapshot_id(snapshot_id, self.prod_branch)
                 yield rx.toast.success(f"Prod synced to Dev (snapshot {snapshot_id})")
             except Exception as exc:
                 self.error_message = str(exc)

@@ -207,16 +207,16 @@ def _pipeline_card() -> rx.Component:
                             ],
                             value=EvalState.dm_branch,
                             on_change=EvalState.set_dm_branch,
-                            width="100%",
-                            margin_top="0.5em",
+                            width="50%",
                         ),
                         rx.input(
                             placeholder="Snapshot id (optional)",
                             value=EvalState.dm_snapshot_input,
                             on_change=EvalState.set_dm_snapshot_input,
-                            width="100%",
-                            margin_top="0.5em",
+                            width="50%",
                         ),
+                        width="100%",
+                        padding_y="0.5em"
                     ),
                     rx.button(
                         "View Data Model",
@@ -920,7 +920,7 @@ def _data_model_dialog() -> rx.Component:
                     size="2",
                     color="gray",
                 ),
-                rx.text(f"Model ID: {EvalState.dm_id}", size="2", color="gray"),
+                rx.text(f"Model ID: {EvalState.dm_id}", size="2", color="gray"),  # todo is dm_id still relevant?
                 rx.box(
                     rx.text(
                         rx.cond(
