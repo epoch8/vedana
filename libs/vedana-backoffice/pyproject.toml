@@ -1,6 +1,6 @@
 [project]
 name = "vedana-backoffice"
-version = "0.4.0"
+dynamic = ["version"]
 description = "Reflex-based admin/backoffice UI for Vedana"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -27,8 +27,17 @@ include = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.9.25, <0.10.0"]
-build-backend = "uv_build"
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+enable = true
+vcs = "git"
+pattern = "default-unprefixed"
+pattern-prefix = "vedana-"
 
 [tool.mypy]
 plugins = ['pydantic.mypy']
@@ -38,7 +47,7 @@ dev = [
     "ruff>=0.14.10",
     "mypy>=1.19.0",
     "pytest>=8.4.0",
-    "pandas-stubs>=2.3.2.250827",
+    "pandas-stubs==2.3.2.250926",
     "types-requests>=2.32.4.20250913",
 ]
 
@@ -47,6 +56,6 @@ line-length = 120
 
 [tool.uv-workspace-codegen]
 generate = true
-template_type = "lib"
+template_type = ["lib", "publish"]
 generate_standard_pytest_step = false
 typechecker = "mypy"

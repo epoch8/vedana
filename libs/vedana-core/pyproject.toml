@@ -1,6 +1,6 @@
 [project]
 name = "vedana-core"
-version = "0.5.4"
+dynamic = ["version"]
 description = "Semantic Graph RAG App"
 readme = "README.md"
 authors = [
@@ -33,8 +33,17 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.9.25, <0.10.0"]
-build-backend = "uv_build"
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+enable = true
+vcs = "git"
+pattern = "default-unprefixed"
+pattern-prefix = "vedana-"
 
 [tool.mypy]
 plugins = ['pydantic.mypy']
@@ -58,7 +67,7 @@ line-length = 120
 
 [tool.uv-workspace-codegen]
 generate = true
-template_type = "lib"
+template_type = ["lib", "publish"]
 generate_standard_pytest_step = false
 typechecker = "mypy"
 custom_steps = """
