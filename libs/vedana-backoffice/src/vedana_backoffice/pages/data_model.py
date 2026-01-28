@@ -1,7 +1,7 @@
 import reflex as rx
 
 from vedana_backoffice.states.data_model import DataModelState
-from vedana_backoffice.ui import app_header, themed_data_table
+from vedana_backoffice.ui import app_header, themed_data_table, table_accordion
 
 
 def _branch_row(branch: rx.Var, snapshot_id: rx.Var) -> rx.Component:
@@ -17,39 +17,6 @@ def _branch_row(branch: rx.Var, snapshot_id: rx.Var) -> rx.Component:
             color="gray",
         ),
         spacing="3",
-        width="100%",
-    )
-
-
-def _table_accordion(tables: rx.Var) -> rx.Component:
-    return rx.accordion.root(
-        rx.foreach(
-            tables,
-            lambda t: rx.accordion.item(
-                rx.accordion.trigger(
-                    rx.hstack(
-                        rx.text(t["name"]),
-                        rx.badge(t["row_count"], variant="soft", size="1", color_scheme="gray"),
-                        spacing="2",
-                        align="center",
-                    )
-                ),
-                rx.accordion.content(
-                    themed_data_table(
-                        data=t["rows"],
-                        columns=t["columns"],
-                        pagination=True,
-                        search=True,
-                        sort=True,
-                        max_width="100%",
-                    )
-                ),
-                value=t["name"],
-            ),
-        ),
-        type="multiple",
-        collapsible=True,
-        variant="outline",
         width="100%",
     )
 
@@ -72,8 +39,8 @@ def page() -> rx.Component:
                 align="center",
             ),
             rx.heading("Branch status", size="3"),
-            _branch_row(DataModelState.dev_branch, DataModelState.dev_snapshot_id),
-            _branch_row(DataModelState.prod_branch, DataModelState.prod_snapshot_id),
+            _branch_row(DataModelState.dev_branch, DataModelState.dev_snapshot_id),  # type: ignore[arg-type]
+            _branch_row(DataModelState.prod_branch, DataModelState.prod_snapshot_id),  # type: ignore[arg-type]
             rx.cond(
                 DataModelState.error_message != "",
                 rx.callout(DataModelState.error_message, icon="triangle_alert", color_scheme="red"),
@@ -118,7 +85,7 @@ def page() -> rx.Component:
                 rx.callout(DataModelState.diff_error_message, icon="triangle_alert", color_scheme="red"),
                 rx.fragment(),
             ),
-            _table_accordion(DataModelState.diff_tables),
+            table_accordion(DataModelState.diff_tables),  # type: ignore[arg-type]
             rx.heading("Browse snapshots", size="3"),
             rx.hstack(
                 rx.select(
@@ -148,7 +115,7 @@ def page() -> rx.Component:
                 rx.callout(DataModelState.view_error_message, icon="triangle_alert", color_scheme="red"),
                 rx.fragment(),
             ),
-            _table_accordion(DataModelState.view_tables),
+            table_accordion(DataModelState.view_tables),
             spacing="4",
             padding="1.5em",
             width="100%",

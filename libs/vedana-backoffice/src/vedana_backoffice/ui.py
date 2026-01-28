@@ -107,6 +107,39 @@ def themed_data_table(
     )
 
 
+def table_accordion(tables: rx.Var) -> rx.Component:
+    return rx.accordion.root(
+        rx.foreach(
+            tables,
+            lambda t: rx.accordion.item(
+                rx.accordion.trigger(
+                    rx.hstack(
+                        rx.text(t["name"]),
+                        rx.badge(t["row_count"], variant="soft", size="1", color_scheme="gray"),
+                        spacing="2",
+                        align="center",
+                    )
+                ),
+                rx.accordion.content(
+                    themed_data_table(
+                        data=t["rows"],
+                        columns=t["columns"],
+                        pagination=True,
+                        search=True,
+                        sort=True,
+                        max_width="100%",
+                    )
+                ),
+                value=t["name"],
+            ),
+        ),
+        type="multiple",
+        collapsible=True,
+        variant="outline",
+        width="100%",
+    )
+
+
 def breadcrumbs(items: list[tuple[str, str]]) -> rx.Component:
     parts: list[rx.Component] = []
     for idx, (label, href) in enumerate(items):

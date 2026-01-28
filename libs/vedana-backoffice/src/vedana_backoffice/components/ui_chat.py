@@ -1,40 +1,7 @@
 import reflex as rx
 
 from vedana_backoffice.states.data_model import DataModelState
-from vedana_backoffice.ui import themed_data_table
-
-
-def _table_accordion(tables: rx.Var) -> rx.Component:
-    return rx.accordion.root(
-        rx.foreach(
-            tables,
-            lambda t: rx.accordion.item(
-                rx.accordion.trigger(
-                    rx.hstack(
-                        rx.text(t["name"]),
-                        rx.badge(t["row_count"], variant="soft", size="1", color_scheme="gray"),
-                        spacing="2",
-                        align="center",
-                    )
-                ),
-                rx.accordion.content(
-                    themed_data_table(
-                        data=t["rows"],
-                        columns=t["columns"],
-                        pagination=True,
-                        search=True,
-                        sort=True,
-                        max_width="100%",
-                    )
-                ),
-                value=t["name"],
-            ),
-        ),
-        type="multiple",
-        collapsible=True,
-        variant="outline",
-        width="100%",
-    )
+from vedana_backoffice.ui import themed_data_table, table_accordion
 
 
 def render_message_bubble(
@@ -151,7 +118,7 @@ def render_message_bubble(
                                     rx.cond(
                                         DataModelState.quick_view_is_loading,
                                         rx.center(rx.spinner(size="3"), height="200px"),
-                                        _table_accordion(DataModelState.quick_view_tables),
+                                        table_accordion(DataModelState.quick_view_tables),  # type: ignore[arg-type]
                                     ),
                                     spacing="3",
                                     width="100%",
@@ -193,7 +160,7 @@ def render_message_bubble(
                                     rx.cond(
                                         DataModelState.quick_diff_is_loading,
                                         rx.center(rx.spinner(size="3"), height="200px"),
-                                        _table_accordion(DataModelState.quick_diff_tables),
+                                        table_accordion(DataModelState.quick_diff_tables),  # type: ignore[arg-type]
                                     ),
                                     spacing="3",
                                     width="100%",
