@@ -1,7 +1,7 @@
 import reflex as rx
 
 from vedana_backoffice.states.data_model import DataModelState
-from vedana_backoffice.ui import themed_data_table, table_accordion
+from vedana_backoffice.ui import table_accordion
 
 
 def render_message_bubble(
