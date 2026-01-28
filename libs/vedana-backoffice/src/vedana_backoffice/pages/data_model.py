@@ -115,7 +115,7 @@ def page() -> rx.Component:
                 rx.callout(DataModelState.view_error_message, icon="triangle_alert", color_scheme="red"),
                 rx.fragment(),
             ),
-            table_accordion(DataModelState.view_tables),
+            table_accordion(DataModelState.view_tables),  # type: ignore[arg-type]
             spacing="4",
             padding="1.5em",
             width="100%",
