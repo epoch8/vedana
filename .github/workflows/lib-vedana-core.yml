@@ -45,6 +45,7 @@ jobs:
             GRIST_DATA_DOC_ID: qAxQ1gcBKcW7
             GRIST_DATA_MODEL_DOC_ID: wEEmPY3UiwMD
             GRIST_SERVER_URL: http://0.0.0.0:8484
+            JIMS_DB_CONN_URI: 'sqlite:///:memory:'
             MEMGRAPH_PWD: ''
             MEMGRAPH_URI: bolt://localhost:7687
             MEMGRAPH_USER: ''

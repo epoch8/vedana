@@ -48,6 +48,7 @@ jobs:
 
 
       - env:
+            CONFIG_PLANE_DB_CONN_URI: 'sqlite:///:memory:'
             DB_CONN_URI: 'sqlite:///:memory:'
             EMBEDDINGS_DIM: '1536'
             GRIST_API_KEY: e30d2f274a538c05fecd14510887f8a3b7eab718

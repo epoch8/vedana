@@ -6,6 +6,8 @@ x-app-common: &app-common
     - ./data:/app/vedana/data
   environment:
     DB_CONN_URI: "postgresql://postgres:postgres@db:5432"
+    JIMS_DB_CONN_URI: "postgresql://postgres:postgres@db:5432"
+    CONFIG_PLANE_DB_CONN_URI: "postgresql://postgres:postgres@db:5432"
     MEMGRAPH_URI: "bolt://memgraph:7687"
   env_file:
     - .env
