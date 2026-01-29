@@ -15,13 +15,13 @@
 
 ```bash
 # Build Vedana image for cluster
-docker-compose -f projects/vedana/docker-compose.yml build
+docker-compose -f apps/vedana/docker-compose.yml build
 
 # Create local K8s cluster
-cd projects/vedana
-projects/vedana/scripts/setup-kind.sh
+cd apps/vedana
+apps/vedana/scripts/setup-kind.sh
 
-docker-compose -f projects/vedana/docker-compose.yml -f up --build -d vedana-backoffice
+docker-compose -f apps/vedana/docker-compose.yml -f up --build -d vedana-backoffice
 ```
 
 ### Test ETL Job Execution

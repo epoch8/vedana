@@ -23,7 +23,7 @@ build_vedana_backoffice:
 build: build_jims_backoffice build_jims_core build_jims_telegram build_jims_tui build_vedana_core build_vedana_etl build_vedana_backoffice
 
 build-vedana-project:
-	cd projects/vedana && make build
+	cd apps/vedana && make build
 
 publish:
 	UV_PUBLISH_USERNAME="oauth2accesstoken" UV_PUBLISH_PASSWORD="$$(gcloud auth print-access-token)" uv publish

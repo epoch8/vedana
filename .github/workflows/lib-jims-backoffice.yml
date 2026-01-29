@@ -8,8 +8,6 @@ on:
   pull_request:
     paths:
       - "libs/jims-backoffice/**"
-      # - "pyproject.toml"
-      # - "uv.lock"
   push:
     branches: [master]
     paths:

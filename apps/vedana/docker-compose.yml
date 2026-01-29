@@ -2,7 +2,7 @@ x-app-common: &app-common
   image: vedana/vedana:dev
   build:
     context: ../../
-    dockerfile: projects/vedana/Dockerfile
+    dockerfile: apps/vedana/Dockerfile
   volumes:
     - ./data:/app/vedana/data
     - ${HOME}/.kube/config-kind-vedana-local-docker:/root/.kube/config:ro
@@ -22,7 +22,7 @@ services:
   db-migrate:
     <<: *app-common
     command: uv run alembic upgrade head
-    working_dir: /app/projects/vedana
+    working_dir: /app/apps/vedana
     depends_on:
       db:
         condition: service_healthy
