@@ -1,3 +1,7 @@
+# 2026.01.29 - 0.4.1
+
+* Republish to PyPI
+
 # 2025.11.25 - 0.3.0
 
 * Add support for InlineKeyboardMarkup, along with distinguishing various
