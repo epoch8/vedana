@@ -1,5 +1,4 @@
 import reflex as rx
-from vedana_core.settings import settings as core_settings
 
 from vedana_backoffice.components.ui_chat import render_message_bubble
 from vedana_backoffice.states.chat import ChatState
