@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class DbSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="JIMS_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     config_plane_db_conn_uri: str = "postgresql://postgres:postgres@localhost:5432"
     db_conn_uri: str = "postgresql://postgres:postgres@localhost:5432"
