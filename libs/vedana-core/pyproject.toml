@@ -74,6 +74,7 @@ custom_steps = """
 - name: Run tests
   env:
     DB_CONN_URI: "sqlite:///:memory:"
+    CONFIG_PLANE_DB_CONN_URI: "sqlite:///:memory:"
     GRIST_SERVER_URL: "http://0.0.0.0:8484"
     GRIST_API_KEY: "e30d2f274a538c05fecd14510887f8a3b7eab718"
     GRIST_DATA_MODEL_DOC_ID: "wEEmPY3UiwMD"
