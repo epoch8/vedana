@@ -230,7 +230,8 @@ class RagPipeline:
                 "selected_links": filter_selection.link_sentences,
                 "selected_anchor_attributes": filter_selection.anchor_attribute_names,
                 "selected_link_attributes": filter_selection.link_attribute_names,
-                "selected_queries": [dm_queries[int(i)].name for i in filter_selection.query_ids],
+                # in dm_json queries index starts from 1, so we adjust here.
+                "selected_queries": [dm_queries[int(i) - 1].name for i in filter_selection.query_ids],
                 "original_counts": {
                     "anchors": len(dm_anchors),
                     "links": len(dm_links),
