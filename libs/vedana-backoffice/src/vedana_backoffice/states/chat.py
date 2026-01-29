@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import threading
 import traceback
 from datetime import datetime
 from typing import Any, Dict, Iterable, Tuple
@@ -16,6 +17,70 @@ from vedana_core.settings import settings as core_settings
 
 from vedana_backoffice.states.common import MemLogger, get_vedana_app
 from vedana_backoffice.states.jims import ThreadViewState
+
+# Global cache for OpenRouter models, populated at startup
+OPENROUTER_MODELS_CACHE: list[str] = []
+_openrouter_models_lock = threading.Lock()
+_openrouter_models_loaded = threading.Event()
+
+
+def _filter_chat_capable_models(models: Iterable[dict]) -> list[str]:
+    """Filter models that support text chat with tool calls."""
+    result: list[str] = []
+    for m in models:
+        model_id = str(m.get("id", "")).strip()
+        if not model_id:
+            continue
+
+        has_chat = False
+        architecture = m.get("architecture", {})
+        if architecture:
+            if "text" in architecture.get("input_modalities", []) and "text" in architecture.get(
+                "output_modalities", []
+            ):
+                has_chat = True
+
+        has_tools = False  # only accept models with tool calls
+        if "tools" in m.get("supported_parameters", []):
+            has_tools = True
+
+        if has_chat and has_tools:
+            result.append(model_id)
+
+    return result
+
+
+def _fetch_openrouter_models_sync() -> list[str]:
+    """Fetch OpenRouter models synchronously. Used for startup loading."""
+    try:
+        resp = requests.get(
+            f"{llm_settings.openrouter_api_base_url}/models",
+            timeout=15,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        models = payload.get("data", [])
+        parsed = _filter_chat_capable_models(models)
+    except Exception as exc:
+        logging.warning(f"Failed to fetch OpenRouter models at startup: {exc}")
+        parsed = []
+    return sorted(list(parsed))
+
+
+def _load_openrouter_models_background():
+    """Background thread function to load OpenRouter models at startup."""
+    global OPENROUTER_MODELS_CACHE
+    models = _fetch_openrouter_models_sync()
+    with _openrouter_models_lock:
+        if models:
+            OPENROUTER_MODELS_CACHE = models
+    _openrouter_models_loaded.set()
+    logging.info(f"OpenRouter models loaded at startup: {len(OPENROUTER_MODELS_CACHE)} models")
+
+
+# Start loading OpenRouter models in background immediately on module import
+_startup_thread = threading.Thread(target=_load_openrouter_models_background, daemon=True)
+_startup_thread.start()
 
 
 class ChatState(rx.State):
@@ -48,13 +113,17 @@ class ChatState(rx.State):
     default_openrouter_key_present: bool = bool(os.environ.get("OPENROUTER_API_KEY"))  # to require api_key input
     openai_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
     openrouter_models: list[str] = []
+    openrouter_models_loaded: bool = False
     available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
     enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
     data_model_branch: str = core_settings.config_plane_dev_branch
     data_model_snapshot_input: str = ""
 
-    async def mount(self) -> None:
-        self.fetch_openrouter_models()
+    def mount(self):
+        """Load models from startup cache."""
+        with _openrouter_models_lock:
+            self.openrouter_models = list(OPENROUTER_MODELS_CACHE)
+        self.openrouter_models_loaded = _openrouter_models_loaded.is_set()
         self._sync_available_models()
 
     def set_input(self, value: str) -> None:
@@ -94,44 +163,6 @@ class ChatState(rx.State):
         self.provider = value
         self._sync_available_models()
 
-    def _filter_chat_capable(self, models: Iterable[dict]) -> list[str]:
-        result: list[str] = []
-        for m in models:
-            model_id = str(m.get("id", "")).strip()
-            if not model_id:
-                continue
-
-            has_chat = False
-            architecture = m.get("architecture", {})
-            if architecture:
-                if "text" in architecture.get("input_modalities", []) and "text" in  architecture.get("output_modalities", []):
-                    has_chat = True
-
-            has_tools = False  # only accept models with tool calls
-            if "tools" in m.get("supported_parameters", []):
-                has_tools = True
-
-            if has_chat and has_tools:
-                result.append(model_id)
-
-        return result
-
-    def fetch_openrouter_models(self) -> None:
-        try:
-            resp = requests.get(
-                f"{llm_settings.openrouter_api_base_url}/models",
-                # headers={"Authorization": f"Bearer {openrouter_api_key}"},  # actually works without a token as well
-                timeout=10,
-            )
-            resp.raise_for_status()
-            payload = resp.json()
-            models = payload.get("data", [])
-            parsed = self._filter_chat_capable(models)
-        except Exception as exc:  # pragma: no cover - best effort
-            logging.warning(f"Failed to fetch OpenRouter models: {exc}")
-            parsed = []
-        self.openrouter_models = sorted(list(parsed))
-
     def _sync_available_models(self) -> None:
         """
         Recompute available_models based on selected provider, and realign
@@ -141,8 +172,11 @@ class ChatState(rx.State):
         if self.provider == "openrouter":
             models = self.openrouter_models
             if not models:
-                self.provider = "openai"
-                models = self.openai_models
+                if self.openrouter_models_loaded:
+                    self.provider = "openai"
+                    models = self.openai_models
+                else:
+                    models = self.available_models or self.openai_models
         else:
             models = self.openai_models
 

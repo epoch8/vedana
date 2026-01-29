@@ -73,8 +73,8 @@ def app_header() -> rx.Component:
         background_color=rx.color_mode_cond(light="white", dark="black"),
         style={
             "backdrop-filter": "blur(10px)",  # enables non-transparent background
+            "zIndex": "1000",
         },
-        z_index="10",
     )
 
 

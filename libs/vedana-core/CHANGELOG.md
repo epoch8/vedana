@@ -6,6 +6,8 @@
 * enable vector text search on edges / edge attributes
 * move vector text search to PGVector, introduce VectorStore class
 * [experimental] add data model filtering step before main pipeline
+* fix chat layout and details view
+* optimize app loading (telegram and openrouter calls)
 
 # 2025.11.25
 
