@@ -93,9 +93,7 @@ def render_message_bubble(
                                     "Open",
                                     size="1",
                                     variant="soft",
-                                    on_click=DataModelState.open_quick_view(
-                                        snapshot_id=msg.get("dm_snapshot_id")
-                                    ),  # type: ignore[arg-type,call-arg,func-returns-value]
+                                    on_click=DataModelState.open_quick_view(snapshot_id=msg.get("dm_snapshot_id")),  # type: ignore[arg-type,call-arg,func-returns-value]
                                 )
                             ),
                             rx.popover.content(
@@ -125,8 +123,6 @@ def render_message_bubble(
                                 ),
                                 style={"maxWidth": "90vw", "maxHeight": "80vh", "overflow": "auto"},
                             ),
-                            open=DataModelState.quick_view_open,
-                            on_open_change=DataModelState.set_quick_view_open,
                         ),
                         rx.popover.root(
                             rx.popover.trigger(
@@ -167,12 +163,10 @@ def render_message_bubble(
                                 ),
                                 style={"maxWidth": "90vw", "maxHeight": "80vh", "overflow": "auto"},
                             ),
-                            open=DataModelState.quick_diff_open,
-                            on_open_change=DataModelState.set_quick_diff_open,
                         ),
                         spacing="2",
                         align="center",
-                    )
+                    ),
                 ),
                 spacing="2",
                 width="100%",

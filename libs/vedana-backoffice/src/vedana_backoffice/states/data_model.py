@@ -4,8 +4,7 @@ import json
 from typing import Any
 
 import reflex as rx
-
-from config_plane.impl.sql import create_sql_config_repo, SqlConfigRepo
+from config_plane.impl.sql import SqlConfigRepo, create_sql_config_repo
 from vedana_core.db import get_config_plane_sessionmaker
 from vedana_core.settings import settings as core_settings
 
@@ -17,9 +16,7 @@ def get_dm_repo():
     """avoids session.execute on reflex build"""
     global dm_repo
     if dm_repo is None:
-        dm_repo = create_sql_config_repo(
-            dm_sessionmaker, branch=core_settings.config_plane_dev_branch
-        )
+        dm_repo = create_sql_config_repo(dm_sessionmaker, branch=core_settings.config_plane_dev_branch)
     return dm_repo
 
 
@@ -88,9 +85,7 @@ def _payload_to_tables(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 }
             )
 
-    query_rows = [
-        {"name": q.get("name", ""), "example": q.get("example", "")} for q in queries
-    ]
+    query_rows = [{"name": q.get("name", ""), "example": q.get("example", "")} for q in queries]
     prompt_rows = [{"name": p.get("name", ""), "text": p.get("text", "")} for p in prompts]
     lifecycle_rows = [{"event": e.get("event", ""), "text": e.get("text", "")} for e in lifecycle]
 
@@ -173,12 +168,8 @@ def _diff_rows(
     after: list[dict[str, Any]],
     key_fields: list[str],
 ) -> list[dict[str, Any]]:
-    before_map: dict[tuple, dict[str, Any]] = {
-        tuple(row.get(k, "") for k in key_fields): row for row in before
-    }
-    after_map: dict[tuple, dict[str, Any]] = {
-        tuple(row.get(k, "") for k in key_fields): row for row in after
-    }
+    before_map: dict[tuple, dict[str, Any]] = {tuple(row.get(k, "") for k in key_fields): row for row in before}
+    after_map: dict[tuple, dict[str, Any]] = {tuple(row.get(k, "") for k in key_fields): row for row in after}
     keys = sorted(set(before_map) | set(after_map))
     rows: list[dict[str, Any]] = []
     for key in keys:
@@ -297,13 +288,11 @@ class DataModelState(rx.State):
     quick_view_tables: list[dict[str, Any]] = []
     quick_view_error_message: str = ""
     quick_view_is_loading: bool = False
-    quick_view_open: bool = False
 
     quick_diff_snapshot_id: str = ""
     quick_diff_tables: list[dict[str, Any]] = []
     quick_diff_error_message: str = ""
     quick_diff_is_loading: bool = False
-    quick_diff_open: bool = False
 
     def set_diff_branch_left(self, value: str) -> None:
         self.diff_branch_left = value
@@ -316,12 +305,6 @@ class DataModelState(rx.State):
 
     def set_view_snapshot_input(self, value: str) -> None:
         self.view_snapshot_input = value
-
-    def set_quick_view_open(self, value: bool) -> None:
-        self.quick_view_open = bool(value)
-
-    def set_quick_diff_open(self, value: bool) -> None:
-        self.quick_diff_open = bool(value)
 
     @rx.event(background=True)  # type: ignore[operator]
     async def load_status(self):
@@ -390,9 +373,7 @@ class DataModelState(rx.State):
                         try:
                             snapshot_id = int(snapshot_id_str)
                         except ValueError as exc:
-                            raise RuntimeError(
-                                f"Invalid snapshot ID for branch '{self.view_branch}'"
-                            ) from exc
+                            raise RuntimeError(f"Invalid snapshot ID for branch '{self.view_branch}'") from exc
                     if snapshot_id is None:
                         raise RuntimeError(f"No snapshot for branch '{self.view_branch}'")
 
@@ -411,7 +392,6 @@ class DataModelState(rx.State):
     @rx.event(background=True)  # type: ignore[operator]
     async def open_quick_view(self, snapshot_id: str | int):
         async with self:
-            self.quick_view_open = True
             self.quick_view_is_loading = True
             self.quick_view_error_message = ""
             self.quick_view_snapshot_id = str(snapshot_id or "")
@@ -432,7 +412,6 @@ class DataModelState(rx.State):
     @rx.event(background=True)  # type: ignore[operator]
     async def open_quick_diff(self, snapshot_id: str | int, compare_branch: str | None = None):
         async with self:
-            self.quick_diff_open = True
             self.quick_diff_is_loading = True
             self.quick_diff_error_message = ""
             self.quick_diff_snapshot_id = str(snapshot_id or "")
