@@ -1,6 +1,6 @@
 [project]
 name = "jims-tui"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Add your description here"
 readme = "README.md"
 authors = [{ name = "Andrey Tatarinov", email = "a@tatarinov.co" }]
@@ -16,12 +16,21 @@ dev = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.9.25, <0.10.0"]
-build-backend = "uv_build"
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+enable = true
+vcs = "git"
+pattern = "default-unprefixed"
+pattern-prefix = "jims-"
 
 [tool.uv-workspace-codegen]
 generate = true
-template_type = "lib"
+template_type = ["lib", "publish"]
 generate_standard_pytest_step = false
 typechecker = "mypy"
 

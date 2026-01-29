@@ -8,8 +8,6 @@ on:
   pull_request:
     paths:
       - "libs/vedana-backoffice/**"
-      # - "pyproject.toml"
-      # - "uv.lock"
   push:
     branches: [master]
     paths:

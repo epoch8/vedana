@@ -1,6 +1,6 @@
 [project]
 name = "vedana"
-version = "2025.11.25-dev.26"
+version = "0.1.0"
 description = "Vedana"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -18,7 +18,7 @@ dependencies = [
 
 [tool.uv-workspace-codegen]
 generate = true
-template_type = "project"
+template_type = "app"
 generate_standard_pytest_step = false
 generate_typechecking_step = false
 generate_alembic_migration_check_step = true

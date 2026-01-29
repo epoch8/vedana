@@ -26,7 +26,7 @@ ai-assistants-oss/
 │   ├── vedana-core/         # Core Vedana framework
 │   ├── vedana-backoffice/   # Reflex-based admin UI
 │   └── vedana-etl/          # ETL pipeline (Datapipe-based)
-├── projects/
+├── apps/
 │   ├── vedana/              # Main Vedana deployment
 │   └── jims-demo/           # JIMS demo project
 └── pyproject.toml           # UV Workspace configuration
@@ -145,10 +145,10 @@ This repository is a [uv workspace](https://docs.astral.sh/uv/concepts/projects/
 uv sync
 ```
 
-Fill the `.env` based on the `.env.example` [here](projects/vedana/.env.example)
+Fill the `.env` based on the `.env.example` [here](apps/vedana/.env.example)
 
 ```bash
-cd projects/vedana
+cd apps/vedana
 docker-compose up -d
 ```
 

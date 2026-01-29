@@ -1,4 +1,4 @@
-name: Test project {{ package.name }}
+name: Test app {{ package.name }}
 
 on:
   pull_request:
@@ -6,8 +6,6 @@ on:
       - "{{ package.path }}/**"
       - "libs/jims*/**"
       - "libs/vedana*/**"
-      # - "pyproject.toml"
-      # - "uv.lock"
   push:
     branches: [master]
     paths:
