@@ -114,6 +114,7 @@ services:
       retries: 60
 
 volumes:
+#  TODO: нужно помимо БД гриста добавить готовые снапшоты SQL и Cypherl для db / memgraph. чтобы все поднималось с данными
   mg_graph:
   grist_data:
   postgres_data:

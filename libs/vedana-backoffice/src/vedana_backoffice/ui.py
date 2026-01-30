@@ -40,17 +40,20 @@ def debug_badge() -> rx.Component:
     """Red badge indicating debug mode is active. Clickable to open API key dialog."""
     return rx.cond(
         AppVersionState.debug_mode,
-        rx.badge(
-            "DEBUG MODE",
-            color_scheme="red",
-            variant="solid",
-            size="2",
-            style={
-                "font_weight": "bold",
-                "text_transform": "uppercase",
-                "cursor": "pointer",
-            },
-            on_click=DebugState.open_dialog,
+        rx.tooltip(
+            rx.badge(
+                "DEBUG MODE",
+                color_scheme="red",
+                variant="solid",
+                size="2",
+                style={
+                    "font_weight": "bold",
+                    "text_transform": "uppercase",
+                    "cursor": "pointer",
+                },
+                on_click=DebugState.open_dialog,
+            ),
+            content="Debug mode enabled!\nnSome features are not for production use\nClick to reset LLM API_KEY"
         ),
         rx.fragment(),
     )
