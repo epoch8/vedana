@@ -1,8 +1,6 @@
-# ai-assistants-oss
+# Vedana
 
-**JIMS** - **J**ust an **I**ntegrated **M**ultiagent **S**ystem;
-
-**Vedana** - (multi)agentic AI chatbot system built on top of JIMS with semantic RAG and knowledge graph as tools.
+**Vedana** is a (multi)agentic AI chatbot system built with semantic RAG and knowledge graph as its main tools.
 
 ## Overview
 
@@ -19,8 +17,8 @@ This is a complete framework for building conversational AI systems. Key feature
 ```
 ai-assistants-oss/
 ├── libs/                    # Reusable libraries
-│   ├── jims-core/           # Core JIMS framework
-│   ├── jims-backoffice/     # FastAPI backoffice for JIMS
+│   ├── jims-core/           # Core JIMS framework - thread management for user sessions
+│   ├── jims-backoffice/     # Minimal FastAPI backoffice for JIMS
 │   ├── jims-telegram/       # Telegram bot adapter
 │   ├── jims-tui/            # Terminal UI for testing
 │   ├── vedana-core/         # Core Vedana framework
