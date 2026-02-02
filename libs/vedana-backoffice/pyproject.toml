@@ -12,6 +12,7 @@ authors = [
 dependencies = [
     "reflex>=0.8.25,<0.9.0",
     "orjson>=3.11.3",
+    "kubernetes>=34.1.0",
     "vedana-core",
     "vedana-etl",
 ]
