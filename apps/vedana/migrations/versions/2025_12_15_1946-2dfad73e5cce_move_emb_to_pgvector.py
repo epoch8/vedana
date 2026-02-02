@@ -13,6 +13,8 @@ from alembic import op
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects import postgresql
 
+from vedana_core.settings import settings as core_settings
+
 # revision identifiers, used by Alembic.
 revision: str = "2dfad73e5cce"
 down_revision: Union[str, None] = "f52df436cfb7"
@@ -115,7 +117,7 @@ def upgrade() -> None:
         sa.Column("attribute_name", sa.String(), nullable=False),
         sa.Column("label", sa.String(), nullable=False),
         sa.Column("attribute_value", sa.String(), nullable=True),
-        sa.Column("embedding", Vector(dim=1024), nullable=False),
+        sa.Column("embedding", Vector(dim=core_settings.embeddings_dim), nullable=False),
         sa.PrimaryKeyConstraint("node_id", "attribute_name"),
     )
     op.create_table(
@@ -136,7 +138,7 @@ def upgrade() -> None:
         sa.Column("edge_label", sa.String(), nullable=False),
         sa.Column("attribute_name", sa.String(), nullable=False),
         sa.Column("attribute_value", sa.String(), nullable=True),
-        sa.Column("embedding", Vector(dim=1024), nullable=False),
+        sa.Column("embedding", Vector(dim=core_settings.embeddings_dim), nullable=False),
         sa.PrimaryKeyConstraint("from_node_id", "to_node_id", "edge_label", "attribute_name"),
     )
     op.create_table(
