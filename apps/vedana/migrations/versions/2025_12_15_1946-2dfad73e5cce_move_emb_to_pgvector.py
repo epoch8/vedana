@@ -121,13 +121,14 @@ def upgrade() -> None:
     op.create_table(
         "rag_anchor_embeddings_meta",
         sa.Column("node_id", sa.String(), nullable=False),
+        sa.Column("node_type", sa.String(), nullable=False),
         sa.Column("attribute_name", sa.String(), nullable=False),
         sa.Column("hash", sa.Integer(), nullable=True),
         sa.Column("create_ts", sa.Float(), nullable=True),
         sa.Column("update_ts", sa.Float(), nullable=True),
         sa.Column("process_ts", sa.Float(), nullable=True),
         sa.Column("delete_ts", sa.Float(), nullable=True),
-        sa.PrimaryKeyConstraint("node_id", "attribute_name"),
+        sa.PrimaryKeyConstraint("node_id", "node_type", "attribute_name"),
     )
     op.create_table(
         "rag_edge_embeddings",
