@@ -112,11 +112,11 @@ def upgrade() -> None:
     op.create_table(
         "rag_anchor_embeddings",
         sa.Column("node_id", sa.String(), nullable=False),
+        sa.Column("node_type", sa.String(), nullable=False),
         sa.Column("attribute_name", sa.String(), nullable=False),
-        sa.Column("label", sa.String(), nullable=False),
         sa.Column("attribute_value", sa.String(), nullable=True),
         sa.Column("embedding", Vector(dim=1024), nullable=False),
-        sa.PrimaryKeyConstraint("node_id", "attribute_name"),
+        sa.PrimaryKeyConstraint("node_id", "node_type", "attribute_name"),
     )
     op.create_table(
         "rag_anchor_embeddings_meta",
