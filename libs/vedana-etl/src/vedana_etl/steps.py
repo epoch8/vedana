@@ -604,7 +604,8 @@ def generate_embeddings(
                 tasks.append((pos, attr_name, text_val))
 
     if not tasks:
-        return df
+        output_columns = pkeys + ["attribute_name", "attribute_value", "embedding"]
+        return pd.DataFrame(columns=output_columns)
 
     provider = LLMProvider()
 
