@@ -96,10 +96,8 @@ def test_generate_embeddings_skips_uuid_text(monkeypatch):
     finally:
         steps.LLMProvider = orig
 
-    assert len(out) == 1
-    assert out.iloc[0]["node_id"] == "a1"
-    assert out.iloc[0]["node_type"] == "Article"
-    assert out.iloc[0]["attributes"] == {"title": uuid_text}
+    assert len(out) == 0
+    assert list(out.columns) == ["node_id", "node_type", "attribute_name", "attribute_value", "embedding"]
 
 
 def test_generate_embeddings_for_edges(monkeypatch):
