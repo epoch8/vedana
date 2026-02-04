@@ -47,7 +47,6 @@ jobs:
             MEMGRAPH_PWD: ''
             MEMGRAPH_URI: bolt://localhost:7687
             MEMGRAPH_USER: ''
-            OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         name: Run tests
         run: 'uv run pytest libs/vedana-core/
 
