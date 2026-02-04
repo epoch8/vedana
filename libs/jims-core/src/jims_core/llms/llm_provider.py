@@ -21,6 +21,9 @@ class LLMSettings(BaseSettings):
     embeddings_model: str = "text-embedding-3-large"
     embeddings_dim: int = 1024
 
+    embeddings_max_batch_size: int = 2048
+    embeddings_max_tokens_per_batch: int = 280000
+
     # passable api_keys; if None, defaults to env vars
     model_api_key: str | None = None
     embeddings_model_api_key: str | None = None
@@ -78,6 +81,8 @@ class LLMProvider:
         self.embeddings_model = self._settings.embeddings_model
         self.embeddings_model_api_key = self._settings.embeddings_model_api_key
         self.embeddings_dim = self._settings.embeddings_dim
+        self.max_batch_size = self._settings.embeddings_max_batch_size
+        self.max_tokens_per_batch = self._settings.embeddings_max_tokens_per_batch
 
         # counters for single ThreadContext (~single pipeline run) instance
         self.usage: dict[str, ModelUsage] = defaultdict(ModelUsage)
@@ -135,14 +140,19 @@ class LLMProvider:
         self.observe_create_embedding(response)
         return response.data[0]["embedding"]
 
-    def _chunk_texts(self, texts: list[str], max_batch_size: int, max_tokens: int) -> list[list[str]]:
+    def _chunk_texts(self, texts: list[str]) -> list[list[str]]:
         """Chunk texts into batches respecting both count and token limits."""
         batches: list[list[str]] = []
         batch: list[str] = []
         tokens = 0
         for text in texts:
             t = litellm.token_counter(model=self.embeddings_model, text=text)
-            if batch and (len(batch) >= max_batch_size or tokens + t > max_tokens):
+            if t >= self.max_tokens_per_batch:
+                raise ValueError(
+                    f'Cannot process embedding - single text exceeds max_tokens limit '
+                    f'({t} >= {self.max_tokens_per_batch}); text="{text}"'
+                )
+            if batch and (len(batch) >= self.max_batch_size or tokens + t >= self.max_tokens_per_batch):
                 batches.append(batch)
                 batch, tokens = [], 0
             batch.append(text)
@@ -152,12 +162,10 @@ class LLMProvider:
         return batches
 
     @backoff.on_exception(backoff.expo, Exception, max_tries=3)
-    async def create_embeddings(
-        self, texts: list[str], max_batch_size: int = 2048, max_tokens: int = 300000
-    ) -> list[list[float]]:
+    async def create_embeddings(self, texts: list[str]) -> list[list[float]]:
         """batch method with automatic chunking"""
         results: list[list[float]] = []
-        for batch in self._chunk_texts(texts, max_batch_size, max_tokens):
+        for batch in self._chunk_texts(texts):
             response = await litellm.aembedding(
                 model=self.embeddings_model,
                 input=batch,
@@ -178,12 +186,10 @@ class LLMProvider:
         self.observe_create_embedding(response)
         return response.data[0]["embedding"]
 
-    def create_embeddings_sync(
-        self, texts: list[str], max_batch_size: int = 2048, max_tokens: int = 300000
-    ) -> list[list[float]]:
+    def create_embeddings_sync(self, texts: list[str]) -> list[list[float]]:
         """batch method with automatic chunking"""
         results: list[list[float]] = []
-        for batch in self._chunk_texts(texts, max_batch_size, max_tokens):
+        for batch in self._chunk_texts(texts):
             response = litellm.embedding(
                 model=self.embeddings_model,
                 input=batch,
