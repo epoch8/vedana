@@ -30,3 +30,19 @@ GRIST_DATA_DOC_ID
 Для этого нужно загрузить csv в директорию `csv_path` (прописать её в [settings.py](settings.py)) и подредачить [update_graph_db](app/update_graph_db.py) - раскомментировать там блок с загрузкой csv.
 
 Другой простой способ загрузки данных, если они уже были в графе - через Import в Memgraph-lab
+
+### Миграции базы данных
+
+Для запуска миграций используйте alembic:
+```bash
+uv run alembic upgrade head
+```
+
+#### pgvector extension
+
+Миграция `2dfad73e5cce_move_emb_to_pgvector` требует расширение pgvector. По умолчанию миграция **не создаёт** расширение, т.к. на облачных платформах (Supabase, Neon и т.д.) оно уже предустановлено и управляется провайдером.
+
+Для создания расширения установите переменную окружения:
+```bash
+CREATE_PGVECTOR_EXTENSION=true
+```
