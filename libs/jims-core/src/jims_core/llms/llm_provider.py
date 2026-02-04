@@ -22,7 +22,7 @@ class LLMSettings(BaseSettings):
     embeddings_dim: int = 1024
 
     embeddings_max_batch_size: int = 2048
-    embeddings_max_tokens_per_batch: int = 280000
+    embeddings_max_tokens_per_batch: int = 200000
 
     # passable api_keys; if None, defaults to env vars
     model_api_key: str | None = None
