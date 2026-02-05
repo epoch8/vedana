@@ -14,9 +14,9 @@ load_dotenv()
 # -------- live Grist fixtures (NO mocks) --------
 @pytest.fixture(scope="session")
 def dm_dfs():
-    """Data Model из живой Grist: Anchors, Attributes, Links."""
+    """Data Model from live Grist: Anchors, Attributes, Links."""
     anchors_df, a_attrs_df, l_attrs_df, links_df, q_df, p_df, cl_df = next(steps.get_data_model())
-    # sanity: типы как в коде
+    # sanity: types as in code
     assert a_attrs_df["embeddable"].dtype == bool and l_attrs_df["embeddable"].dtype == bool
     assert "embed_threshold" in a_attrs_df.columns and "embed_threshold" in l_attrs_df.columns
     return anchors_df, a_attrs_df, l_attrs_df, links_df, q_df, p_df, cl_df
@@ -24,7 +24,7 @@ def dm_dfs():
 
 @pytest.fixture(scope="session")
 def raw_graph_dfs():
-    """Сырые nodes/edges из живой Grist."""
+    """Raw nodes/edges from live Grist."""
     nodes, edges = next(steps.get_grist_data())
     return nodes, edges
 
@@ -48,12 +48,12 @@ def live_memgraph_available():
     return _ping_memgraph()
 
 
-# детерминированный провайдер эмбеддингов, чтобы тесты были воспроизводимы
+# deterministic embeddings provider for reproducible tests
 @pytest.fixture
 def dummy_llm(monkeypatch):
     class DummyProv:
         def create_embeddings_sync(self, texts):
-            # фикс-вектор длины 8 (или сколько у тебя EMBEDDINGS_DIM — можно и динамически достать)
+            # fixed vector of length 8 (or however many EMBEDDINGS_DIM you have - can be fetched dynamically)
             return [[1.0] + [0.0] * (getattr(core_settings, "embeddings_dim", 8) - 1) for _ in texts]
 
     orig = steps.LLMProvider
