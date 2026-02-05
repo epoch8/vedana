@@ -9,7 +9,7 @@ from vedana_core.app import VedanaApp, make_vedana_app
 vedana_app: VedanaApp | None = None
 
 EVAL_ENABLED = bool(os.environ.get("GRIST_TEST_SET_DOC_ID"))
-DEBUG_MODE = os.environ.get("DEBUG", "").lower() in ("true", "1", "yes")
+DEBUG_MODE = os.environ.get("DEBUG", "").lower() in ("true", "1")
 HAS_OPENAI_KEY = bool(os.environ.get("OPENAI_API_KEY"))
 HAS_OPENROUTER_KEY = bool(os.environ.get("OPENROUTER_API_KEY"))
 
