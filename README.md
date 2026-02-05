@@ -1,8 +1,6 @@
-# ai-assistants-oss
+# Vedana
 
-**JIMS** - **J**ust an **I**ntegrated **M**ultiagent **S**ystem;
-
-**Vedana** - (multi)agentic AI chatbot system built on top of JIMS with semantic RAG and knowledge graph as tools.
+**Vedana** is a (multi)agentic AI chatbot system built with semantic RAG and knowledge graph as its main tools.
 
 ## Overview
 
@@ -14,13 +12,26 @@ This is a complete framework for building conversational AI systems. Key feature
 - **Multiple interfaces**: Telegram bot, Terminal UI, Web backoffice
 - **Incremental ETL** built with [Datapipe](https://github.com/epoch8/datapipe)
 
+## Quickstart / Run
+
+Fill the `.env` based on the `.env.example` [here](apps/vedana/.env.example)
+
+```bash
+docker-compose -f apps/vedana/docker-compose.yml up --build -d
+```
+
+By the way, this repository is a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/):
+```bash
+uv sync
+```
+
 ## Repository Structure
 
 ```
 ai-assistants-oss/
 ├── libs/                    # Reusable libraries
-│   ├── jims-core/           # Core JIMS framework
-│   ├── jims-backoffice/     # FastAPI backoffice for JIMS
+│   ├── jims-core/           # Core JIMS framework - thread management for user sessions
+│   ├── jims-backoffice/     # Minimal FastAPI backoffice for JIMS
 │   ├── jims-telegram/       # Telegram bot adapter
 │   ├── jims-tui/            # Terminal UI for testing
 │   ├── vedana-core/         # Core Vedana framework
@@ -97,7 +108,7 @@ but the pipeline can be easily extended to incorporate other sources
 - Grist (for data model and data source)
 - OpenAI API key (or compatible LLM provider)
 
-## Quick Start
+## Setup
 
 **JIMS** manages conversations as **threads** containing **events** (messages, actions, state changes). A **pipeline**, provided by Vedana in this case, processes user input and produces response events.
 
@@ -108,8 +119,6 @@ but the pipeline can be easily extended to incorporate other sources
 4. LLM synthesizes the answer
 
 The **data model** (node types, relationships, attributes) is defined in Grist spreadsheets and synced via ETL.
-
-## Configure
 
 ### Data Model (Grist)
 
@@ -138,19 +147,6 @@ configurable via environment variables for production and in backoffice UI for t
 | `EMBEDDINGS_MODEL` | Text embeddings generation                                            |
 | `EMBEDDINGS_DIM`   | Embedding dimensions                                                  |
 
-### Run
-
-This repository is a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/):
-```bash
-uv sync
-```
-
-Fill the `.env` based on the `.env.example` [here](apps/vedana/.env.example)
-
-```bash
-cd apps/vedana
-docker-compose up -d
-```
 
 ## Observability
 
