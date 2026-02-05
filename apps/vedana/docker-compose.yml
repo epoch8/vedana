@@ -102,7 +102,7 @@ services:
       retries: 60
 
 volumes:
-#  TODO: add complete snapshots for SQL and Cypherl (db / memgraph)
+  #  TODO: add complete snapshots for SQL and Cypherl (db / memgraph)
   mg_graph:
   grist_data:
   postgres_data:

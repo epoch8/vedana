@@ -44,7 +44,7 @@ def dm_attributes_df():
 
 @pytest.fixture
 def dm_links_df():
-    # has_direction=False -> допустима и обратная пара узлов
+    # has_direction=False -> reverse node pair is allowed
     return pd.DataFrame(
         [
             {
