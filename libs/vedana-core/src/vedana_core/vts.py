@@ -155,7 +155,7 @@ class PGVectorStore(VectorStore):
                                 self.node_table, self.rag_anchor_embeddings_table.c.node_id == self.node_table.c.node_id
                             )
                         )
-                        .where(self.rag_anchor_embeddings_table.c.label == label)
+                        .where(self.rag_anchor_embeddings_table.c.node_type == label)
                         .where(self.rag_anchor_embeddings_table.c.attribute_name == prop_name)
                         .where(similarity > threshold)
                         .order_by(distance)

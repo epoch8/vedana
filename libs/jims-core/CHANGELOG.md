@@ -1,3 +1,7 @@
+# 2026.01.29 - 0.4.1
+
+* Republish to PyPI
+
 # 2025.11.25 - 0.3.1
 
 * `ThreadContext`: Add `thread_config` field

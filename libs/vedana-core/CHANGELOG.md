@@ -1,5 +1,6 @@
-# WIP
+# 2026.01.29 - 0.6.0
 
+* Republish to PyPI
 * remove DataModel loading/caching from vedana-core, rely on vedana-etl for updates
 * change DataModel attributes structure - split anchor/edge attributes
 * optimize DataModel calls

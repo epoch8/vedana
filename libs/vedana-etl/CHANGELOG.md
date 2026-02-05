@@ -1,5 +1,6 @@
-# WIP
+# 2026.01.29 - 0.6.0
 
+* Republish to PyPI
 * handle vedana-core's DataModel through ETL
 * move Eval away from ETL, processing tests using JIMS & Backoffice now
 * store embeddings in tables for PGVector

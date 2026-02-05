@@ -224,8 +224,8 @@ rag_anchor_embeddings = Table(
         name="rag_anchor_embeddings",
         data_sql_schema=[
             Column("node_id", String, primary_key=True),
+            Column("node_type", String, primary_key=True),
             Column("attribute_name", String, primary_key=True),
-            Column("label", String, nullable=False),
             Column("attribute_value", String),
             Column("embedding", Vector(dim=core_settings.embeddings_dim), nullable=False),
         ],

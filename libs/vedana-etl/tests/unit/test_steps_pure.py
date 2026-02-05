@@ -8,7 +8,7 @@ load_dotenv()
 
 def test_clean_str_replaces_and_collapses_spaces():
     s = "A\u00a0B\u2009C\u200b  D\tE"
-    # NBSP, thin space, zero-width + мультипробелы -> одиночные пробелы
+    # NBSP, thin space, zero-width + multiple spaces -> single spaces
     assert steps.clean_str(s) == "A B C D E"
 
 
@@ -26,7 +26,7 @@ def test_generate_embeddings_for_nodes(monkeypatch):
     df = pd.DataFrame(
         [
             {"node_id": "a1", "node_type": "Article", "attributes": {"title": "hello", "year": 2020}},
-            {"node_id": "u1", "node_type": "Author", "attributes": {"name": "Bob"}},  # без векторизации
+            {"node_id": "u1", "node_type": "Author", "attributes": {"name": "Bob"}},  # no vectorization
         ]
     )
 
@@ -44,7 +44,7 @@ def test_generate_embeddings_for_nodes(monkeypatch):
 
     class DummyProv:
         def create_embeddings_sync(self, texts):
-            # ожидаем только один текст 'hello'
+            # expect only one text 'hello'
             assert texts == ["hello"]
             return [[1.0, 0.0]]
 
@@ -86,7 +86,7 @@ def test_generate_embeddings_skips_uuid_text(monkeypatch):
 
     class DummyProv:
         def create_embeddings_sync(self, texts):
-            # не должен вызываться, т.к. текст выглядит как UUID
+            # should not be called since the text looks like a UUID
             raise AssertionError("LLM should not be called for UUID-like text")
 
     orig = steps.LLMProvider
@@ -96,10 +96,8 @@ def test_generate_embeddings_skips_uuid_text(monkeypatch):
     finally:
         steps.LLMProvider = orig
 
-    assert len(out) == 1
-    assert out.iloc[0]["node_id"] == "a1"
-    assert out.iloc[0]["node_type"] == "Article"
-    assert out.iloc[0]["attributes"] == {"title": uuid_text}
+    assert len(out) == 0
+    assert list(out.columns) == ["node_id", "node_type", "attribute_name", "attribute_value", "embedding"]
 
 
 def test_generate_embeddings_for_edges(monkeypatch):
