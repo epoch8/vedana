@@ -5,7 +5,7 @@ from typing import Any
 import reflex as rx
 
 from vedana_backoffice.states.chat import ChatState
-from vedana_backoffice.states.common import AppVersionState, TelegramBotState
+from vedana_backoffice.states.common import AppVersionState, DebugState, TelegramBotState
 
 
 def telegram_link_box() -> rx.Component:
@@ -36,44 +36,122 @@ def data_model_reload_btn() -> rx.Component:
     )
 
 
-def app_header() -> rx.Component:
-    return rx.box(
-        rx.hstack(
-            rx.hstack(
-                rx.link("Vedana Backoffice", href="/", font_weight="bold", font_size="1.25em"),
-                rx.markdown(AppVersionState.version),  # type: ignore[operator]
-                align="center",
-                spacing="3",
+def debug_badge() -> rx.Component:
+    """Red badge indicating debug mode is active. Clickable to open API key dialog."""
+    return rx.cond(
+        AppVersionState.debug_mode,
+        rx.tooltip(
+            rx.badge(
+                "DEBUG MODE",
+                color_scheme="red",
+                variant="solid",
+                size="2",
+                style={
+                    "font_weight": "bold",
+                    "text_transform": "uppercase",
+                    "cursor": "pointer",
+                },
+                on_click=DebugState.open_dialog,
             ),
-            rx.hstack(
-                data_model_reload_btn(),
-                rx.link("ETL", href="/etl", font_size="1.1em"),
-                rx.cond(
-                    AppVersionState.eval_enabled,
-                    rx.link("Eval", href="/eval", font_size="1.1em"),
-                    rx.fragment(),
-                ),
-                rx.link("Chat", href="/chat", font_size="1.1em"),
-                rx.link("JIMS", href="/jims", font_size="1.1em"),
-                telegram_link_box(),
-                rx.color_mode.button(),  # type: ignore[attr-defined]
-                spacing="6",
-                align="center",
-            ),
-            justify="between",
-            align="center",
-            width="100%",
+            content="Debug mode enabled! Some features are not for production use. Click to reset LLM API_KEY"
         ),
-        width="100%",
-        padding="0.5em 1.25em",
-        border_bottom="1px solid #e5e7eb",
-        position="sticky",
-        top="0",
-        background_color=rx.color_mode_cond(light="white", dark="black"),
-        style={
-            "backdrop-filter": "blur(10px)",  # enables non-transparent background
-        },
-        z_index="10",
+        rx.fragment(),
+    )
+
+
+def api_key_setup_dialog() -> rx.Component:
+    """Dialog to prompt user for API key in debug mode when no keys are configured."""
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title("API Key Setup"),
+            rx.dialog.description(
+                "Please provide an OpenAI or OpenRouter API key to use the chat functionality.",
+                margin_bottom="1em",
+            ),
+            rx.vstack(
+                rx.select(
+                    ["openai", "openrouter"],
+                    value=DebugState.api_key_type,
+                    on_change=DebugState.set_api_key_type,
+                    placeholder="Select API provider",
+                ),
+                rx.input(
+                    placeholder="Enter your API key",
+                    value=DebugState.api_key,
+                    on_change=DebugState.set_api_key,
+                    type="password",
+                    width="100%",
+                ),
+                rx.hstack(
+                    rx.dialog.close(
+                        rx.button(
+                            "Skip",
+                            variant="soft",
+                            color_scheme="gray",
+                            on_click=DebugState.close_dialog,
+                        ),
+                    ),
+                    rx.button(
+                        "Save",
+                        color_scheme="blue",
+                        on_click=DebugState.save_api_key,
+                    ),
+                    justify="end",
+                    spacing="3",
+                    width="100%",
+                ),
+                spacing="4",
+                width="100%",
+            ),
+            style={"max_width": "450px"},
+        ),
+        open=DebugState.show_api_key_dialog,
+    )
+
+
+def app_header() -> rx.Component:
+    return rx.fragment(
+        rx.box(
+            rx.hstack(
+                rx.hstack(
+                    rx.link("Vedana Backoffice", href="/", font_weight="bold", font_size="1.25em"),
+                    rx.markdown(AppVersionState.version),  # type: ignore[operator]
+                    debug_badge(),
+                    align="center",
+                    spacing="3",
+                ),
+                rx.hstack(
+                    data_model_reload_btn(),
+                    rx.link("ETL", href="/etl", font_size="1.1em"),
+                    rx.cond(
+                        AppVersionState.eval_enabled,
+                        rx.link("Eval", href="/eval", font_size="1.1em"),
+                        rx.fragment(),
+                    ),
+                    rx.link("Chat", href="/chat", font_size="1.1em"),
+                    rx.link("JIMS", href="/jims", font_size="1.1em"),
+                    telegram_link_box(),
+                    rx.color_mode.button(),  # type: ignore[attr-defined]
+                    spacing="6",
+                    align="center",
+                ),
+                justify="between",
+                align="center",
+                width="100%",
+            ),
+            width="100%",
+            padding="0.5em 1.25em",
+            border_bottom="1px solid #e5e7eb",
+            position="sticky",
+            top="0",
+            background_color=rx.color_mode_cond(light="white", dark="black"),
+            style={
+                "backdrop-filter": "blur(10px)",  # enables non-transparent background
+            },
+            z_index="10",
+            on_mount=DebugState.check_and_show_dialog,
+        ),
+        api_key_setup_dialog(),
     )
 
 

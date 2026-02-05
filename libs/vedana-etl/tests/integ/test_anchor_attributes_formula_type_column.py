@@ -1,13 +1,13 @@
 """
-Интеграционный тест: anchor_attributes_formula_type_column
+Integration test: anchor_attributes_formula_type_column
 
-Цель:
-  - Колонки Grist с типом данных "Formula" в сырых данных (get_grist_data)
-    попадают как вычисленные значения (строки/числа и т.п., а не выражения).
-  - Если такая колонка описана в Data Model, она должна сохраняться
+Goal:
+  - Grist columns with "Formula" data type appear in raw data (get_grist_data)
+    as computed values (strings/numbers etc., not expressions).
+  - If such a column is described in Data Model, it should be preserved.
 
 Test data:
-  - Формульный атрибут: `document_filepath` (для узлов типа "document").
+  - Formula attribute: `document_filepath` (for nodes of type "document").
 """
 
 from typing import Any, Dict, Optional
@@ -21,30 +21,30 @@ load_dotenv()
 
 def test_anchor_attributes_formula_type_column() -> None:
     """
-    Проверяем поведение формульной колонки `document_filepath`:
-    - в сырых nodes присутствует как результат вычисления (не пустое значение);
-    - описана в Data Model и не отфильтровывается
+    Verify the behavior of formula column `document_filepath`:
+    - in raw nodes it appears as a computed value (non-empty);
+    - described in Data Model and not filtered out
     """
 
-    # 1) Живой Data Model
+    # 1) Live Data Model
     anchors_df, a_attrs_df, _l_attrs_df, links_df, _q_df, _p_df, _cl_df = next(steps.get_data_model())
     assert not anchors_df.empty and not a_attrs_df.empty, "Data Model must not be empty (Anchors)."
 
     dm_attr_names = set(a_attrs_df["attribute_name"].astype(str))
 
-    # В этом кейсе ожидаем, что формульный атрибут описан в Data Model.
+    # In this case we expect the formula attribute to be described in Data Model.
     assert (
         "document_filepath" in dm_attr_names
     ), "Test precondition failed: 'document_filepath' must be present in Data Model."
 
-    # 2) Данные из живой Grist
+    # 2) Data from live Grist
     nodes_df, _ = next(steps.get_grist_data())
     assert not nodes_df.empty, "No nodes fetched from Grist."
 
     documents = nodes_df[nodes_df["node_type"] == "document"]
     assert not documents.empty, "Expected at least one 'document' node in raw data."
 
-    # 3) Найдём хотя бы одно непустое значение document_filepath в raw
+    # 3) Find at least one non-empty document_filepath value in raw
     raw_value: Optional[Any] = None
     raw_node_id: Optional[str] = None
     for _, row in documents.iterrows():
@@ -59,11 +59,11 @@ def test_anchor_attributes_formula_type_column() -> None:
         in at least one 'document' node (raw data).
         """
 
-    # 4) После фильтрации по Data Model атрибут должен сохраниться
+    # 4) After filtering by Data Model the attribute should be preserved
     docs_f = nodes_df[nodes_df["node_type"] == "document"]
     assert not docs_f.empty, "Filtered graph should still contain 'document' nodes."
 
-    # Проверим, что у того же узла (если он остался) поле всё ещё есть и непустое
+    # Verify that the same node (if it remained) still has the field and it's non-empty
     if raw_node_id is not None and (docs_f["node_id"] == raw_node_id).any():
         row = docs_f.loc[docs_f["node_id"] == raw_node_id].iloc[0]
         attrs_f: Dict[str, Any] = row["attributes"] or {}
@@ -71,7 +71,7 @@ def test_anchor_attributes_formula_type_column() -> None:
             "document_filepath" in attrs_f and str(attrs_f["document_filepath"]).strip()
         ), "Expected 'document_filepath' to be preserved by filtering logic because it is present in Data Model."
     else:
-        # Иначе просто убедимся, что у какого-то document-узла поле присутствует
+        # Otherwise just verify that some document node has the field
         found_any = False
         for _, row in docs_f.iterrows():
             attrs_f = row["attributes"] or {}

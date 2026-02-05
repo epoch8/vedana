@@ -1,22 +1,22 @@
 """
-Интеграционный тест: duplicate_anchor_id_references
+Integration test: duplicate_anchor_id_references
 
-Описание:
-При наличии дубликатов одного и того же логического узла (например, два ряда
-Anchor_document с id "document:1"), в граф должен попасть только один узел
-(дедуп по node_id), а любые Reference/Reference List, указывавшие на «дубликаты»,
-должны быть распознаны как ссылки на тот узел, который остался в графе.
+Description:
+When duplicates of the same logical node exist (e.g., two rows in
+Anchor_document with id "document:1"), only one node should be included
+in the graph (dedup by node_id), and any Reference/Reference List pointing
+to "duplicates" should be recognized as references to the node that remained in the graph.
 
-Данные:
-- В Anchor_document есть дубликаты "document:1".
-- В Anchor_document_chunk узлы "document_chunk:02/03/05" ссылаются на разные
-  записи "document:1" (на уровне DP-ID), но в графе связи должны быть
-  с единым узлом node_id == "document:1".
+Data:
+- Anchor_document has duplicates "document:1".
+- In Anchor_document_chunk, nodes "document_chunk:02/03/05" reference different
+  "document:1" records (at DP-ID level), but in the graph links should be
+  with the single node node_id == "document:1".
 
-Проверяем:
-1) В nodes существует РОВНО один узел с node_id == "document:1".
-2) Между "document:1" и каждым из {"document_chunk:02","document_chunk:03","document_chunk:05"}
-существует хотя бы одно ребро (направление неважно).
+Checks:
+1) In nodes there exists EXACTLY one node with node_id == "document:1".
+2) Between "document:1" and each of {"document_chunk:02","document_chunk:03","document_chunk:05"}
+there exists at least one edge (direction doesn't matter).
 """
 
 from typing import Set
@@ -37,7 +37,7 @@ def _has_edge_between(
     b_type: str,
 ) -> bool:
     """
-    Проверка наличия ребра между (a_id, a_type) и (b_id, b_type) в любом направлении.
+    Check for edge existence between (a_id, a_type) and (b_id, b_type) in any direction.
     """
 
     if edges_df.empty:
@@ -54,28 +54,28 @@ def _has_edge_between(
 
 def test_duplicate_anchor_id_references() -> None:
     """
-    Тест при дублировании ID узлов какие-либо Reference к дубликатам должны парситься
-    как Reference к узлу, который окажется в графе.
+    Test that when node IDs are duplicated, any Reference to duplicates should be parsed
+    as Reference to the node that ends up in the graph.
     """
 
-    # 1) Загружаем сырые graph-таблицы
+    # 1) Load raw graph tables
     nodes_df, edges_df = next(steps.get_grist_data())
-    assert not nodes_df.empty, "Не получили узлы из Grist."
-    assert isinstance(edges_df, pd.DataFrame), "edges_df должен быть DataFrame."
+    assert not nodes_df.empty, "No nodes received from Grist."
+    assert isinstance(edges_df, pd.DataFrame), "edges_df should be a DataFrame."
 
-    # 2) Дедуп по "document:1": в графе должен остаться один узел с таким node_id
+    # 2) Dedup by "document:1": only one node with this node_id should remain in the graph
     doc1_rows = nodes_df[nodes_df["node_id"].astype(str) == "document:1"]
-    assert not doc1_rows.empty, "В графе нет узла 'document:1'. Проверь тестовые данные."
+    assert not doc1_rows.empty, "No 'document:1' node in the graph. Check test data."
     assert (
         doc1_rows.shape[0] == 1
-    ), f"Ожидался ровно один узел 'document: 1' после дедупликации, получено {doc1_rows.shape[0]}."
-    assert doc1_rows.iloc[0]["node_type"] == "document", "Узел 'document:1' должен быть типа 'document'."
+    ), f"Expected exactly one 'document: 1' node after deduplication, got {doc1_rows.shape[0]}."
+    assert doc1_rows.iloc[0]["node_type"] == "document", "Node 'document:1' should be of type 'document'."
 
-    # 3) Межузловые связи: document:1 ↔ document_chunk:{02,03,05}
+    # 3) Inter-node links: document:1 <-> document_chunk:{02,03,05}
     required_chunks: Set[str] = {"document_chunk:02", "document_chunk:03", "document_chunk:05"}
     missing = [
         ch for ch in required_chunks if not _has_edge_between(edges_df, "document:1", "document", ch, "document_chunk")
     ]
-    assert not missing, "Ожидались связи между 'document:1' и указанными чанками, но не найдены: " + ", ".join(
+    assert not missing, "Expected links between 'document:1' and specified chunks, but not found: " + ", ".join(
         sorted(missing)
     )

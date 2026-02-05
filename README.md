@@ -12,6 +12,19 @@ This is a complete framework for building conversational AI systems. Key feature
 - **Multiple interfaces**: Telegram bot, Terminal UI, Web backoffice
 - **Incremental ETL** built with [Datapipe](https://github.com/epoch8/datapipe)
 
+## Quickstart / Run
+
+Fill the `.env` based on the `.env.example` [here](apps/vedana/.env.example)
+
+```bash
+docker-compose -f apps/vedana/docker-compose.yml up --build -d
+```
+
+By the way, this repository is a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/):
+```bash
+uv sync
+```
+
 ## Repository Structure
 
 ```
@@ -90,12 +103,21 @@ but the pipeline can be easily extended to incorporate other sources
 ## Requirements
 
 - Python 3.12
-- PostgreSQL with pgvector extension
+- PostgreSQL with **pgvector** extension
 - Memgraph
 - Grist (for data model and data source)
 - OpenAI API key (or compatible LLM provider)
 
-## Quick Start
+> Note on pgvector:
+> 
+> Migration `[2dfad73e5cce_move_emb_to_pgvector]` requires pgvector. 
+> 
+> Some cloud providers (Supabase, Neon etc.) manage extensions on their own; 
+> that's why you can set `CREATE_PGVECTOR_EXTENSION=false` in environment to avoid conflicts.
+> If your configuration requires manually enabling pgvector, set env `CREATE_PGVECTOR_EXTENSION=true`
+
+
+## Setup
 
 **JIMS** manages conversations as **threads** containing **events** (messages, actions, state changes). A **pipeline**, provided by Vedana in this case, processes user input and produces response events.
 
@@ -106,8 +128,6 @@ but the pipeline can be easily extended to incorporate other sources
 4. LLM synthesizes the answer
 
 The **data model** (node types, relationships, attributes) is defined in Grist spreadsheets and synced via ETL.
-
-## Configure
 
 ### Data Model (Grist)
 
@@ -136,19 +156,6 @@ configurable via environment variables for production and in backoffice UI for t
 | `EMBEDDINGS_MODEL` | Text embeddings generation                                            |
 | `EMBEDDINGS_DIM`   | Embedding dimensions                                                  |
 
-### Run
-
-This repository is a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/):
-```bash
-uv sync
-```
-
-Fill the `.env` based on the `.env.example` [here](apps/vedana/.env.example)
-
-```bash
-cd apps/vedana
-docker-compose up -d
-```
 
 ## Observability
 
@@ -165,9 +172,5 @@ For details on configuring and using the CI/CD code generation tool,
 see [uv-workspace-codegen](https://github.com/epoch8/uv-workspace-codegen).
 
 ## Contributing
-
-TODO
-
-## License
 
 TODO
