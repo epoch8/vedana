@@ -103,10 +103,19 @@ but the pipeline can be easily extended to incorporate other sources
 ## Requirements
 
 - Python 3.12
-- PostgreSQL with pgvector extension
+- PostgreSQL with **pgvector** extension
 - Memgraph
 - Grist (for data model and data source)
 - OpenAI API key (or compatible LLM provider)
+
+> Note on pgvector:
+> 
+> Migration `[2dfad73e5cce_move_emb_to_pgvector]` requires pgvector. 
+> 
+> Some cloud providers (Supabase, Neon etc.) manage extensions on their own; 
+> that's why you can set `CREATE_PGVECTOR_EXTENSION=false` in environment to avoid conflicts.
+> If your configuration requires manually enabling pgvector, set env `CREATE_PGVECTOR_EXTENSION=true`
+
 
 ## Setup
 
@@ -163,9 +172,5 @@ For details on configuring and using the CI/CD code generation tool,
 see [uv-workspace-codegen](https://github.com/epoch8/uv-workspace-codegen).
 
 ## Contributing
-
-TODO
-
-## License
 
 TODO

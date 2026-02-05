@@ -4,9 +4,6 @@ x-app-common: &app-common
     dockerfile: apps/vedana/Dockerfile
   volumes:
     - ./data:/app/vedana/data
-  environment:
-    JIMS_DB_CONN_URI: "postgresql://postgres:postgres@db:5432"
-    MEMGRAPH_URI: "bolt://memgraph:7687"
   env_file:
     - .env
   depends_on:
@@ -46,15 +43,6 @@ services:
   #       condition: service_started
   #     db:
   #       condition: service_healthy
-
-  # jims-backoffice:
-  #   <<: *app-common
-  #   command: uv run jims-backoffice
-  #   ports:
-  #     - "8000:8000"
-  #   depends_on:
-  #     db-migrate:
-  #       condition: service_completed_successfully
 
   memgraph:
     image: memgraph/memgraph-mage
@@ -114,7 +102,7 @@ services:
       retries: 60
 
 volumes:
-#  TODO: нужно помимо БД гриста добавить готовые снапшоты SQL и Cypherl для db / memgraph. чтобы все поднималось с данными
+#  TODO: add complete snapshots for SQL and Cypherl (db / memgraph)
   mg_graph:
   grist_data:
   postgres_data:

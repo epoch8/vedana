@@ -53,7 +53,7 @@ def debug_badge() -> rx.Component:
                 },
                 on_click=DebugState.open_dialog,
             ),
-            content="Debug mode enabled!\nnSome features are not for production use\nClick to reset LLM API_KEY"
+            content="Debug mode enabled! Some features are not for production use. Click to reset LLM API_KEY"
         ),
         rx.fragment(),
     )
