@@ -33,16 +33,16 @@ services:
       db:
         condition: service_healthy
 
-  # tg:
-  #   <<: *app-common
-  #   command: uv run python -m vedana_tg.tg_app
-  #   depends_on:
-  #     db-migrate:
-  #       condition: service_completed_successfully
-  #     memgraph:
-  #       condition: service_started
-  #     db:
-  #       condition: service_healthy
+#  tg:
+#   <<: *app-common
+#   command: uv run python -m jims_telegram.main
+#   depends_on:
+#     db-migrate:
+#       condition: service_completed_successfully
+#     memgraph:
+#       condition: service_started
+#     db:
+#       condition: service_healthy
 
   memgraph:
     image: memgraph/memgraph-mage
