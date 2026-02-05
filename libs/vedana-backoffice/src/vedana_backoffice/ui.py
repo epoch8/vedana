@@ -65,7 +65,7 @@ def api_key_setup_dialog() -> rx.Component:
         rx.dialog.content(
             rx.dialog.title("API Key Setup"),
             rx.dialog.description(
-                "No API key found. Please provide an OpenAI or OpenRouter API key to use the chat functionality.",
+                "Please provide an OpenAI or OpenRouter API key to use the chat functionality.",
                 margin_bottom="1em",
             ),
             rx.vstack(
