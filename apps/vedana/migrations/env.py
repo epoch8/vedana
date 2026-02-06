@@ -1,5 +1,6 @@
 from logging.config import fileConfig
 
+import config_plane.impl.sql
 import jims_core.db
 import vedana_core.db
 from alembic import context
@@ -21,6 +22,7 @@ if config.config_file_name is not None:
 target_metadata = [
     jims_core.db.Base.metadata,
     vedana_etl.app.app.ds.meta_dbconn.sqla_metadata,
+    config_plane.impl.sql.Base.metadata,
 ]
 
 # other values from the config, defined by the needs of env.py,

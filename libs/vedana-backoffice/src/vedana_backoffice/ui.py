@@ -122,6 +122,7 @@ def app_header() -> rx.Component:
                 ),
                 rx.hstack(
                     data_model_reload_btn(),
+                    rx.link("Data Model", href="/data-model", font_size="1.1em"),
                     rx.link("ETL", href="/etl", font_size="1.1em"),
                     rx.cond(
                         AppVersionState.eval_enabled,
@@ -181,6 +182,39 @@ def themed_data_table(
         rx.data_table(data=data, columns=columns, style=table_style, **table_kwargs),
         class_name="datatable-surface",
         style=container_style,
+    )
+
+
+def table_accordion(tables: rx.Var) -> rx.Component:
+    return rx.accordion.root(
+        rx.foreach(
+            tables,
+            lambda t: rx.accordion.item(
+                rx.accordion.trigger(
+                    rx.hstack(
+                        rx.text(t["name"]),
+                        rx.badge(t["row_count"], variant="soft", size="1", color_scheme="gray"),
+                        spacing="2",
+                        align="center",
+                    )
+                ),
+                rx.accordion.content(
+                    themed_data_table(
+                        data=t["rows"],
+                        columns=t["columns"],
+                        pagination=True,
+                        search=True,
+                        sort=True,
+                        max_width="100%",
+                    )
+                ),
+                value=t["name"],
+            ),
+        ),
+        type="multiple",
+        collapsible=True,
+        variant="outline",
+        width="100%",
     )
 
 

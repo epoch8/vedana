@@ -7,9 +7,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class DbSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="JIMS_", env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="", env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    db_conn_uri: str = "postgresql://postgres:postgres@localhost:5432"
+    config_plane_db_conn_uri: str = "postgresql://postgres:postgres@localhost:5432"
+    jims_db_conn_uri: str = "postgresql://postgres:postgres@localhost:5432"
 
 
 db_settings = DbSettings()  # type: ignore
@@ -36,6 +37,19 @@ def get_db_engine() -> sa.Engine:
 def get_sessionmaker() -> sa_aio.async_sessionmaker[sa_aio.AsyncSession]:
     return sa_aio.async_sessionmaker(
         bind=get_async_db_engine(),
+        expire_on_commit=False,
+        future=True,
+    )
+
+
+def get_config_plane_db_engine() -> sa.Engine:
+    """engine for config-plane storage, as config-plane runs on another db"""
+    return sa.create_engine(db_settings.config_plane_db_conn_uri)
+
+
+def get_config_plane_sessionmaker() -> sa.orm.sessionmaker:
+    return sa.orm.sessionmaker(
+        bind=get_config_plane_db_engine(),
         expire_on_commit=False,
         future=True,
     )

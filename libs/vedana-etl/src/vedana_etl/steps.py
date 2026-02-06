@@ -1,5 +1,6 @@
 import logging
 import re
+import json
 from typing import Any, Iterator, cast
 from unicodedata import normalize
 from uuid import UUID
@@ -7,8 +8,10 @@ from uuid import UUID
 import pandas as pd
 from jims_core.llms.llm_provider import LLMProvider
 from neo4j import GraphDatabase
+from config_plane.impl.sql import create_sql_config_repo
 from vedana_core.data_model import Anchor, Attribute, Link
-from vedana_core.data_provider import GristAPIDataProvider, GristCsvDataProvider
+from vedana_core.db import get_config_plane_sessionmaker
+from vedana_core.data_provider import GristAPIDataProvider
 from vedana_core.settings import settings as core_settings
 
 from vedana_etl.settings import settings as etl_settings
@@ -48,104 +51,99 @@ def clean_str(text: str) -> str:
 def get_data_model() -> Iterator[
     tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]
 ]:
-    loader = GristCsvDataProvider(
-        doc_id=core_settings.grist_data_model_doc_id,
-        grist_server=core_settings.grist_server_url,
-        api_key=core_settings.grist_api_key,
+    """
+    Read Data Model from config-plane
+    """
+
+    repo = create_sql_config_repo(get_config_plane_sessionmaker(), branch=core_settings.config_plane_prod_branch)
+
+    snapshot_id = repo.get_branch_snapshot_id(core_settings.config_plane_prod_branch)
+    if snapshot_id is None:
+        raise RuntimeError(f"No committed snapshot for branch '{core_settings.config_plane_prod_branch}'")
+    blob = repo.get("vedana.data_model", snapshot_id=snapshot_id)
+    if blob is None:
+        raise RuntimeError(f"Snapshot {snapshot_id} missing key 'vedana.data_model'")
+    payload = json.loads(blob.decode("utf-8"))
+
+    anchors = payload.get("anchors", []) or []
+    links = payload.get("links", []) or []
+    queries = payload.get("queries", []) or []
+    prompts = payload.get("prompts", []) or []
+    lifecycle = payload.get("conversation_lifecycle", []) or []
+
+    anchors_df = pd.DataFrame.from_records(
+        [
+            {
+                "noun": a.get("noun", ""),
+                "description": a.get("description", ""),
+                "id_example": a.get("id_example", ""),
+                "query": a.get("query", ""),
+            }
+            for a in anchors
+        ]
     )
 
-    _links_df = loader.get_table("Links")
-    links_df = cast(
-        pd.DataFrame,
-        _links_df[
-            [
-                "anchor1",
-                "anchor2",
-                "sentence",
-                "description",
-                "query",
-                "anchor1_link_column_name",
-                "anchor2_link_column_name",
-                "has_direction",
-            ]
-        ],
+    anchor_attrs_df = pd.DataFrame.from_records(
+        [
+            {
+                "anchor": a.get("noun", ""),
+                "attribute_name": attr.get("attribute_name", ""),
+                "description": attr.get("description", ""),
+                "data_example": attr.get("data_example", ""),
+                "embeddable": bool(attr.get("embeddable", False)),
+                "query": attr.get("query", ""),
+                "dtype": attr.get("dtype", ""),
+                "embed_threshold": attr.get("embed_threshold", 1.0),
+            }
+            for a in anchors
+            for attr in (a.get("attributes", []) or [])
+        ]
     )
-    assert links_df is not None
 
-    links_df["has_direction"] = _links_df["has_direction"].astype(bool)
-    links_df = links_df.dropna(subset=["anchor1", "anchor2", "sentence"], inplace=False)
-
-    anchor_attrs_df = loader.get_table("Anchor_attributes")
-    anchor_attrs_df = cast(
-        pd.DataFrame,
-        anchor_attrs_df[
-            [
-                "anchor",
-                "attribute_name",
-                "description",
-                "data_example",
-                "embeddable",
-                "query",
-                "dtype",
-                "embed_threshold",
-            ]
-        ],
+    links_df = pd.DataFrame.from_records(
+        [
+            {
+                "anchor1": link.get("anchor1", ""),
+                "anchor2": link.get("anchor2", ""),
+                "sentence": link.get("sentence", ""),
+                "description": link.get("description", ""),
+                "query": link.get("query", ""),
+                "anchor1_link_column_name": link.get("anchor1_link_column_name", ""),
+                "anchor2_link_column_name": link.get("anchor2_link_column_name", ""),
+                "has_direction": bool(link.get("has_direction", False)),
+            }
+            for link in links
+        ]
     )
-    anchor_attrs_df["embeddable"] = anchor_attrs_df["embeddable"].astype(bool)
-    anchor_attrs_df["embed_threshold"] = anchor_attrs_df["embed_threshold"].astype(float)
-    anchor_attrs_df = anchor_attrs_df.dropna(subset=["anchor", "attribute_name"], how="any")
 
-    link_attrs_df = loader.get_table("Link_attributes")
-    link_attrs_df = cast(
-        pd.DataFrame,
-        link_attrs_df[
-            [
-                "link",
-                "attribute_name",
-                "description",
-                "data_example",
-                "embeddable",
-                "query",
-                "dtype",
-                "embed_threshold",
-            ]
-        ],
+    link_attrs_df = pd.DataFrame.from_records(
+        [
+            {
+                "link": link.get("sentence", ""),
+                "attribute_name": attr.get("attribute_name", ""),
+                "description": attr.get("description", ""),
+                "data_example": attr.get("data_example", ""),
+                "embeddable": bool(attr.get("embeddable", False)),
+                "query": attr.get("query", ""),
+                "dtype": attr.get("dtype", ""),
+                "embed_threshold": attr.get("embed_threshold", 1.0),
+            }
+            for link in links
+            for attr in (link.get("attributes", []) or [])
+        ]
     )
-    link_attrs_df["embeddable"] = link_attrs_df["embeddable"].astype(bool)
-    link_attrs_df["embed_threshold"] = link_attrs_df["embed_threshold"].astype(float)
-    link_attrs_df = link_attrs_df.dropna(subset=["link", "attribute_name"], how="any")
 
-    anchors_df = loader.get_table("Anchors")
-    anchors_df = cast(
-        pd.DataFrame,
-        anchors_df[
-            [
-                "noun",
-                "description",
-                "id_example",
-                "query",
-            ]
-        ],
+    queries_df = pd.DataFrame.from_records(
+        [{"query_name": q.get("name", ""), "query_example": q.get("example", "")} for q in queries]
     )
-    anchors_df = anchors_df.dropna(subset=["noun"], inplace=False)
-    anchors_df = anchors_df.astype(str)
+    prompts_df = pd.DataFrame.from_records(
+        [{"name": p.get("name", ""), "text": p.get("text", "")} for p in prompts]
+    )
+    lifecycle_df = pd.DataFrame.from_records(
+        [{"event": e.get("event", ""), "text": e.get("text", "")} for e in lifecycle]
+    )
 
-    queries_df = loader.get_table("Queries")
-    queries_df = cast(pd.DataFrame, queries_df[["query_name", "query_example"]])
-    queries_df = queries_df.dropna()
-    queries_df = queries_df.astype(str)
-
-    prompts_df = loader.get_table("Prompts")
-    prompts_df = cast(pd.DataFrame, prompts_df[["name", "text"]])
-    prompts_df = prompts_df.dropna()
-    prompts_df = prompts_df.astype(str)
-
-    conversation_lifecycle_df = loader.get_table("ConversationLifecycle")
-    conversation_lifecycle_df = cast(pd.DataFrame, conversation_lifecycle_df[["event", "text"]])
-    conversation_lifecycle_df = conversation_lifecycle_df.dropna()
-    conversation_lifecycle_df = conversation_lifecycle_df.astype(str)
-
-    yield anchors_df, anchor_attrs_df, link_attrs_df, links_df, queries_df, prompts_df, conversation_lifecycle_df
+    yield anchors_df, anchor_attrs_df, link_attrs_df, links_df, queries_df, prompts_df, lifecycle_df,
 
 
 def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
@@ -251,14 +249,8 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
 
         # get anchor's links
         # todo check link column directions
-        anchor_from_link_cols = [
-            link
-            for link in dm_links.values()
-            if link.anchor_from.noun == anchor_type and link.anchor_from_link_attr_name
-        ]
-        anchor_to_link_cols = [
-            link for link in dm_links.values() if link.anchor_to.noun == anchor_type and link.anchor_to_link_attr_name
-        ]
+        anchor_from_link_cols = [link for link in dm_links.values() if link.anchor_from.noun == anchor_type and link.anchor_from_link_attr_name]
+        anchor_to_link_cols = [link for link in dm_links.values() if link.anchor_to.noun == anchor_type and link.anchor_to_link_attr_name]
 
         try:
             anchors = dp.get_anchors(anchor_type, dm_attrs=dm_anchor.attributes, dm_anchor_links=anchor_from_link_cols)

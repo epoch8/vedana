@@ -33,6 +33,7 @@ class ThreadEventVis:
     has_vts: bool
     has_cypher: bool
     has_models: bool
+    dm_snapshot_id: str = ""
     # Aggregated annotations from jims.backoffice.* events
     visible_tags: list[str] = field(default_factory=list)
     feedback_comments: list[dict[str, Any]] = field(default_factory=list)
@@ -54,6 +55,7 @@ class ThreadEventVis:
 
         vts_queries: list[str] = list(tech.get("vts_queries", []) or [])
         cypher_queries: list[str] = list(tech.get("cypher_queries", []) or [])
+        dm_snapshot_id = str(tech.get("dm_snapshot_id", ""))
 
         model_stats = tech.get("model_stats", {}) or tech.get("model_used", {}) or {}
         models_list: list[tuple[str, str]] = []
@@ -95,6 +97,7 @@ class ThreadEventVis:
             has_vts=bool(vts_queries),
             has_cypher=bool(cypher_queries),
             has_models=bool(models_list),
+            dm_snapshot_id=dm_snapshot_id,
             visible_tags=list(tags),
             feedback_comments=[],
             generic_meta=generic_meta,

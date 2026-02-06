@@ -1308,7 +1308,7 @@ class EtlState(rx.State):
             return
 
         self.preview_columns = [str(c) for c in df.columns]
-        records_any: list[dict[Any, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
+        records_any: list[dict[Any, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")  # type: ignore[call-overload]
 
         expanded_set = set(self.preview_expanded_rows)
         coerced: list[dict[str, Any]] = []
@@ -1480,7 +1480,7 @@ class EtlState(rx.State):
 
         # Set columns (exclude change_type from display columns)
         self.preview_columns = [str(c) for c in display_cols]
-        records_any: list[dict[Any, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
+        records_any: list[dict[Any, Any]] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")  # type: ignore[call-overload]
 
         # Apply row styling based on change_type
         row_styling = {

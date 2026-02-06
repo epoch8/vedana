@@ -27,6 +27,7 @@ dependencies = [
     "litellm>=1.79.0",
     "aioitertools>=0.12.0",
     "async-lru>=2.0.5",
+    "config-plane",
 ]
 
 [build-system]
@@ -71,6 +72,8 @@ custom_steps = """
 - name: Run tests
   env:
     DB_CONN_URI: "sqlite:///:memory:"
+    JIMS_DB_CONN_URI: "sqlite:///:memory:"
+    CONFIG_PLANE_DB_CONN_URI: "sqlite:///:memory:"
     GRIST_SERVER_URL: "http://0.0.0.0:8484"
     GRIST_API_KEY: "e30d2f274a538c05fecd14510887f8a3b7eab718"
     GRIST_DATA_MODEL_DOC_ID: "wEEmPY3UiwMD"
@@ -82,3 +85,6 @@ custom_steps = """
   run: |
     uv run pytest libs/vedana-core/
 """
+
+[tool.uv.sources]
+config-plane = { git = "https://github.com/epoch8/config-plane.git", subdirectory = "packages/config-plane", tag = "v0.1.0" }

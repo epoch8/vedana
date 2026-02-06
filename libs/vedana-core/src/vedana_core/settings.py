@@ -31,5 +31,9 @@ class VedanaCoreSettings(BaseSettings):
     memgraph_user: str
     memgraph_pwd: str
 
+    config_plane_branch: str = "dev"
+    config_plane_dev_branch: str = "dev"
+    config_plane_prod_branch: str = "prod"
+
 
 settings = VedanaCoreSettings()  # type: ignore
