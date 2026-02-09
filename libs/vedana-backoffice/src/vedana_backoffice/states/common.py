@@ -1,3 +1,4 @@
+import asyncio
 import io
 import logging
 import os
@@ -7,6 +8,9 @@ import requests
 from vedana_core.app import VedanaApp, make_vedana_app
 
 vedana_app: VedanaApp | None = None
+
+TELEGRAM_BOT_INFO_CACHE: dict[str, str] | None = None
+TELEGRAM_BOT_INFO_REQUESTED: bool = False
 
 EVAL_ENABLED = bool(os.environ.get("GRIST_TEST_SET_DOC_ID"))
 DEBUG_MODE = os.environ.get("DEBUG", "").lower() in ("true", "1")
@@ -94,18 +98,40 @@ class TelegramBotState(rx.State):
     bot_url: str = ""
     has_bot: bool = False
 
-    def load_bot_info(self) -> None:
+    @rx.event(background=True)  # type: ignore[operator]
+    async def load_bot_info(self) -> None:
+        global TELEGRAM_BOT_INFO_CACHE, TELEGRAM_BOT_INFO_REQUESTED
+        if TELEGRAM_BOT_INFO_CACHE:
+            async with self:
+                self.bot_username = TELEGRAM_BOT_INFO_CACHE["bot_username"]
+                self.bot_url = TELEGRAM_BOT_INFO_CACHE["bot_url"]
+                self.has_bot = True
+            return
+        if TELEGRAM_BOT_INFO_REQUESTED:
+            return
+
+        TELEGRAM_BOT_INFO_REQUESTED = True
         token = os.environ.get("TELEGRAM_BOT_TOKEN")
         if not token:
             return
 
+        def _fetch():
+            return requests.get(f"https://api.telegram.org/bot{token}/getMe", timeout=5)
+
         try:
-            bot_status = requests.get(f"https://api.telegram.org/bot{token}/getMe")
+            bot_status = await asyncio.to_thread(_fetch)
             if bot_status.status_code == 200:
                 bot_status = bot_status.json()
-                if bot_status["ok"]:
-                    self.bot_username = bot_status["result"]["username"]
-                    self.bot_url = f"https://t.me/{self.bot_username}"
-                    self.has_bot = True
+                if bot_status.get("ok"):
+                    bot_username = bot_status["result"]["username"]
+                    bot_url = f"https://t.me/{bot_username}"
+                    TELEGRAM_BOT_INFO_CACHE = {
+                        "bot_username": bot_username,
+                        "bot_url": bot_url,
+                    }
+                    async with self:
+                        self.bot_username = bot_username
+                        self.bot_url = bot_url
+                        self.has_bot = True
         except Exception as e:
             logging.warning(f"Failed to load Telegram bot info: {e}")
