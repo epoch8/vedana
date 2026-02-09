@@ -390,7 +390,6 @@ class ThreadListState(rx.State):
         self.threads_refreshing = False
 
 
-@rx.page(route="/jims", on_load=ThreadListState.get_data)
 def jims_thread_list_page() -> rx.Component:
     def _badge_style(bg: str, fg: str) -> dict[str, str]:
         return {

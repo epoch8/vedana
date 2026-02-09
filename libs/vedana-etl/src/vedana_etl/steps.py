@@ -407,10 +407,15 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
                 }
             )
 
-    edges_df = pd.DataFrame(edge_records)
-    edges_df = edges_df.loc[
-        (edges_df["from_node_id"].isin(nodes_df["node_id"]) & edges_df["to_node_id"].isin(nodes_df["node_id"]))
-    ]
+    if edge_records:
+        edges_df = pd.DataFrame(edge_records)
+        edges_df = edges_df.loc[
+            (edges_df["from_node_id"].isin(nodes_df["node_id"]) & edges_df["to_node_id"].isin(nodes_df["node_id"]))
+        ]
+    else:
+        edges_df = pd.DataFrame(
+            columns=["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label", "attributes"]
+        )
 
     edges_df = pd.concat([edges_df, fk_df], ignore_index=True)
 
