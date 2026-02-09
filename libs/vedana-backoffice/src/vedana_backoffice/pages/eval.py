@@ -1,5 +1,6 @@
 import reflex as rx
 
+from vedana_backoffice.states.common import AppVersionState
 from vedana_backoffice.states.eval import EvalState, RunSummary
 from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.ui import app_header
@@ -972,35 +973,49 @@ def _status_messages() -> rx.Component:
 
 
 def page() -> rx.Component:
-    return rx.vstack(
-        app_header(),
+    return rx.cond(
+        AppVersionState.eval_enabled,
         rx.vstack(
-            rx.grid(
-                rx.vstack(
-                    _questions_card(),
-                    _tests_card(),
-                ),
-                rx.vstack(
-                    _judge_card(),
-                    _pipeline_card(),
-                    _selection_and_actions(),
-                    _status_messages(),
-                    _compare_card(),
+            app_header(),
+            rx.vstack(
+                rx.grid(
+                    rx.vstack(
+                        _questions_card(),
+                        _tests_card(),
+                    ),
+                    rx.vstack(
+                        _judge_card(),
+                        _pipeline_card(),
+                        _selection_and_actions(),
+                        _status_messages(),
+                        _compare_card(),
+                        spacing="4",
+                        width="100%",
+                    ),
+                    columns="2",
                     spacing="4",
                     width="100%",
+                    style={"gridTemplateColumns": "3fr 1fr", "height": "calc(100vh - 200px)", "minHeight": "700px"},
                 ),
-                columns="2",
                 spacing="4",
                 width="100%",
-                style={"gridTemplateColumns": "3fr 1fr", "height": "calc(100vh - 200px)", "minHeight": "700px"},
             ),
-            spacing="4",
-            width="100%",
+            _compare_dialog(),
+            _judge_prompt_dialog(),
+            _data_model_dialog(),
+            align="start",
+            spacing="2",
+            padding="1.5em",
         ),
-        _compare_dialog(),
-        _judge_prompt_dialog(),
-        _data_model_dialog(),
-        align="start",
-        spacing="2",
-        padding="1.5em",
+        rx.vstack(
+            app_header(),
+            rx.callout(
+                "System evaluation page is not available. Configure GRIST_TEST_SET_DOC_ID to enable.",
+                color_scheme="red",
+                variant="soft",
+            ),
+            align="start",
+            spacing="2",
+            padding="1.5em",
+        ),
     )
