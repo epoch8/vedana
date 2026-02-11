@@ -90,7 +90,7 @@ def create_api(jims_app: JimsApp, api_key: str | None) -> FastAPI:
 
         if ctl is None:
             created_new_thread = True
-            thread_id = req.thread_id or uuid7()
+            thread_id = uuid7()
             ctl = await jims_app.new_thread(
                 contact_id=req.contact_id,
                 thread_id=thread_id,
