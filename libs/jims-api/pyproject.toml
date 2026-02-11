@@ -28,6 +28,7 @@ testpaths = ["tests"]
 dev = [
     "aiosqlite>=0.20.0",
     "httpx>=0.28.0",
+    "mypy>=1.19.1",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
     "ruff>=0.15.0",
