@@ -15,5 +15,22 @@ dependencies = [
 [tool.uv.sources]
 jims-core = { workspace = true }
 
+[tool.uv-workspace-codegen]
+generate = true
+template_type = ["lib", "publish"]
+generate_standard_pytest_step = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "aiosqlite>=0.20.0",
+    "httpx>=0.28.0",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+]
+
 [project.scripts]
 jims-api = "jims_api.main:main"
