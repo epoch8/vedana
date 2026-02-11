@@ -79,7 +79,6 @@ def create_api(jims_app: JimsApp, api_key: str | None) -> FastAPI:
     @app.post("/api/v1/chat", response_model=ChatResponse, dependencies=[Depends(require_auth)])
     async def chat(req: ChatRequest) -> ChatResponse:
         created_new_thread = False
-        ctl: ThreadController
 
         if req.thread_id is not None:
             ctl = await ThreadController.from_thread_id(jims_app.sessionmaker, req.thread_id)
