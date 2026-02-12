@@ -117,6 +117,7 @@ class ChatState(rx.State):
     openrouter_models: list[str] = []
     openrouter_models_loaded: bool = False
     available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
+    model_selection_allowed: bool = core_settings.debug
     enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
 
     def mount(self):

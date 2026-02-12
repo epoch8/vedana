@@ -145,7 +145,7 @@ def page() -> rx.Component:
                             width="100%",
                         ),
                         rx.cond(
-                            core_settings.debug,
+                            ChatState.model_selection_allowed,
                             rx.hstack(
                                 rx.select(
                                 items=["openai", "openrouter"],
@@ -177,7 +177,7 @@ def page() -> rx.Component:
                                     placeholder="Select model",
                                 ),
                             ),
-                            rx.badge(core_settings.model, variant="surface", color_scheme="gray", size="2"),
+                            rx.badge(core_settings.model, variant="surface", color_scheme="gray", size="3"),
                         ),
                         rx.button("Send", type="submit", loading=ChatState.is_running),
                         spacing="2",
