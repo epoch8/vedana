@@ -21,9 +21,19 @@ docker-compose -f apps/vedana/docker-compose.yml up --build -d
 ```
 
 By the way, this repository is a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/):
+
 ```bash
 uv sync
 ```
+
+## CLI Scripts
+
+| Script                         | Package             | Description                                                              |
+| ------------------------------ | ------------------- | ------------------------------------------------------------------------ |
+| `vedana-backoffice-with-caddy` | `vedana-backoffice` | Caddy reverse proxy + Reflex backend (production entry point for Docker) |
+| `jims-telegram`                | `jims-telegram`     | Run telegram bot for JIMS                                                |
+| `jims-tui`                     | `jims-tui`          | Run terminal ui for JIMS                                                 |
+| `jims-backoffice`              | `jims-backoffice`   | Minimal FastAPI backoffice for JIMS                                      |
 
 ## Repository Structure
 
@@ -58,6 +68,7 @@ JIMS is a framework for building conversational AI systems with persistent threa
 - **ThreadController**: Manages thread lifecycle, event storage, and `Pipeline` execution
 
 #### Example Event Structure
+
 ```json
 {
   "event_id": "...",
@@ -96,7 +107,7 @@ The ETL pipeline ingests data from Grist into the graph and vector databases.
 #### Pipeline Stages
 
 1. **Extract**: Load data model and data. In the most basic form data is loaded from Grist,
-but the pipeline can be easily extended to incorporate other sources
+   but the pipeline can be easily extended to incorporate other sources
 2. **Transform**: Process data into nodes and edges, generate embeddings
 3. **Load**: Update knowledge graph and store pgvector embeddings
 
@@ -109,19 +120,19 @@ but the pipeline can be easily extended to incorporate other sources
 - OpenAI API key (or compatible LLM provider)
 
 > Note on pgvector:
-> 
-> Migration `[2dfad73e5cce_move_emb_to_pgvector]` requires pgvector. 
-> 
-> Some cloud providers (Supabase, Neon etc.) manage extensions on their own; 
+>
+> Migration `[2dfad73e5cce_move_emb_to_pgvector]` requires pgvector.
+>
+> Some cloud providers (Supabase, Neon etc.) manage extensions on their own;
 > that's why you can set `CREATE_PGVECTOR_EXTENSION=false` in environment to avoid conflicts.
 > If your configuration requires manually enabling pgvector, set env `CREATE_PGVECTOR_EXTENSION=true`
-
 
 ## Setup
 
 **JIMS** manages conversations as **threads** containing **events** (messages, actions, state changes). A **pipeline**, provided by Vedana in this case, processes user input and produces response events.
 
 **Vedana** provides a RAG pipeline that:
+
 1. Receives user query
 2. LLM generates Cypher / vector search queries as tool calls
 3. Retrieves context from graph + vector stores
@@ -134,7 +145,7 @@ The **data model** (node types, relationships, attributes) is defined in Grist s
 The data model is configured via tables in Grist workspace:
 
 | Table                   | Purpose                                               |
-|-------------------------|-------------------------------------------------------|
+| ----------------------- | ----------------------------------------------------- |
 | `Anchors`               | Node types (entities) in the graph                    |
 | `Anchor_attributes`     | Properties of node types, including embeddable fields |
 | `Links`                 | Relationship types between nodes                      |
@@ -150,12 +161,11 @@ Models are handled via [LiteLLM](https://www.litellm.ai/)
 configurable via environment variables for production and in backoffice UI for testing:
 
 | Variable           | Purpose                                                               |
-|--------------------|-----------------------------------------------------------------------|
+| ------------------ | --------------------------------------------------------------------- |
 | `MODEL`            | Main question answering model                                         |
 | `FILTER_MODEL`     | Data model filtering (smaller, faster model for a preprocessing step) |
 | `EMBEDDINGS_MODEL` | Text embeddings generation                                            |
 | `EMBEDDINGS_DIM`   | Embedding dimensions                                                  |
-
 
 ## Observability
 
