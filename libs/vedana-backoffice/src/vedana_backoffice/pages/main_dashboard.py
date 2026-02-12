@@ -425,59 +425,71 @@ def _per_label_stats_table(title: str, rows: rx.Var | list[dict], kind: str) -> 
 
 
 def page() -> rx.Component:
-    return rx.vstack(
+    return rx.flex(
         app_header(),
-        rx.card(
+        rx.box(
             rx.vstack(
-                rx.hstack(
-                    rx.hstack(
-                        rx.text("ETL Overview", weight="medium"),
-                        align="center",
-                        spacing="3",
-                    ),
-                    rx.spacer(),
-                    rx.hstack(
-                        rx.text("Timeframe (days):", size="1", color="gray"),
-                        rx.select(
-                            items=DashboardState.time_window_options,  # type: ignore[arg-type]
-                            value="1",
-                            on_change=DashboardState.set_time_window_days,  # type: ignore[arg-type]
-                            width="8em",
+                rx.card(
+                    rx.vstack(
+                        rx.hstack(
+                            rx.hstack(
+                                rx.text("ETL Overview", weight="medium"),
+                                align="center",
+                                spacing="3",
+                            ),
+                            rx.spacer(),
+                            rx.hstack(
+                                rx.text("Timeframe (days):", size="1", color="gray"),
+                                rx.select(
+                                    items=DashboardState.time_window_options,  # type: ignore[arg-type]
+                                    value="1",
+                                    on_change=DashboardState.set_time_window_days,  # type: ignore[arg-type]
+                                    width="8em",
+                                ),
+                                rx.button(
+                                    rx.cond(DashboardState.loading, "Refreshing…", "Refresh"),  # type: ignore[operator]
+                                    on_click=DashboardState.load_dashboard,  # type: ignore[arg-type]
+                                    loading=DashboardState.loading,
+                                    size="2",
+                                ),
+                                spacing="3",
+                                align="center",
+                            ),
+                            align="center",
+                            width="100%",
                         ),
-                        rx.button(
-                            rx.cond(DashboardState.loading, "Refreshing…", "Refresh"),  # type: ignore[operator]
-                            on_click=DashboardState.load_dashboard,  # type: ignore[arg-type]
-                            loading=DashboardState.loading,
-                            size="2",
+                        rx.grid(
+                            _ingest_card(),
+                            _graph_stats_card(),
+                            _graph_stats_expanded_card(),
+                            columns="3",
+                            spacing="4",
+                            width="100%",
+                            align="start",
+                            style={"gridTemplateColumns": "3fr 2fr 5fr", "height": "90vh", "align-items": "stretch"},
                         ),
-                        spacing="3",
-                        align="center",
                     ),
-                    align="center",
+                    padding="1em",
                     width="100%",
                 ),
-                rx.grid(
-                    _ingest_card(),
-                    _graph_stats_card(),
-                    _graph_stats_expanded_card(),
-                    columns="3",
-                    spacing="4",
-                    width="100%",
-                    align="start",
-                    style={"gridTemplateColumns": "3fr 2fr 5fr", "height": "90vh", "align-items": "stretch"},
+                rx.cond(
+                    DashboardState.error_message != "",  # type: ignore[operator]
+                    rx.callout(DashboardState.error_message, color_scheme="red", variant="soft"),  # type: ignore[arg-type]
+                    rx.box(),
                 ),
+                _changes_preview_dialog(),
+                spacing="4",
+                align="start",
+                width="100%",
             ),
+            flex="1",
+            min_height="0",
+            overflow="auto",
             padding="1em",
             width="100%",
         ),
-        rx.cond(
-            DashboardState.error_message != "",  # type: ignore[operator]
-            rx.callout(DashboardState.error_message, color_scheme="red", variant="soft"),  # type: ignore[arg-type]
-            rx.box(),
-        ),
-        _changes_preview_dialog(),
-        spacing="4",
-        align="start",
-        padding="1em",
+        direction="column",
+        height="100vh",
+        overflow="hidden",
         width="100%",
     )
