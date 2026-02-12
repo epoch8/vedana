@@ -179,7 +179,7 @@ class RagPipeline:
         llm = LLM(ctx.llm, prompt_templates=prompt_templates, logger=self.logger)
         await ctx.update_agent_status("Searching knowledge base...")
 
-        if self.model != llm.llm.model and settings.debug:
+        if self.model != llm.llm.model:  # and settings.debug:
             llm.llm.set_model(self.model)
 
         agent = RagAgent(
