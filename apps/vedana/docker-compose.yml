@@ -22,9 +22,9 @@ services:
   app:
     <<: *app-common
     ports:
-      - "3002:3000"
+      - "9000:9000"
       - "8000:8000"
-    command: uv run reflex run
+    command: vedana-backoffice-with-caddy
     depends_on:
       db-migrate:
         condition: service_completed_successfully
