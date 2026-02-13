@@ -677,7 +677,7 @@ def get_eval_gds_from_grist() -> Iterator[pd.DataFrame]:
         raise e
 
     gds_df = gds_df.dropna(subset=["gds_question", "gds_answer"]).copy()
-    gds_df = gds_df.loc[(gds_df["gds_question"] != "") & (gds_df["gds_answer"] != "")]
+    gds_df = gds_df.loc[(gds_df["gds_question"] != "") & (gds_df["gds_answer"] != "")].fillna("")
     gds_df = gds_df[["gds_question", "gds_answer", "question_scenario", "question_comment", "question_context"]].astype(
         {"gds_question": str, "gds_answer": str, "question_scenario": str, "question_comment": str}
     )
