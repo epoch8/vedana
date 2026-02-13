@@ -1,6 +1,7 @@
 import reflex as rx
 
 from vedana_backoffice.states.main_dashboard import DashboardState
+from vedana_core.settings import settings as core_settings
 from vedana_backoffice.ui import app_header
 
 
@@ -310,6 +311,175 @@ def _graph_stats_expanded_card() -> rx.Component:
     )
 
 
+def _embeddings_stats_card() -> rx.Component:
+    return rx.card(
+        rx.vstack(
+            rx.hstack(
+                rx.heading("Embeddings stats", size="3"),
+                rx.spacer(),
+                rx.badge(f"Vector({core_settings.embeddings_dim})", variant="soft"),
+                align="center",
+                width="100%",
+            ),
+            rx.grid(
+                _stat_tile("Anchor Embeddings", DashboardState.emb_anchor_total, color="green"),  # type: ignore[arg-type]
+                _stat_tile("Edge Embeddings", DashboardState.emb_edge_total, color="green"),  # type: ignore[arg-type]
+                columns="2",
+                spacing="4",
+                width="100%",
+            ),
+            rx.grid(
+                _stat_tile("Anchors Added", DashboardState.emb_new_anchor, color="indigo"),  # type: ignore[arg-type]
+                _stat_tile("Edges Added", DashboardState.emb_new_edge, color="indigo"),  # type: ignore[arg-type]
+                _stat_tile("Anchors Updated", DashboardState.emb_updated_anchor, color="amber"),  # type: ignore[arg-type]
+                _stat_tile("Edges Updated", DashboardState.emb_updated_edge, color="amber"),  # type: ignore[arg-type]
+                _stat_tile("Anchors Deleted", DashboardState.emb_deleted_anchor, color="red"),  # type: ignore[arg-type]
+                _stat_tile("Edges Deleted", DashboardState.emb_deleted_edge, color="red"),  # type: ignore[arg-type]
+                columns="2",
+                spacing="4",
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        padding="1em",
+        width="100%",
+        style={"height": "100%", "display": "flex", "flexDirection": "column"},
+    )
+
+
+def _embeddings_breakdown_table(title: str, rows: rx.Var | list[dict], kind: str) -> rx.Component:
+    def _row(r: dict) -> rx.Component:
+        label = r.get("label", "")
+        return rx.table.row(
+            rx.table.cell(rx.text(label)),
+            rx.table.cell(rx.text(r.get("count", 0))),
+            rx.table.cell(rx.text(r.get("added", 0))),
+            rx.table.cell(rx.text(r.get("updated", 0))),
+            rx.table.cell(rx.text(r.get("deleted", 0))),
+            on_click=DashboardState.open_embedding_per_label_changes_preview(kind=kind, label=label),  # type: ignore
+            style={"cursor": "pointer"},
+        )
+
+    return rx.vstack(
+        rx.hstack(rx.heading(title, size="3"), align="center", justify="between", width="100%"),
+        rx.box(
+            rx.scroll_area(
+                rx.table.root(
+                    rx.table.header(
+                        rx.table.row(
+                            rx.table.column_header_cell("Label"),
+                            rx.table.column_header_cell("Total"),
+                            rx.table.column_header_cell("Added"),
+                            rx.table.column_header_cell("Updated"),
+                            rx.table.column_header_cell("Deleted"),
+                        )
+                    ),
+                    rx.table.body(rx.foreach(rows, _row)),
+                    variant="surface",
+                    style={"width": "100%", "tableLayout": "fixed"},
+                ),
+                type="always",
+                scrollbars="vertical",
+                style={
+                    "position": "absolute",
+                    "top": 0,
+                    "bottom": 0,
+                    "left": 0,
+                    "right": 0,
+                },
+            ),
+            style={
+                "position": "relative",
+                "flex": "1 1 0",
+                "minHeight": 0,
+                "width": "100%",
+            },
+        ),
+        spacing="2",
+        style={"height": "100%", "display": "flex", "flexDirection": "column"},
+    )
+
+
+def _embeddings_stats_expanded_card() -> rx.Component:
+    return rx.card(
+        rx.grid(
+            _embeddings_breakdown_table(
+                "Anchor Embeddings by node_type",
+                DashboardState.emb_anchor_by_node_type,
+                "emb_anchor",
+            ),  # type: ignore[arg-type]
+            _embeddings_breakdown_table(
+                "Edge Embeddings by edge_label",
+                DashboardState.emb_edge_by_label,
+                "emb_edge",
+            ),  # type: ignore[arg-type]
+            columns="1",  # type: ignore[arg-type]
+            spacing="4",  # type: ignore[arg-type]
+            width="100%",
+            style={"height": "100%"},
+        ),
+        padding="1em",
+        style={"height": "100%", "display": "flex", "flexDirection": "column"},
+    )
+
+
+def _graph_embeddings_tabs() -> rx.Component:
+    return rx.tabs.root(
+        rx.tabs.list(
+            rx.tabs.trigger("Graph", value="graph"),
+            rx.tabs.trigger("Embeddings", value="embeddings"),
+        ),
+        rx.tabs.content(
+            rx.grid(
+                _graph_stats_card(),
+                _graph_stats_expanded_card(),
+                columns="2",
+                spacing="4",
+                width="100%",
+                align="start",
+                style={"gridTemplateColumns": "2fr 5fr", "height": "90vh", "align-items": "stretch"},
+            ),
+            value="graph",
+        ),
+        rx.tabs.content(
+            rx.grid(
+                _embeddings_stats_card(),
+                _embeddings_stats_expanded_card(),
+                columns="2",
+                spacing="4",
+                width="100%",
+                align="start",
+                style={"gridTemplateColumns": "2fr 5fr", "height": "90vh", "align-items": "stretch"},
+            ),
+            value="embeddings",
+        ),
+        default_value="graph",
+        width="100%",
+    )
+
+
+def _ingest_source_tabs() -> rx.Component:
+    return rx.tabs.root(
+        rx.tabs.list(
+            rx.foreach(
+                DashboardState.ingest_source_tabs,
+                lambda source: rx.tabs.trigger(source, value=source),
+            ),
+        ),
+        rx.foreach(
+            DashboardState.ingest_source_tabs,
+            lambda source: rx.tabs.content(
+                _ingest_card(),
+                value=source,
+            ),
+        ),
+        value=DashboardState.selected_ingest_source_tab,
+        on_change=DashboardState.set_selected_source_tab,  # type: ignore[arg-type]
+        width="100%",
+    )
+
+
 def _ingest_card() -> rx.Component:
     return rx.card(
         rx.vstack(
@@ -321,9 +491,9 @@ def _ingest_card() -> rx.Component:
                 width="100%",
             ),
             rx.grid(
-                _stat_tile("New Entries", DashboardState.ingest_new_total, color="indigo"),  # type: ignore[arg-type]
-                _stat_tile("Updated Entries", DashboardState.ingest_updated_total, color="amber"),  # type: ignore[arg-type]
-                _stat_tile("Deleted Entries", DashboardState.ingest_deleted_total, color="red"),  # type: ignore[arg-type]
+                _stat_tile("New Entries", DashboardState.ingest_new_total_selected, color="indigo"),  # type: ignore[arg-type]
+                _stat_tile("Updated Entries", DashboardState.ingest_updated_total_selected, color="amber"),  # type: ignore[arg-type]
+                _stat_tile("Deleted Entries", DashboardState.ingest_deleted_total_selected, color="red"),  # type: ignore[arg-type]
                 columns="3",
                 spacing="4",
                 width="100%",
@@ -340,7 +510,7 @@ def _ingest_card() -> rx.Component:
                 ),
                 rx.table.body(
                     rx.foreach(
-                        DashboardState.ingest_breakdown,  # type: ignore[arg-type]
+                        DashboardState.ingest_breakdown_selected,  # type: ignore[arg-type]
                         lambda r: rx.table.row(
                             rx.table.cell(rx.text(r.get("table", ""))),
                             # todo order by ?
@@ -425,59 +595,70 @@ def _per_label_stats_table(title: str, rows: rx.Var | list[dict], kind: str) -> 
 
 
 def page() -> rx.Component:
-    return rx.vstack(
+    return rx.flex(
         app_header(),
-        rx.card(
+        rx.box(
             rx.vstack(
-                rx.hstack(
-                    rx.hstack(
-                        rx.text("ETL Overview", weight="medium"),
-                        align="center",
-                        spacing="3",
-                    ),
-                    rx.spacer(),
-                    rx.hstack(
-                        rx.text("Timeframe (days):", size="1", color="gray"),
-                        rx.select(
-                            items=DashboardState.time_window_options,  # type: ignore[arg-type]
-                            value="1",
-                            on_change=DashboardState.set_time_window_days,  # type: ignore[arg-type]
-                            width="8em",
+                rx.card(
+                    rx.vstack(
+                        rx.hstack(
+                            rx.hstack(
+                                rx.text("ETL Overview", weight="medium"),
+                                align="center",
+                                spacing="3",
+                            ),
+                            rx.spacer(),
+                            rx.hstack(
+                                rx.text("Timeframe (days):", size="1", color="gray"),
+                                rx.select(
+                                    items=DashboardState.time_window_options,  # type: ignore[arg-type]
+                                    value=DashboardState.time_window_days_str,
+                                    on_change=[DashboardState.set_time_window_days, DashboardState.load_dashboard],  # type: ignore[arg-type]
+                                    width="8em",
+                                ),
+                                rx.button(
+                                    rx.cond(DashboardState.loading, "Refreshing…", "Refresh"),  # type: ignore[operator]
+                                    on_click=DashboardState.load_dashboard,  # type: ignore[arg-type]
+                                    loading=DashboardState.loading,
+                                    size="2",
+                                ),
+                                spacing="3",
+                                align="center",
+                            ),
+                            align="center",
+                            width="100%",
                         ),
-                        rx.button(
-                            rx.cond(DashboardState.loading, "Refreshing…", "Refresh"),  # type: ignore[operator]
-                            on_click=DashboardState.load_dashboard,  # type: ignore[arg-type]
-                            loading=DashboardState.loading,
-                            size="2",
+                        rx.grid(
+                            _ingest_source_tabs(),
+                            _graph_embeddings_tabs(),
+                            columns="2",
+                            spacing="4",
+                            width="100%",
+                            align="start",
+                            style={"gridTemplateColumns": "3fr 7fr", "height": "90vh", "align-items": "stretch"},
                         ),
-                        spacing="3",
-                        align="center",
                     ),
-                    align="center",
+                    padding="1em",
                     width="100%",
                 ),
-                rx.grid(
-                    _ingest_card(),
-                    _graph_stats_card(),
-                    _graph_stats_expanded_card(),
-                    columns="3",
-                    spacing="4",
-                    width="100%",
-                    align="start",
-                    style={"gridTemplateColumns": "3fr 2fr 5fr", "height": "90vh", "align-items": "stretch"},
+                rx.cond(
+                    DashboardState.error_message != "",  # type: ignore[operator]
+                    rx.callout(DashboardState.error_message, color_scheme="red", variant="soft"),  # type: ignore[arg-type]
+                    rx.box(),
                 ),
+                _changes_preview_dialog(),
+                spacing="4",
+                align="start",
+                width="100%",
             ),
+            flex="1",
+            min_height="0",
+            overflow="auto",
             padding="1em",
             width="100%",
         ),
-        rx.cond(
-            DashboardState.error_message != "",  # type: ignore[operator]
-            rx.callout(DashboardState.error_message, color_scheme="red", variant="soft"),  # type: ignore[arg-type]
-            rx.box(),
-        ),
-        _changes_preview_dialog(),
-        spacing="4",
-        align="start",
-        padding="1em",
+        direction="column",
+        height="100vh",
+        overflow="hidden",
         width="100%",
     )

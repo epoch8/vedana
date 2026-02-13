@@ -18,7 +18,7 @@ from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.pipeline import get_data_model_pipeline
 
-from vedana_backoffice.states.common import MemLogger, get_vedana_app
+from vedana_backoffice.states.common import MemLogger, get_vedana_app, DEBUG_MODE
 from vedana_backoffice.states.jims import ThreadViewState
 
 # Global cache for OpenRouter models, populated at startup
@@ -117,6 +117,7 @@ class ChatState(rx.State):
     openrouter_models: list[str] = []
     openrouter_models_loaded: bool = False
     available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
+    model_selection_allowed: bool = DEBUG_MODE
     enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
 
     def mount(self):

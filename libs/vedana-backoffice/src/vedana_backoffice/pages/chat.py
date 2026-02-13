@@ -1,5 +1,6 @@
 import reflex as rx
 
+from vedana_core.settings import settings as core_settings
 from vedana_backoffice.components.ui_chat import render_message_bubble
 from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.ui import app_header
@@ -143,34 +144,40 @@ def page() -> rx.Component:
                             on_change=ChatState.set_input,
                             width="100%",
                         ),
-                        rx.select(
-                            items=["openai", "openrouter"],
-                            value=ChatState.provider,
-                            on_change=ChatState.set_provider,
-                            width="10em",
-                            placeholder="Provider",
-                        ),
                         rx.cond(
-                            ChatState.provider == "openrouter",
-                            rx.input(
-                                placeholder=rx.cond(
-                                    ChatState.default_openrouter_key_present,
-                                    "(Optional) custom OPENROUTER_API_KEY",
-                                    "(Required) OPENROUTER_API_KEY",
+                            ChatState.model_selection_allowed,
+                            rx.hstack(
+                                rx.select(
+                                items=["openai", "openrouter"],
+                                value=ChatState.provider,
+                                on_change=ChatState.set_provider,
+                                width="10em",
+                                placeholder="Provider",
                                 ),
-                                type="password",
-                                value=ChatState.custom_openrouter_key,
-                                on_change=ChatState.set_custom_openrouter_key,
-                                width="36em",
-                                required=rx.cond(ChatState.default_openrouter_key_present, False, True),
+                                rx.cond(
+                                    ChatState.provider == "openrouter",
+                                    rx.input(
+                                        placeholder=rx.cond(
+                                            ChatState.default_openrouter_key_present,
+                                            "(Optional) custom OPENROUTER_API_KEY",
+                                            "(Required) OPENROUTER_API_KEY",
+                                        ),
+                                        type="password",
+                                        value=ChatState.custom_openrouter_key,
+                                        on_change=ChatState.set_custom_openrouter_key,
+                                        width="36em",
+                                        required=rx.cond(ChatState.default_openrouter_key_present, False, True),
+                                    ),
+                                ),
+                                rx.select(
+                                    items=ChatState.available_models,
+                                    value=ChatState.model,
+                                    on_change=ChatState.set_model,
+                                    width="16em",
+                                    placeholder="Select model",
+                                ),
                             ),
-                        ),
-                        rx.select(
-                            items=ChatState.available_models,
-                            value=ChatState.model,
-                            on_change=ChatState.set_model,
-                            width="16em",
-                            placeholder="Select model",
+                            rx.badge(core_settings.model, variant="surface", color_scheme="gray", size="3"),
                         ),
                         rx.button("Send", type="submit", loading=ChatState.is_running),
                         spacing="2",

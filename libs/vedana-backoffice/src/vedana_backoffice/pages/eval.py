@@ -975,47 +975,69 @@ def _status_messages() -> rx.Component:
 def page() -> rx.Component:
     return rx.cond(
         AppVersionState.eval_enabled,
-        rx.vstack(
+        rx.flex(
             app_header(),
-            rx.vstack(
-                rx.grid(
-                    rx.vstack(
-                        _questions_card(),
-                        _tests_card(),
-                    ),
-                    rx.vstack(
-                        _judge_card(),
-                        _pipeline_card(),
-                        _selection_and_actions(),
-                        _status_messages(),
-                        _compare_card(),
+            rx.box(
+                rx.vstack(
+                    rx.grid(
+                        rx.vstack(
+                            _questions_card(),
+                            _tests_card(),
+                        ),
+                        rx.vstack(
+                            _judge_card(),
+                            _pipeline_card(),
+                            _selection_and_actions(),
+                            _status_messages(),
+                            _compare_card(),
+                            spacing="4",
+                            width="100%",
+                        ),
+                        columns="2",
                         spacing="4",
                         width="100%",
+                        style={"gridTemplateColumns": "3fr 1fr", "height": "calc(100vh - 200px)", "minHeight": "700px"},
                     ),
-                    columns="2",
                     spacing="4",
                     width="100%",
-                    style={"gridTemplateColumns": "3fr 1fr", "height": "calc(100vh - 200px)", "minHeight": "700px"},
                 ),
-                spacing="4",
+                _compare_dialog(),
+                _judge_prompt_dialog(),
+                _data_model_dialog(),
+                align="start",
+                spacing="2",
+                flex="1",
+                min_height="0",
+                overflow="auto",
+                padding="1.5em",
                 width="100%",
             ),
-            _compare_dialog(),
-            _judge_prompt_dialog(),
-            _data_model_dialog(),
-            align="start",
-            spacing="2",
-            padding="1.5em",
+            direction="column",
+            height="100vh",
+            overflow="hidden",
+            width="100%",
         ),
-        rx.vstack(
+        rx.flex(
             app_header(),
-            rx.callout(
-                "System evaluation page is not available. Configure GRIST_TEST_SET_DOC_ID to enable.",
-                color_scheme="red",
-                variant="soft",
+            rx.box(
+                rx.vstack(
+                    rx.callout(
+                        "System evaluation page is not available. Configure GRIST_TEST_SET_DOC_ID to enable.",
+                        color_scheme="red",
+                        variant="soft",
+                    ),
+                    align="start",
+                    spacing="2",
+                ),
+                flex="1",
+                min_height="0",
+                overflow="auto",
+                padding="1.5em",
+                width="100%",
             ),
-            align="start",
-            spacing="2",
-            padding="1.5em",
+            direction="column",
+            height="100vh",
+            overflow="hidden",
+            width="100%",
         ),
     )

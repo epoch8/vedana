@@ -13,7 +13,8 @@ TELEGRAM_BOT_INFO_CACHE: dict[str, str] | None = None
 TELEGRAM_BOT_INFO_REQUESTED: bool = False
 
 EVAL_ENABLED = bool(os.environ.get("GRIST_TEST_SET_DOC_ID"))
-DEBUG_MODE = os.environ.get("DEBUG", "").lower() in ("true", "1")
+DEBUG_MODE = (os.environ.get("VEDANA_BACKOFFICE_DEBUG", "").lower() in ("true", "1")
+              or os.environ.get("DEBUG", "").lower() in ("true", "1"))
 HAS_OPENAI_KEY = bool(os.environ.get("OPENAI_API_KEY"))
 HAS_OPENROUTER_KEY = bool(os.environ.get("OPENROUTER_API_KEY"))
 

@@ -22,7 +22,7 @@ services:
   app:
     <<: *app-common
     ports:
-      - "3002:3000"
+      - "9000:9000"
       - "8000:8000"
     command: vedana-backoffice-with-caddy
     depends_on:
