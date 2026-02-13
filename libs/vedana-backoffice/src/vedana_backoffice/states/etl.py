@@ -12,6 +12,7 @@ import reflex as rx
 import sqlalchemy as sa
 from datapipe.compute import run_steps
 from datapipe.step.batch_transform import BaseBatchTransformStep
+from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.app import pipeline
 from vedana_etl.config import DBCONN_DATAPIPE
@@ -1269,6 +1270,18 @@ class EtlState(rx.State):
         else:
             self._load_preview_all_page()
 
+    @staticmethod
+    def _preview_select_exprs(columns: list[str], table_alias: str | None = None) -> str:
+        """Build SELECT expressions replacing heavy embedding vectors with a placeholder."""
+        prefix = f'{table_alias}.' if table_alias else ""
+        exprs: list[str] = []
+        for col in columns:
+            if str(col) == "embedding":
+                exprs.append(f"'Vector({core_settings.embeddings_dim})' AS \"embedding\"")
+            else:
+                exprs.append(f'{prefix}"{col}"')
+        return ", ".join(exprs)
+
     def _load_preview_all_page(self) -> None:
         """Load all records (standard preview mode)."""
         engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
@@ -1297,11 +1310,20 @@ class EtlState(rx.State):
             elif self.preview_is_meta_table:
                 actual_table = f"{table_name}_meta"
 
-            # Load page data
-            df = pd.read_sql(
-                f'SELECT * FROM "{actual_table}" LIMIT {self.preview_page_size} OFFSET {offset}',
-                con=engine,
-            )
+            # Load page data (replace bulky embedding column with placeholder in SQL).
+            try:
+                inspector = sa.inspect(engine)
+                cols = [str(c.get("name", "")) for c in inspector.get_columns(actual_table) if c.get("name", "")]
+            except Exception:
+                cols = []
+
+            if cols:
+                select_cols = self._preview_select_exprs(cols)
+                q_data = f'SELECT {select_cols} FROM "{actual_table}" LIMIT {self.preview_page_size} OFFSET {offset}'
+            else:
+                q_data = f'SELECT * FROM "{actual_table}" LIMIT {self.preview_page_size} OFFSET {offset}'
+
+            df = pd.read_sql(q_data, con=engine)
 
         except Exception as e:
             self._append_log(f"Failed to load table {table_name}: {e}")
@@ -1410,7 +1432,9 @@ class EtlState(rx.State):
         if base_cols:
             select_exprs: list[str] = []
             for c in display_cols:
-                if c in meta_cols:
+                if c == "embedding":
+                    select_exprs.append(f"'Vector({core_settings.embeddings_dim})' AS \"embedding\"")
+                elif c in meta_cols:
                     select_exprs.append(f'COALESCE(b."{c}", m."{c}") AS "{c}"')
                 else:
                     select_exprs.append(f'b."{c}" AS "{c}"')
@@ -1445,7 +1469,13 @@ class EtlState(rx.State):
             )
         else:
             # No base table, query meta only
-            select_cols = ", ".join([f'm."{c}"' for c in display_cols])
+            select_exprs_meta: list[str] = []
+            for c in display_cols:
+                if c == "embedding":
+                    select_exprs_meta.append(f"'Vector({core_settings.embeddings_dim})' AS \"embedding\"")
+                else:
+                    select_exprs_meta.append(f'm."{c}"')
+            select_cols = ", ".join(select_exprs_meta)
             q_data = sa.text(
                 f"""
                 SELECT
