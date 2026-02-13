@@ -123,7 +123,7 @@ class DashboardState(rx.State):
         self.selected_ingest_source_tab = value
 
     def _load_source_tabs(self) -> None:
-        self.ingest_source_tabs = {str(v) for t in etl_app.steps for (k, v) in t.labels if k == "source"} | {"Grist"}
+        self.ingest_source_tabs = list({str(v) for t in etl_app.steps for (k, v) in t.labels if k == "source"} | {"Grist"})
         if self.selected_ingest_source_tab not in self.ingest_source_tabs:
             self.selected_ingest_source_tab = self.ingest_source_tabs[0]
 
