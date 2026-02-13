@@ -1,0 +1,38 @@
+[project]
+name = "jims-api"
+dynamic = ["version"]
+description = "universal API for JIMS application"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "click>=8.0",
+    "fastapi>=0.128.0",
+    "jims-core>=0.4.2",
+    "loguru>=0.7.3",
+    "uvicorn>=0.35.0",
+]
+
+[tool.uv.sources]
+jims-core = { workspace = true }
+
+[tool.uv-workspace-codegen]
+generate = true
+template_type = ["lib", "publish"]
+generate_standard_pytest_step = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "aiosqlite>=0.20.0",
+    "httpx>=0.28.0",
+    "mypy>=1.19.1",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "ruff>=0.15.0",
+]
+
+[project.scripts]
+jims-api = "jims_api.main:main"
