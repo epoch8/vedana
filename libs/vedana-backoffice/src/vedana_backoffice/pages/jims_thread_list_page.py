@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
 import reflex as rx
 import sqlalchemy as sa
@@ -69,6 +70,9 @@ class ThreadListState(rx.State):
     sort_by: str = "Sort by: Date"
     available_tags: list[str] = []
     selected_tags: list[str] = []
+    page_size: int = 20
+    current_page: int = 0
+    total_threads: int = 0
 
     @staticmethod
     def _parse_date(date_str: str | None) -> datetime | None:
@@ -99,21 +103,25 @@ class ThreadListState(rx.State):
         self.sort_reverse = True
         self.review_filter = "Review: All"
         self.sort_by = "Sort by: Date"
+        self.current_page = 0
         return None
 
     @rx.event
     async def toggle_sort(self) -> None:
         self.sort_reverse = not self.sort_reverse
+        self.current_page = 0
         await self.get_data()  # type: ignore[operator]
 
     @rx.event
     async def set_review_filter(self, value: str) -> None:
         self.review_filter = value
+        self.current_page = 0
         await self.get_data()  # type: ignore[operator]
 
     @rx.event
     async def set_sort_by(self, value: str) -> None:
         self.sort_by = value
+        self.current_page = 0
         await self.get_data()  # type: ignore[operator]
 
     @rx.event
@@ -131,10 +139,65 @@ class ThreadListState(rx.State):
     @rx.event
     def clear_tag_filter(self) -> None:
         self.selected_tags = []
+        self.current_page = 0
+
+    @rx.event
+    def reset_pagination(self) -> None:
+        self.current_page = 0
+
+    @rx.event
+    async def next_page(self) -> None:
+        if self.has_next_page:
+            self.current_page += 1
+            await self.get_data()  # type: ignore[operator]
+
+    @rx.event
+    async def prev_page(self) -> None:
+        if self.current_page > 0:
+            self.current_page -= 1
+            await self.get_data()  # type: ignore[operator]
+
+    @rx.event
+    async def first_page(self) -> None:
+        if self.current_page != 0:
+            self.current_page = 0
+            await self.get_data()  # type: ignore[operator]
+
+    @rx.event
+    async def last_page(self) -> None:
+        max_page = (self.total_threads - 1) // self.page_size if self.total_threads > 0 else 0
+        if self.current_page != max_page:
+            self.current_page = max_page
+            await self.get_data()  # type: ignore[operator]
+
+    @rx.var
+    def total_pages(self) -> int:
+        return (self.total_threads - 1) // self.page_size + 1 if self.total_threads > 0 else 1
+
+    @rx.var
+    def page_display(self) -> str:
+        return f"Page {self.current_page + 1} of {self.total_pages}"
+
+    @rx.var
+    def rows_display(self) -> str:
+        if self.total_threads == 0:
+            return "No rows"
+        start = self.current_page * self.page_size + 1
+        end = min(start + self.page_size - 1, self.total_threads)
+        return f"Rows {start}-{end} of {self.total_threads}"
+
+    @rx.var
+    def has_next_page(self) -> bool:
+        return self.current_page < (self.total_pages - 1)
+
+    @rx.var
+    def has_prev_page(self) -> bool:
+        return self.current_page > 0
 
     @rx.event
     async def get_data(self) -> None:
         """compiles the entire thread list table"""
+        self.threads_refreshing = True
         vedana_app = await make_vedana_app()
 
         from_dt = self._parse_date(self.from_date)
@@ -143,7 +206,96 @@ class ThreadListState(rx.State):
             # Make end exclusive by adding one day
             to_dt = to_dt + timedelta(days=1)
 
+        def _compute_backoffice_maps(
+            thread_ids: list[str], bo_rows: list[ThreadEventDB]
+        ) -> tuple[dict[str, str], dict[str, str], dict[str, set[str]]]:
+            review_status_by_tid: dict[str, str] = {tid: "-" for tid in thread_ids}
+            priority_by_tid: dict[str, str] = {tid: "-" for tid in thread_ids}
+            priority_rank_by_tid: dict[str, int] = {tid: -1 for tid in thread_ids}
+
+            has_feedback: dict[str, bool] = {tid: False for tid in thread_ids}
+            has_resolved: dict[str, bool] = {tid: False for tid in thread_ids}
+            unresolved_by_tid: dict[str, int] = {tid: 0 for tid in thread_ids}
+            comment_tid_by_id: dict[str, str] = {}
+            resolved_cids: set[str] = set()
+            tags_by_event: dict[str, set[str]] = {}
+
+            bo_rows_sorted = sorted(bo_rows, key=lambda r: getattr(r, "created_at", datetime.min))
+            for ev in bo_rows_sorted:
+                tid = str(ev.thread_id)
+                etype = str(getattr(ev, "event_type", ""))
+                if etype == "jims.backoffice.feedback":
+                    has_feedback[tid] = True
+                    try:
+                        sev = str((getattr(ev, "event_data", {}) or {}).get("severity", "Low"))
+                    except Exception:
+                        sev = "Low"
+                    rank = {"Low": 0, "Medium": 1, "High": 2}.get(sev, 0)
+                    if rank > priority_rank_by_tid.get(tid, -1):
+                        priority_rank_by_tid[tid] = rank
+                        priority_by_tid[tid] = {0: "Low", 1: "Medium", 2: "High"}.get(rank, "Low")
+                    try:
+                        cid = str(getattr(ev, "event_id"))
+                        if cid:
+                            comment_tid_by_id[cid] = tid
+                            unresolved_by_tid[tid] = unresolved_by_tid.get(tid, 0) + 1
+                    except Exception:
+                        pass
+                elif etype == "jims.backoffice.review_resolved":
+                    has_resolved[tid] = True
+                elif etype in ("jims.backoffice.tag_added", "jims.backoffice.tag_removed"):
+                    ed = dict(getattr(ev, "event_data", {}) or {})
+                    tag = str(ed.get("tag", "")).strip()
+                    target = str(ed.get("target_event_id", ""))
+                    if not target or not tag:
+                        continue
+                    cur = tags_by_event.setdefault(target, set())
+                    if etype == "jims.backoffice.tag_added":
+                        cur.add(tag)
+                    else:
+                        cur.discard(tag)
+                elif etype in ("jims.backoffice.comment_resolved", "jims.backoffice.comment_closed"):
+                    ed = dict(getattr(ev, "event_data", {}) or {})
+                    cid = str(ed.get("comment_id", ""))
+                    if not cid or cid in resolved_cids:
+                        continue
+                    resolved_cids.add(cid)
+                    rtid = comment_tid_by_id.get(cid, tid)
+                    unresolved_by_tid[rtid] = max(0, unresolved_by_tid.get(rtid, 0) - 1)
+
+            for tid in thread_ids:
+                if has_resolved.get(tid) or (has_feedback.get(tid) and unresolved_by_tid.get(tid, 0) == 0):
+                    review_status_by_tid[tid] = "Complete"
+                elif has_feedback.get(tid):
+                    review_status_by_tid[tid] = "Pending"
+                else:
+                    review_status_by_tid[tid] = "-"
+
+            thread_tags_by_tid: dict[str, set[str]] = {tid: set() for tid in thread_ids}
+            for ev in bo_rows_sorted:
+                etype = str(getattr(ev, "event_type", ""))
+                if etype not in ("jims.backoffice.tag_added", "jims.backoffice.tag_removed"):
+                    continue
+                ed = dict(getattr(ev, "event_data", {}) or {})
+                target = str(ed.get("target_event_id", ""))
+                if not target:
+                    continue
+                thread_tags_by_tid[str(ev.thread_id)].update(tags_by_event.get(target, set()))
+
+            return review_status_by_tid, priority_by_tid, thread_tags_by_tid
+
         async with vedana_app.sessionmaker() as session:
+            # Keep global tag values available across pages.
+            tag_expr = ThreadEventDB.event_data["tag"].as_string()
+            tag_stmt = sa.select(sa.distinct(tag_expr)).where(
+                sa.and_(
+                    ThreadEventDB.event_type.in_(["jims.backoffice.tag_added", "jims.backoffice.tag_removed"]),
+                    tag_expr.is_not(None),
+                )
+            )
+            raw_tags = (await session.execute(tag_stmt)).scalars().all()
+            self.available_tags = sorted([str(t).strip() for t in raw_tags if str(t or "").strip()])
+
             last_event_sq = (
                 sa.select(
                     ThreadEventDB.thread_id.label("t_id"),
@@ -152,242 +304,175 @@ class ThreadListState(rx.State):
                 .group_by(ThreadEventDB.thread_id)
                 .subquery()
             )
+            last_chat_sq = (
+                sa.select(
+                    ThreadEventDB.thread_id.label("t_id"),
+                    sa.func.max(ThreadEventDB.created_at).label("last_chat_at"),
+                )
+                .where(sa.not_(ThreadEventDB.event_type.like("jims.backoffice.%")))
+                .group_by(ThreadEventDB.thread_id)
+                .subquery()
+            )
+            sev_expr = ThreadEventDB.event_data["severity"].as_string()
+            priority_rank_expr = sa.case((sev_expr == "High", 2), (sev_expr == "Medium", 1), else_=0)
+            priority_sq = (
+                sa.select(
+                    ThreadEventDB.thread_id.label("t_id"),
+                    sa.func.max(priority_rank_expr).label("priority_rank"),
+                )
+                .where(ThreadEventDB.event_type == "jims.backoffice.feedback")
+                .group_by(ThreadEventDB.thread_id)
+                .subquery()
+            )
+            activity_expr = sa.func.coalesce(last_chat_sq.c.last_chat_at, last_event_sq.c.last_at, ThreadDB.created_at)
 
-            stmt = sa.select(ThreadDB, last_event_sq.c.last_at).join(
-                last_event_sq, last_event_sq.c.t_id == ThreadDB.thread_id
+            base_stmt = (
+                sa.select(
+                    ThreadDB.thread_id.label("thread_id"),
+                    ThreadDB.created_at.label("created_at"),
+                    ThreadDB.thread_config.label("thread_config"),
+                    last_event_sq.c.last_at.label("last_at"),
+                    last_chat_sq.c.last_chat_at.label("last_chat_at"),
+                    sa.func.coalesce(priority_sq.c.priority_rank, -1).label("priority_rank"),
+                )
+                .join(last_event_sq, last_event_sq.c.t_id == ThreadDB.thread_id)
+                .outerjoin(last_chat_sq, last_chat_sq.c.t_id == ThreadDB.thread_id)
+                .outerjoin(priority_sq, priority_sq.c.t_id == ThreadDB.thread_id)
             )
 
-            # Apply date filters at SQL level when possible
             if from_dt is not None:
-                stmt = stmt.where(last_event_sq.c.last_at >= from_dt)
+                base_stmt = base_stmt.where(last_event_sq.c.last_at >= from_dt)
             if to_dt is not None:
-                stmt = stmt.where(last_event_sq.c.last_at < to_dt)
+                base_stmt = base_stmt.where(last_event_sq.c.last_at < to_dt)
 
-            results = await session.execute(stmt)
-            rows = results.all()
-
-            # Collect thread ids and last_at (any event)
-            thread_ids: list[str] = []
-            last_at_by_tid: dict[str, datetime] = {}
-            for thread_obj, last_at in rows:
-                tid = str(thread_obj.thread_id)
-                thread_ids.append(tid)
-                try:
-                    last_at_by_tid[tid] = last_at or thread_obj.created_at
-                except Exception:
-                    last_at_by_tid[tid] = thread_obj.created_at
-
-            # Also collect last chat-related activity (exclude jims.backoffice.% events)
-            last_chat_at_by_tid: dict[str, datetime] = {}
-            if thread_ids:
-                chat_stmt = (
-                    sa.select(
-                        ThreadEventDB.thread_id.label("t_id"),
-                        sa.func.max(ThreadEventDB.created_at).label("last_chat_at"),
-                    )
-                    .where(
-                        sa.and_(
-                            ThreadEventDB.thread_id.in_(thread_ids),
-                            sa.not_(ThreadEventDB.event_type.like("jims.backoffice.%")),
-                        )
-                    )
-                    .group_by(ThreadEventDB.thread_id)
-                )
-                chat_rows = (await session.execute(chat_stmt)).all()
-                for t_id, last_chat_at in chat_rows:
-                    try:
-                        last_chat_at_by_tid[str(t_id)] = last_chat_at
-                    except Exception:
-                        continue
-
-            # Load backoffice events for review/priority aggregation
-            review_status_by_tid: dict[str, str] = {tid: "-" for tid in thread_ids}
-            priority_by_tid: dict[str, str] = {tid: "-" for tid in thread_ids}
-            priority_rank_by_tid: dict[str, int] = {tid: -1 for tid in thread_ids}
-
-            if thread_ids:
-                bo_stmt = sa.select(ThreadEventDB).where(
-                    sa.and_(
-                        ThreadEventDB.thread_id.in_(thread_ids),
-                        ThreadEventDB.event_type.like("jims.backoffice.%"),  # todo split jims event_type in domains?
+            search = (self.search_text or "").strip().lower()
+            if search:
+                pattern = f"%{search}%"
+                base_stmt = base_stmt.where(
+                    sa.or_(
+                        sa.func.lower(sa.cast(ThreadDB.thread_id, sa.String)).like(pattern),
+                        sa.func.lower(sa.cast(ThreadDB.thread_config, sa.String)).like(pattern),
                     )
                 )
-                bo_rows = (await session.execute(bo_stmt)).scalars().all()
 
-                has_feedback: dict[str, bool] = {tid: False for tid in thread_ids}
-                has_resolved: dict[str, bool] = {tid: False for tid in thread_ids}
-
-                # Tag aggregation
-                available_tags_set: set[str] = set()
-                tags_by_event: dict[str, set[str]] = {}
-                bo_rows_sorted = sorted(bo_rows, key=lambda r: getattr(r, "created_at", datetime.min))
-
-                # Comment resolution aggregation
-                unresolved_by_tid: dict[str, int] = {tid: 0 for tid in thread_ids}
-                comment_tid_by_id: dict[str, str] = {}
-                resolved_cids: set[str] = set()
-
-                for ev in bo_rows_sorted:
-                    tid = str(ev.thread_id)
-                    etype = str(getattr(ev, "event_type", ""))
-                    if etype == "jims.backoffice.feedback":
-                        has_feedback[tid] = True
-                        try:
-                            sev = str((getattr(ev, "event_data", {}) or {}).get("severity", "Low"))
-                        except Exception:
-                            sev = "Low"
-                        rank = {"Low": 0, "Medium": 1, "High": 2}.get(sev, 0)
-                        if rank > priority_rank_by_tid.get(tid, -1):
-                            priority_rank_by_tid[tid] = rank
-                            priority_by_tid[tid] = {0: "Low", 1: "Medium", 2: "High"}.get(rank, "Low")
-                        # Count unresolved comment
-                        try:
-                            cid = str(getattr(ev, "event_id"))
-                            if cid:
-                                comment_tid_by_id[cid] = tid
-                                unresolved_by_tid[tid] = unresolved_by_tid.get(tid, 0) + 1
-                        except Exception:
-                            pass
-                    elif etype == "jims.backoffice.review_resolved":
-                        has_resolved[tid] = True
-                    elif etype in ("jims.backoffice.tag_added", "jims.backoffice.tag_removed"):
-                        ed = dict(getattr(ev, "event_data", {}) or {})
-                        tag = str(ed.get("tag", "")).strip()
-                        target = str(ed.get("target_event_id", ""))
-                        if tag:
-                            available_tags_set.add(tag)
-                        if not target:
-                            continue
-                        cur = tags_by_event.setdefault(target, set())
-                        if etype == "jims.backoffice.tag_added" and tag:
-                            cur.add(tag)
-                        elif etype == "jims.backoffice.tag_removed" and tag:
-                            try:
-                                cur.discard(tag)
-                            except Exception:
-                                pass
-                    elif etype in ("jims.backoffice.comment_resolved", "jims.backoffice.comment_closed"):
-                        ed = dict(getattr(ev, "event_data", {}) or {})
-                        cid = str(ed.get("comment_id", ""))
-                        if not cid or cid in resolved_cids:
-                            continue
-                        resolved_cids.add(cid)
-                        rtid = comment_tid_by_id.get(cid, tid)
-                        try:
-                            unresolved_by_tid[rtid] = max(0, unresolved_by_tid.get(rtid, 0) - 1)
-                        except Exception:
-                            pass
-
-                for tid in thread_ids:
-                    if has_resolved.get(tid) or (has_feedback.get(tid) and unresolved_by_tid.get(tid, 0) == 0):
-                        review_status_by_tid[tid] = "Complete"
-                    elif has_feedback.get(tid):
-                        review_status_by_tid[tid] = "Pending"
-                    else:
-                        review_status_by_tid[tid] = "-"
-
-                # derive thread-level tag sets from event-level tags
-                thread_tags_by_tid: dict[str, set[str]] = {tid: set() for tid in thread_ids}
-                for ev in bo_rows_sorted:
-                    etype = str(getattr(ev, "event_type", ""))
-                    if etype not in ("jims.backoffice.tag_added", "jims.backoffice.tag_removed"):
-                        continue
-                    ed = dict(getattr(ev, "event_data", {}) or {})
-                    target = str(ed.get("target_event_id", ""))
-                    if not target:
-                        continue
-                    cur_tags = tags_by_event.get(target, set())
-                    # union into its thread
-                    thread_tags_by_tid[str(ev.thread_id)].update(cur_tags)
-
-                # store available tag values for multi-select
-                current_tags: set[str] = set()
-                for _tid, _tags in thread_tags_by_tid.items():
-                    current_tags.update(set(_tags))
-                self.available_tags = sorted(list(current_tags))
-
+            sort_val = self.sort_by.removeprefix("Sort by:").strip()
+            if sort_val == "Priority":
+                if self.sort_reverse:
+                    base_stmt = base_stmt.order_by(sa.desc("priority_rank"), sa.desc(activity_expr))
+                else:
+                    base_stmt = base_stmt.order_by(sa.asc("priority_rank"), sa.asc(activity_expr))
+            elif sort_val == "Date":
+                base_stmt = base_stmt.order_by(sa.desc(activity_expr) if self.sort_reverse else sa.asc(activity_expr))
             else:
-                thread_tags_by_tid = {}
+                base_stmt = base_stmt.order_by(sa.desc(activity_expr))
 
-        items: list[ThreadVis] = []
-        for thread_obj, last_at in rows:
-            try:
-                sample = sorted(list(thread_tags_by_tid.get(str(thread_obj.thread_id), set())))[:3]
+            rf = (self.review_filter.removeprefix("Review: ") or "All").strip()
+            sel = set(self.selected_tags or [])
+            needs_chunk_filtering = (rf and rf != "All") or bool(sel)
+
+            rows_for_page: list[Any] = []
+            review_status_by_tid: dict[str, str] = {}
+            priority_by_tid: dict[str, str] = {}
+            thread_tags_by_tid: dict[str, set[str]] = {}
+
+            if not needs_chunk_filtering:
+                total_stmt = sa.select(sa.func.count()).select_from(base_stmt.subquery())
+                total_rows = int((await session.execute(total_stmt)).scalar() or 0)
+                max_page = (total_rows - 1) // self.page_size if total_rows > 0 else 0
+                if self.current_page > max_page:
+                    self.current_page = max_page
+                offset_rows = self.current_page * self.page_size
+                page_stmt = base_stmt.limit(self.page_size).offset(offset_rows)
+                rows_for_page = (await session.execute(page_stmt)).all()
+
+                page_tids = [str(r.thread_id) for r in rows_for_page]
+                bo_rows: list[ThreadEventDB] = []
+                if page_tids:
+                    bo_stmt = (
+                        sa.select(ThreadEventDB)
+                        .where(
+                            sa.and_(
+                                ThreadEventDB.thread_id.in_(page_tids),
+                                ThreadEventDB.event_type.like("jims.backoffice.%"),
+                            )
+                        )
+                        .order_by(ThreadEventDB.created_at.asc())
+                    )
+                    bo_rows = (await session.execute(bo_stmt)).scalars().all()
+                review_status_by_tid, priority_by_tid, thread_tags_by_tid = _compute_backoffice_maps(page_tids, bo_rows)
+                self.total_threads = total_rows
+            else:
+                # When review/tag filters are active, evaluate filtered rows in chunks.
+                chunk_size = 200
+                matched_total = 0
+                page_start = self.current_page * self.page_size
+                page_end = page_start + self.page_size
+                scan_offset = 0
+
+                while True:
+                    chunk_stmt = base_stmt.limit(chunk_size).offset(scan_offset)
+                    chunk_rows = (await session.execute(chunk_stmt)).all()
+                    if not chunk_rows:
+                        break
+                    scan_offset += len(chunk_rows)
+
+                    chunk_tids = [str(r.thread_id) for r in chunk_rows]
+                    bo_rows: list[ThreadEventDB] = []
+                    if chunk_tids:
+                        bo_stmt = (
+                            sa.select(ThreadEventDB)
+                            .where(
+                                sa.and_(
+                                    ThreadEventDB.thread_id.in_(chunk_tids),
+                                    ThreadEventDB.event_type.like("jims.backoffice.%"),
+                                )
+                            )
+                            .order_by(ThreadEventDB.created_at.asc())
+                        )
+                        bo_rows = (await session.execute(bo_stmt)).scalars().all()
+                    chunk_review_by_tid, chunk_priority_by_tid, chunk_tags_by_tid = _compute_backoffice_maps(
+                        chunk_tids, bo_rows
+                    )
+
+                    for row in chunk_rows:
+                        tid = str(row.thread_id)
+                        review_val = chunk_review_by_tid.get(tid, "-")
+                        if rf and rf != "All" and review_val != rf:
+                            continue
+                        if sel and len(sel.intersection(chunk_tags_by_tid.get(tid, set()))) == 0:
+                            continue
+
+                        if page_start <= matched_total < page_end:
+                            rows_for_page.append(row)
+                            review_status_by_tid[tid] = review_val
+                            priority_by_tid[tid] = chunk_priority_by_tid.get(tid, "-")
+                            thread_tags_by_tid[tid] = set(chunk_tags_by_tid.get(tid, set()))
+                        matched_total += 1
+
+                self.total_threads = matched_total
+                max_page = (self.total_threads - 1) // self.page_size if self.total_threads > 0 else 0
+                if self.current_page > max_page:
+                    self.current_page = max_page
+                    await self.get_data()  # type: ignore[operator]
+                    return
+
+            items: list[ThreadVis] = []
+            for row in rows_for_page:
+                tid = str(row.thread_id)
+                sample = sorted(list(thread_tags_by_tid.get(tid, set())))[:3]
                 items.append(
                     ThreadVis.create(
-                        thread_id=str(thread_obj.thread_id),
-                        created_at=thread_obj.created_at,
-                        # last_activity=last_at or thread_obj.created_at,
-                        thread_config=thread_obj.thread_config,
-                        review_status=review_status_by_tid.get(str(thread_obj.thread_id), "-"),
-                        priority=priority_by_tid.get(str(thread_obj.thread_id), "-"),
+                        thread_id=tid,
+                        created_at=row.created_at,
+                        thread_config=row.thread_config,
+                        review_status=review_status_by_tid.get(tid, "-"),
+                        priority=priority_by_tid.get(tid, "-"),
                         tags_sample=sample,
                     )
                 )
-            except Exception:
-                # Fall back if last_at is None or bad
-                sample = sorted(list(thread_tags_by_tid.get(str(thread_obj.thread_id), set())))[:3]
-                items.append(
-                    ThreadVis.create(
-                        thread_id=str(thread_obj.thread_id),
-                        created_at=thread_obj.created_at,
-                        thread_config=thread_obj.thread_config,
-                        review_status=review_status_by_tid.get(str(thread_obj.thread_id), "-"),
-                        priority=priority_by_tid.get(str(thread_obj.thread_id), "-"),
-                        tags_sample=sample,
-                    )
-                )
 
-        # In-memory search (thread_id or interface)
-        search = (self.search_text or "").strip().lower()
-        if search:
-            items = [it for it in items if search in it.thread_id.lower() or search in (it.interface or "").lower()]
-
-        # Filter by review status
-        rf = (self.review_filter.removeprefix("Review: ") or "All").strip()
-        if rf and rf != "All":
-            items = [it for it in items if it.review_status == rf]
-
-        # Filter by selected tags (OR semantics)
-        sel = set(self.selected_tags or [])
-        if sel:
-
-            def _has_any(t: ThreadVis) -> bool:
-                try:
-                    tid = t.thread_id
-                    return len(sel.intersection(thread_tags_by_tid.get(tid, set()))) > 0
-                except Exception:
-                    return False
-
-            items = [it for it in items if _has_any(it)]
-
-        # Sorting (by last chat-related activity for Date sorts)
-        sort_val = self.sort_by.removeprefix("Sort by:").strip()
-        if sort_val == "Date":
-            items = sorted(
-                items,
-                key=lambda it: last_chat_at_by_tid.get(it.thread_id, last_at_by_tid.get(it.thread_id, datetime.min)),
-                reverse=self.sort_reverse,  # sort_reverse = True by default
-            )
-        elif sort_val == "Priority":
-            rank_map = {"-": -1, "Low": 0, "Medium": 1, "High": 2}
-            items = sorted(
-                items,
-                key=lambda it: (
-                    rank_map.get(it.priority, -1),
-                    last_chat_at_by_tid.get(it.thread_id, last_at_by_tid.get(it.thread_id, datetime.min)),
-                ),
-                reverse=self.sort_reverse,  # sort_reverse = True by default
-            )
-        else:  # Date descending as a fallback
-            items = sorted(
-                items,
-                key=lambda it: last_chat_at_by_tid.get(it.thread_id, last_at_by_tid.get(it.thread_id, datetime.min)),
-                reverse=True,
-            )
-
-        self.threads = items
-        self.threads_refreshing = False
+            self.threads = items
+            self.threads_refreshing = False
 
 
 def jims_thread_list_page() -> rx.Component:
@@ -480,7 +565,11 @@ def jims_thread_list_page() -> rx.Component:
                             scrollbars="vertical",
                         ),
                         rx.hstack(
-                            rx.button("Apply", on_click=ThreadListState.get_data, size="1"),
+                            rx.button(
+                                "Apply",
+                                on_click=[ThreadListState.reset_pagination, ThreadListState.get_data],
+                                size="1",
+                            ),
                             rx.button(
                                 "Clear",
                                 variant="soft",
@@ -531,7 +620,7 @@ def jims_thread_list_page() -> rx.Component:
             ),
         ),
         rx.hstack(
-            rx.button("Search", on_click=ThreadListState.get_data),
+            rx.button("Search", on_click=[ThreadListState.reset_pagination, ThreadListState.get_data]),
             rx.button(
                 "Clear",
                 variant="soft",
@@ -589,6 +678,35 @@ def jims_thread_list_page() -> rx.Component:
                 ),
             ),
         ),
+    )
+
+    pagination_controls = rx.hstack(
+        rx.text(ThreadListState.rows_display, size="2", color="gray"),
+        rx.spacer(),
+        rx.hstack(
+            rx.button("⏮", variant="soft", size="1", on_click=ThreadListState.first_page, disabled=~ThreadListState.has_prev_page),  # type: ignore[operator]
+            rx.button(
+                "← Prev",
+                variant="soft",
+                size="1",
+                on_click=ThreadListState.prev_page,
+                disabled=~ThreadListState.has_prev_page,
+            ),  # type: ignore[operator]
+            rx.text(ThreadListState.page_display, size="2", style={"minWidth": "110px", "textAlign": "center"}),
+            rx.button(
+                "Next →",
+                variant="soft",
+                size="1",
+                on_click=ThreadListState.next_page,
+                disabled=~ThreadListState.has_next_page,
+            ),  # type: ignore[operator]
+            rx.button("⏭", variant="soft", size="1", on_click=ThreadListState.last_page, disabled=~ThreadListState.has_next_page),  # type: ignore[operator]
+            spacing="2",
+            align="center",
+        ),
+        width="100%",
+        align="center",
+        padding_top="0.5em",
     )
 
     def _render_event_as_msg(ev):  # type: ignore[valid-type]
@@ -824,15 +942,21 @@ def jims_thread_list_page() -> rx.Component:
 
     # Left panel (thread list with its own scroll)
     left_panel = rx.box(
-        rx.cond(
-            ThreadListState.threads_refreshing,
-            rx.center("Loading threads..."),
-            rx.scroll_area(
-                table,
-                type="always",
-                scrollbars="vertical",
-                style={"height": "100%"},
+        rx.vstack(
+            rx.cond(
+                ThreadListState.threads_refreshing,
+                rx.center("Loading threads..."),
+                rx.scroll_area(
+                    table,
+                    type="always",
+                    scrollbars="vertical",
+                    style={"height": "100%"},
+                ),
             ),
+            pagination_controls,
+            width="100%",
+            spacing="2",
+            height="100%",
         ),
         flex="1",
         min_height="0",
