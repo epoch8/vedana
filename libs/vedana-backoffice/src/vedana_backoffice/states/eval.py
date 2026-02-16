@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 
-from vedana_backoffice.states.common import get_vedana_app, load_openrouter_models
+from vedana_backoffice.states.common import get_vedana_app, load_openrouter_models, HAS_OPENROUTER_KEY
 from vedana_backoffice.util import safe_render_value
 
 
@@ -185,7 +185,7 @@ class EvalState(rx.State):
     embeddings_model: str = core_settings.embeddings_model
     embeddings_dim: int = core_settings.embeddings_dim
     custom_openrouter_key: str = ""
-    default_openrouter_key_present: bool = bool(os.environ.get("OPENROUTER_API_KEY"))
+    default_openrouter_key_present: bool = HAS_OPENROUTER_KEY
     enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
     _default_models: tuple[str, ...] = (
         "gpt-5.1-chat-latest",
