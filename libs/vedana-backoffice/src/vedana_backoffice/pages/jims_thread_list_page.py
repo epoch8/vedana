@@ -384,7 +384,7 @@ class ThreadListState(rx.State):
                     self.current_page = max_page
                 offset_rows = self.current_page * self.page_size
                 page_stmt = base_stmt.limit(self.page_size).offset(offset_rows)
-                rows_for_page = (await session.execute(page_stmt)).all()
+                rows_for_page = list((await session.execute(page_stmt)).all())
 
                 page_tids = [str(r.thread_id) for r in rows_for_page]
                 bo_rows: list[ThreadEventDB] = []
@@ -399,7 +399,7 @@ class ThreadListState(rx.State):
                         )
                         .order_by(ThreadEventDB.created_at.asc())
                     )
-                    bo_rows = (await session.execute(bo_stmt)).scalars().all()
+                    bo_rows = list((await session.execute(bo_stmt)).scalars().all())
                 review_status_by_tid, priority_by_tid, thread_tags_by_tid = _compute_backoffice_maps(page_tids, bo_rows)
                 self.total_threads = total_rows
             else:
@@ -412,13 +412,13 @@ class ThreadListState(rx.State):
 
                 while True:
                     chunk_stmt = base_stmt.limit(chunk_size).offset(scan_offset)
-                    chunk_rows = (await session.execute(chunk_stmt)).all()
+                    chunk_rows = list((await session.execute(chunk_stmt)).all())
                     if not chunk_rows:
                         break
                     scan_offset += len(chunk_rows)
 
                     chunk_tids = [str(r.thread_id) for r in chunk_rows]
-                    bo_rows: list[ThreadEventDB] = []
+                    chunk_bo_rows: list[ThreadEventDB] = []
                     if chunk_tids:
                         bo_stmt = (
                             sa.select(ThreadEventDB)
@@ -430,9 +430,9 @@ class ThreadListState(rx.State):
                             )
                             .order_by(ThreadEventDB.created_at.asc())
                         )
-                        bo_rows = (await session.execute(bo_stmt)).scalars().all()
+                        chunk_bo_rows = list((await session.execute(bo_stmt)).scalars().all())
                     chunk_review_by_tid, chunk_priority_by_tid, chunk_tags_by_tid = _compute_backoffice_maps(
-                        chunk_tids, bo_rows
+                        chunk_tids, chunk_bo_rows
                     )
 
                     for row in chunk_rows:

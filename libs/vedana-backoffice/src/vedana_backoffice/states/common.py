@@ -46,18 +46,18 @@ def _filter_chat_capable_models(models: Iterable[dict]) -> list[str]:
 
 
 @alru_cache
-async def load_openrouter_models() -> tuple[str, ...]:
+async def load_openrouter_models() -> list[str]:
     if not DEBUG_MODE:
-        return ()
+        return []
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(f"{llm_settings.openrouter_api_base_url}/models")
             resp.raise_for_status()
             models = resp.json().get("data", [])
-            return tuple(sorted(_filter_chat_capable_models(models)))
+            return sorted(_filter_chat_capable_models(models))
     except Exception as exc:
         logging.warning(f"Failed to fetch OpenRouter models: {exc}")
-        return ()
+        return []
 
 
 async def get_vedana_app():
