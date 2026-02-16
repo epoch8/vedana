@@ -103,6 +103,7 @@ class ThreadListState(rx.State):
         self.sort_reverse = True
         self.review_filter = "Review: All"
         self.sort_by = "Sort by: Date"
+        self.selected_tags = []
         self.current_page = 0
         return None
 
@@ -565,10 +566,12 @@ def jims_thread_list_page() -> rx.Component:
                             scrollbars="vertical",
                         ),
                         rx.hstack(
-                            rx.button(
-                                "Apply",
-                                on_click=[ThreadListState.reset_pagination, ThreadListState.get_data],
-                                size="1",
+                            rx.dialog.close(
+                                rx.button(
+                                    "Apply",
+                                    on_click=[ThreadListState.reset_pagination, ThreadListState.get_data],
+                                    size="1",
+                                )
                             ),
                             rx.button(
                                 "Clear",
