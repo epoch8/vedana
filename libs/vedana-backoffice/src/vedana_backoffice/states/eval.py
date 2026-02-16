@@ -1570,7 +1570,7 @@ class EvalState(rx.State):
         """Pack metadata into thread_config so runs are traceable in JIMS."""
         resolved_model = self._resolved_pipeline_model()
         return {
-            "interface": "reflex-eval",
+            "interface": "eval",
             "source": "eval",
             "test_run": test_run_id,
             "test_run_name": test_run_name,
