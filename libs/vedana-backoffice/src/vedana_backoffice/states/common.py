@@ -1,10 +1,14 @@
 import asyncio
+from async_lru import alru_cache
 import io
 import logging
 import os
+from typing import Iterable
 
+import httpx
 import reflex as rx
 import requests
+from jims_core.llms.llm_provider import env_settings as llm_settings
 from vedana_core.app import VedanaApp, make_vedana_app
 
 vedana_app: VedanaApp | None = None
@@ -17,6 +21,43 @@ DEBUG_MODE = (os.environ.get("VEDANA_BACKOFFICE_DEBUG", "").lower() in ("true", 
               or os.environ.get("DEBUG", "").lower() in ("true", "1"))
 HAS_OPENAI_KEY = bool(os.environ.get("OPENAI_API_KEY"))
 HAS_OPENROUTER_KEY = bool(os.environ.get("OPENROUTER_API_KEY"))
+
+
+def _filter_chat_capable_models(models: Iterable[dict]) -> list[str]:
+    """Filter models that support text chat with tool calls."""
+    result: list[str] = []
+    for m in models:
+        model_id = str(m.get("id", "")).strip()
+        if not model_id:
+            continue
+
+        architecture = m.get("architecture", {})
+        has_chat = bool(
+            architecture
+            and "text" in architecture.get("input_modalities", [])
+            and "text" in architecture.get("output_modalities", [])
+        )
+        has_tools = "tools" in m.get("supported_parameters", [])
+
+        if has_chat and has_tools:
+            result.append(model_id)
+
+    return result
+
+
+@alru_cache
+async def load_openrouter_models() -> tuple[str, ...]:
+    if not DEBUG_MODE:
+        return ()
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(f"{llm_settings.openrouter_api_base_url}/models")
+            resp.raise_for_status()
+            models = resp.json().get("data", [])
+            return tuple(sorted(_filter_chat_capable_models(models)))
+    except Exception as exc:
+        logging.warning(f"Failed to fetch OpenRouter models: {exc}")
+        return ()
 
 
 async def get_vedana_app():

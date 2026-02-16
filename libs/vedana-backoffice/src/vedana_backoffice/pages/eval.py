@@ -222,46 +222,50 @@ def _pipeline_card() -> rx.Component:
                 ),
                 rx.box(
                     rx.text("Pipeline model", weight="medium", width="100%"),
-                    rx.hstack(
-                        rx.select(
-                            items=["openai", "openrouter"],
-                            value=EvalState.provider,
-                            on_change=EvalState.set_provider,
-                            width="100%",
-                            placeholder="Provider",
-                        ),
-                        rx.cond(
-                            EvalState.provider == "openrouter",
-                            rx.input(
-                                placeholder=rx.cond(
-                                    EvalState.default_openrouter_key_present,
-                                    "(Optional) custom OPENROUTER_API_KEY",
-                                    "(Required) OPENROUTER_API_KEY",
-                                ),
-                                type="password",
-                                value=EvalState.custom_openrouter_key,
-                                on_change=EvalState.set_custom_openrouter_key,
+                    rx.cond(
+                        ChatState.model_selection_allowed,
+                        rx.hstack(
+                            rx.select(
+                                items=["openai", "openrouter"],
+                                value=EvalState.provider,
+                                on_change=EvalState.set_provider,
                                 width="100%",
-                                required=rx.cond(EvalState.default_openrouter_key_present, False, True),
+                                placeholder="Provider",
                             ),
-                        ),
-                        rx.select(
-                            items=EvalState.available_models_view,
-                            value=EvalState.pipeline_model,
-                            on_change=EvalState.set_pipeline_model,
+                            rx.cond(
+                                EvalState.provider == "openrouter",
+                                rx.input(
+                                    placeholder=rx.cond(
+                                        EvalState.default_openrouter_key_present,
+                                        "(Optional) custom OPENROUTER_API_KEY",
+                                        "(Required) OPENROUTER_API_KEY",
+                                    ),
+                                    type="password",
+                                    value=EvalState.custom_openrouter_key,
+                                    on_change=EvalState.set_custom_openrouter_key,
+                                    width="100%",
+                                    required=rx.cond(EvalState.default_openrouter_key_present, False, True),
+                                ),
+                            ),
+                            rx.select(
+                                items=EvalState.available_models_view,
+                                value=EvalState.pipeline_model,
+                                on_change=EvalState.set_pipeline_model,
+                                width="100%",
+                                placeholder="Select model",
+                            ),
+                            rx.checkbox(
+                                "Filter Data Model",
+                                checked=EvalState.enable_dm_filtering,
+                                on_change=EvalState.set_enable_dm_filtering,
+                                size="2",
+                            ),
+                            spacing="2",
+                            align="center",
+                            wrap="wrap",
                             width="100%",
-                            placeholder="Select model",
                         ),
-                        rx.checkbox(
-                            "Filter Data Model",
-                            checked=EvalState.enable_dm_filtering,
-                            on_change=EvalState.set_enable_dm_filtering,
-                            size="2",
-                        ),
-                        spacing="2",
-                        align="center",
-                        wrap="wrap",
-                        width="100%",
+                        rx.badge(EvalState.pipeline_model, variant="surface", color_scheme="gray", size="3")
                     ),
                     padding_bottom="0.75em",
                     width="100%",

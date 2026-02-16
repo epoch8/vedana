@@ -1,6 +1,5 @@
 import reflex as rx
 
-from vedana_core.settings import settings as core_settings
 from vedana_backoffice.components.ui_chat import render_message_bubble
 from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.ui import app_header
@@ -177,7 +176,7 @@ def page() -> rx.Component:
                                     placeholder="Select model",
                                 ),
                             ),
-                            rx.badge(core_settings.model, variant="surface", color_scheme="gray", size="3"),
+                            rx.badge(ChatState.model, variant="surface", color_scheme="gray", size="3"),
                         ),
                         rx.button("Send", type="submit", loading=ChatState.is_running),
                         spacing="2",
