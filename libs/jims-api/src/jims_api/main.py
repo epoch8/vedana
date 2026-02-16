@@ -72,7 +72,7 @@ def create_api(jims_app: JimsApp, api_key: str | None) -> FastAPI:
     app = FastAPI(title="JIMS API", version="0.1.0")
     require_auth = _auth_dependency(api_key)
 
-    @app.get("/health")
+    @app.get("/healthz")
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
