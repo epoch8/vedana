@@ -1,89 +1,22 @@
 import asyncio
 import logging
 import os
-import threading
 import traceback
 from datetime import datetime
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Dict, Tuple
 from uuid import UUID, uuid4
 
 import orjson as json
 import reflex as rx
-import requests
 from datapipe.compute import Catalog, run_pipeline
-from jims_core.llms.llm_provider import env_settings as llm_settings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.pipeline import get_data_model_pipeline
 
-from vedana_backoffice.states.common import MemLogger, get_vedana_app, DEBUG_MODE
+from vedana_backoffice.states.common import MemLogger, get_vedana_app, load_openrouter_models, DEBUG_MODE
 from vedana_backoffice.states.jims import ThreadViewState
-
-# Global cache for OpenRouter models, populated at startup
-OPENROUTER_MODELS_CACHE: list[str] = []
-_openrouter_models_lock = threading.Lock()
-_openrouter_models_loaded = threading.Event()
-
-
-def _filter_chat_capable_models(models: Iterable[dict]) -> list[str]:
-    """Filter models that support text chat with tool calls."""
-    result: list[str] = []
-    for m in models:
-        model_id = str(m.get("id", "")).strip()
-        if not model_id:
-            continue
-
-        has_chat = False
-        architecture = m.get("architecture", {})
-        if architecture:
-            if "text" in architecture.get("input_modalities", []) and "text" in architecture.get(
-                "output_modalities", []
-            ):
-                has_chat = True
-
-        has_tools = False  # only accept models with tool calls
-        if "tools" in m.get("supported_parameters", []):
-            has_tools = True
-
-        if has_chat and has_tools:
-            result.append(model_id)
-
-    return result
-
-
-def _fetch_openrouter_models_sync() -> list[str]:
-    """Fetch OpenRouter models synchronously. Used for startup loading."""
-    try:
-        resp = requests.get(
-            f"{llm_settings.openrouter_api_base_url}/models",
-            timeout=15,
-        )
-        resp.raise_for_status()
-        payload = resp.json()
-        models = payload.get("data", [])
-        parsed = _filter_chat_capable_models(models)
-    except Exception as exc:
-        logging.warning(f"Failed to fetch OpenRouter models at startup: {exc}")
-        parsed = []
-    return sorted(list(parsed))
-
-
-def _load_openrouter_models_background():
-    """Background thread function to load OpenRouter models at startup."""
-    global OPENROUTER_MODELS_CACHE
-    models = _fetch_openrouter_models_sync()
-    with _openrouter_models_lock:
-        if models:
-            OPENROUTER_MODELS_CACHE = models
-        _openrouter_models_loaded.set()
-        logging.info(f"OpenRouter models loaded at startup: {len(OPENROUTER_MODELS_CACHE)} models")
-
-
-# Start loading OpenRouter models in background immediately on module import
-_startup_thread = threading.Thread(target=_load_openrouter_models_background, daemon=True)
-_startup_thread.start()
 
 
 class ChatState(rx.State):
@@ -120,11 +53,10 @@ class ChatState(rx.State):
     model_selection_allowed: bool = DEBUG_MODE
     enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
 
-    def mount(self):
-        """Load models from startup cache."""
-        with _openrouter_models_lock:
-            self.openrouter_models = list(OPENROUTER_MODELS_CACHE)
-            self.openrouter_models_loaded = _openrouter_models_loaded.is_set()
+    async def mount(self):
+        """Load OpenRouter models (fetches on first call, cached thereafter)."""
+        self.openrouter_models = await load_openrouter_models()
+        self.openrouter_models_loaded = True
         self._sync_available_models()
 
     def set_input(self, value: str) -> None:

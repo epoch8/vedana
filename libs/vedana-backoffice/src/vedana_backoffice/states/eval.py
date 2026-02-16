@@ -12,19 +12,17 @@ from typing import Any, TypedDict, cast
 from uuid import UUID
 
 import reflex as rx
-import requests
 import sqlalchemy as sa
 from datapipe.compute import run_steps
 from jims_core.db import ThreadDB, ThreadEventDB
 from jims_core.llms.llm_provider import LLMProvider
-from jims_core.llms.llm_provider import env_settings as llm_settings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from pydantic import BaseModel, Field
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 
-from vedana_backoffice.states.common import get_vedana_app
+from vedana_backoffice.states.common import get_vedana_app, load_openrouter_models, HAS_OPENROUTER_KEY
 from vedana_backoffice.util import safe_render_value
 
 
@@ -187,7 +185,7 @@ class EvalState(rx.State):
     embeddings_model: str = core_settings.embeddings_model
     embeddings_dim: int = core_settings.embeddings_dim
     custom_openrouter_key: str = ""
-    default_openrouter_key_present: bool = bool(os.environ.get("OPENROUTER_API_KEY"))
+    default_openrouter_key_present: bool = HAS_OPENROUTER_KEY
     enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
     _default_models: tuple[str, ...] = (
         "gpt-5.1-chat-latest",
@@ -435,10 +433,10 @@ class EvalState(rx.State):
     def set_enable_dm_filtering(self, value: bool) -> None:
         self.enable_dm_filtering = value
 
-    def set_provider(self, value: str) -> None:
+    async def set_provider(self, value: str) -> None:
         self.provider = str(value or "openai")
         if self.provider == "openrouter" and not self.openrouter_models:
-            self.fetch_openrouter_models()
+            self.openrouter_models = await load_openrouter_models()
         self._sync_available_models()
 
     def set_compare_run_a(self, value: str) -> None:
@@ -454,43 +452,6 @@ class EvalState(rx.State):
         # Validate against all rows (not filtered) to keep selections valid across filter changes
         valid = {str(row.get("id")) for row in self.eval_gds_rows if row.get("id")}
         self.selected_question_ids = [q for q in (self.selected_question_ids or []) if q in valid]
-
-    def _filter_chat_capable(self, models: list[dict[str, Any]]) -> list[str]:
-        result: list[str] = []
-        for m in models:
-            model_id = str(m.get("id", "")).strip()
-            if not model_id:
-                continue
-
-            architecture = m.get("architecture", {}) or {}
-            has_chat = False
-            if "text" in architecture.get("input_modalities", []) and "text" in architecture.get(
-                "output_modalities", []
-            ):
-                has_chat = True
-
-            has_tools = "tools" in (m.get("supported_parameters") or [])
-
-            if has_chat and has_tools:
-                result.append(model_id)
-
-        return result
-
-    def fetch_openrouter_models(self) -> None:
-        try:
-            resp = requests.get(
-                f"{llm_settings.openrouter_api_base_url}/models",
-                # headers={"Authorization": f"Bearer {openrouter_api_key}"},  # actually works without a token as well
-                timeout=10,
-            )
-            resp.raise_for_status()
-            payload = resp.json()
-            models = payload.get("data", [])
-            parsed = self._filter_chat_capable(models)
-        except Exception as exc:  # pragma: no cover - best effort
-            logging.warning(f"Failed to fetch OpenRouter models: {exc}")
-            parsed = []
-        self.openrouter_models = sorted(list(parsed))
 
     def _sync_available_models(self) -> None:
         if self.provider == "openrouter":
@@ -1609,7 +1570,7 @@ class EvalState(rx.State):
         """Pack metadata into thread_config so runs are traceable in JIMS."""
         resolved_model = self._resolved_pipeline_model()
         return {
-            "interface": "reflex-eval",
+            "interface": "eval",
             "source": "eval",
             "test_run": test_run_id,
             "test_run_name": test_run_name,
@@ -1924,7 +1885,7 @@ class EvalState(rx.State):
     async def load_eval_data_background(self):
         try:
             async with self:
-                await asyncio.to_thread(self.fetch_openrouter_models)
+                self.openrouter_models = await load_openrouter_models()
                 self._sync_available_models()
                 await self._load_eval_questions()
                 self.tests_page_size = max(1, len(self.eval_gds_rows) * 2)
