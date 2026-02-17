@@ -971,8 +971,22 @@ def jims_thread_list_page() -> rx.Component:
         ThreadViewState.selected_thread_id == "",
         rx.center(rx.text("Select a thread to view conversation"), style={"height": "100%"}),
         rx.box(
-            rx.scroll_area(
+            rx.auto_scroll(
                 rx.vstack(
+                    rx.cond(
+                        ThreadViewState.has_more_history,
+                        rx.center(
+                            rx.button(
+                                "Load more",
+                                variant="soft",
+                                size="1",
+                                on_click=ThreadViewState.load_more_history,
+                            ),
+                            width="100%",
+                            padding_top="0.5em",
+                        ),
+                        rx.box(),
+                    ),
                     rx.foreach(ThreadViewState.events, _render_event_as_msg),
                     spacing="3",
                     width="100%",
@@ -982,12 +996,11 @@ def jims_thread_list_page() -> rx.Component:
                         "overflowX": "hidden",
                     },
                 ),
-                type="always",
-                scrollbars="vertical",
                 style={
                     "height": "100%",
                     "maxWidth": "100%",
                     "overflowX": "hidden",
+                    "overflowY": "auto",
                 },
             ),
             flex="1",
