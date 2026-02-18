@@ -1,6 +1,5 @@
 from logging.config import fileConfig
 
-import config_plane.impl.sql
 import jims_core.db
 import vedana_core.db
 from alembic import context
