@@ -399,10 +399,15 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
                 }
             )
 
-    edges_df = pd.DataFrame(edge_records)
-    edges_df = edges_df.loc[
-        (edges_df["from_node_id"].isin(nodes_df["node_id"]) & edges_df["to_node_id"].isin(nodes_df["node_id"]))
-    ]
+    if edge_records:
+        edges_df = pd.DataFrame(edge_records)
+        edges_df = edges_df.loc[
+            (edges_df["from_node_id"].isin(nodes_df["node_id"]) & edges_df["to_node_id"].isin(nodes_df["node_id"]))
+        ]
+    else:
+        edges_df = pd.DataFrame(
+            columns=["from_node_id", "to_node_id", "from_node_type", "to_node_type", "edge_label", "attributes"]
+        )
 
     edges_df = pd.concat([edges_df, fk_df], ignore_index=True)
 
@@ -664,7 +669,7 @@ def get_eval_gds_from_grist() -> Iterator[pd.DataFrame]:
         raise e
 
     gds_df = gds_df.dropna(subset=["gds_question", "gds_answer"]).copy()
-    gds_df = gds_df.loc[(gds_df["gds_question"] != "") & (gds_df["gds_answer"] != "")]
+    gds_df = gds_df.loc[(gds_df["gds_question"] != "") & (gds_df["gds_answer"] != "")].fillna("")
     gds_df = gds_df[["gds_question", "gds_answer", "question_scenario", "question_comment", "question_context"]].astype(
         {"gds_question": str, "gds_answer": str, "question_scenario": str, "question_comment": str}
     )

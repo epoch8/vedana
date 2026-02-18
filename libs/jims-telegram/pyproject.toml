@@ -15,7 +15,7 @@ dependencies = [
     "pydantic>=2.4.1",
     "pydantic-settings>=2.8.1",
     "click>=8.0",
-    "jims-core",
+    "jims-core>=0.5.1",
 ]
 
 [dependency-groups]

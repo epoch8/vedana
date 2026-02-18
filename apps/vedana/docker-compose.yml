@@ -22,9 +22,9 @@ services:
   app:
     <<: *app-common
     ports:
-      - "3002:3000"
+      - "9000:9000"
       - "8000:8000"
-    command: uv run reflex run
+    command: vedana-backoffice-with-caddy
     depends_on:
       db-migrate:
         condition: service_completed_successfully
@@ -43,6 +43,19 @@ services:
 #       condition: service_started
 #     db:
 #       condition: service_healthy
+
+  api:
+    <<: *app-common
+    ports:
+      - "8080:8080"
+    command: uv run python -m jims_api.main --app vedana_core.app:app --host 0.0.0.0 --port 8080
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      memgraph:
+        condition: service_started
+      db:
+        condition: service_healthy
 
   memgraph:
     image: memgraph/memgraph-mage

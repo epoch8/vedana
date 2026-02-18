@@ -15,7 +15,7 @@ from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from vedana_core.settings import settings as core_settings
 
-from vedana_backoffice.states.common import MemLogger, get_vedana_app
+from vedana_backoffice.states.common import MemLogger, get_vedana_app, load_openrouter_models, DEBUG_MODE
 from vedana_backoffice.states.jims import ThreadViewState
 
 # Global cache for OpenRouter models, populated at startup
@@ -115,6 +115,7 @@ class ChatState(rx.State):
     openrouter_models: list[str] = []
     openrouter_models_loaded: bool = False
     available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
+    model_selection_allowed: bool = DEBUG_MODE
     enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
     data_model_branch: str = core_settings.config_plane_dev_branch
     data_model_snapshot_input: str = ""

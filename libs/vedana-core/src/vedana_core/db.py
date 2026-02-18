@@ -11,6 +11,7 @@ class DbSettings(BaseSettings):
 
     config_plane_db_conn_uri: str = "postgresql://postgres:postgres@localhost:5432"
     jims_db_conn_uri: str = "postgresql://postgres:postgres@localhost:5432"
+    db_conn_uri: str = "postgresql://postgres:postgres@localhost:5432"
 
 
 db_settings = DbSettings()  # type: ignore

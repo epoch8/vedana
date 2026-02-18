@@ -342,12 +342,24 @@ def _table_preview_dialog() -> rx.Component:
 
 
 def page() -> rx.Component:
-    return rx.vstack(
+    return rx.flex(
         app_header(),
-        _pipeline_tabs(),
-        _table_preview_dialog(),
-        align="start",
-        spacing="1",
-        padding="1em",
+        rx.box(
+            rx.vstack(
+                _pipeline_tabs(),
+                _table_preview_dialog(),
+                align="start",
+                spacing="1",
+                width="100%",
+            ),
+            flex="1",
+            min_height="0",
+            overflow="auto",
+            padding="1em",
+            width="100%",
+        ),
+        direction="column",
+        height="100vh",
+        overflow="hidden",
         width="100%",
     )
