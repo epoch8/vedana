@@ -15,7 +15,7 @@ from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from vedana_core.settings import settings as core_settings
 
-from vedana_backoffice.states.common import MemLogger, get_vedana_app, load_openrouter_models, DEBUG_MODE
+from vedana_backoffice.states.common import MemLogger, get_vedana_app, DEBUG_MODE
 from vedana_backoffice.states.jims import ThreadViewState
 
 # Global cache for OpenRouter models, populated at startup
