@@ -167,6 +167,15 @@ configurable via environment variables for production and in backoffice UI for t
 | `EMBEDDINGS_MODEL` | Text embeddings generation                                            |
 | `EMBEDDINGS_DIM`   | Embedding dimensions                                                  |
 
+### Database
+
+| Variable                    | Default                               |
+| --------------------------- | ------------------------------------- |
+| `JIMS_DB_CONN_URI`          | PostgreSQL connection URI             |
+| `JIMS_DB_USE_NULL_POOL`     | Disable connection pooling            |
+| `JIMS_DB_POOL_SIZE`         | Max connections kept in the pool      |
+| `JIMS_DB_POOL_MAX_OVERFLOW` | Max extra connections above pool_size |
+
 ## Observability
 
 - **OpenTelemetry** tracing for pipeline execution

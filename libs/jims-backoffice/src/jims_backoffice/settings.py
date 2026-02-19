@@ -5,6 +5,9 @@ class DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="JIMS_", extra="ignore", env_file=".env")
 
     db_conn_uri: str
+    db_use_null_pool: bool = False
+    db_pool_size: int | None = None
+    db_pool_max_overflow: int | None = None
 
     @property
     def dsn(self) -> str:
