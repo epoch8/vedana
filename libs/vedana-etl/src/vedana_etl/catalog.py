@@ -174,30 +174,6 @@ memgraph_link_indexes = Table(
     ),
 )
 
-memgraph_anchor_vector_indexes = Table(
-    name="memgraph_anchor_vector_indexes",
-    store=TableStoreDB(
-        dbconn=DBCONN_DATAPIPE,
-        name="memgraph_anchor_vector_indexes",
-        data_sql_schema=[
-            Column("anchor", String, primary_key=True),
-            Column("attribute_name", String, primary_key=True),
-        ],
-    ),
-)
-
-memgraph_link_vector_indexes = Table(
-    name="memgraph_link_vector_indexes",
-    store=TableStoreDB(
-        dbconn=DBCONN_DATAPIPE,
-        name="memgraph_link_vector_indexes",
-        data_sql_schema=[
-            Column("link", String, primary_key=True),
-            Column("attribute_name", String, primary_key=True),
-        ],
-    ),
-)
-
 memgraph_nodes = Table(
     name="memgraph_nodes",
     store=Neo4JStore(

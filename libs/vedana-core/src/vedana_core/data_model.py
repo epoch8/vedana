@@ -181,7 +181,7 @@ class DataModel:
                     anchor_from = anchors_dict.get(row.anchor1)
                     anchor_to = anchors_dict.get(row.anchor2)
                     if anchor_from is None or anchor_to is None:
-                        logger.error(f'Link {sentence} has invalid connection "{row.anchor1} - {row.anchor2}"')
+                        logger.warning(f'Link {sentence} has invalid connection "{row.anchor1} - {row.anchor2}"')
                         continue
 
                     links[sentence] = Link(

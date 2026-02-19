@@ -214,13 +214,11 @@ class RagPipeline:
 
         # Add filtering info if applicable
         if self.enable_filtering:
-            dm_anchors = await self.data_model.get_anchors()
-            dm_links = await self.data_model.get_links()
-            dm_queries = await self.data_model.get_queries()
+            dm_json = await self.data_model.to_compact_json()
 
             # Count total attributes for original_counts
-            total_anchor_attrs = sum(len(anchor.attributes) for anchor in dm_anchors)
-            total_link_attrs = sum(len(link.attributes) for link in dm_links)
+            total_anchor_attrs = sum(len(anchor["attributes"]) for anchor in dm_json["anchors"])
+            total_link_attrs = sum(len(link["attributes"]) for link in dm_json["links"])
 
             dm_filtering = {
                 "filter_model": self.filter_model,
@@ -229,13 +227,13 @@ class RagPipeline:
                 "selected_links": filter_selection.link_sentences,
                 "selected_anchor_attributes": filter_selection.anchor_attribute_names,
                 "selected_link_attributes": filter_selection.link_attribute_names,
-                "selected_queries": [dm_queries[int(i)].name for i in filter_selection.query_ids],
+                "selected_queries": [dm_json["queries"].get(int(i)) for i in filter_selection.query_ids],
                 "original_counts": {
-                    "anchors": len(dm_anchors),
-                    "links": len(dm_links),
+                    "anchors": len(dm_json["anchors"]),
+                    "links": len(dm_json["links"]),
                     "anchor_attrs": total_anchor_attrs,
                     "link_attrs": total_link_attrs,
-                    "queries": len(dm_queries),
+                    "queries": len(dm_json["queries"]),
                 },
                 "filtered_counts": {
                     "anchors": len(filter_selection.anchor_nouns),
