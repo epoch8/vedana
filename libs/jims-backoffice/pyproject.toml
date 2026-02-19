@@ -15,7 +15,7 @@ dependencies = [
     "sqlalchemy>=2.0.41",
     "psycopg2-binary>=2.9.10",
     "uvicorn>=0.29.0",
-    "pydantic==2.9.2",
+    "pydantic>=2.9.2",
     "jims-core>=0.5.1",
     "python-multipart>=0.0.18",
     "asyncpg>=0.31.0",

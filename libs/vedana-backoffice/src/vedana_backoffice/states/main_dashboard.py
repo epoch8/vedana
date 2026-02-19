@@ -730,7 +730,7 @@ class DashboardState(rx.State):
 
         # Only display data columns; hide change_type and timestamps
         self.changes_preview_columns = [str(c) for c in display_cols]
-        records_any: list[dict] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
+        records_any: list[dict] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")  # type: ignore[call-overload]
 
         expanded_set = set(self.changes_preview_expanded_rows)
         styled: list[dict[str, Any]] = []
@@ -885,7 +885,7 @@ class DashboardState(rx.State):
                 display_cols = [kc, *display_cols]
 
         self.changes_preview_columns = [str(c) for c in display_cols]
-        records_any: list[dict] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records")
+        records_any: list[dict] = df.astype(object).where(pd.notna(df), None).to_dict(orient="records") # type: ignore[call-overload]
 
         # Build styled rows
         expanded_set = set(self.changes_preview_expanded_rows)

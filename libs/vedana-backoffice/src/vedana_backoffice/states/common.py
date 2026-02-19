@@ -13,7 +13,6 @@ from jims_core.llms.llm_provider import env_settings as llm_settings
 from vedana_core.app import VedanaApp, make_vedana_app
 
 vedana_app: VedanaApp | None = None
-
 TELEGRAM_BOT_INFO_CACHE: dict[str, str] | None = None
 TELEGRAM_BOT_INFO_REQUESTED: bool = False
 

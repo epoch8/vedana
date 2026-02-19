@@ -210,6 +210,7 @@ class RagPipeline:
             "num_cypher_queries": len(cypher_queries),
             "model_used": self.model,
             "model_stats": {m: asdict(u) for m, u in ctx.llm.usage.items()},
+            "dm_snapshot_id": self.data_model.get_snapshot_id(),
         }
 
         # Add filtering info if applicable
@@ -227,6 +228,7 @@ class RagPipeline:
                 "selected_links": filter_selection.link_sentences,
                 "selected_anchor_attributes": filter_selection.anchor_attribute_names,
                 "selected_link_attributes": filter_selection.link_attribute_names,
+                # in dm_json queries index starts from 1, so we adjust here.
                 "selected_queries": [dm_json["queries"].get(int(i)) for i in filter_selection.query_ids],
                 "original_counts": {
                     "anchors": len(dm_json["anchors"]),

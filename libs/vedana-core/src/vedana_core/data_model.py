@@ -1,20 +1,14 @@
-import logging
+import asyncio
+import json
 from dataclasses import dataclass
+from typing import Any, cast
 
+import pandas as pd
 import sqlalchemy.ext.asyncio as sa_aio
-from sqlalchemy import select
-from vedana_etl.catalog import (
-    dm_anchor_attributes,
-    dm_anchors,
-    dm_conversation_lifecycle,
-    dm_link_attributes,
-    dm_links,
-    dm_prompts,
-    dm_queries,
-)
 
-logger = logging.getLogger(__name__)
-
+from config_plane.impl.sql import create_sql_config_repo
+from vedana_core.db import get_config_plane_sessionmaker
+from vedana_core.settings import settings as core_settings
 
 @dataclass
 class Attribute:
@@ -72,176 +66,248 @@ class Prompt:
 
 class DataModel:
     """
-    DataModel, read from SQL tables at runtime
+    DataModel, loads from config-plane only.
     """
 
-    def __init__(self, sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession]) -> None:
+    def __init__(
+        self,
+        sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession],
+        config_plane_branch: str | None = None,
+    ) -> None:
         self.sessionmaker = sessionmaker
+        self.config_plane_branch = config_plane_branch or core_settings.config_plane_branch
+        self._config_snapshot_override: int | None = None
+        self._config_cache_snapshot_id: int | None = None
+        self._config_cache_payload: dict[str, Any] | None = None
+        self._config_cache_parsed: dict[str, Any] | None = None
+        self._config_repo = create_sql_config_repo(get_config_plane_sessionmaker(), branch=self.config_plane_branch)
 
     @classmethod
     def create(cls, sessionmaker) -> "DataModel":
         return cls(sessionmaker=sessionmaker)
 
-    async def get_anchors(self) -> list[Anchor]:
-        """Read anchors from dm_anchors table."""
-        # .data_table is TableStoreDB's attribute
-        anchors_table = dm_anchors.store.data_table  # type: ignore[attr-defined]
-        anchors_attr_table = dm_anchor_attributes.store.data_table  # type: ignore[attr-defined]
+    def set_branch(self, branch: str) -> None:
+        self.config_plane_branch = branch
+        self._config_repo.switch_branch(branch)
+        self._config_snapshot_override = None
+        self._config_cache_snapshot_id = None
+        self._config_cache_payload = None
+        self._config_cache_parsed = None
 
-        async with self.sessionmaker() as session:
-            join_query = select(
-                anchors_table.c.noun,
-                anchors_table.c.description.label("anchor_description"),
-                anchors_table.c.id_example,
-                anchors_table.c.query.label("anchor_query"),
-                anchors_attr_table.c.attribute_name,
-                anchors_attr_table.c.description.label("attr_description"),
-                anchors_attr_table.c.data_example,
-                anchors_attr_table.c.embeddable,
-                anchors_attr_table.c.query.label("attr_query"),
-                anchors_attr_table.c.dtype,
-                anchors_attr_table.c.embed_threshold,
-            ).select_from(
-                anchors_table.join(  # left join
-                    anchors_attr_table,
-                    anchors_table.c.noun == anchors_attr_table.c.anchor,
-                    isouter=True,
-                )
+    def set_snapshot_override(self, snapshot_id: int | None) -> None:
+        self._config_snapshot_override = snapshot_id
+        # self._config_repo.set_branch_snapshot_id(snapshot_id=snapshot_id, branch=self.config_plane_branch)
+        self._config_cache_snapshot_id = None
+        self._config_cache_payload = None
+        self._config_cache_parsed = None
+
+    def get_snapshot_id(self) -> int | None:
+        if self._config_snapshot_override is not None:
+            return self._config_snapshot_override
+        snapshot_id = self._config_repo.get_branch_snapshot_id(self.config_plane_branch)
+        if snapshot_id is None:
+            return None
+        try:
+            return int(snapshot_id)
+        except ValueError:
+            return None
+
+    async def _get_config_payload(self) -> dict[str, Any]:
+        snapshot_id = self._config_snapshot_override
+        if snapshot_id is None:
+            snapshot_id_str = await asyncio.to_thread(
+                self._config_repo.get_branch_snapshot_id, self.config_plane_branch
             )
-            result = (await session.execute(join_query)).fetchall()
+            if snapshot_id_str is not None:
+                try:
+                    snapshot_id = int(snapshot_id_str)
+                except ValueError:
+                    snapshot_id = None
+        if snapshot_id is None:
+            raise RuntimeError(f"No committed config-plane snapshot for branch '{self.config_plane_branch}'")
 
-            anchors = {}
-            for row in result:
-                noun = row.noun
-                if noun not in anchors:
-                    anchors[noun] = Anchor(
-                        noun=noun,
-                        description=row.anchor_description,
-                        id_example=row.id_example,
-                        query=row.anchor_query,
-                        attributes=[],
+        if (
+            self._config_cache_snapshot_id == snapshot_id
+            and self._config_cache_payload is not None
+        ):
+            return self._config_cache_payload
+
+        raw = await asyncio.to_thread(
+            self._config_repo.get, "vedana.data_model", snapshot_id=str(snapshot_id)
+        )
+        if raw is None:
+            exists = await asyncio.to_thread(
+                self._config_repo.snapshot_exists, str(snapshot_id)
+            )
+            if not exists:
+                raise RuntimeError(f"Data model snapshot ID {snapshot_id} does not exist")
+            raise RuntimeError(f"Data model snapshot ID {snapshot_id} is missing key 'vedana.data_model'")
+
+        payload = json.loads(raw.decode("utf-8"))
+        self._config_cache_snapshot_id = snapshot_id
+        self._config_cache_payload = payload
+        self._config_cache_parsed = None
+        return payload
+
+    async def _get_config_parsed(self) -> dict[str, Any]:
+        payload = await self._get_config_payload()
+
+        if self._config_cache_parsed is not None:
+            return self._config_cache_parsed
+
+        anchors: dict[str, Anchor] = {}
+        for a in payload.get("anchors", []) or []:
+            noun = str(a.get("noun", "")).strip()
+            if not noun:
+                continue
+            anchors[noun] = Anchor(
+                noun=noun,
+                description=str(a.get("description", "")),
+                id_example=str(a.get("id_example", "")),
+                query=str(a.get("query", "")),
+                attributes=[],
+            )
+
+        for a in payload.get("anchors", []) or []:
+            noun = str(a.get("noun", "")).strip()
+            if noun not in anchors:
+                continue
+            for attr in a.get("attributes", []) or []:
+                anchors[noun].attributes.append(
+                    Attribute(
+                        name=str(attr.get("attribute_name", "")),
+                        description=str(attr.get("description", "")),
+                        example=str(attr.get("data_example", "")),
+                        dtype=str(attr.get("dtype", "")),
+                        query=str(attr.get("query", "")),
+                        embeddable=bool(attr.get("embeddable", False)),
+                        embed_threshold=float(attr.get("embed_threshold", 1.0)),
                     )
+                )
 
-                # Add attribute if it exists (attribute_name will be None for anchors without attributes)
-                if row.attribute_name is not None:
-                    anchors[noun].attributes.append(
-                        Attribute(
-                            name=row.attribute_name,
-                            description=row.attr_description if row.attr_description else "",
-                            example=row.data_example if row.data_example else "",
-                            embeddable=row.embeddable if row.embeddable is not None else False,
-                            query=row.attr_query if row.attr_query else "",
-                            dtype=row.dtype if row.dtype else "",
-                            embed_threshold=row.embed_threshold if row.embed_threshold is not None else 1.0,
-                        )
+        links: dict[str, Link] = {}
+        for li in payload.get("links", []) or []:
+            sentence = str(li.get("sentence", "")).strip()
+            if not sentence:
+                continue
+            anchor_from = anchors.get(str(li.get("anchor1", "")).strip())
+            anchor_to = anchors.get(str(li.get("anchor2", "")).strip())
+            if anchor_from is None or anchor_to is None:
+                continue
+            links[sentence] = Link(
+                anchor_from=anchor_from,
+                anchor_to=anchor_to,
+                sentence=sentence,
+                description=str(li.get("description", "")),
+                query=str(li.get("query", "")),
+                attributes=[],
+                has_direction=bool(li.get("has_direction", False)),
+                anchor_from_link_attr_name=str(li.get("anchor1_link_column_name", "")),
+                anchor_to_link_attr_name=str(li.get("anchor2_link_column_name", "")),
+            )
+
+        for li in payload.get("links", []) or []:
+            sentence = str(li.get("sentence", "")).strip()
+            if sentence not in links:
+                continue
+            for attr in li.get("attributes", []) or []:
+                links[sentence].attributes.append(
+                    Attribute(
+                        name=str(attr.get("attribute_name", "")),
+                        description=str(attr.get("description", "")),
+                        example=str(attr.get("data_example", "")),
+                        dtype=str(attr.get("dtype", "")),
+                        query=str(attr.get("query", "")),
+                        embeddable=bool(attr.get("embeddable", False)),
+                        embed_threshold=float(attr.get("embed_threshold", 1.0)),
                     )
+                )
 
-            return list(anchors.values())
+        queries = [
+            Query(name=str(q.get("name", "")), example=str(q.get("example", "")))
+            for q in (payload.get("queries", []) or [])
+            if str(q.get("name", "")).strip()
+        ]
+
+        prompts = [
+            Prompt(name=str(p.get("name", "")), text=str(p.get("text", "")))
+            for p in (payload.get("prompts", []) or [])
+            if str(p.get("name", "")).strip()
+        ]
+
+        lifecycle = [
+            ConversationLifecycleEvent(event=str(e.get("event", "")), text=str(e.get("text", "")))
+            for e in (payload.get("conversation_lifecycle", []) or [])
+            if str(e.get("event", "")).strip()
+        ]
+
+        self._config_cache_parsed = {
+            "anchors": list(anchors.values()),
+            "links": list(links.values()),
+            "queries": queries,
+            "prompts": prompts,
+            "conversation_lifecycle": lifecycle,
+        }
+        return self._config_cache_parsed
+
+    def update_from_grist(self, branch: str | None = None) -> int | None:
+        payload = _build_payload_from_grist()
+        blob = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        target_branch = branch or core_settings.config_plane_dev_branch
+        current_branch = self.config_plane_branch
+        if target_branch != current_branch:
+            self._config_repo.switch_branch(target_branch)
+        self._config_repo.set("vedana.data_model", blob)
+        self._config_repo.commit()
+        snapshot_id = self._config_repo.get_branch_snapshot_id(target_branch)
+        if target_branch != current_branch:
+            self._config_repo.switch_branch(current_branch)
+        return int(snapshot_id) if snapshot_id is not None else None
+
+    async def get_anchors(self) -> list[Anchor]:
+        parsed = await self._get_config_parsed()
+        return parsed["anchors"]
 
     async def get_links(self, anchors_dict: dict[str, Anchor] | None = None) -> list[Link]:
-        """Read links from dm_links table."""
-        links_table = dm_links.store.data_table  # type: ignore[attr-defined]
-        links_attr_table = dm_link_attributes.store.data_table  # type: ignore[attr-defined]
-
+        parsed = await self._get_config_parsed()
         if anchors_dict is None:
-            anchors = await self.get_anchors()
-            anchors_dict = {anchor.noun: anchor for anchor in anchors}
-
-        async with self.sessionmaker() as session:
-            join_query = select(
-                links_table.c.anchor1,
-                links_table.c.anchor2,
-                links_table.c.sentence,
-                links_table.c.description.label("link_description"),
-                links_table.c.query.label("link_query"),
-                links_table.c.anchor1_link_column_name,
-                links_table.c.anchor2_link_column_name,
-                links_table.c.has_direction,
-                links_attr_table.c.attribute_name,
-                links_attr_table.c.description.label("attr_description"),
-                links_attr_table.c.data_example,
-                links_attr_table.c.embeddable,
-                links_attr_table.c.query.label("attr_query"),
-                links_attr_table.c.dtype,
-                links_attr_table.c.embed_threshold,
-            ).select_from(
-                links_table.join(  # left join
-                    links_attr_table,
-                    links_table.c.sentence == links_attr_table.c.link,
-                    isouter=True,
+            return parsed["links"]
+        remapped: list[Link] = []
+        for link in parsed["links"]:
+            anchor_from = anchors_dict.get(link.anchor_from.noun)
+            anchor_to = anchors_dict.get(link.anchor_to.noun)
+            if anchor_from is None or anchor_to is None:
+                continue
+            remapped.append(
+                Link(
+                    anchor_from=anchor_from,
+                    anchor_to=anchor_to,
+                    sentence=link.sentence,
+                    description=link.description,
+                    query=link.query,
+                    attributes=link.attributes,
+                    has_direction=link.has_direction,
+                    anchor_from_link_attr_name=link.anchor_from_link_attr_name,
+                    anchor_to_link_attr_name=link.anchor_to_link_attr_name,
                 )
             )
-
-            result = (await session.execute(join_query)).fetchall()
-
-            links = {}
-            for row in result:
-                sentence = row.sentence
-                if sentence not in links:
-                    anchor_from = anchors_dict.get(row.anchor1)
-                    anchor_to = anchors_dict.get(row.anchor2)
-                    if anchor_from is None or anchor_to is None:
-                        logger.warning(f'Link {sentence} has invalid connection "{row.anchor1} - {row.anchor2}"')
-                        continue
-
-                    links[sentence] = Link(
-                        anchor_from=anchor_from,
-                        anchor_to=anchor_to,
-                        anchor_from_link_attr_name=row.anchor1_link_column_name,
-                        anchor_to_link_attr_name=row.anchor2_link_column_name,
-                        sentence=sentence,
-                        description=row.link_description,
-                        query=row.link_query,
-                        has_direction=bool(row.has_direction) if row.has_direction is not None else False,
-                        attributes=[],
-                    )
-
-                # Add attribute if it exists (attribute_name will be None for anchors without attributes)
-                if row.attribute_name is not None:
-                    links[sentence].attributes.append(
-                        Attribute(
-                            name=row.attribute_name,
-                            description=row.attr_description if row.attr_description else "",
-                            example=row.data_example if row.data_example else "",
-                            embeddable=row.embeddable if row.embeddable is not None else False,
-                            query=row.attr_query if row.attr_query else "",
-                            dtype=row.dtype if row.dtype else "",
-                            embed_threshold=row.embed_threshold if row.embed_threshold is not None else 1.0,
-                        )
-                    )
-
-            return list(links.values())
+        return remapped
 
     async def get_queries(self) -> list[Query]:
-        try:
-            queries_table = dm_queries.store.data_table  # type: ignore[attr-defined]
-            async with self.sessionmaker() as session:
-                result = (await session.execute(select(queries_table))).fetchall()
-                return [Query(name=row.query_name, example=row.query_example) for row in result]
-        except Exception:
-            return []
+        parsed = await self._get_config_parsed()  # todo simplify
+        return parsed["queries"]
 
     async def get_conversation_lifecycle_events(self) -> list[ConversationLifecycleEvent]:
-        try:
-            lifecycle_table = dm_conversation_lifecycle.store.data_table  # type: ignore[attr-defined]
-            async with self.sessionmaker() as session:
-                result = (await session.execute(select(lifecycle_table))).fetchall()
-                return [ConversationLifecycleEvent(event=row.event, text=row.text) for row in result]
-        except Exception:
-            return []
+        parsed = await self._get_config_parsed()  # todo simplify
+        return parsed["conversation_lifecycle"]
 
     async def conversation_lifecycle_events(self) -> dict[str, str]:
         cl = await self.get_conversation_lifecycle_events()
         return {c.event: c.text for c in cl}
 
     async def get_prompts(self) -> list[Prompt]:
-        try:
-            prompts_table = dm_prompts.store.data_table  # type: ignore[attr-defined]
-            async with self.sessionmaker() as session:
-                result = (await session.execute(select(prompts_table))).fetchall()
-                return [Prompt(name=row.name, text=row.text) for row in result]
-        except Exception:
-            return []
+        parsed = await self._get_config_parsed()  # todo simplify
+        return parsed["prompts"]
 
     async def prompt_templates(self) -> dict[str, str]:
         prompts = await self.get_prompts()
@@ -463,3 +529,181 @@ dm_compact_attr_descr_template = "- {anchor.noun}.{attr.name}: {attr.description
 dm_compact_link_descr_template = "- {link.sentence}: {link.description}"
 dm_compact_link_attr_descr_template = "- {link.sentence}.{attr.name}: {attr.description}"
 dm_compact_query_descr_template = "- {query.name}"
+
+
+def _build_payload_from_grist() -> dict[str, Any]:
+    from vedana_core.data_provider import GristCsvDataProvider  # todo mv
+
+    loader = GristCsvDataProvider(
+        doc_id=core_settings.grist_data_model_doc_id,
+        grist_server=core_settings.grist_server_url,
+        api_key=core_settings.grist_api_key,
+    )
+
+    links_df = cast(
+        pd.DataFrame,
+        loader.get_table("Links")[
+            [
+                "anchor1",
+                "anchor2",
+                "sentence",
+                "description",
+                "query",
+                "anchor1_link_column_name",
+                "anchor2_link_column_name",
+                "has_direction",
+            ]
+        ],
+    )
+    links_df["has_direction"] = links_df["has_direction"].astype(bool)
+    links_df = links_df.dropna(subset=["anchor1", "anchor2", "sentence"], inplace=False)
+
+    anchor_attrs_df = cast(
+        pd.DataFrame,
+        loader.get_table("Anchor_attributes")[
+            [
+                "anchor",
+                "attribute_name",
+                "description",
+                "data_example",
+                "embeddable",
+                "query",
+                "dtype",
+                "embed_threshold",
+            ]
+        ],
+    )
+    anchor_attrs_df["embeddable"] = anchor_attrs_df["embeddable"].astype(bool)
+    anchor_attrs_df["embed_threshold"] = anchor_attrs_df["embed_threshold"].astype(float)
+    anchor_attrs_df = anchor_attrs_df.dropna(subset=["anchor", "attribute_name"], how="any")
+
+    link_attrs_df = cast(
+        pd.DataFrame,
+        loader.get_table("Link_attributes")[
+            [
+                "link",
+                "attribute_name",
+                "description",
+                "data_example",
+                "embeddable",
+                "query",
+                "dtype",
+                "embed_threshold",
+            ]
+        ],
+    )
+    link_attrs_df["embeddable"] = link_attrs_df["embeddable"].astype(bool)
+    link_attrs_df["embed_threshold"] = link_attrs_df["embed_threshold"].astype(float)
+    link_attrs_df = link_attrs_df.dropna(subset=["link", "attribute_name"], how="any")
+
+    anchors_df = cast(
+        pd.DataFrame,
+        loader.get_table("Anchors")[
+            [
+                "noun",
+                "description",
+                "id_example",
+                "query",
+            ]
+        ],
+    )
+    anchors_df = anchors_df.dropna(subset=["noun"], inplace=False)
+    anchors_df = anchors_df.astype(str)
+
+    queries_df = cast(pd.DataFrame, loader.get_table("Queries")[["query_name", "query_example"]])
+    queries_df = queries_df.dropna().astype(str)
+
+    prompts_df = cast(pd.DataFrame, loader.get_table("Prompts")[["name", "text"]])
+    prompts_df = prompts_df.dropna().astype(str)
+
+    conversation_lifecycle_df = cast(
+        pd.DataFrame,
+        loader.get_table("ConversationLifecycle")[["event", "text"]],
+    )
+    conversation_lifecycle_df = conversation_lifecycle_df.dropna().astype(str)
+
+    anchors = anchors_df.astype(object).where(pd.notna(anchors_df), None).to_dict(orient="records")
+    anchor_attrs = anchor_attrs_df.astype(object).where(pd.notna(anchor_attrs_df), None).to_dict(orient="records")
+    links = links_df.astype(object).where(pd.notna(links_df), None).to_dict(orient="records")
+    link_attrs = link_attrs_df.astype(object).where(pd.notna(link_attrs_df), None).to_dict(orient="records")
+    queries = queries_df.astype(object).where(pd.notna(queries_df), None).to_dict(orient="records")
+    prompts = prompts_df.astype(object).where(pd.notna(prompts_df), None).to_dict(orient="records")
+    lifecycle = (
+        conversation_lifecycle_df.astype(object)
+        .where(pd.notna(conversation_lifecycle_df), None)
+        .to_dict(orient="records")
+    )
+
+    anchors_by: dict[str, dict[str, Any]] = {}
+    for a in anchors:
+        noun = str(a.get("noun", "")).strip()
+        if not noun:
+            continue
+        anchors_by[noun] = {
+            "noun": noun,
+            "description": a.get("description", ""),
+            "id_example": a.get("id_example", ""),
+            "query": a.get("query", ""),
+            "attributes": [],
+        }
+
+    for attr in anchor_attrs:
+        noun = str(attr.get("anchor", "")).strip()
+        if not noun or noun not in anchors_by:
+            continue
+        anchors_by[noun]["attributes"].append(
+            {
+                "attribute_name": attr.get("attribute_name", ""),
+                "description": attr.get("description", ""),
+                "data_example": attr.get("data_example", ""),
+                "embeddable": bool(attr.get("embeddable", False)),
+                "query": attr.get("query", ""),
+                "dtype": attr.get("dtype", ""),
+                "embed_threshold": float(attr.get("embed_threshold") or 1.0),
+            }
+        )
+
+    links_by: dict[str, dict[str, Any]] = {}
+    for li in links:
+        sentence = str(li.get("sentence", "")).strip()
+        if not sentence:
+            continue
+        links_by[sentence] = {
+            "anchor1": li.get("anchor1", ""),
+            "anchor2": li.get("anchor2", ""),
+            "sentence": sentence,
+            "description": li.get("description", ""),
+            "query": li.get("query", ""),
+            "anchor1_link_column_name": li.get("anchor1_link_column_name", ""),
+            "anchor2_link_column_name": li.get("anchor2_link_column_name", ""),
+            "has_direction": bool(li.get("has_direction", False)),
+            "attributes": [],
+        }
+
+    for attr in link_attrs:
+        sentence = str(attr.get("link", "")).strip()
+        if not sentence or sentence not in links_by:
+            continue
+        links_by[sentence]["attributes"].append(
+            {
+                "attribute_name": attr.get("attribute_name", ""),
+                "description": attr.get("description", ""),
+                "data_example": attr.get("data_example", ""),
+                "embeddable": bool(attr.get("embeddable", False)),
+                "query": attr.get("query", ""),
+                "dtype": attr.get("dtype", ""),
+                "embed_threshold": float(attr.get("embed_threshold") or 1.0),
+            }
+        )
+
+    return {
+        "anchors": list(anchors_by.values()),
+        "links": list(links_by.values()),
+        "queries": [
+            {"name": q.get("query_name", ""), "example": q.get("query_example", "")} for q in queries if q.get("query_name")
+        ],
+        "prompts": [{"name": p.get("name", ""), "text": p.get("text", "")} for p in prompts if p.get("name")],
+        "conversation_lifecycle": [
+            {"event": c.get("event", ""), "text": c.get("text", "")} for c in lifecycle if c.get("event")
+        ],
+    }

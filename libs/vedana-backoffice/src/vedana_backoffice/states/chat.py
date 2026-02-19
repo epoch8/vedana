@@ -1,22 +1,89 @@
 import asyncio
 import logging
 import os
+import threading
 import traceback
 from datetime import datetime
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Iterable, Tuple
 from uuid import UUID, uuid4
 
 import orjson as json
 import reflex as rx
+import requests
 from datapipe.compute import Catalog, run_pipeline
+from jims_core.llms.llm_provider import env_settings as llm_settings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.pipeline import get_data_model_pipeline
 
-from vedana_backoffice.states.common import MemLogger, get_vedana_app, load_openrouter_models, DEBUG_MODE, datapipe_log_capture
+from vedana_backoffice.states.common import MemLogger, get_vedana_app, DEBUG_MODE, datapipe_log_capture
 from vedana_backoffice.states.jims import ThreadViewState
+
+# Global cache for OpenRouter models, populated at startup
+OPENROUTER_MODELS_CACHE: list[str] = []
+_openrouter_models_lock = threading.Lock()
+_openrouter_models_loaded = threading.Event()
+
+
+def _filter_chat_capable_models(models: Iterable[dict]) -> list[str]:
+    """Filter models that support text chat with tool calls."""
+    result: list[str] = []
+    for m in models:
+        model_id = str(m.get("id", "")).strip()
+        if not model_id:
+            continue
+
+        has_chat = False
+        architecture = m.get("architecture", {})
+        if architecture:
+            if "text" in architecture.get("input_modalities", []) and "text" in architecture.get(
+                "output_modalities", []
+            ):
+                has_chat = True
+
+        has_tools = False  # only accept models with tool calls
+        if "tools" in m.get("supported_parameters", []):
+            has_tools = True
+
+        if has_chat and has_tools:
+            result.append(model_id)
+
+    return result
+
+
+def _fetch_openrouter_models_sync() -> list[str]:
+    """Fetch OpenRouter models synchronously. Used for startup loading."""
+    try:
+        resp = requests.get(
+            f"{llm_settings.openrouter_api_base_url}/models",
+            timeout=15,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        models = payload.get("data", [])
+        parsed = _filter_chat_capable_models(models)
+    except Exception as exc:
+        logging.warning(f"Failed to fetch OpenRouter models at startup: {exc}")
+        parsed = []
+    return sorted(list(parsed))
+
+
+def _load_openrouter_models_background():
+    """Background thread function to load OpenRouter models at startup."""
+    global OPENROUTER_MODELS_CACHE
+    models = _fetch_openrouter_models_sync()
+    with _openrouter_models_lock:
+        if models:
+            OPENROUTER_MODELS_CACHE = models
+    _openrouter_models_loaded.set()
+    logging.info(f"OpenRouter models loaded at startup: {len(OPENROUTER_MODELS_CACHE)} models")
+
+
+# Start loading OpenRouter models in background immediately on module import
+_startup_thread = threading.Thread(target=_load_openrouter_models_background, daemon=True)
+_startup_thread.start()
 
 
 class ChatState(rx.State):
@@ -27,6 +94,7 @@ class ChatState(rx.State):
     messages: list[dict[str, Any]] = []
     chat_thread_id: str = ""
     data_model_text: str = ""
+    data_model_snapshot_id: str = ""
     is_refreshing_dm: bool = False
     provider: str = "openai"  # default llm provider
     model: str = core_settings.model
@@ -52,11 +120,14 @@ class ChatState(rx.State):
     available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
     model_selection_allowed: bool = DEBUG_MODE
     enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
+    data_model_branch: str = core_settings.config_plane_dev_branch
+    data_model_snapshot_input: str = ""
 
-    async def mount(self):
-        """Load OpenRouter models (fetches on first call, cached thereafter)."""
-        self.openrouter_models = await load_openrouter_models()
-        self.openrouter_models_loaded = True
+    def mount(self):
+        """Load models from startup cache."""
+        with _openrouter_models_lock:
+            self.openrouter_models = list(OPENROUTER_MODELS_CACHE)
+        self.openrouter_models_loaded = _openrouter_models_loaded.is_set()
         self._sync_available_models()
 
     def set_input(self, value: str) -> None:
@@ -71,6 +142,26 @@ class ChatState(rx.State):
 
     def set_enable_dm_filtering(self, value: bool) -> None:
         self.enable_dm_filtering = value
+
+    def set_data_model_branch(self, value: str) -> None:
+        self.data_model_branch = value
+
+    def set_data_model_snapshot_input(self, value: str) -> None:
+        self.data_model_snapshot_input = value
+
+    def _resolve_data_model_snapshot(self) -> int | None:
+        raw = (self.data_model_snapshot_input or "").strip()
+        if not raw:
+            return None
+        try:
+            return int(raw)
+        except Exception:
+            return None
+
+    async def _apply_data_model_selection(self) -> None:
+        va = await get_vedana_app()
+        va.data_model.set_branch(self.data_model_branch)
+        va.data_model.set_snapshot_override(self._resolve_data_model_snapshot())
 
     def set_provider(self, value: str) -> None:
         self.provider = value
@@ -162,6 +253,7 @@ class ChatState(rx.State):
             vts_list = [str(x) for x in technical_info.get("vts_queries") or []]
             cypher_list = [str(x) for x in technical_info.get("cypher_queries") or []]
             models_raw = technical_info.get("model_stats", {})
+            message["dm_snapshot_id"] = str(technical_info.get("dm_snapshot_id", "") or "")
             model_pairs: list[tuple[str, str]] = []
             if isinstance(models_raw, dict):
                 for mk, mv in models_raw.items():
@@ -177,7 +269,7 @@ class ChatState(rx.State):
             message["has_vts"] = bool(vts_list)
             message["has_cypher"] = bool(cypher_list)
             message["has_models"] = bool(models_list)
-            message["has_tech"] = bool(vts_list or cypher_list or models_list)
+            message["has_tech"] = bool(vts_list or cypher_list or models_list or message.get("dm_snapshot_id"))
             message["model_stats"] = models_raw
 
         logs = (debug_logs or "").replace("\r\n", "\n").rstrip()
@@ -207,6 +299,7 @@ class ChatState(rx.State):
 
     async def _run_message(self, thread_id: str, user_text: str) -> Tuple[str, Dict[str, Any], str]:
         vedana_app = await get_vedana_app()
+        await self._apply_data_model_selection()
         try:
             tid = UUID(thread_id)
         except Exception:
@@ -298,9 +391,13 @@ class ChatState(rx.State):
         async with self:
             va = await get_vedana_app()
             try:
+                await self._apply_data_model_selection()
+                snapshot_id = va.data_model.get_snapshot_id()
+                self.data_model_snapshot_id = str(snapshot_id) if snapshot_id is not None else ""
                 self.data_model_text = await va.data_model.to_text_descr()
             except Exception:
                 self.data_model_text = "(failed to load data model text)"
+                self.data_model_snapshot_id = ""
 
             self.is_refreshing_dm = False  # make the update button available
             yield
@@ -315,6 +412,7 @@ class ChatState(rx.State):
 
     @rx.event(background=True)  # type: ignore[operator]
     async def reload_data_model_background(self):
+        """Reload the data model from Grist into config-plane dev branch."""
         try:
             def _run_dm_pipeline():
                 with datapipe_log_capture():
@@ -322,8 +420,20 @@ class ChatState(rx.State):
             await asyncio.to_thread(_run_dm_pipeline)
             async with self:
                 va = await get_vedana_app()
+                snapshot_id = await asyncio.to_thread(
+                    va.data_model.update_from_grist,
+                    core_settings.config_plane_dev_branch,
+                )
+                await self._apply_data_model_selection()
+                snapshot_id = va.data_model.get_snapshot_id()
+                self.data_model_snapshot_id = str(snapshot_id) if snapshot_id is not None else ""
                 self.data_model_text = await va.data_model.to_text_descr()
-            yield rx.toast.success("Data model reloaded")
+            msg = (
+                f"Data model updated in dev (snapshot {snapshot_id})"
+                if snapshot_id is not None
+                else "Data model unchanged"
+            )
+            yield rx.toast.success(msg)
         except Exception as e:
             async with self:
                 error_msg = str(e)

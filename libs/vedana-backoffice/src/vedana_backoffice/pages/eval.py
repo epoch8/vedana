@@ -4,6 +4,7 @@ from vedana_backoffice.states.common import AppVersionState
 from vedana_backoffice.states.eval import EvalState, RunSummary
 from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.ui import app_header
+from vedana_core.settings import settings as core_settings
 
 
 def _selection_and_actions() -> rx.Component:
@@ -199,6 +200,25 @@ def _pipeline_card() -> rx.Component:
             rx.vstack(
                 rx.box(
                     rx.text("Data model", weight="medium"),
+                    rx.hstack(
+                        rx.select(
+                            items=[
+                                core_settings.config_plane_dev_branch,
+                                core_settings.config_plane_prod_branch,
+                            ],
+                            value=EvalState.dm_branch,
+                            on_change=EvalState.set_dm_branch,
+                            width="50%",
+                        ),
+                        rx.input(
+                            placeholder="Snapshot id (optional)",
+                            value=EvalState.dm_snapshot_input,
+                            on_change=EvalState.set_dm_snapshot_input,
+                            width="50%",
+                        ),
+                        width="100%",
+                        padding_y="0.5em"
+                    ),
                     rx.button(
                         "View Data Model",
                         variant="soft",
@@ -895,7 +915,17 @@ def _data_model_dialog() -> rx.Component:
         rx.dialog.content(
             rx.dialog.title("Data Model"),
             rx.vstack(
-                rx.text(f"Model ID: {EvalState.dm_id}", size="2", color="gray"),
+                rx.text(f"Branch: {EvalState.dm_branch}", size="2", color="gray"),
+                rx.text(
+                    rx.cond(
+                        EvalState.dm_snapshot_id != "",
+                        f"Snapshot: {EvalState.dm_snapshot_id}",
+                        "Snapshot: —",
+                    ),
+                    size="2",
+                    color="gray",
+                ),
+                rx.text(f"Model ID: {EvalState.dm_id}", size="2", color="gray"),  # todo is dm_id still relevant?
                 rx.box(
                     rx.text(
                         rx.cond(

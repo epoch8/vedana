@@ -731,6 +731,7 @@ def jims_thread_list_page() -> rx.Component:
             "show_details": ThreadViewState.expanded_event_id == ev.event_id,
             "event_data_str": ev.event_data_str,
             "generic_meta": ev.generic_meta,
+            "dm_snapshot_id": ev.dm_snapshot_id,
         }
 
         tag_dialog = rx.dialog.root(

@@ -3,6 +3,7 @@ import reflex as rx
 from vedana_backoffice.components.ui_chat import render_message_bubble
 from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.ui import app_header
+from vedana_core.settings import settings as core_settings
 
 
 def _message_row(msg: dict) -> rx.Component:
@@ -89,6 +90,19 @@ def page() -> rx.Component:
                                     align="center",
                                     width="100%",
                                 ),
+                                rx.hstack(
+                                    rx.text(f"Branch: {ChatState.data_model_branch}", color="gray"),
+                                    rx.spacer(),
+                                    rx.text(
+                                        rx.cond(
+                                            ChatState.data_model_snapshot_id != "",
+                                            f"Snapshot: {ChatState.data_model_snapshot_id}",
+                                            "Snapshot: —",
+                                        ),
+                                        color="gray",
+                                    ),
+                                    width="100%",
+                                ),
                                 rx.scroll_area(
                                     rx.markdown(ChatState.data_model_text),  # type: ignore[operator]
                                     type="always",
@@ -100,6 +114,21 @@ def page() -> rx.Component:
                             ),
                             max_width="70vw",
                         ),
+                    ),
+                    rx.select(
+                        items=[
+                            core_settings.config_plane_dev_branch,
+                            core_settings.config_plane_prod_branch,
+                        ],
+                        value=ChatState.data_model_branch,
+                        on_change=ChatState.set_data_model_branch,
+                        width="10em",
+                    ),
+                    rx.input(
+                        placeholder="Snapshot id (optional)",
+                        value=ChatState.data_model_snapshot_input,
+                        on_change=ChatState.set_data_model_snapshot_input,
+                        width="14em",
                     ),
                     rx.checkbox(
                         "Filter Data Model",
@@ -147,11 +176,11 @@ def page() -> rx.Component:
                             ChatState.model_selection_allowed,
                             rx.hstack(
                                 rx.select(
-                                items=["openai", "openrouter"],
-                                value=ChatState.provider,
-                                on_change=ChatState.set_provider,
-                                width="10em",
-                                placeholder="Provider",
+                                    items=["openai", "openrouter"],
+                                    value=ChatState.provider,
+                                    on_change=ChatState.set_provider,
+                                    width="10em",
+                                    placeholder="Provider",
                                 ),
                                 rx.cond(
                                     ChatState.provider == "openrouter",
@@ -183,7 +212,6 @@ def page() -> rx.Component:
                         width="100%",
                     ),
                     on_submit=ChatState.send,
-                    width="100%",
                 ),
                 spacing="2",
                 width="100%",
