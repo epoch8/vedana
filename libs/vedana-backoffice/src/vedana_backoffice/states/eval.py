@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 
-from vedana_backoffice.states.common import get_vedana_app, load_openrouter_models, HAS_OPENROUTER_KEY
+from vedana_backoffice.states.common import get_vedana_app, load_openrouter_models, HAS_OPENROUTER_KEY, datapipe_log_capture
 from vedana_backoffice.util import safe_render_value
 
 
@@ -499,13 +499,10 @@ class EvalState(rx.State):
         return f"{provider}/{self.pipeline_model}"
 
     def get_eval_gds_from_grist(self):
-        # Run datapipe step to refresh eval_gds from Grist first
         step = next((s for s in etl_app.steps if s._name == "get_eval_gds_from_grist"), None)
         if step is not None:
-            try:
+            with datapipe_log_capture():
                 run_steps(etl_app.ds, [step])
-            except Exception as exc:
-                logging.exception(f"Failed to run get_eval_gds_from_grist: {exc}")
 
     async def _load_eval_questions(self) -> None:
         vedana_app = await get_vedana_app()

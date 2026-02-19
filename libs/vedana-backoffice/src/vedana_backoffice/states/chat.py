@@ -10,12 +10,15 @@ from uuid import UUID, uuid4
 import orjson as json
 import reflex as rx
 import requests
+from datapipe.compute import Catalog, run_pipeline
 from jims_core.llms.llm_provider import env_settings as llm_settings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from vedana_core.settings import settings as core_settings
+from vedana_etl.app import app as etl_app
+from vedana_etl.pipeline import get_data_model_pipeline
 
-from vedana_backoffice.states.common import MemLogger, get_vedana_app, DEBUG_MODE
+from vedana_backoffice.states.common import MemLogger, get_vedana_app, DEBUG_MODE, datapipe_log_capture
 from vedana_backoffice.states.jims import ThreadViewState
 
 # Global cache for OpenRouter models, populated at startup
@@ -409,8 +412,12 @@ class ChatState(rx.State):
 
     @rx.event(background=True)  # type: ignore[operator]
     async def reload_data_model_background(self):
+        """Reload the data model from Grist into config-plane dev branch."""
         try:
-            """Reload the data model from Grist into config-plane dev branch."""
+            def _run_dm_pipeline():
+                with datapipe_log_capture():
+                    run_pipeline(etl_app.ds, Catalog({}), get_data_model_pipeline())
+            await asyncio.to_thread(_run_dm_pipeline)
             async with self:
                 va = await get_vedana_app()
                 snapshot_id = await asyncio.to_thread(
@@ -430,7 +437,7 @@ class ChatState(rx.State):
         except Exception as e:
             async with self:
                 error_msg = str(e)
-                self.data_model_text = f"(error reloading data model: {error_msg})"
+                # self.data_model_text = f"(error reloading data model: {error_msg})"
             yield rx.toast.error(f"Failed to reload data model\n{error_msg}")
         finally:
             async with self:

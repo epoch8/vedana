@@ -107,6 +107,10 @@ class ThreadEventVis:
 class ThreadViewState(rx.State):
     loading: bool = True
     events: list[ThreadEventVis] = []
+    history_page_size: int = 30
+    history_visible_count: int = 30
+    has_more_history: bool = False
+    total_history_count: int = 0
     new_tag_text: str = ""
     note_text: str = ""
     note_severity: str = "Low"
@@ -119,31 +123,88 @@ class ThreadViewState(rx.State):
     new_tag_text_for_event: dict[str, str] = {}
     available_tags: list[str] = []
 
-    async def _reload(self) -> None:
+    async def _reload(self, reset_history_window: bool = False) -> None:
         vedana_app = await get_vedana_app()
 
         async with vedana_app.sessionmaker() as session:
-            stmt = (
+            if reset_history_window:
+                self.history_visible_count = self.history_page_size
+
+            base_events_stmt = (
                 sa.select(ThreadEventDB)
                 .where(
-                    ThreadEventDB.thread_id == self.selected_thread_id,
+                    sa.and_(
+                        ThreadEventDB.thread_id == self.selected_thread_id,
+                        sa.not_(ThreadEventDB.event_type.like("jims.%")),
+                    )
                 )
-                .order_by(ThreadEventDB.created_at.asc())
+                .order_by(ThreadEventDB.created_at.desc())
+                .limit(self.history_visible_count)
             )
-            all_events = (await session.execute(stmt)).scalars().all()
+            base_events_desc = list((await session.execute(base_events_stmt)).scalars().all())
+            base_events = list(reversed(base_events_desc))
 
-        # Split base convo events vs backoffice annotations
-        base_events: list[Any] = []
-        backoffice_events: list[Any] = []
-        for ev in all_events:
-            etype = str(getattr(ev, "event_type", ""))
-            if etype.startswith("jims.backoffice."):
-                backoffice_events.append(ev)
-            elif etype.startswith("jims."):
-                # ignore other jims.* noise
-                continue
+            total_base_events_stmt = sa.select(sa.func.count()).where(
+                sa.and_(
+                    ThreadEventDB.thread_id == self.selected_thread_id,
+                    sa.not_(ThreadEventDB.event_type.like("jims.%")),
+                )
+            )
+            self.total_history_count = int((await session.execute(total_base_events_stmt)).scalar() or 0)
+            self.has_more_history = self.total_history_count > len(base_events)
+
+            target_event_ids = [str(getattr(ev, "event_id", "")) for ev in base_events if getattr(ev, "event_id", None)]
+
+            backoffice_events: list[Any] = []
+            if target_event_ids:
+                target_event_expr = ThreadEventDB.event_data["target_event_id"].as_string()
+                feedback_target_expr = ThreadEventDB.event_data["event_id"].as_string()
+                bo_stmt = (
+                    sa.select(ThreadEventDB)
+                    .where(
+                        sa.and_(
+                            ThreadEventDB.thread_id == self.selected_thread_id,
+                            sa.or_(
+                                sa.and_(
+                                    ThreadEventDB.event_type.in_(
+                                        ["jims.backoffice.tag_added", "jims.backoffice.tag_removed"]
+                                    ),
+                                    target_event_expr.in_(target_event_ids),
+                                ),
+                                sa.and_(
+                                    ThreadEventDB.event_type == "jims.backoffice.feedback",
+                                    feedback_target_expr.in_(target_event_ids),
+                                ),
+                            ),
+                        )
+                    )
+                    .order_by(ThreadEventDB.created_at.asc())
+                )
+                backoffice_events = list((await session.execute(bo_stmt)).scalars().all())
             else:
-                base_events.append(ev)
+                backoffice_events = []
+
+            feedback_ids = [
+                str(getattr(ev, "event_id", ""))
+                for ev in backoffice_events
+                if ev.event_type == "jims.backoffice.feedback"
+            ]
+            if feedback_ids:
+                comment_id_expr = ThreadEventDB.event_data["comment_id"].as_string()
+                comment_status_stmt = (
+                    sa.select(ThreadEventDB)
+                    .where(
+                        sa.and_(
+                            ThreadEventDB.thread_id == self.selected_thread_id,
+                            ThreadEventDB.event_type.in_(
+                                ["jims.backoffice.comment_resolved", "jims.backoffice.comment_closed"]
+                            ),
+                            comment_id_expr.in_(feedback_ids),
+                        )
+                    )
+                    .order_by(ThreadEventDB.created_at.asc())
+                )
+                backoffice_events.extend(list((await session.execute(comment_status_stmt)).scalars().all()))
 
         # Prepare aggregations
         # 1) Tags per original event
@@ -264,12 +325,19 @@ class ThreadViewState(rx.State):
 
     @rx.event
     async def get_data(self):
-        await self._reload()
+        await self._reload(reset_history_window=True)
 
     @rx.event
     async def select_thread(self, thread_id: str) -> None:
         self.selected_thread_id = thread_id
-        await self._reload()
+        await self._reload(reset_history_window=True)
+
+    @rx.event
+    async def load_more_history(self) -> None:
+        if not self.has_more_history:
+            return
+        self.history_visible_count += self.history_page_size
+        await self._reload(reset_history_window=False)
 
     # UI field updates
     @rx.event

@@ -1,5 +1,6 @@
 import asyncio
 from async_lru import alru_cache
+from contextlib import contextmanager
 import io
 import logging
 import os
@@ -64,6 +65,42 @@ async def get_vedana_app():
     if vedana_app is None:
         vedana_app = await make_vedana_app()
     return vedana_app
+
+
+class DatapipeStepError(RuntimeError):
+    """Raised when a datapipe step fails without propagating the exception."""
+    pass
+
+
+@contextmanager
+def datapipe_log_capture():
+    """Detect datapipe step failures that are logged but not raised.
+
+    datapipe catches and logs exceptions in some step types (e.g. batch_generate)
+    without re-raising them. This captures ERROR-level log messages from the
+    ``datapipe`` logger hierarchy and raises :class:`DatapipeStepError` if any
+    errors were recorded once the guarded block completes.
+    """
+    errors: list[str] = []
+
+    class _ErrorCapture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            try:
+                errors.append(record.getMessage())
+            except Exception:
+                pass
+
+    handler = _ErrorCapture()
+    handler.setLevel(logging.ERROR)
+
+    dp_logger = logging.getLogger("datapipe")
+    dp_logger.addHandler(handler)
+    try:
+        yield errors
+    finally:
+        dp_logger.removeHandler(handler)
+    if errors:
+        raise DatapipeStepError(errors[0])
 
 
 class MemLogger(logging.Logger):
