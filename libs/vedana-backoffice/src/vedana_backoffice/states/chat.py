@@ -15,7 +15,7 @@ from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.pipeline import get_data_model_pipeline
 
-from vedana_backoffice.states.common import MemLogger, get_vedana_app, load_openrouter_models, DEBUG_MODE
+from vedana_backoffice.states.common import MemLogger, get_vedana_app, load_openrouter_models, DEBUG_MODE, datapipe_log_capture
 from vedana_backoffice.states.jims import ThreadViewState
 
 
@@ -316,8 +316,10 @@ class ChatState(rx.State):
     @rx.event(background=True)  # type: ignore[operator]
     async def reload_data_model_background(self):
         try:
-            """Reload the data model by running all data_model_steps from the pipeline."""
-            await asyncio.to_thread(run_pipeline, etl_app.ds, Catalog({}), get_data_model_pipeline())
+            def _run_dm_pipeline():
+                with datapipe_log_capture():
+                    run_pipeline(etl_app.ds, Catalog({}), get_data_model_pipeline())
+            await asyncio.to_thread(_run_dm_pipeline)
             async with self:
                 va = await get_vedana_app()
                 self.data_model_text = await va.data_model.to_text_descr()
@@ -325,7 +327,7 @@ class ChatState(rx.State):
         except Exception as e:
             async with self:
                 error_msg = str(e)
-                self.data_model_text = f"(error reloading data model: {error_msg})"
+                # self.data_model_text = f"(error reloading data model: {error_msg})"
             yield rx.toast.error(f"Failed to reload data model\n{error_msg}")
         finally:
             async with self:
