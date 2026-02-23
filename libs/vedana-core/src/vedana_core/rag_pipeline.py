@@ -167,6 +167,16 @@ class RagPipeline:
         if self.enable_filtering:
             await ctx.update_agent_status("Analyzing query structure...")
             data_model_description, filter_selection = await self.filter_data_model(query, ctx)
+            
+            # Send reasoning for enhanced context.
+            ctx.send_event(
+                "context.dm_filter_reasoning",
+                {
+                    "role": "assistant",
+                    "content": filter_selection.reasoning,
+                },
+            )
+
         else:
             data_model_description = await self.data_model.to_text_descr()
             filter_selection = DataModelSelection()

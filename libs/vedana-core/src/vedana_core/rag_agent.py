@@ -199,13 +199,13 @@ class RagAgent:
 
         all_query_events, answer = await self.llm.generate_cypher_query_with_tools(
             data_descr=self.data_model_description,
-            messages=self.ctx.history[-settings.pipeline_history_length :],
+            messages=self.ctx.context(settings.pipeline_history_length),
             tools=tools,
         )
 
         if not answer:
             self.logger.warning(f"No answer found for {text_query}. Generating empty answer...")
-            answer = await self.llm.generate_no_answer(self.ctx.history[-settings.pipeline_history_length :])
+            answer = await self.llm.generate_no_answer(self.ctx.context(settings.pipeline_history_length))
 
         return answer, all_query_events, vts_queries, cypher_queries
 
