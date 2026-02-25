@@ -105,6 +105,7 @@ class RagPipeline:
         top_n: int = 5,
         model: str | None = None,
         filter_model: str | None = None,
+        filter_api_key: str | None = None,
         enable_filtering: bool | None = None,
     ):
         self.graph = graph
@@ -115,6 +116,7 @@ class RagPipeline:
         self.top_n = top_n
         self.model = model or settings.model
         self.filter_model = filter_model or settings.filter_model  # or self.model
+        self.filter_api_key = filter_api_key
         self.enable_filtering = enable_filtering or settings.enable_dm_filtering
 
     async def __call__(self, ctx: ThreadContext) -> None:
@@ -286,14 +288,19 @@ class RagPipeline:
             filter_llm = ctx.llm
 
             base_model = ctx.llm.model
+            base_api_key = ctx.llm.model_api_key
             if self.filter_model:  # if different model specified for filtering - use it
                 filter_llm.set_model(self.filter_model)
+            if self.filter_api_key is not None:
+                ctx.llm.model_api_key = self.filter_api_key
 
-            # Use structured output to get the selection
-            selection = await filter_llm.chat_completion_structured(messages, DataModelSelection)
-
-            if base_model:  # select base model back
-                ctx.llm.set_model(base_model)
+            try:
+                # Use structured output to get the selection
+                selection = await filter_llm.chat_completion_structured(messages, DataModelSelection)
+            finally:
+                if base_model:  # select base model back
+                    ctx.llm.set_model(base_model)
+                ctx.llm.model_api_key = base_api_key  # restore (may be None)
 
             if selection is None:
                 raise ValueError("LLM returned empty response")
