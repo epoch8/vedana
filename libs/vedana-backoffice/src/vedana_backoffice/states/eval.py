@@ -45,6 +45,7 @@ class RunSummary(TypedDict):
     pass_rate: float
     avg_rating: str  # rounded and converted to str
     cost_total: float
+    judge_cost_total: float
     test_run_name: str
     avg_answer_time_sec: float
     median_answer_time_sec: float
@@ -160,6 +161,7 @@ EMPTY_SUMMARY: RunSummary = {
     "pass_rate": 0.0,
     "avg_rating": "—",
     "cost_total": 0.0,
+    "judge_cost_total": 0.0,
     "test_run_name": "",
     "avg_answer_time_sec": 0.0,
     "median_answer_time_sec": 0.0,
@@ -220,6 +222,7 @@ class EvalState(rx.State):
     judge_custom_openrouter_key: str = ""
     tests_rows: list[dict[str, Any]] = []
     tests_cost_total: float = 0.0
+    tests_judge_cost_total: float = 0.0
     run_passed: int = 0
     run_failed: int = 0
     selected_run_id: str = ""
@@ -326,6 +329,12 @@ class EvalState(rx.State):
         if self.tests_cost_total > 0:
             return f"${self.tests_cost_total:.4f}"
         return "Cost data unavailable"
+
+    @rx.var
+    def judge_cost_label(self) -> str:
+        if self.tests_judge_cost_total > 0:
+            return f"${self.tests_judge_cost_total:.4f}"
+        return "—"
 
     @rx.var
     def tests_row_count(self) -> int:
@@ -758,6 +767,7 @@ class EvalState(rx.State):
             if not page_threads:
                 self.tests_rows = []
                 self.tests_cost_total = 0.0
+                self.tests_judge_cost_total = 0.0
                 self.run_passed = 0
                 self.run_failed = 0
                 return
@@ -778,6 +788,7 @@ class EvalState(rx.State):
         passed = 0
         failed = 0
         cost_total = 0.0
+        judge_cost_total = 0.0
         for thread in page_threads:
             cfg = thread.thread_config or {}
             evs = events_by_thread.get(thread.thread_id, [])
@@ -787,6 +798,8 @@ class EvalState(rx.State):
             rating_label = "—"
             run_label = self._format_run_label_with_name(thread.contact_id, cfg)
             test_date = run_label
+            row_pipeline_cost: float = 0.0
+            row_judge_cost: float = 0.0
 
             for ev in evs:
                 if ev.event_type == "comm.assistant_message":
@@ -800,7 +813,9 @@ class EvalState(rx.State):
                                 cost_val = stats.get("requests_cost")
                                 try:
                                     if cost_val is not None:
-                                        cost_total += float(cost_val)
+                                        v = float(cost_val)
+                                        cost_total += v
+                                        row_pipeline_cost += v
                                 except (TypeError, ValueError):
                                     pass
                 elif ev.event_type == "eval.result":
@@ -808,6 +823,14 @@ class EvalState(rx.State):
                     judge_comment = ev.event_data.get("eval_judge_comment", judge_comment)
                     rating_label = str(ev.event_data.get("eval_judge_rating", rating_label))
                     test_date = self._format_run_label(ev.event_data.get("test_date", test_date))
+                    try:
+                        jc = ev.event_data.get("judge_cost")
+                        if jc is not None:
+                            v = float(jc)
+                            judge_cost_total += v
+                            row_judge_cost += v
+                    except (TypeError, ValueError):
+                        pass
 
             if status == "pass":
                 passed += 1
@@ -827,11 +850,14 @@ class EvalState(rx.State):
                     "status_color": self._status_color(status),
                     "eval_judge_comment": safe_render_value(judge_comment),
                     "eval_judge_rating": rating_label,
+                    "pipeline_cost": f"${row_pipeline_cost:.6f}" if row_pipeline_cost else "—",
+                    "judge_cost": f"${row_judge_cost:.6f}" if row_judge_cost else "—",
                 }
             )
 
         self.tests_rows = rows
         self.tests_cost_total = cost_total
+        self.tests_judge_cost_total = judge_cost_total
         self.run_passed = passed
         self.run_failed = failed
 
@@ -1505,6 +1531,7 @@ class EvalState(rx.State):
         passed = 0
         failed = 0
         cost_total = 0.0
+        judge_cost_total = 0.0
         ratings: list[float] = []
         answer_times: list[float] = []
 
@@ -1565,6 +1592,12 @@ class EvalState(rx.State):
                         rating_val = None
                     if "gds_question" in ev.event_data:
                         question_text = str(ev.event_data["gds_question"])
+                    try:
+                        jc = ev.event_data.get("judge_cost")
+                        if jc is not None:
+                            judge_cost_total += float(jc)
+                    except (TypeError, ValueError):
+                        pass
 
             total += 1
             if status == "pass":
@@ -1604,6 +1637,7 @@ class EvalState(rx.State):
             "pass_rate": (passed / total) if total else 0.0,
             "avg_rating": str(round(avg_rating, 2) if ratings else "—"),
             "cost_total": round(cost_total, 3),
+            "judge_cost_total": round(judge_cost_total, 6),
             "test_run_name": meta_sample["test_run_name"]
             if "test_run_name" in meta_sample
             else (cfg_sample["test_run_name"] if "test_run_name" in cfg_sample else ""),
@@ -1729,11 +1763,13 @@ class EvalState(rx.State):
 
         return str(thread_id), answer, technical_info
 
-    async def _judge_answer(self, question_row: dict[str, Any], answer: str, tool_calls: str) -> tuple[str, str, int]:
-        """Judge model answer with current judge prompt/model and rating."""
+    async def _judge_answer(self, question_row: dict[str, Any], answer: str, tool_calls: str) -> tuple[str, str, int, float]:
+        """Judge model answer with current judge prompt/model and rating.
+        Returns (status, comment, rating, judge_cost).
+        """
         judge_prompt = self.judge_prompt
         if not judge_prompt:
-            return "fail", "Judge prompt not loaded", 0
+            return "fail", "Judge prompt not loaded", 0, 0.0
 
         provider = LLMProvider()  # todo use single LLMProvider per-thread
         resolved_judge_model = f"{self.judge_provider}/{self.judge_model}"
@@ -1770,17 +1806,18 @@ class EvalState(rx.State):
             )  # type: ignore[arg-type]
         except Exception as e:
             logging.exception(f"Judge failed for question '{question_row.get('gds_question')}': {e}")
-            return "fail", f"Judge failed: {e}", 0
+            return "fail", f"Judge failed: {e}", 0, 0.0
 
         if res is None:
-            return "fail", "", 0
+            return "fail", "", 0, 0.0
 
         try:
             rating = int(res.rating)
         except Exception:
             rating = 0
 
-        return res.test_status or "fail", res.comment or "", rating
+        judge_cost = sum(u.requests_cost for u in provider.usage.values())
+        return res.test_status or "fail", res.comment or "", rating, judge_cost
 
     async def _store_eval_result_event(self, thread_id: str, result_row: dict[str, Any]) -> None:
         """Persist eval result as a thread event for thread-based history. todo why is this needed?"""
@@ -1864,7 +1901,15 @@ class EvalState(rx.State):
                     )
                     tool_calls = self._format_tool_calls(tech)
                     async with self:
-                        status, comment, rating = await self._judge_answer(row, answer, tool_calls)
+                        status, comment, rating, judge_cost = await self._judge_answer(row, answer, tool_calls)
+
+                    pipeline_cost = sum(
+                        float(v)
+                        for stats in (tech.get("model_stats") or {}).values()
+                        if isinstance(stats, dict)
+                        for k, v in stats.items()
+                        if k == "requests_cost" and v is not None
+                    )
 
                     result_row = {
                         "judge_model": self.judge_model,
@@ -1883,6 +1928,8 @@ class EvalState(rx.State):
                         "test_status": status,
                         "eval_judge_comment": comment,
                         "eval_judge_rating": rating,
+                        "judge_cost": judge_cost,
+                        "pipeline_cost": pipeline_cost,
                         "test_date": test_run_ts,
                         "thread_id": thread_id,
                     }

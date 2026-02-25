@@ -213,6 +213,7 @@ def _judge_card() -> rx.Component:
                     ),
                     rx.text(EvalState.judge_model_display, size="3"),
                 ),
+                width="100%",
                 padding_bottom="0.75em",
             ),
             rx.button(
@@ -428,6 +429,8 @@ def _tests_card() -> rx.Component:
             ),
             rx.table.cell(rx.text(row.get("eval_judge_rating", "—"))),
             _expandable_text(row, "eval_judge_comment"),
+            rx.table.cell(rx.text(row.get("pipeline_cost", "—"), size="1", color="gray")),
+            # rx.table.cell(rx.text(row.get("judge_cost", "—"), size="1", color="gray")),
         )
 
     return rx.card(
@@ -436,7 +439,14 @@ def _tests_card() -> rx.Component:
                 rx.heading("Test results", size="4"),
                 rx.spacer(),
                 rx.text(EvalState.pass_fail_summary, size="2", color="gray"),
-                rx.badge(EvalState.cost_label, color_scheme="gray", variant="soft"),
+                rx.hstack(
+                    rx.text("Answer:", size="1", color="gray"),
+                    rx.badge(EvalState.cost_label, color_scheme="gray", variant="soft"),
+                    rx.text("Judge:", size="1", color="gray"),
+                    rx.badge(EvalState.judge_cost_label, color_scheme="gray", variant="soft"),
+                    spacing="1",
+                    align="center",
+                ),
                 rx.select(
                     items=EvalState.tests_sort_options,
                     value=EvalState.selected_tests_sort,
@@ -473,6 +483,8 @@ def _tests_card() -> rx.Component:
                             rx.table.column_header_cell("Status"),
                             rx.table.column_header_cell("Rating"),
                             rx.table.column_header_cell("Judge comment"),
+                            rx.table.column_header_cell("Pipeline cost"),
+                            # rx.table.column_header_cell("Judge cost"),
                         )
                     ),
                     rx.table.body(rx.foreach(EvalState.tests_rows, _row)),
@@ -618,6 +630,11 @@ def _compare_dialog() -> rx.Component:
                     ),
                     rx.badge(
                         f"Cost: ${summary['cost_total']:.3f}",
+                        color_scheme="gray",
+                        variant="soft",
+                    ),
+                    rx.badge(
+                        f"Judge cost: ${summary['judge_cost_total']:.3f}",
                         color_scheme="gray",
                         variant="soft",
                     ),
