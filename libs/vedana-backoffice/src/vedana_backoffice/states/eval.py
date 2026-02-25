@@ -177,7 +177,7 @@ class EvalState(rx.State):
     selected_question_ids: list[str] = []
     test_run_name: str = ""
     selected_scenario: str = "all"  # Filter by scenario
-    judge_model: str = ""
+    judge_model: str = core_settings.judge_model
     judge_prompt_id: str = ""
     judge_prompt: str = ""
     provider: str = "openai"
@@ -186,7 +186,7 @@ class EvalState(rx.State):
     embeddings_dim: int = core_settings.embeddings_dim
     custom_openrouter_key: str = ""
     default_openrouter_key_present: bool = HAS_OPENROUTER_KEY
-    enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
+    enable_dm_filtering: bool = core_settings.enable_dm_filtering
     _default_models: tuple[str, ...] = (
         "gpt-5.1-chat-latest",
         "gpt-5.1",
@@ -204,7 +204,20 @@ class EvalState(rx.State):
     openai_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
     openrouter_models: list[str] = []
     available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
+    # Data model filtering LLM selection (same logic as pipeline model; used when enable_dm_filtering is True)
+    dm_filter_provider: str = "openai"
+    dm_filter_model: str = core_settings.filter_model
+    dm_filter_available_models: list[str] = list(
+        set(list(_default_models) + [core_settings.model, core_settings.filter_model])
+    )
+    dm_filter_custom_openrouter_key: str = ""
     dm_id: str = ""
+    # Judge model selection (same logic as pipeline; used when debug)
+    judge_provider: str = "openai"
+    judge_available_models: list[str] = list(
+        set(list(_default_models) + [core_settings.model, core_settings.judge_model])
+    )
+    judge_custom_openrouter_key: str = ""
     tests_rows: list[dict[str, Any]] = []
     tests_cost_total: float = 0.0
     run_passed: int = 0
@@ -361,6 +374,16 @@ class EvalState(rx.State):
     def available_models_view(self) -> list[str]:
         return self.available_models
 
+    @rx.var
+    def dm_filter_model_display(self) -> str:
+        """Display string for filter model (e.g. openai/gpt-4.1-mini) when debug is off."""
+        return f"{self.dm_filter_provider}/{self.dm_filter_model}"
+
+    @rx.var
+    def judge_model_display(self) -> str:
+        """Display string for judge model (e.g. openai/gpt-4.1-mini) when debug is off."""
+        return f"{self.judge_provider}/{self.judge_model}"
+
     def toggle_question_selection(self, question: str, checked: bool) -> None:
         question = str(question or "").strip()
         if not question:
@@ -433,6 +456,32 @@ class EvalState(rx.State):
     def set_enable_dm_filtering(self, value: bool) -> None:
         self.enable_dm_filtering = value
 
+    async def set_dm_filter_provider(self, value: str) -> None:
+        self.dm_filter_provider = str(value or "openai")
+        if self.dm_filter_provider == "openrouter" and not self.openrouter_models:
+            self.openrouter_models = await load_openrouter_models()
+        self._sync_dm_filter_available_models()
+
+    def set_dm_filter_model(self, value: str) -> None:
+        if value in self.dm_filter_available_models:
+            self.dm_filter_model = value
+
+    def set_dm_filter_custom_openrouter_key(self, value: str) -> None:
+        self.dm_filter_custom_openrouter_key = str(value or "").strip()
+
+    async def set_judge_provider(self, value: str) -> None:
+        self.judge_provider = str(value or "openai")
+        if self.judge_provider == "openrouter" and not self.openrouter_models:
+            self.openrouter_models = await load_openrouter_models()
+        self._sync_judge_available_models()
+
+    def set_judge_model(self, value: str) -> None:
+        if value in self.judge_available_models:
+            self.judge_model = value
+
+    def set_judge_custom_openrouter_key(self, value: str) -> None:
+        self.judge_custom_openrouter_key = str(value or "").strip()
+
     async def set_provider(self, value: str) -> None:
         self.provider = str(value or "openai")
         if self.provider == "openrouter" and not self.openrouter_models:
@@ -465,6 +514,40 @@ class EvalState(rx.State):
         self.available_models = list(models)
         if self.pipeline_model not in self.available_models and self.available_models:
             self.pipeline_model = self.available_models[0]
+
+    def _sync_dm_filter_available_models(self) -> None:
+        """Recompute dm_filter_available_models from dm_filter_provider; realign dm_filter_model if needed."""
+        if self.dm_filter_provider == "openrouter":
+            models = self.openrouter_models
+            if not models:
+                self.dm_filter_provider = "openai"
+                models = self.openai_models
+        else:
+            models = self.openai_models
+
+        self.dm_filter_available_models = list(models)
+        if (
+            self.dm_filter_model not in self.dm_filter_available_models
+            and self.dm_filter_available_models
+        ):
+            self.dm_filter_model = self.dm_filter_available_models[0]
+
+    def _sync_judge_available_models(self) -> None:
+        """Recompute judge_available_models from judge_provider; realign judge_model if needed."""
+        if self.judge_provider == "openrouter":
+            models = self.openrouter_models
+            if not models:
+                self.judge_provider = "openai"
+                models = self.openai_models
+        else:
+            models = self.openai_models
+
+        self.judge_available_models = list(models)
+        if (
+            self.judge_model not in self.judge_available_models
+            and self.judge_available_models
+        ):
+            self.judge_model = self.judge_available_models[0]
 
     def _resolved_pipeline_model(self) -> str:
         provider = self.provider or "openai"
@@ -1624,6 +1707,11 @@ class EvalState(rx.State):
         resolved_model = self._resolved_pipeline_model()
         pipeline.model = resolved_model
         pipeline.enable_filtering = self.enable_dm_filtering
+        pipeline.filter_model = f"{self.dm_filter_provider}/{self.dm_filter_model}"
+        if self.enable_dm_filtering and self.dm_filter_provider == "openrouter" and self.dm_filter_custom_openrouter_key:
+            pipeline.filter_api_key = self.dm_filter_custom_openrouter_key
+        else:
+            pipeline.filter_api_key = None
 
         ctx = await ctl.make_context()
         if self.provider == "openrouter" and self.custom_openrouter_key:
@@ -1648,12 +1736,14 @@ class EvalState(rx.State):
             return "fail", "Judge prompt not loaded", 0
 
         provider = LLMProvider()  # todo use single LLMProvider per-thread
-        judge_model = self.judge_model
-        if judge_model:
-            try:
-                provider.set_model(judge_model)
-            except Exception:
-                logging.warning(f"Failed to set judge model {judge_model}")
+        resolved_judge_model = f"{self.judge_provider}/{self.judge_model}"
+        try:
+            provider.set_model(resolved_judge_model)
+        except Exception:
+            logging.warning(f"Failed to set judge model {resolved_judge_model}")
+
+        if self.judge_provider == "openrouter" and self.judge_custom_openrouter_key:
+            provider.model_api_key = self.judge_custom_openrouter_key
 
         class JudgeResult(BaseModel):
             test_status: str = Field(description="pass / fail")
@@ -1884,6 +1974,8 @@ class EvalState(rx.State):
             async with self:
                 self.openrouter_models = await load_openrouter_models()
                 self._sync_available_models()
+                self._sync_dm_filter_available_models()
+                self._sync_judge_available_models()
                 await self._load_eval_questions()
                 self.tests_page_size = max(1, len(self.eval_gds_rows) * 2)
                 await self._load_judge_config()
