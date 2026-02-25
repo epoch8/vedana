@@ -47,7 +47,8 @@ class ThreadEventVis:
         # Extract message-like fields
         # Role: Only comm.user_message is user; all others assistant.
         role = "user" if event_type == "comm.user_message" else "assistant"
-        content: str = event_data.get("content", "")
+        # Display content as message only for comm.* events
+        content: str = event_data.get("content", "") if event_type.startswith("comm.") else ""
         # tags may be stored in event_data["tags"] as list[str]
         tags_value = event_data.get("tags")  # todo check fmt
         tags: list[str] = list(tags_value or []) if isinstance(tags_value, (list, tuple)) else []
