@@ -36,7 +36,7 @@ data_model_steps = [
             dm_prompts,
             dm_conversation_lifecycle,
         ],
-        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "extract"), ("stage", "data-model")],
+        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "extract"), ("source", "Data Model"), ("stage", "data-model")],
     ),
 ]
 
@@ -44,7 +44,7 @@ grist_steps = [
     BatchGenerate(
         func=steps.get_grist_data,
         outputs=[grist_nodes, grist_edges],
-        labels=[("flow", "on-demand"), ("stage", "extract"), ("stage", "grist")],
+        labels=[("flow", "on-demand"), ("stage", "extract"), ("source", "Grist"), ("stage", "grist")],
     ),
 ]
 

@@ -1,8 +1,6 @@
-# ai-assistants-oss
+# Vedana
 
-**JIMS** - **J**ust an **I**ntegrated **M**ultiagent **S**ystem;
-
-**Vedana** - (multi)agentic AI chatbot system built on top of JIMS with semantic RAG and knowledge graph as tools.
+**Vedana** is a (multi)agentic AI chatbot system built with semantic RAG and knowledge graph as its main tools.
 
 ## Overview
 
@@ -14,13 +12,36 @@ This is a complete framework for building conversational AI systems. Key feature
 - **Multiple interfaces**: Telegram bot, Terminal UI, Web backoffice
 - **Incremental ETL** built with [Datapipe](https://github.com/epoch8/datapipe)
 
+## Quickstart / Run
+
+Fill the `.env` based on the `.env.example` [here](apps/vedana/.env.example)
+
+```bash
+docker-compose -f apps/vedana/docker-compose.yml up --build -d
+```
+
+By the way, this repository is a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/):
+
+```bash
+uv sync
+```
+
+## CLI Scripts
+
+| Script                         | Package             | Description                                                              |
+| ------------------------------ | ------------------- | ------------------------------------------------------------------------ |
+| `vedana-backoffice-with-caddy` | `vedana-backoffice` | Caddy reverse proxy + Reflex backend (production entry point for Docker) |
+| `jims-telegram`                | `jims-telegram`     | Run telegram bot for JIMS                                                |
+| `jims-tui`                     | `jims-tui`          | Run terminal ui for JIMS                                                 |
+| `jims-backoffice`              | `jims-backoffice`   | Minimal FastAPI backoffice for JIMS                                      |
+
 ## Repository Structure
 
 ```
 ai-assistants-oss/
 ├── libs/                    # Reusable libraries
-│   ├── jims-core/           # Core JIMS framework
-│   ├── jims-backoffice/     # FastAPI backoffice for JIMS
+│   ├── jims-core/           # Core JIMS framework - thread management for user sessions
+│   ├── jims-backoffice/     # Minimal FastAPI backoffice for JIMS
 │   ├── jims-telegram/       # Telegram bot adapter
 │   ├── jims-tui/            # Terminal UI for testing
 │   ├── vedana-core/         # Core Vedana framework
@@ -47,6 +68,7 @@ JIMS is a framework for building conversational AI systems with persistent threa
 - **ThreadController**: Manages thread lifecycle, event storage, and `Pipeline` execution
 
 #### Example Event Structure
+
 ```json
 {
   "event_id": "...",
@@ -85,23 +107,32 @@ The ETL pipeline ingests data from Grist into the graph and vector databases.
 #### Pipeline Stages
 
 1. **Extract**: Load data model and data. In the most basic form data is loaded from Grist,
-but the pipeline can be easily extended to incorporate other sources
+   but the pipeline can be easily extended to incorporate other sources
 2. **Transform**: Process data into nodes and edges, generate embeddings
 3. **Load**: Update knowledge graph and store pgvector embeddings
 
 ## Requirements
 
 - Python 3.12
-- PostgreSQL with pgvector extension
+- PostgreSQL with **pgvector** extension
 - Memgraph
 - Grist (for data model and data source)
 - OpenAI API key (or compatible LLM provider)
 
-## Quick Start
+> Note on pgvector:
+>
+> Migration `[2dfad73e5cce_move_emb_to_pgvector]` requires pgvector.
+>
+> Some cloud providers (Supabase, Neon etc.) manage extensions on their own;
+> that's why you can set `CREATE_PGVECTOR_EXTENSION=false` in environment to avoid conflicts.
+> If your configuration requires manually enabling pgvector, set env `CREATE_PGVECTOR_EXTENSION=true`
+
+## Setup
 
 **JIMS** manages conversations as **threads** containing **events** (messages, actions, state changes). A **pipeline**, provided by Vedana in this case, processes user input and produces response events.
 
 **Vedana** provides a RAG pipeline that:
+
 1. Receives user query
 2. LLM generates Cypher / vector search queries as tool calls
 3. Retrieves context from graph + vector stores
@@ -109,14 +140,12 @@ but the pipeline can be easily extended to incorporate other sources
 
 The **data model** (node types, relationships, attributes) is defined in Grist spreadsheets and synced via ETL.
 
-## Configure
-
 ### Data Model (Grist)
 
 The data model is configured via tables in Grist workspace:
 
 | Table                   | Purpose                                               |
-|-------------------------|-------------------------------------------------------|
+| ----------------------- | ----------------------------------------------------- |
 | `Anchors`               | Node types (entities) in the graph                    |
 | `Anchor_attributes`     | Properties of node types, including embeddable fields |
 | `Links`                 | Relationship types between nodes                      |
@@ -132,25 +161,20 @@ Models are handled via [LiteLLM](https://www.litellm.ai/)
 configurable via environment variables for production and in backoffice UI for testing:
 
 | Variable           | Purpose                                                               |
-|--------------------|-----------------------------------------------------------------------|
+| ------------------ | --------------------------------------------------------------------- |
 | `MODEL`            | Main question answering model                                         |
 | `FILTER_MODEL`     | Data model filtering (smaller, faster model for a preprocessing step) |
 | `EMBEDDINGS_MODEL` | Text embeddings generation                                            |
 | `EMBEDDINGS_DIM`   | Embedding dimensions                                                  |
 
-### Run
+### Database
 
-This repository is a [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/):
-```bash
-uv sync
-```
-
-Fill the `.env` based on the `.env.example` [here](apps/vedana/.env.example)
-
-```bash
-cd apps/vedana
-docker-compose up -d
-```
+| Variable                    | Default                               |
+| --------------------------- | ------------------------------------- |
+| `JIMS_DB_CONN_URI`          | PostgreSQL connection URI             |
+| `JIMS_DB_USE_NULL_POOL`     | Disable connection pooling            |
+| `JIMS_DB_POOL_SIZE`         | Max connections kept in the pool      |
+| `JIMS_DB_POOL_MAX_OVERFLOW` | Max extra connections above pool_size |
 
 ## Observability
 
@@ -167,9 +191,5 @@ For details on configuring and using the CI/CD code generation tool,
 see [uv-workspace-codegen](https://github.com/epoch8/uv-workspace-codegen).
 
 ## Contributing
-
-TODO
-
-## License
 
 TODO

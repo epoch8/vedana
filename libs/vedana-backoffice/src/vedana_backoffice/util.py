@@ -62,7 +62,12 @@ def datetime_to_age(created_at: datetime, compact: bool = True) -> str:
 
 def safe_render_value(v: Any) -> str:
     try:
-        s = json.dumps(v).decode() if isinstance(v, (dict, list)) else str(v)
+        if isinstance(v, (dict, list)):
+            s = json.dumps(v).decode()
+        elif v is None:
+            s = ""
+        else:
+            s = str(v)
     except Exception:
         try:
             s = repr(v)

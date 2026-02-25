@@ -6,6 +6,7 @@ from typing import Any
 import pandas as pd
 import reflex as rx
 import sqlalchemy as sa
+from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.config import DBCONN_DATAPIPE
 
@@ -23,12 +24,26 @@ class DashboardState(rx.State):
     # Time window selector (in days)
     time_window_days: int = 1
     time_window_options: list[str] = ["1", "3", "7"]
+    ingest_source_tabs: list[str] = ["Grist"]
+    selected_ingest_source_tab: str = "Grist"
 
     # Graph (Memgraph) totals
     graph_total_nodes: int = 0
     graph_total_edges: int = 0
     graph_nodes_by_label: list[dict[str, Any]] = []
     graph_edges_by_type: list[dict[str, Any]] = []
+
+    # Embeddings (pgvector tables) totals and grouped stats
+    emb_anchor_total: int = 0
+    emb_edge_total: int = 0
+    emb_anchor_by_node_type: list[dict[str, Any]] = []
+    emb_edge_by_label: list[dict[str, Any]] = []
+    emb_new_anchor: int = 0
+    emb_updated_anchor: int = 0
+    emb_deleted_anchor: int = 0
+    emb_new_edge: int = 0
+    emb_updated_edge: int = 0
+    emb_deleted_edge: int = 0
 
     # Datapipe (staging before upload to graph) totals
     dp_nodes_total: int = 0
@@ -49,11 +64,11 @@ class DashboardState(rx.State):
     updated_edges: int = 0
     deleted_edges: int = 0
 
-    # Ingest-side new data entries (aggregated across snapshot-style generator tables)
-    ingest_new_total: int = 0
-    ingest_updated_total: int = 0
-    ingest_deleted_total: int = 0
-    ingest_breakdown: list[dict[str, Any]] = []  # [{table, added, updated, deleted}]
+    # Ingest-side entries grouped by source tab
+    ingest_new_total: dict[str, int] = {}
+    ingest_updated_total: dict[str, int] = {}
+    ingest_deleted_total: dict[str, int] = {}
+    ingest_breakdown: dict[str, list[dict[str, Any]]] = {}  # {source: [{table, added, updated, deleted}]}
 
     # Change preview (dialog) state
     changes_preview_open: bool = False
@@ -91,6 +106,10 @@ class DashboardState(rx.State):
             updated_rows.append(new_row)
         self.changes_preview_rows = updated_rows
 
+    @rx.var
+    def time_window_days_str(self) -> str:
+        return str(self.time_window_days)
+
     def set_time_window_days(self, value: str) -> None:
         try:
             d = int(value)
@@ -99,6 +118,14 @@ class DashboardState(rx.State):
         except Exception:
             d = 1
         self.time_window_days = d
+
+    def set_selected_source_tab(self, value: str) -> None:
+        self.selected_ingest_source_tab = value
+
+    def _load_source_tabs(self) -> None:
+        self.ingest_source_tabs = list({str(v) for t in etl_app.steps for (k, v) in t.labels if k == "source"} | {"Grist"})
+        if self.selected_ingest_source_tab not in self.ingest_source_tabs:
+            self.selected_ingest_source_tab = self.ingest_source_tabs[0]
 
     def _append_log(self, msg: str) -> None:
         """Log a message (for consistency with EtlState pattern)."""
@@ -118,9 +145,11 @@ class DashboardState(rx.State):
         """Background task that loads all dashboard data."""
         try:
             async with self:
+                self._load_source_tabs()
                 await self._load_graph_counters()
             async with self:
                 await asyncio.to_thread(self._load_datapipe_counters)
+                await asyncio.to_thread(self._load_embeddings_counters)
                 self._compute_consistency()
                 self._load_change_metrics_window()
                 self._load_ingest_metrics_window()
@@ -314,6 +343,165 @@ class DashboardState(rx.State):
         except Exception:
             self.dp_edges_by_type = []
 
+    def _load_embeddings_counters(self) -> None:
+        """Query Datapipe DB for embedding table totals and grouped counts."""
+        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        since_ts = float(time.time() - self.time_window_days * 86400)
+
+        try:
+            with con.begin() as conn:
+                self.emb_anchor_total = int(
+                    conn.execute(sa.text('SELECT COUNT(*) FROM "rag_anchor_embeddings"')).scalar() or 0
+                )
+                self.emb_edge_total = int(
+                    conn.execute(sa.text('SELECT COUNT(*) FROM "rag_edge_embeddings"')).scalar() or 0
+                )
+        except Exception:
+            self.emb_anchor_total = 0
+            self.emb_edge_total = 0
+
+        try:
+            with con.begin() as conn:
+                rows = conn.execute(
+                    sa.text(
+                        "SELECT COALESCE(node_type, '') AS label, COUNT(*) AS cnt FROM \"rag_anchor_embeddings\" "
+                        "GROUP BY label ORDER BY cnt DESC"
+                    )
+                ).fetchall()
+                emb_anchor_count_by_label = {str(r[0]): int(r[1] or 0) for r in rows}
+        except Exception:
+            emb_anchor_count_by_label = {}
+
+        try:
+            with con.begin() as conn:
+                rows = conn.execute(
+                    sa.text(
+                        "SELECT COALESCE(edge_label, '') AS label, COUNT(*) AS cnt FROM \"rag_edge_embeddings\" "
+                        "GROUP BY label ORDER BY cnt DESC"
+                    )
+                ).fetchall()
+                emb_edge_count_by_label = {str(r[0]): int(r[1] or 0) for r in rows}
+        except Exception:
+            emb_edge_count_by_label = {}
+
+        def _load_change_counts(
+            meta_table: str, label_col: str
+        ) -> tuple[int, int, int, dict[str, int], dict[str, int], dict[str, int]]:
+            try:
+                with con.begin() as conn:
+                    added_total = int(
+                        conn.execute(
+                            sa.text(
+                                f'SELECT COUNT(*) FROM "{meta_table}" WHERE delete_ts IS NULL AND create_ts >= {since_ts}'
+                            )
+                        ).scalar()
+                        or 0
+                    )
+                    updated_total = int(
+                        conn.execute(
+                            sa.text(
+                                f'SELECT COUNT(*) FROM "{meta_table}" WHERE delete_ts IS NULL '
+                                f"AND update_ts >= {since_ts} AND update_ts > create_ts AND create_ts < {since_ts}"
+                            )
+                        ).scalar()
+                        or 0
+                    )
+                    deleted_total = int(
+                        conn.execute(
+                            sa.text(
+                                f'SELECT COUNT(*) FROM "{meta_table}" WHERE delete_ts IS NOT NULL AND delete_ts >= {since_ts}'
+                            )
+                        ).scalar()
+                        or 0
+                    )
+
+                    added_rows = conn.execute(
+                        sa.text(
+                            f"SELECT COALESCE({label_col}, '') AS label, COUNT(*) FROM \"{meta_table}\" "
+                            f"WHERE delete_ts IS NULL AND create_ts >= {since_ts} GROUP BY label"
+                        )
+                    ).fetchall()
+                    updated_rows = conn.execute(
+                        sa.text(
+                            f"SELECT COALESCE({label_col}, '') AS label, COUNT(*) FROM \"{meta_table}\" "
+                            f"WHERE delete_ts IS NULL AND update_ts >= {since_ts} AND update_ts > create_ts "
+                            f"AND create_ts < {since_ts} GROUP BY label"
+                        )
+                    ).fetchall()
+                    deleted_rows = conn.execute(
+                        sa.text(
+                            f"SELECT COALESCE({label_col}, '') AS label, COUNT(*) FROM \"{meta_table}\" "
+                            f"WHERE delete_ts IS NOT NULL AND delete_ts >= {since_ts} GROUP BY label"
+                        )
+                    ).fetchall()
+
+                added_by = {str(label): int(cnt or 0) for label, cnt in added_rows}
+                updated_by = {str(label): int(cnt or 0) for label, cnt in updated_rows}
+                deleted_by = {str(label): int(cnt or 0) for label, cnt in deleted_rows}
+                return added_total, updated_total, deleted_total, added_by, updated_by, deleted_by
+            except Exception:
+                return 0, 0, 0, {}, {}, {}
+
+        (
+            self.emb_new_anchor,
+            self.emb_updated_anchor,
+            self.emb_deleted_anchor,
+            anchor_added_by,
+            anchor_updated_by,
+            anchor_deleted_by,
+        ) = _load_change_counts("rag_anchor_embeddings_meta", "node_type")
+        (
+            self.emb_new_edge,
+            self.emb_updated_edge,
+            self.emb_deleted_edge,
+            edge_added_by,
+            edge_updated_by,
+            edge_deleted_by,
+        ) = _load_change_counts("rag_edge_embeddings_meta", "edge_label")
+
+        anchor_labels = (
+            set(emb_anchor_count_by_label.keys())
+            | set(anchor_added_by.keys())
+            | set(anchor_updated_by.keys())
+            | set(anchor_deleted_by.keys())
+        )
+        edge_labels = (
+            set(emb_edge_count_by_label.keys())
+            | set(edge_added_by.keys())
+            | set(edge_updated_by.keys())
+            | set(edge_deleted_by.keys())
+        )
+
+        self.emb_anchor_by_node_type = [
+            {
+                "label": lab,
+                "count": int(emb_anchor_count_by_label.get(lab, 0)),
+                "added": int(anchor_added_by.get(lab, 0)),
+                "updated": int(anchor_updated_by.get(lab, 0)),
+                "deleted": int(anchor_deleted_by.get(lab, 0)),
+            }
+            for lab in sorted(anchor_labels)
+        ]
+        self.emb_edge_by_label = [
+            {
+                "label": lab,
+                "count": int(emb_edge_count_by_label.get(lab, 0)),
+                "added": int(edge_added_by.get(lab, 0)),
+                "updated": int(edge_updated_by.get(lab, 0)),
+                "deleted": int(edge_deleted_by.get(lab, 0)),
+            }
+            for lab in sorted(edge_labels)
+        ]
+
+    def _safe_preview_value(self, column_name: str, value: Any) -> str:
+        is_embedding_preview_table = (
+            self.changes_preview_kind == "ingest"
+            and self.changes_preview_table_name in {"rag_anchor_embeddings", "rag_edge_embeddings"}
+        ) or self.changes_preview_kind in {"emb_anchor", "emb_edge"}
+        if is_embedding_preview_table and column_name == "embedding":
+            return f"Vector({core_settings.embeddings_dim})"
+        return safe_render_value(value)
+
     def _compute_consistency(self) -> None:
         self.nodes_total_diff = self.graph_total_nodes - self.dp_nodes_total
         self.edges_total_diff = self.graph_total_edges - self.dp_edges_total
@@ -352,49 +540,67 @@ class DashboardState(rx.State):
         self.new_edges, self.updated_edges, self.deleted_edges = a, u, d
 
     def _load_ingest_metrics_window(self) -> None:
-        """Aggregate new/updated/deleted entries for ingest-side generator outputs."""
+        """Aggregate new/updated/deleted entries for ingest outputs grouped by source."""
         con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
 
         since_ts = float(time.time() - self.time_window_days * 86400)
+        sources = sorted({str(v) for t in etl_app.steps for (k, v) in t.labels if k == "source"} | {"grist"})
 
-        tables = [tt.name for t in etl_app.steps if ("stage", "extract") in t.labels for tt in t.output_dts]
+        breakdown_by_source: dict[str, list[dict[str, Any]]] = {}
+        new_total_by_source: dict[str, int] = {}
+        updated_total_by_source: dict[str, int] = {}
+        deleted_total_by_source: dict[str, int] = {}
 
-        breakdown: list[dict[str, Any]] = []
-        total_a = total_u = total_d = 0
+        for source in sources:
+            tables = [
+                tt.name
+                for t in etl_app.steps
+                if ("stage", "extract") in t.labels and ("source", source) in t.labels
+                for tt in t.output_dts
+            ]
+            tables = sorted(set(tables))
 
-        for t in tables:
-            meta = f"{t}_meta"
-            q_total = sa.text(f'SELECT COUNT(*) FROM "{meta}" WHERE delete_ts IS NULL')
-            q_added = sa.text(f'SELECT COUNT(*) FROM "{meta}" WHERE delete_ts IS NULL AND create_ts >= {since_ts}')
-            q_updated = sa.text(
-                f'SELECT COUNT(*) FROM "{meta}" '
-                f"WHERE delete_ts IS NULL "
-                f"AND update_ts >= {since_ts} "
-                f"AND update_ts > create_ts "
-                f"AND create_ts < {since_ts}"
-            )
-            q_deleted = sa.text(
-                f'SELECT COUNT(*) FROM "{meta}" WHERE delete_ts IS NOT NULL AND delete_ts >= {since_ts}'
-            )
-            try:
-                with con.begin() as conn:
-                    c = conn.execute(q_total).scalar_one()
-                    a = conn.execute(q_added).scalar_one()
-                    u = conn.execute(q_updated).scalar_one()
-                    d = conn.execute(q_deleted).scalar_one()
-            except Exception as e:
-                logging.error(f"error collecting counters: {e}")
-                c = a = u = d = 0
+            breakdown: list[dict[str, Any]] = []
+            total_a = total_u = total_d = 0
 
-            breakdown.append({"table": t, "total": c, "added": a, "updated": u, "deleted": d})
-            total_a += a
-            total_u += u
-            total_d += d
+            for t in tables:
+                meta = f"{t}_meta"
+                q_total = sa.text(f'SELECT COUNT(*) FROM "{meta}" WHERE delete_ts IS NULL')
+                q_added = sa.text(f'SELECT COUNT(*) FROM "{meta}" WHERE delete_ts IS NULL AND create_ts >= {since_ts}')
+                q_updated = sa.text(
+                    f'SELECT COUNT(*) FROM "{meta}" '
+                    f"WHERE delete_ts IS NULL "
+                    f"AND update_ts >= {since_ts} "
+                    f"AND update_ts > create_ts "
+                    f"AND create_ts < {since_ts}"
+                )
+                q_deleted = sa.text(
+                    f'SELECT COUNT(*) FROM "{meta}" WHERE delete_ts IS NOT NULL AND delete_ts >= {since_ts}'
+                )
+                try:
+                    with con.begin() as conn:
+                        c = conn.execute(q_total).scalar_one()
+                        a = conn.execute(q_added).scalar_one()
+                        u = conn.execute(q_updated).scalar_one()
+                        d = conn.execute(q_deleted).scalar_one()
+                except Exception as e:
+                    logging.error(f"error collecting counters for {source}:{t}: {e}")
+                    c = a = u = d = 0
 
-        self.ingest_breakdown = breakdown
-        self.ingest_new_total = total_a
-        self.ingest_updated_total = total_u
-        self.ingest_deleted_total = total_d
+                breakdown.append({"table": t, "total": c, "added": a, "updated": u, "deleted": d})
+                total_a += a
+                total_u += u
+                total_d += d
+
+            breakdown_by_source[source] = breakdown
+            new_total_by_source[source] = int(total_a)
+            updated_total_by_source[source] = int(total_u)
+            deleted_total_by_source[source] = int(total_d)
+
+        self.ingest_breakdown = breakdown_by_source
+        self.ingest_new_total = new_total_by_source
+        self.ingest_updated_total = updated_total_by_source
+        self.ingest_deleted_total = deleted_total_by_source
 
     # --- Ingest change preview ---
     def set_changes_preview_open(self, open: bool) -> None:
@@ -537,7 +743,7 @@ class DashboardState(rx.State):
             records_any
         ):  # Build display row with only data columns, coercing values to safe strings
             row_id = f"changes-{self.changes_preview_page}-{idx}"
-            row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}
+            row_disp: dict[str, Any] = {k: self._safe_preview_value(k, r.get(k)) for k in self.changes_preview_columns}
             row_disp["row_style"] = row_styling.get(r.get("change_type", ""), {})
             row_disp["row_id"] = row_id
             row_disp["expanded"] = row_id in expanded_set
@@ -556,17 +762,37 @@ class DashboardState(rx.State):
         self.changes_preview_label = label
         self.changes_preview_expanded_rows = []  # Reset expanded rows
 
-        await self._load_graph_changes_page()
+        await self._load_labeled_changes_page()
 
-    async def _load_graph_changes_page(self) -> None:
-        """Load the current page of graph changes from the database."""
+    async def open_embedding_per_label_changes_preview(self, kind: str, label: str) -> None:
+        base_table = "rag_anchor_embeddings" if str(kind) == "emb_anchor" else "rag_edge_embeddings"
+        self.changes_preview_table_name = f"{base_table}:{label}"
+        self.changes_preview_open = True
+        self.changes_has_preview = False
+        self.changes_preview_page = 0
+        self.changes_preview_kind = kind
+        self.changes_preview_label = label
+        self.changes_preview_expanded_rows = []
+
+        await self._load_labeled_changes_page()
+
+    async def _load_labeled_changes_page(self) -> None:
+        """Load filtered changes by label for graph/embedding tables."""
         kind = self.changes_preview_kind
         label = self.changes_preview_label
         if not kind or not label:
             return
 
-        base_table = "nodes" if str(kind) == "nodes" else "edges"
-        label_col = "node_type" if base_table == "nodes" else "edge_label"
+        kind_map = {
+            "nodes": ("nodes", "node_type", ["node_id"]),
+            "edges": ("edges", "edge_label", ["from_node_id", "to_node_id"]),
+            "emb_anchor": ("rag_anchor_embeddings", "node_type", ["node_id"]),
+            "emb_edge": ("rag_edge_embeddings", "edge_label", ["from_node_id", "to_node_id"]),
+        }
+        mapped = kind_map.get(str(kind))
+        if mapped is None:
+            return
+        base_table, label_col, key_cols = mapped
 
         con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
 
@@ -654,7 +880,6 @@ class DashboardState(rx.State):
             return
 
         # Ensure key columns are present in columns list
-        key_cols: list[str] = ["node_id"] if base_table == "nodes" else ["from_node_id", "to_node_id"]
         for kc in key_cols:
             if kc not in display_cols:
                 display_cols = [kc, *display_cols]
@@ -673,7 +898,7 @@ class DashboardState(rx.State):
 
         for idx, r in enumerate(records_any):
             row_id = f"changes-{self.changes_preview_page}-{idx}"
-            row_disp: dict[str, Any] = {k: safe_render_value(r.get(k)) for k in self.changes_preview_columns}
+            row_disp: dict[str, Any] = {k: self._safe_preview_value(k, r.get(k)) for k in self.changes_preview_columns}
             row_disp["row_style"] = row_styling.get(r.get("change_type", ""), {})
             row_disp["row_id"] = row_id
             row_disp["expanded"] = row_id in expanded_set
@@ -755,3 +980,19 @@ class DashboardState(rx.State):
     def changes_preview_has_prev(self) -> bool:
         """Whether there's a previous page."""
         return self.changes_preview_page > 0
+
+    @rx.var
+    def ingest_new_total_selected(self) -> int:
+        return int(self.ingest_new_total.get(self.selected_ingest_source_tab, 0))
+
+    @rx.var
+    def ingest_updated_total_selected(self) -> int:
+        return int(self.ingest_updated_total.get(self.selected_ingest_source_tab, 0))
+
+    @rx.var
+    def ingest_deleted_total_selected(self) -> int:
+        return int(self.ingest_deleted_total.get(self.selected_ingest_source_tab, 0))
+
+    @rx.var
+    def ingest_breakdown_selected(self) -> list[dict[str, Any]]:
+        return list(self.ingest_breakdown.get(self.selected_ingest_source_tab, []))

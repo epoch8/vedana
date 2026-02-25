@@ -1,3 +1,7 @@
+# 2026.01.29 - 0.6.0
+
+* Republish to PyPI
+
 # 0.4.0
 
 * Splitting ETL pipelines into tabs by new pipeline label

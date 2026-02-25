@@ -5,9 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "jims-core>=0.1.0",
-    "jims-tui>=0.1.0",
-    "jims-telegram>=0.1.0",
+    "jims-core>=0.5.1",
+    "jims-tui>=0.5.1",
+    "jims-telegram>=0.5.1",
     "alembic>=1.15.2",
     "psycopg2-binary>=2.9.10",
     "asyncpg>=0.30.0",

@@ -16,23 +16,35 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import Session, sessionmaker
-
+from sqlalchemy.pool import NullPool
 from jims_backoffice.settings import DatabaseSettings
 
 T = TypeVar("T")
 
 
+def _pool_kwargs() -> dict:
+    db_config = DatabaseSettings()  # type: ignore
+    if db_config.db_use_null_pool:
+        return {"poolclass": NullPool}
+    kwargs = {}
+    if db_config.db_pool_size is not None:
+        kwargs["pool_size"] = db_config.db_pool_size
+    if db_config.db_pool_max_overflow is not None:
+        kwargs["max_overflow"] = db_config.db_pool_max_overflow
+    return kwargs
+
+
 @cache
 def get_engine() -> Engine:
     db_config = DatabaseSettings()  # type: ignore
-    engine = create_engine(db_config.dsn, pool_size=10)
+    engine = create_engine(db_config.dsn, **_pool_kwargs())
     return engine
 
 
 @cache
 def get_async_engine() -> AsyncEngine:
     db_config = DatabaseSettings()  # type: ignore
-    engine = create_async_engine(db_config.async_dsn, pool_size=100)
+    engine = create_async_engine(db_config.async_dsn, **_pool_kwargs())
     return engine
 
 

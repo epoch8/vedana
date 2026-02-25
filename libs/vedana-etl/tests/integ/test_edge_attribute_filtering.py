@@ -1,26 +1,26 @@
 """
-Интеграционный тест: edge_attribute_filtering
+Integration test: edge_attribute_filtering
 
-Описание:
-  В граф у рёбер должны попадать только те атрибуты, которые описаны
-  в Data Model → Attributes (строки, где column `link` соответствует
-  метке связи из DM Links: `sentence`).
+Description:
+  Only attributes described in Data Model -> Attributes should be included
+  in edge attributes (rows where column `link` matches the link label
+  from DM Links: `sentence`).
 
-Данные:
-  Связь document <-> regulation.
-  В тестовых данных в Link_document_covers_regulation есть лишний ключ
-  `edge_attribute_extra`, который НЕ должен оказаться в графе.
+Data:
+  Link document <-> regulation.
+  Test data in Link_document_covers_regulation has an extra key
+  `edge_attribute_extra`, which should NOT appear in the graph.
 
-Проверяем:
-  1) Находим в DM Links запись для document -> regulation и берём её `sentence`
-     как метку ребра (edge_label).
-  2) Собираем допустимые ключи атрибутов для этой связи из DM Attributes
-     (все `attribute_name`, где `link == sentence`).
-  3) Строим граф через steps.get_grist_data() и отбираем рёбра между document и regulation с нужной меткой.
-  4) Объединение ключей attributes по этим рёбрам:
-     - не содержит 'edge_attribute_extra';
-     - является подмножеством допустимого набора. Если в DM для связи нет
-       ни одного атрибута — у рёбер не должно быть атрибутов вовсе.
+Checks:
+  1) Find the record for document -> regulation in DM Links and get its `sentence`
+     as the edge label.
+  2) Collect allowed attribute keys for this link from DM Attributes
+     (all `attribute_name` where `link == sentence`).
+  3) Build the graph via steps.get_grist_data() and filter edges between document and regulation with the required label.
+  4) Union of attributes keys across these edges:
+     - does not contain 'edge_attribute_extra';
+     - is a subset of the allowed set. If DM has no attributes for this link,
+       edges should have no attributes at all.
 """
 
 from typing import Dict, Set
@@ -34,7 +34,7 @@ load_dotenv()
 
 
 def test_edge_attribute_filtering() -> None:
-    # 1) Data Model: найдём link document -> regulation и его sentence
+    # 1) Data Model: find link document -> regulation and its sentence
     _anchors_df, a_attrs_df, l_attrs_df, links_df, _q_df, _p_df, _cl_df = next(steps.get_data_model())
     assert not links_df.empty and not l_attrs_df.empty
 
@@ -47,7 +47,7 @@ def test_edge_attribute_filtering() -> None:
     sentence = str(dm_row.iloc[0]["sentence"]).strip()
     assert sentence
 
-    # 2) Разрешённые edge-атрибуты по DM (Attributes.link == sentence)
+    # 2) Allowed edge attributes from DM (Attributes.link == sentence)
     if "link" in l_attrs_df.columns:
         mask = l_attrs_df["link"].astype(str).str.lower().str.strip() == sentence.lower()
     else:
@@ -55,11 +55,11 @@ def test_edge_attribute_filtering() -> None:
 
     allowed_edge_attrs: Set[str] = set(map(str, l_attrs_df.loc[mask, "attribute_name"].astype(str).tolist()))
 
-    # 3) Данные → фильтрация рёбер по DM
+    # 3) Data -> filter edges by DM
     nodes_df, edges_df = next(steps.get_grist_data())
     assert not nodes_df.empty and not edges_df.empty
 
-    # 4) Оставляем только document <-> regulation с нужной меткой
+    # 4) Keep only document <-> regulation with the required label
     ft = edges_df["from_node_type"].astype(str).str.lower().str.strip()
     tt = edges_df["to_node_type"].astype(str).str.lower().str.strip()
     lbl = edges_df["edge_label"].astype(str).str.lower().str.strip()
@@ -70,7 +70,7 @@ def test_edge_attribute_filtering() -> None:
     ].copy()
     assert not er.empty, f"No edges '{sentence}' between document and regulation"
 
-    # 5) Собираем объединение ключей attributes по найденным рёбрам
+    # 5) Collect union of attribute keys across the found edges
     union_keys: Set[str] = set()
     has_any_attrs = False
     for _, row in er.iterrows():
@@ -79,12 +79,12 @@ def test_edge_attribute_filtering() -> None:
             has_any_attrs = True
             union_keys.update(map(str, attrs.keys()))
 
-    # 5.1 Лишний ключ из тестовых данных не должен попадать
+    # 5.1 Extra key from test data should not be present
     assert (
         "edge_attribute_extra" not in union_keys
     ), "Found unexpected edge attribute 'edge_attribute_extra' not present in Data Model."
 
-    # 5.2 Все ключи из рёбер должны быть подмножеством DM-описания
+    # 5.2 All keys from edges should be a subset of DM description
     if not allowed_edge_attrs:
         assert not has_any_attrs, f"DM has no edge attributes for '{sentence}', but edges carry: {sorted(union_keys)}"
     else:

@@ -59,6 +59,8 @@ jobs:
 
       - name: Check Alembic migrations
         shell: bash
+        env:
+          CREATE_PGVECTOR_EXTENSION: "true"
         run: |
           cd apps/vedana
           env $(cat .env.ci-cd | grep -v '^#') uv run alembic upgrade heads

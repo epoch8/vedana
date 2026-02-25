@@ -1,21 +1,21 @@
 """
-Интеграционный тест: anchor_link_columns
+Integration test: anchor_link_columns
 
-Описание:
-Reference / Reference List столбцы в таблицах Anchor_* должны порождать рёбра между
-узлами согласно Data Model.
+Description:
+Reference / Reference List columns in Anchor_* tables should generate edges between
+nodes according to Data Model.
 
-Данные:
-- связь document <-> document_chunk задаётся колонкой в Anchor_document:
+Data:
+- link document <-> document_chunk is defined by a column in Anchor_document:
   link_document_has_document_chunk
-- у документа 'document:1' в тестовых данных есть ссылки на чанки:
+- document 'document:1' in test data has references to chunks:
   document_chunk:01, document_chunk:02, document_chunk:03, document_chunk:05
 
-Проверяем:
-1) В DM находим линк document -> document_chunk и берем его sentence.
-2) Получаем рёбра пайплайна (steps.get_grist_data()).
-3) Убеждаемся, что в edges_df есть рёбра между 'document:1' и перечисленными чанками
-   с нужным edge_label (из DM). Направление не важно.
+Checks:
+1) Find link document -> document_chunk in DM and get its sentence.
+2) Get edges from pipeline (steps.get_grist_data()).
+3) Verify that edges_df contains edges between 'document:1' and the listed chunks
+   with the required edge_label (from DM). Direction doesn't matter.
 """
 
 from typing import Set, Tuple
@@ -33,23 +33,23 @@ def _unordered(a: str, b: str) -> Tuple[str, str]:
 
 
 def test_anchor_link_columns() -> None:
-    # 1) Берём из Data Model sentence для document <-> document_chunk
+    # 1) Get sentence from Data Model for document <-> document_chunk
     _anchors_df, _a_attrs_df, _l_attrs_df, links_df, _q_df, _p_df, _cl_df = next(steps.get_data_model())
-    assert not links_df.empty, "Data Model Links пуст."
+    assert not links_df.empty, "Data Model Links is empty."
 
     dm = links_df.copy()
     a1 = dm["anchor1"].astype(str).str.lower().str.strip()
     a2 = dm["anchor2"].astype(str).str.lower().str.strip()
     row = dm[(a1 == "document") & (a2 == "document_chunk")]
-    assert not row.empty, "В Data Model нет линка document -> document_chunk."
+    assert not row.empty, "No link document -> document_chunk in Data Model."
     sentence = str(row.iloc[0]["sentence"]).strip()
-    assert sentence, "В Data Model для document <-> document_chunk пустой sentence."
+    assert sentence, "Empty sentence for document <-> document_chunk in Data Model."
 
-    # 2) Получаем рёбра из пайплайна
+    # 2) Get edges from pipeline
     nodes_df, edges_df = next(steps.get_grist_data())
-    assert isinstance(edges_df, pd.DataFrame) and not edges_df.empty, "edges_df пуст."
+    assert isinstance(edges_df, pd.DataFrame) and not edges_df.empty, "edges_df is empty."
 
-    # Фильтруем нужные рёбра: document <-> document_chunk, нужная метка
+    # Filter required edges: document <-> document_chunk, required label
     ft = edges_df["from_node_type"].astype(str).str.lower().str.strip()
     tt = edges_df["to_node_type"].astype(str).str.lower().str.strip()
     lbl = edges_df["edge_label"].astype(str).str.lower().str.strip()
@@ -59,14 +59,14 @@ def test_anchor_link_columns() -> None:
         & (lbl == sentence.lower())
     ].copy()
 
-    assert not target_edges.empty, f"Не найдено ни одного ребра document <-> document_chunk с меткой '{sentence}'."
+    assert not target_edges.empty, f"No edges document <-> document_chunk with label '{sentence}' found."
 
-    # Сформируем множество фактических неориентированных пар
+    # Build set of actual undirected pairs
     actual_pairs: Set[Tuple[str, str]] = set(
         _unordered(str(r["from_node_id"]).strip(), str(r["to_node_id"]).strip()) for _, r in target_edges.iterrows()
     )
 
-    # 3) Ожидаемые пары для 'document:1' из тестовых данных
+    # 3) Expected pairs for 'document:1' from test data
     expected_pairs: Set[Tuple[str, str]] = {
         _unordered("document:1", "document_chunk:01"),
         _unordered("document:1", "document_chunk:02"),
@@ -75,4 +75,4 @@ def test_anchor_link_columns() -> None:
     }
 
     missing = sorted(p for p in expected_pairs if p not in actual_pairs)
-    assert not missing, f"Не все связи из reference-колонки Anchor_document попали в граф. Отсутствуют пары: {missing}"
+    assert not missing, f"Not all links from Anchor_document reference column are in the graph. Missing pairs: {missing}"

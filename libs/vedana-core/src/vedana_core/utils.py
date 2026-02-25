@@ -1,6 +1,6 @@
 def cast_dtype(value, value_name: str, dtype: str | None):
     """
-    умнейшая конвертация строковых переменных по заданному в дата-модели типу данных
+    convert strings into dtypes provided in data model
     """
 
     try:
@@ -18,7 +18,7 @@ def cast_dtype(value, value_name: str, dtype: str | None):
                 value = int(value)
 
         elif dtype == "bool":
-            return str(value).strip().lower() in ["1", "true", "да", "есть"]
+            return str(value).strip().lower() in ["1", "true"]
         elif dtype == "str":
             return str(value)
 

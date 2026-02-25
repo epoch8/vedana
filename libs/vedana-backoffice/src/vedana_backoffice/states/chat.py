@@ -3,21 +3,19 @@ import logging
 import os
 import traceback
 from datetime import datetime
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Dict, Tuple
 from uuid import UUID, uuid4
 
 import orjson as json
 import reflex as rx
-import requests
 from datapipe.compute import Catalog, run_pipeline
-from jims_core.llms.llm_provider import env_settings as llm_settings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.pipeline import get_data_model_pipeline
 
-from vedana_backoffice.states.common import MemLogger, get_vedana_app
+from vedana_backoffice.states.common import MemLogger, get_vedana_app, load_openrouter_models, DEBUG_MODE, datapipe_log_capture
 from vedana_backoffice.states.jims import ThreadViewState
 
 
@@ -50,11 +48,15 @@ class ChatState(rx.State):
     default_openrouter_key_present: bool = bool(os.environ.get("OPENROUTER_API_KEY"))  # to require api_key input
     openai_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
     openrouter_models: list[str] = []
+    openrouter_models_loaded: bool = False
     available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
+    model_selection_allowed: bool = DEBUG_MODE
     enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
 
-    async def mount(self) -> None:
-        self.fetch_openrouter_models()
+    async def mount(self):
+        """Load OpenRouter models (fetches on first call, cached thereafter)."""
+        self.openrouter_models = await load_openrouter_models()
+        self.openrouter_models_loaded = True
         self._sync_available_models()
 
     def set_input(self, value: str) -> None:
@@ -74,46 +76,6 @@ class ChatState(rx.State):
         self.provider = value
         self._sync_available_models()
 
-    def _filter_chat_capable(self, models: Iterable[dict]) -> list[str]:
-        result: list[str] = []
-        for m in models:
-            model_id = str(m.get("id", "")).strip()
-            if not model_id:
-                continue
-
-            has_chat = False
-            architecture = m.get("architecture", {})
-            if architecture:
-                if "text" in architecture.get("input_modalities", []) and "text" in architecture.get(
-                    "output_modalities", []
-                ):
-                    has_chat = True
-
-            has_tools = False  # only accept models with tool calls
-            if "tools" in m.get("supported_parameters", []):
-                has_tools = True
-
-            if has_chat and has_tools:
-                result.append(model_id)
-
-        return result
-
-    def fetch_openrouter_models(self) -> None:
-        try:
-            resp = requests.get(
-                f"{llm_settings.openrouter_api_base_url}/models",
-                # headers={"Authorization": f"Bearer {openrouter_api_key}"},  # actually works without a token as well
-                timeout=10,
-            )
-            resp.raise_for_status()
-            payload = resp.json()
-            models = payload.get("data", [])
-            parsed = self._filter_chat_capable(models)
-        except Exception as exc:  # pragma: no cover - best effort
-            logging.warning(f"Failed to fetch OpenRouter models: {exc}")
-            parsed = []
-        self.openrouter_models = sorted(list(parsed))
-
     def _sync_available_models(self) -> None:
         """
         Recompute available_models based on selected provider, and realign
@@ -123,8 +85,11 @@ class ChatState(rx.State):
         if self.provider == "openrouter":
             models = self.openrouter_models
             if not models:
-                self.provider = "openai"
-                models = self.openai_models
+                if self.openrouter_models_loaded:
+                    self.provider = "openai"
+                    models = self.openai_models
+                else:
+                    models = self.available_models or self.openai_models
         else:
             models = self.openai_models
 
@@ -351,8 +316,10 @@ class ChatState(rx.State):
     @rx.event(background=True)  # type: ignore[operator]
     async def reload_data_model_background(self):
         try:
-            """Reload the data model by running all data_model_steps from the pipeline."""
-            await asyncio.to_thread(run_pipeline, etl_app.ds, Catalog({}), get_data_model_pipeline())
+            def _run_dm_pipeline():
+                with datapipe_log_capture():
+                    run_pipeline(etl_app.ds, Catalog({}), get_data_model_pipeline())
+            await asyncio.to_thread(_run_dm_pipeline)
             async with self:
                 va = await get_vedana_app()
                 self.data_model_text = await va.data_model.to_text_descr()
@@ -360,7 +327,7 @@ class ChatState(rx.State):
         except Exception as e:
             async with self:
                 error_msg = str(e)
-                self.data_model_text = f"(error reloading data model: {error_msg})"
+                # self.data_model_text = f"(error reloading data model: {error_msg})"
             yield rx.toast.error(f"Failed to reload data model\n{error_msg}")
         finally:
             async with self:

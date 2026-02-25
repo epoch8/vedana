@@ -33,3 +33,4 @@ docker-compose -f apps/vedana/docker-compose.yml -f up --build -d vedana-backoff
 5. Click "Run Selected"
 6. Watch logs stream from Job in real-time or open logs from Jobs card
 
+See also README.md in the repository root.
