@@ -429,7 +429,7 @@ def _tests_card() -> rx.Component:
             ),
             rx.table.cell(rx.text(row.get("eval_judge_rating", "—"))),
             _expandable_text(row, "eval_judge_comment"),
-            rx.table.cell(rx.text(row.get("pipeline_cost", "—"), size="1", color="gray")),
+            # rx.table.cell(rx.text(row.get("pipeline_cost", "—"), size="1", color="gray")),
             # rx.table.cell(rx.text(row.get("judge_cost", "—"), size="1", color="gray")),
         )
 
@@ -483,7 +483,7 @@ def _tests_card() -> rx.Component:
                             rx.table.column_header_cell("Status"),
                             rx.table.column_header_cell("Rating"),
                             rx.table.column_header_cell("Judge comment"),
-                            rx.table.column_header_cell("Pipeline cost"),
+                            # rx.table.column_header_cell("Pipeline cost"),
                             # rx.table.column_header_cell("Judge cost"),
                         )
                     ),
