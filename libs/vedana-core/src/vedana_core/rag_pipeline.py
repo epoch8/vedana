@@ -286,7 +286,6 @@ class RagPipeline:
             filter_llm = ctx.llm
 
             base_model = ctx.llm.model
-            base_api_key = ctx.llm.model_api_key
             if self.filter_model:  # if different model specified for filtering - use it
                 filter_llm.set_model(self.filter_model)
 
@@ -296,7 +295,6 @@ class RagPipeline:
             finally:
                 if base_model:  # select base model back
                     ctx.llm.set_model(base_model)
-                ctx.llm.model_api_key = base_api_key  # restore (may be None)
 
             if selection is None:
                 raise ValueError("LLM returned empty response")
