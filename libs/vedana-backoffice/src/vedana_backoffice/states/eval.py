@@ -15,7 +15,7 @@ import reflex as rx
 import sqlalchemy as sa
 from datapipe.compute import run_steps
 from jims_core.db import ThreadDB, ThreadEventDB
-from jims_core.llms.llm_provider import LLMProvider
+from jims_core.llms.llm_provider import LLMProvider, LLMSettings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from pydantic import BaseModel, Field
@@ -1709,10 +1709,7 @@ class EvalState(rx.State):
             "OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY"
         ) or "").strip() or None
 
-        ctx = await ctl.make_context()
-        if api_key:
-            ctx.llm.model_api_key = api_key
-
+        ctx = await ctl.make_context(llm_settings=LLMSettings(model=resolved_model, model_api_key=api_key))
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
         answer: str = ""

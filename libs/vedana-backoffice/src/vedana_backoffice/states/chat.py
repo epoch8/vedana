@@ -10,6 +10,7 @@ import orjson as json
 import reflex as rx
 from datapipe.compute import Catalog, run_pipeline
 from jims_core.thread.thread_controller import ThreadController
+from jims_core.llms.llm_provider import LLMSettings
 from jims_core.util import uuid7
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
@@ -264,10 +265,8 @@ class ChatState(rx.State):
         pipeline.filter_model = f"{self.provider}/{self.dm_filter_model}"
         api_key = os.environ.get("OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY")
 
-        ctx = await ctl.make_context()
-        if api_key:
-            ctx.llm.model_api_key = api_key
-
+        ctx = await ctl.make_context(llm_settings=LLMSettings(model=self.model, model_api_key=api_key))
+        
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
         answer: str = ""

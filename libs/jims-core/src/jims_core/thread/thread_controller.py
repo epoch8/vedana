@@ -5,7 +5,7 @@ from uuid import UUID
 import sqlalchemy as sa
 import sqlalchemy.ext.asyncio as sa_aio
 from jims_core.db import ThreadDB, ThreadEventDB
-from jims_core.llms.llm_provider import LLMProvider
+from jims_core.llms.llm_provider import LLMProvider, LLMSettings
 from jims_core.schema import Pipeline
 from jims_core.thread.schema import CommunicationEvent, EventEnvelope
 from jims_core.thread.thread_context import ThreadContext
@@ -151,7 +151,7 @@ class ThreadController:
         event_data = CommunicationEvent(role="assistant", content=content)
         await self.store_event_dict(event_id, "comm.assistant_message", dict(event_data))
 
-    async def make_context(self) -> ThreadContext:
+    async def make_context(self, llm_settings: LLMSettings | None = None) -> ThreadContext:
         """
         Create a new ThreadContext for the current thread.
         """
@@ -183,7 +183,7 @@ class ThreadController:
             thread_id=self.thread.thread_id,
             history=history,
             events=events,
-            llm=LLMProvider(),
+            llm=LLMProvider(settings=llm_settings),
             thread_config=self.thread.thread_config,
         )
 
