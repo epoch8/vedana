@@ -14,7 +14,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 
 def create_widget_app(jims_app: JimsApp, cors_origins: list[str] | None = None) -> FastAPI:
-    app = FastAPI(title="Vedana Widget", version="0.1.0")
+    app = FastAPI(title="JIMS Widget", version="0.1.0")
 
     if cors_origins:
         from fastapi.middleware.cors import CORSMiddleware
