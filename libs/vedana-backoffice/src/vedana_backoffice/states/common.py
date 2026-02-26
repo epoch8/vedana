@@ -134,8 +134,8 @@ class DebugState(rx.State):
 
     debug_mode: bool = DEBUG_MODE
     show_api_key_dialog: bool = False
-    default_openai_api_key: str = os.environ.get("OPENAI_API_KEY")
-    default_openrouter_api_key: str = os.environ.get("OPENROUTER_API_KEY")
+    default_openai_api_key: str = os.environ.get("OPENAI_API_KEY", "")
+    default_openrouter_api_key: str = os.environ.get("OPENROUTER_API_KEY", "")
     openai_api_key: str = ""
     openrouter_api_key: str = ""
     api_key_saved: bool = False
@@ -157,10 +157,8 @@ class DebugState(rx.State):
     def save_api_keys(self) -> None:
         if not self.debug_mode:
             return
-        if self.openai_api_key:
-            os.environ["OPENAI_API_KEY"] = self.openai_api_key
-        if self.openrouter_api_key:
-            os.environ["OPENROUTER_API_KEY"] = self.openrouter_api_key
+        os.environ["OPENAI_API_KEY"] = self.openai_api_key
+        os.environ["OPENROUTER_API_KEY"] = self.openrouter_api_key
         self.api_key_saved = bool(self.openai_api_key or self.openrouter_api_key)
         self.show_api_key_dialog = False
 

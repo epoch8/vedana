@@ -117,7 +117,7 @@ def page() -> rx.Component:
                             width="16em",
                             placeholder="Filter model",
                         ),
-                        rx.fragment(),
+                        rx.text(ChatState.dm_filter_model, size="1", color="gray"),
                     ),
                     rx.spacer(),
                     rx.hstack(
