@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JIMS Chat Widget — Demo</title>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f4f5f7;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+      color: #1a1a2e;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 0.25rem;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+    }
+
+    #chat-container {
+      width: 100%;
+      max-width: 640px;
+      height: 70vh;
+      min-height: 400px;
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+      display: flex;
+    }
+
+    #chat-container deep-chat {
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      border-radius: 16px;
+      font-family: inherit;
+    }
+
+    .info {
+      margin-top: 1.25rem;
+      font-size: 0.82rem;
+      color: #888;
+      text-align: center;
+      max-width: 640px;
+    }
+
+    .embed-section {
+      width: 100%;
+      max-width: 640px;
+      margin-top: 2rem;
+    }
+    .embed-section h2 {
+      font-size: 1.1rem;
+      margin-bottom: 0.5rem;
+    }
+    .embed-section p {
+      font-size: 0.88rem;
+      color: #555;
+      margin-bottom: 0.75rem;
+    }
+    .embed-section pre {
+      background: #1e1e2e;
+      color: #cdd6f4;
+      padding: 1rem 1.25rem;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .embed-section code .tag { color: #89b4fa; }
+    .embed-section code .attr { color: #a6e3a1; }
+    .embed-section code .val { color: #f9e2af; }
+    .embed-section code .comment { color: #6c7086; }
+  </style>
+</head>
+<body>
+  <h1>Vedana AI Assistant</h1>
+  <p class="subtitle">Chat widget demo</p>
+
+  <div id="chat-container">
+    <deep-chat
+      id="vedana-chat"
+      style="
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 100% !important;
+        --deep-chat-send-btn-bg: #4f46e5;
+        --deep-chat-user-bubble-bg: #4f46e5;
+        --deep-chat-user-bubble-text: #fff;
+        --deep-chat-ai-bubble-bg: #f0f0f5;
+        --deep-chat-ai-bubble-text: #1a1a2e;
+      "
+      introMessage='{"text":"Hello! I am your Vedana AI Assistant. How can I help you today?"}'
+      textInput='{"placeholder":{"text":"Type a message…"}}'
+      messageStyles='{"default":{"shared":{"bubble":{"borderRadius":"12px","padding":"10px 14px","maxWidth":"80%","fontSize":"0.92rem"}}}}'
+    ></deep-chat>
+  </div>
+
+  <div class="embed-section">
+    <h2>Embed in your website</h2>
+<pre><code><span class="tag">&lt;script</span>
+  <span class="attr">src</span>=<span class="val">"<span id="snippet-origin"></span>/static/jims-widget.js"</span>
+  <span class="attr">data-server</span>=<span class="val">"<span id="snippet-server"></span>"</span>
+  <span class="attr">data-contact-id</span>=<span class="val">"visitor-123"</span>
+<span class="tag">&gt;&lt;/script&gt;</span></code></pre>
+
+  <script type="module">
+    import "https://cdn.jsdelivr.net/npm/deep-chat@2.4.1/dist/deepChat.bundle.js";
+
+    var wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
+    var wsUrl = wsProtocol + "//" + location.host + "/ws/chat";
+
+    var chat = document.getElementById("vedana-chat");
+    chat.connect = { websocket: true, url: wsUrl };
+    chat.displayLoadingBubble = true;
+    chat.scrollButton = true;
+
+    chat.requestInterceptor = function (details) {
+      var body = typeof details.body === "string" ? JSON.parse(details.body) : details.body;
+      var messages = body.messages || [];
+      var last = messages[messages.length - 1];
+      var text = last ? (last.text || "") : "";
+      return Object.assign({}, details, {
+        body: JSON.stringify({ messages: [{ role: "user", text: text }] })
+      });
+    };
+
+    chat.responseInterceptor = function (response) {
+      if (!response) return;
+      if (response.thread_id) return {};
+      if (response.error) return { error: response.error };
+      if (response.text) return { text: response.text };
+      return response;
+    };
+
+    // Fill in the embed snippet with the current origin
+    var origin = location.origin;
+    document.getElementById("snippet-origin").textContent = origin;
+    document.getElementById("snippet-server").textContent = origin;
+  </script>
+</body>
+</html>

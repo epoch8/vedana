@@ -20,6 +20,7 @@ jims-core = { workspace = true }
 jims-api = { workspace = true }
 jims-telegram = { workspace = true }
 jims-tui = { workspace = true }
+jims-widget = { workspace = true }
 vedana-backoffice = { workspace = true }
 vedana-core = { workspace = true }
 vedana-etl = { workspace = true }
