@@ -109,27 +109,13 @@ def page() -> rx.Component:
                         size="1",
                     ),
                     rx.cond(
-                        ChatState.enable_dm_filtering,
-                        rx.cond(
-                            AppVersionState.debug_mode,
-                            rx.hstack(
-                                rx.select(
-                                    items=["openai", "openrouter"],
-                                    value=ChatState.dm_filter_provider,
-                                    on_change=ChatState.set_dm_filter_provider,
-                                    width="10em",
-                                    placeholder="Filter provider",
-                                ),
-                                rx.select(
-                                    items=ChatState.dm_filter_available_models,
-                                    value=ChatState.dm_filter_model,
-                                    on_change=ChatState.set_dm_filter_model,
-                                    width="16em",
-                                    placeholder="Filter model",
-                                ),
-                                spacing="2",
-                            ),
-                            rx.fragment(),
+                        ChatState.enable_dm_filtering & AppVersionState.debug_mode,
+                        rx.select(
+                            items=ChatState.dm_filter_available_models,
+                            value=ChatState.dm_filter_model,
+                            on_change=ChatState.set_dm_filter_model,
+                            width="16em",
+                            placeholder="Filter model",
                         ),
                         rx.fragment(),
                     ),
@@ -178,21 +164,6 @@ def page() -> rx.Component:
                                 on_change=ChatState.set_provider,
                                 width="10em",
                                 placeholder="Provider",
-                                ),
-                                rx.cond(
-                                    ChatState.provider == "openrouter",
-                                    rx.input(
-                                        placeholder=rx.cond(
-                                            ChatState.default_openrouter_key_present,
-                                            "(Optional) custom OPENROUTER_API_KEY",
-                                            "(Required) OPENROUTER_API_KEY",
-                                        ),
-                                        type="password",
-                                        value=ChatState.custom_openrouter_key,
-                                        on_change=ChatState.set_custom_openrouter_key,
-                                        width="20em",
-                                        required=rx.cond(ChatState.default_openrouter_key_present, False, True),
-                                    ),
                                 ),
                                 rx.select(
                                     items=ChatState.available_models,

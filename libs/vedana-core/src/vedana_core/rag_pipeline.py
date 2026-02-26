@@ -105,7 +105,6 @@ class RagPipeline:
         top_n: int = 5,
         model: str | None = None,
         filter_model: str | None = None,
-        filter_api_key: str | None = None,
         enable_filtering: bool | None = None,
     ):
         self.graph = graph
@@ -116,7 +115,6 @@ class RagPipeline:
         self.top_n = top_n
         self.model = model or settings.model
         self.filter_model = filter_model or settings.filter_model  # or self.model
-        self.filter_api_key = filter_api_key
         self.enable_filtering = enable_filtering or settings.enable_dm_filtering
 
     async def __call__(self, ctx: ThreadContext) -> None:
@@ -291,8 +289,6 @@ class RagPipeline:
             base_api_key = ctx.llm.model_api_key
             if self.filter_model:  # if different model specified for filtering - use it
                 filter_llm.set_model(self.filter_model)
-            if self.filter_api_key is not None:
-                ctx.llm.model_api_key = self.filter_api_key
 
             try:
                 # Use structured output to get the selection

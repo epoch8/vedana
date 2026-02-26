@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 
-from vedana_backoffice.states.common import get_vedana_app, load_openrouter_models, HAS_OPENROUTER_KEY, datapipe_log_capture
+from vedana_backoffice.states.common import get_vedana_app, load_openrouter_models, datapipe_log_capture, DebugState
 from vedana_backoffice.util import safe_render_value
 
 
@@ -186,8 +186,6 @@ class EvalState(rx.State):
     pipeline_model: str = core_settings.model
     embeddings_model: str = core_settings.embeddings_model
     embeddings_dim: int = core_settings.embeddings_dim
-    custom_openrouter_key: str = ""
-    default_openrouter_key_present: bool = HAS_OPENROUTER_KEY
     enable_dm_filtering: bool = core_settings.enable_dm_filtering
     _default_models: tuple[str, ...] = (
         "gpt-5.1-chat-latest",
@@ -210,12 +208,8 @@ class EvalState(rx.State):
         )
     )
     openrouter_models: list[str] = []
-    # Data model filtering LLM selection (same logic as pipeline model; used when enable_dm_filtering is True)
-    dm_filter_provider: str = "openai"
     dm_filter_model: str = core_settings.filter_model
     dm_id: str = ""
-    # Judge model selection (same logic as pipeline; used when debug)
-    judge_provider: str = "openai"
 
     def _models_for_provider(self, provider: str) -> list[str]:
         """Return the list of model names for the given provider (openai or openrouter)."""
@@ -229,11 +223,11 @@ class EvalState(rx.State):
 
     @rx.var
     def dm_filter_available_models(self) -> list[str]:
-        return self._models_for_provider(self.dm_filter_provider)
+        return self._models_for_provider(self.provider)
 
     @rx.var
     def judge_available_models(self) -> list[str]:
-        return self._models_for_provider(self.judge_provider)
+        return self._models_for_provider(self.provider)
 
     tests_rows: list[dict[str, Any]] = []
     tests_cost_total: float = 0.0
@@ -400,13 +394,11 @@ class EvalState(rx.State):
 
     @rx.var
     def dm_filter_model_display(self) -> str:
-        """Display string for filter model (e.g. openai/gpt-4.1-mini) when debug is off."""
-        return f"{self.dm_filter_provider}/{self.dm_filter_model}"
+        return f"{self.provider}/{self.dm_filter_model}"
 
     @rx.var
     def judge_model_display(self) -> str:
-        """Display string for judge model (e.g. openai/gpt-4.1-mini) when debug is off."""
-        return f"{self.judge_provider}/{self.judge_model}"
+        return f"{self.provider}/{self.judge_model}"
 
     def toggle_question_selection(self, question: str, checked: bool) -> None:
         question = str(question or "").strip()
@@ -474,32 +466,16 @@ class EvalState(rx.State):
         if value in models:
             self.pipeline_model = value
 
-    def set_custom_openrouter_key(self, value: str) -> None:
-        self.custom_openrouter_key = str(value or "").strip()
-        # optional: could refetch models with the override; keep static to avoid extra calls
-
     def set_enable_dm_filtering(self, value: bool) -> None:
         self.enable_dm_filtering = value
 
-    async def set_dm_filter_provider(self, value: str) -> None:
-        self.dm_filter_provider = str(value or "openai")
-        if self.dm_filter_provider == "openrouter" and not self.openrouter_models:
-            self.openrouter_models = await load_openrouter_models()
-        self._sync_dm_filter_available_models()
-
     def set_dm_filter_model(self, value: str) -> None:
-        models = self._models_for_provider(self.dm_filter_provider)
+        models = self._models_for_provider(self.provider)
         if value in models:
             self.dm_filter_model = value
 
-    async def set_judge_provider(self, value: str) -> None:
-        self.judge_provider = str(value or "openai")
-        if self.judge_provider == "openrouter" and not self.openrouter_models:
-            self.openrouter_models = await load_openrouter_models()
-        self._sync_judge_available_models()
-
     def set_judge_model(self, value: str) -> None:
-        models = self._models_for_provider(self.judge_provider)
+        models = self._models_for_provider(self.provider)
         if value in models:
             self.judge_model = value
 
@@ -508,6 +484,8 @@ class EvalState(rx.State):
         if self.provider == "openrouter" and not self.openrouter_models:
             self.openrouter_models = await load_openrouter_models()
         self._sync_available_models()
+        self._sync_dm_filter_model()
+        self._sync_judge_model()
 
     def set_compare_run_a(self, value: str) -> None:
         self.compare_run_a = str(value or "").strip()
@@ -531,19 +509,15 @@ class EvalState(rx.State):
         if self.pipeline_model not in models and models:
             self.pipeline_model = models[0]
 
-    def _sync_dm_filter_available_models(self) -> None:
-        """Realign selected filter model when dm_filter_provider or model list changes."""
-        if self.dm_filter_provider == "openrouter" and not self.openrouter_models:
-            self.dm_filter_provider = "openai"
-        models = self._models_for_provider(self.dm_filter_provider)
+    def _sync_dm_filter_model(self) -> None:
+        """Realign selected filter model when provider or model list changes."""
+        models = self._models_for_provider(self.provider)
         if self.dm_filter_model not in models and models:
             self.dm_filter_model = models[0]
 
-    def _sync_judge_available_models(self) -> None:
-        """Realign selected judge model when judge_provider or model list changes."""
-        if self.judge_provider == "openrouter" and not self.openrouter_models:
-            self.judge_provider = "openai"
-        models = self._models_for_provider(self.judge_provider)
+    def _sync_judge_model(self) -> None:
+        """Realign selected judge model when provider or model list changes."""
+        models = self._models_for_provider(self.provider)
         if self.judge_model not in models and models:
             self.judge_model = models[0]
 
@@ -788,7 +762,6 @@ class EvalState(rx.State):
             run_label = self._format_run_label_with_name(thread.contact_id, cfg)
             test_date = run_label
             row_pipeline_cost: float = 0.0
-            row_judge_cost: float = 0.0
 
             for ev in evs:
                 if ev.event_type == "comm.assistant_message":
@@ -817,7 +790,6 @@ class EvalState(rx.State):
                         if jc is not None:
                             v = float(jc)
                             judge_cost_total += v
-                            row_judge_cost += v
                     except (TypeError, ValueError):
                         pass
 
@@ -840,7 +812,6 @@ class EvalState(rx.State):
                     "eval_judge_comment": safe_render_value(judge_comment),
                     "eval_judge_rating": rating_label,
                     "pipeline_cost": f"${row_pipeline_cost:.6f}" if row_pipeline_cost else "—",
-                    "judge_cost": f"${row_judge_cost:.6f}" if row_judge_cost else "—",
                 }
             )
 
@@ -1730,15 +1701,15 @@ class EvalState(rx.State):
         resolved_model = self._resolved_pipeline_model()
         pipeline.model = resolved_model
         pipeline.enable_filtering = self.enable_dm_filtering
-        pipeline.filter_model = f"{self.dm_filter_provider}/{self.dm_filter_model}"
-        if self.custom_openrouter_key:
-            pipeline.filter_api_key = self.custom_openrouter_key
-        else:
-            pipeline.filter_api_key = None
+        pipeline.filter_model = f"{self.provider}/{self.dm_filter_model}"
+
+        api_key = (os.environ.get(
+            "OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY"
+        ) or "").strip() or None
 
         ctx = await ctl.make_context()
-        if self.provider == "openrouter" and self.custom_openrouter_key:
-            ctx.llm.model_api_key = self.custom_openrouter_key
+        if api_key:
+            ctx.llm.model_api_key = api_key
 
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
@@ -1760,15 +1731,18 @@ class EvalState(rx.State):
         if not judge_prompt:
             return "fail", "Judge prompt not loaded", 0, 0.0
 
-        provider = LLMProvider()  # todo use single LLMProvider per-thread
-        resolved_judge_model = f"{self.judge_provider}/{self.judge_model}"
+        provider = LLMProvider()
+        resolved_judge_model = f"{self.provider}/{self.judge_model}"
         try:
             provider.set_model(resolved_judge_model)
         except Exception:
             logging.warning(f"Failed to set judge model {resolved_judge_model}")
 
-        if self.judge_provider == "openrouter" and self.custom_openrouter_key:
-            provider.model_api_key = self.custom_openrouter_key
+        api_key = (os.environ.get(
+            "OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY"
+        ) or "").strip()
+        if api_key:
+            provider.model_api_key = api_key
 
         class JudgeResult(BaseModel):
             test_status: str = Field(description="pass / fail")
@@ -1837,11 +1811,11 @@ class EvalState(rx.State):
         if not self.judge_prompt:
             self.error_message = "Judge prompt not loaded. Refresh judge config first."
             return
-        if self.provider == "openrouter":
-            key = (self.custom_openrouter_key or os.environ.get("OPENROUTER_API_KEY") or "").strip()
-            if not key:
-                self.error_message = "OPENROUTER_API_KEY is required for OpenRouter provider."
-                return
+
+        env_key = "OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY"
+        if not (os.environ.get(env_key) or "").strip():
+            yield DebugState.open_dialog()
+            return
 
         test_run_name = self.test_run_name.strip() or ""
 
@@ -2010,8 +1984,8 @@ class EvalState(rx.State):
             async with self:
                 self.openrouter_models = await load_openrouter_models()
                 self._sync_available_models()
-                self._sync_dm_filter_available_models()
-                self._sync_judge_available_models()
+                self._sync_dm_filter_model()
+                self._sync_judge_model()
                 await self._load_eval_questions()
                 self.tests_page_size = max(1, len(self.eval_gds_rows) * 2)
                 await self._load_judge_config()
