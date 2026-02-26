@@ -71,7 +71,7 @@ def api_key_setup_dialog() -> rx.Component:
         rx.dialog.content(
             rx.dialog.title("API Key Setup"),
             rx.dialog.description(
-                "Add API keys for the providers you use. These keys are reset after reloading the page.",
+                "Add API keys for the providers you use.",
                 margin_bottom="1em",
             ),
             rx.vstack(
