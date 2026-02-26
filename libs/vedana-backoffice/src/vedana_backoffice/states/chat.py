@@ -91,6 +91,9 @@ class ChatState(rx.State):
 
     def set_provider(self, value: str) -> None:
         self.provider = value
+        if self.provider == "openai":  # reset defaults when changing back
+            self.model = core_settings.model
+            self.dm_filter_model = core_settings.filter_model
         self._sync_available_models()
         self._sync_dm_filter_model()
 
@@ -305,7 +308,7 @@ class ChatState(rx.State):
             return
 
         env_key = "OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY"
-        if not (os.environ.get(env_key) or "").strip():
+        if not os.environ.get(env_key):
             yield DebugState.open_dialog()
             return
 

@@ -202,10 +202,7 @@ class EvalState(rx.State):
         "o4-mini",
     )
     openai_models: list[str] = list(
-        set(
-            list(_default_models)
-            + [core_settings.model, core_settings.filter_model, core_settings.judge_model]
-        )
+        set([core_settings.model, core_settings.filter_model, core_settings.judge_model] + list(_default_models))
     )
     openrouter_models: list[str] = []
     dm_filter_model: str = core_settings.filter_model
@@ -483,6 +480,11 @@ class EvalState(rx.State):
         self.provider = str(value or "openai")
         if self.provider == "openrouter" and not self.openrouter_models:
             self.openrouter_models = await load_openrouter_models()
+        else:
+            # When switching back to OpenAI, reset models to settings defaults
+            self.pipeline_model = core_settings.model
+            self.dm_filter_model = core_settings.filter_model
+            self.judge_model = core_settings.judge_model
         self._sync_available_models()
         self._sync_dm_filter_model()
         self._sync_judge_model()
@@ -1813,7 +1815,7 @@ class EvalState(rx.State):
             return
 
         env_key = "OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY"
-        if not (os.environ.get(env_key) or "").strip():
+        if not os.environ.get(env_key):
             yield DebugState.open_dialog()
             return
 
