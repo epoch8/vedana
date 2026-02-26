@@ -46,20 +46,35 @@ class ChatState(rx.State):
     )
     custom_openrouter_key: str = ""
     default_openrouter_key_present: bool = bool(os.environ.get("OPENROUTER_API_KEY"))  # to require api_key input
-    openai_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
+    openai_models: list[str] = list(
+        set(list(_default_models) + [core_settings.model, core_settings.filter_model])
+    )
     openrouter_models: list[str] = []
     openrouter_models_loaded: bool = False
-    available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
     model_selection_allowed: bool = DEBUG_MODE
     enable_dm_filtering: bool = core_settings.enable_dm_filtering
 
     # Data model filtering LLM selection (same logic as chat model; used when enable_dm_filtering is True)
     dm_filter_provider: str = "openai"
     dm_filter_model: str = core_settings.filter_model
-    dm_filter_available_models: list[str] = list(
-        set(list(_default_models) + [core_settings.model, core_settings.filter_model])
-    )
-    dm_filter_custom_openrouter_key: str = ""
+
+    def _models_for_provider(self, provider: str) -> list[str]:
+        """Return the list of model names for the given provider (openai or openrouter)."""
+        if provider == "openrouter":
+            if self.openrouter_models:
+                return list(self.openrouter_models)
+            if self.openrouter_models_loaded:
+                return list(self.openai_models)
+            return list(self.openai_models)
+        return list(self.openai_models)
+
+    @rx.var
+    def available_models(self) -> list[str]:
+        return self._models_for_provider(self.provider)
+
+    @rx.var
+    def dm_filter_available_models(self) -> list[str]:
+        return self._models_for_provider(self.dm_filter_provider)
 
     async def mount(self):
         """Load OpenRouter models (fetches on first call, cached thereafter)."""
@@ -72,7 +87,8 @@ class ChatState(rx.State):
         self.input_text = value
 
     def set_model(self, value: str) -> None:
-        if value in self.available_models:
+        models = self._models_for_provider(self.provider)
+        if value in models:
             self.model = value
 
     def set_custom_openrouter_key(self, value: str) -> None:
@@ -92,9 +108,6 @@ class ChatState(rx.State):
     def set_dm_filter_model(self, value: str) -> None:
         if value in self.dm_filter_available_models:
             self.dm_filter_model = value
-
-    def set_dm_filter_custom_openrouter_key(self, value: str) -> None:
-        self.dm_filter_custom_openrouter_key = value
 
     def _sync_available_models(self) -> None:
         """
@@ -119,25 +132,12 @@ class ChatState(rx.State):
             self.model = self.available_models[0]
 
     def _sync_dm_filter_available_models(self) -> None:
-        """Recompute dm_filter_available_models from dm_filter_provider; realign dm_filter_model if needed."""
-        if self.dm_filter_provider == "openrouter":
-            models = self.openrouter_models
-            if not models:
-                if self.openrouter_models_loaded:
-                    self.dm_filter_provider = "openai"
-                    models = self.openai_models
-                else:
-                    models = self.dm_filter_available_models or self.openai_models
-        else:
-            models = self.openai_models
-
-        self.dm_filter_available_models = list(models)
-
-        if (
-            self.dm_filter_model not in self.dm_filter_available_models
-            and self.dm_filter_available_models
-        ):
-            self.dm_filter_model = self.dm_filter_available_models[0]
+        """Realign selected filter model when dm_filter_provider or model list changes."""
+        if self.dm_filter_provider == "openrouter" and not self.openrouter_models and self.openrouter_models_loaded:
+            self.dm_filter_provider = "openai"
+        models = self._models_for_provider(self.dm_filter_provider)
+        if self.dm_filter_model not in models and models:
+            self.dm_filter_model = models[0]
 
     def toggle_details_by_id(self, message_id: str) -> None:
         for idx, m in enumerate(self.messages):
@@ -272,14 +272,13 @@ class ChatState(rx.State):
         pipeline.model = f"{self.provider}/{self.model}"
         pipeline.enable_filtering = self.enable_dm_filtering
         pipeline.filter_model = f"{self.dm_filter_provider}/{self.dm_filter_model}"
-        if self.enable_dm_filtering and self.dm_filter_provider == "openrouter" and self.dm_filter_custom_openrouter_key:
-            pipeline.filter_api_key = self.dm_filter_custom_openrouter_key
+        if self.custom_openrouter_key:
+            pipeline.filter_api_key = self.custom_openrouter_key
         else:
             pipeline.filter_api_key = None
 
         ctx = await ctl.make_context()
 
-        # override model api_key if custom api_key is provided
         if self.custom_openrouter_key and self.provider == "openrouter":
             ctx.llm.model_api_key = self.custom_openrouter_key
             # embeddings model is not customisable in chat, it's configured on project level.

@@ -182,23 +182,6 @@ def _judge_card() -> rx.Component:
                             width="100%",
                             placeholder="Provider",
                         ),
-                        rx.cond(
-                            EvalState.judge_provider == "openrouter",
-                            rx.input(
-                                placeholder=rx.cond(
-                                    EvalState.default_openrouter_key_present,
-                                    "(Optional) custom OPENROUTER_API_KEY",
-                                    "(Required) OPENROUTER_API_KEY",
-                                ),
-                                type="password",
-                                value=EvalState.judge_custom_openrouter_key,
-                                on_change=EvalState.set_judge_custom_openrouter_key,
-                                width="100%",
-                                required=rx.cond(
-                                    EvalState.default_openrouter_key_present, False, True
-                                ),
-                            ),
-                        ),
                         rx.select(
                             items=EvalState.judge_available_models,
                             value=EvalState.judge_model,
@@ -321,23 +304,6 @@ def _pipeline_card() -> rx.Component:
                                         on_change=EvalState.set_dm_filter_provider,
                                         width="100%",
                                         placeholder="Filter provider",
-                                    ),
-                                    rx.cond(
-                                        EvalState.dm_filter_provider == "openrouter",
-                                        rx.input(
-                                            placeholder=rx.cond(
-                                                EvalState.default_openrouter_key_present,
-                                                "(Optional) custom OPENROUTER_API_KEY",
-                                                "(Required) OPENROUTER_API_KEY",
-                                            ),
-                                            type="password",
-                                            value=EvalState.dm_filter_custom_openrouter_key,
-                                            on_change=EvalState.set_dm_filter_custom_openrouter_key,
-                                            width="100%",
-                                            required=rx.cond(
-                                                EvalState.default_openrouter_key_present, False, True
-                                            ),
-                                        ),
                                     ),
                                     rx.select(
                                         items=EvalState.dm_filter_available_models,

@@ -120,23 +120,6 @@ def page() -> rx.Component:
                                     width="10em",
                                     placeholder="Filter provider",
                                 ),
-                                rx.cond(
-                                    ChatState.dm_filter_provider == "openrouter",
-                                    rx.input(
-                                        placeholder=rx.cond(
-                                            ChatState.default_openrouter_key_present,
-                                            "(Optional) custom OPENROUTER_API_KEY",
-                                            "(Required) OPENROUTER_API_KEY",
-                                        ),
-                                        type="password",
-                                        value=ChatState.dm_filter_custom_openrouter_key,
-                                        on_change=ChatState.set_dm_filter_custom_openrouter_key,
-                                        width="20em",
-                                        required=rx.cond(
-                                            ChatState.default_openrouter_key_present, False, True
-                                        ),
-                                    ),
-                                ),
                                 rx.select(
                                     items=ChatState.dm_filter_available_models,
                                     value=ChatState.dm_filter_model,
