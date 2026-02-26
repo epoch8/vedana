@@ -101,8 +101,11 @@
     }
 
     #jims-widget-panel deep-chat {
-      flex: 1;
-      width: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
       border-radius: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
@@ -138,6 +141,11 @@
 
   const chatEl = document.createElement("deep-chat");
   chatEl.style.cssText = `
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
     --deep-chat-send-btn-bg: ${cfg.accent};
     --deep-chat-user-bubble-bg: ${cfg.accent};
     --deep-chat-user-bubble-text: #fff;
