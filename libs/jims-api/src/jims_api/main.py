@@ -52,6 +52,9 @@ def _extract_token(authorization: str | None) -> str | None:
 
 def _auth_dependency(api_key: str | None, authentik_url: str | None, authentik_app_slug: str | None):
     async def require_auth(authorization: str | None = Header(default=None, alias="Authorization")) -> None:
+        if api_key is None and authentik_url is None:
+            return
+
         token = _extract_token(authorization)
 
         if api_key is not None and token == api_key:
@@ -63,9 +66,6 @@ def _auth_dependency(api_key: str | None, authentik_url: str | None, authentik_a
                 resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
                 if resp.status_code == 200 and resp.json().get("passing") is True:
                     return
-
-        if api_key is None and authentik_url is None:
-            return
 
         raise HTTPException(status_code=401, detail="Unauthorized")
 
