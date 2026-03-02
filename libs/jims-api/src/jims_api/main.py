@@ -1,5 +1,6 @@
 import asyncio
-from typing import Any, Awaitable
+from contextlib import asynccontextmanager
+from typing import Any, Awaitable, AsyncIterator
 from uuid import UUID
 
 import click
@@ -50,7 +51,12 @@ def _extract_token(authorization: str | None) -> str | None:
     return authorization
 
 
-def _auth_dependency(api_key: str | None, authentik_url: str | None, authentik_app_slug: str | None):
+def _auth_dependency(
+    api_key: str | None,
+    authentik_url: str | None,
+    authentik_app_slug: str | None,
+    http_client: httpx.AsyncClient,
+):
     async def require_auth(authorization: str | None = Header(default=None, alias="Authorization")) -> None:
         if api_key is None and authentik_url is None:
             return
@@ -62,10 +68,9 @@ def _auth_dependency(api_key: str | None, authentik_url: str | None, authentik_a
 
         if authentik_url is not None and authentik_app_slug is not None and token is not None:
             url = f"{authentik_url}/api/v3/core/applications/{authentik_app_slug}/check_access/"
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
-                if resp.status_code == 200 and resp.json().get("passing") is True:
-                    return
+            resp = await http_client.get(url, headers={"Authorization": f"Bearer {token}"})
+            if resp.status_code == 200 and resp.json().get("passing") is True:
+                return
 
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -82,8 +87,15 @@ async def _resolve_jims_app(app_name: str) -> JimsApp:
 def create_api(
     jims_app: JimsApp, api_key: str | None, authentik_url: str | None = None, authentik_app_slug: str | None = None
 ) -> FastAPI:
-    app = FastAPI(title="JIMS API", version="0.1.0")
-    require_auth = _auth_dependency(api_key, authentik_url, authentik_app_slug)
+    http_client = httpx.AsyncClient()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        yield
+        await http_client.aclose()
+
+    app = FastAPI(title="JIMS API", version="0.1.0", lifespan=lifespan)
+    require_auth = _auth_dependency(api_key, authentik_url, authentik_app_slug, http_client)
 
     @app.get("/healthz")
     async def health() -> dict[str, str]:
