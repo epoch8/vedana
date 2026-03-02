@@ -103,9 +103,9 @@
     #jims-widget-panel deep-chat {
       flex: 1 1 auto;
       min-height: 0;
-      width: 100% !important;
-      height: 100% !important;
-      max-width: 100% !important;
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
       border-radius: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
