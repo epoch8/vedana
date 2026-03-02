@@ -88,12 +88,12 @@
   </style>
 </head>
 <body>
-  <h1>Vedana AI Assistant</h1>
+  <h1>AI Assistant</h1>
   <p class="subtitle">Chat widget demo</p>
 
   <div id="chat-container">
     <deep-chat
-      id="vedana-chat"
+      id="ai-chat"
       style="
         width: 100% !important;
         height: 100% !important;
@@ -104,7 +104,7 @@
         --deep-chat-ai-bubble-bg: #f0f0f5;
         --deep-chat-ai-bubble-text: #1a1a2e;
       "
-      introMessage='{"text":"Hello! I am your Vedana AI Assistant. How can I help you today?"}'
+      introMessage='{"text":"Hello! I am your AI Assistant. How can I help you today?"}'
       textInput='{"placeholder":{"text":"Type a message…"}}'
       messageStyles='{"default":{"shared":{"bubble":{"borderRadius":"12px","padding":"10px 14px","maxWidth":"80%","fontSize":"0.92rem"}}}}'
     ></deep-chat>
@@ -124,7 +124,7 @@
     var wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
     var wsUrl = wsProtocol + "//" + location.host + "/ws/chat";
 
-    var chat = document.getElementById("vedana-chat");
+    var chat = document.getElementById("ai-chat");
     chat.connect = { websocket: true, url: wsUrl };
     chat.displayLoadingBubble = true;
     chat.scrollButton = true;
