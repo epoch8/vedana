@@ -54,4 +54,4 @@ source = "uv-dynamic-versioning"
 enable = true
 vcs = "git"
 pattern = "default-unprefixed"
-pattern-prefix = "jims-widget-"
+pattern-prefix = "jims-"
