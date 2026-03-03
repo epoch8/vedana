@@ -1,18 +1,19 @@
 """Unit tests for DeepChat payload parsing."""
 
 import pytest
-
 from jims_widget.server import _extract_user_text
 
 
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        # TODO: check actual DeepChat payloads and compare with test cases
         # DeepChat JSON with messages array
         ('{"messages":[{"role":"user","text":"hello"}]}', "hello"),
         ('{"messages":[{"role":"user","text":"  hi  "}]}', "hi"),
         ('{"messages":[{"role":"assistant","text":"x"},{"role":"user","text":"last"}]}', "last"),
+        # Double-encoded JSON too
+        ('"{\\"messages\\":[{\\"role\\":\\"user\\",\\"text\\":\\"test\\"}]}"', "test"),
+        ('"{\\"messages\\":[{\\"role\\":\\"user\\",\\"text\\":\\"hello world\\"}]}"', "hello world"),
         # Plain string
         ("hello", "hello"),
         ("  hi  ", "hi"),
@@ -28,7 +29,10 @@ from jims_widget.server import _extract_user_text
         # No valid message in dict -> fallback to raw
         ("{}", "{}"),
         ('{"messages":[]}', '{"messages":[]}'),
-        ('{"messages":[{"role":"user","text":""}]}', '{"messages":[{"role":"user","text":""}]}'),  # no valid text → fallback
+        (
+            '{"messages":[{"role":"user","text":""}]}',
+            '{"messages":[{"role":"user","text":""}]}',
+        ),  # no valid text → fallback
         ('{"messages":[{"role":"user","text":"  "}]}', None),
         # Invalid JSON -> fallback to raw
         ("not json", "not json"),

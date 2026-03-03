@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from jims_core.app import JimsApp
@@ -64,7 +64,18 @@ def create_widget_app(jims_app: JimsApp, cors_origins: list[str] | None = None) 
             )
             if jims_app.conversation_start_pipeline is not None:
                 try:
-                    await ctl.run_pipeline_with_context(jims_app.conversation_start_pipeline)
+                    start_events = await ctl.run_pipeline_with_context(jims_app.conversation_start_pipeline)
+                    # Extract assistant messages from conversation_start_pipeline
+                    start_messages = [
+                        str(ev.event_data.get("content", ""))
+                        for ev in start_events
+                        if ev.event_type == "comm.assistant_message" and isinstance(ev.event_data, dict)
+                    ]
+                    # Send the start message immediately over WebSocket
+                    if start_messages:
+                        start_text = "\n\n".join(start_messages)
+                        await websocket.send_json({"text": start_text})
+                        logger.info(f"Sent conversation start message: {start_text}")
                 except Exception as exc:
                     logger.warning(f"conversation_start_pipeline failed: {exc}")
 
@@ -96,6 +107,7 @@ def _extract_user_text(raw: str) -> str | None:
 
     DeepChat may send:
       - A JSON object: {"messages": [{"role":"user","text":"hi"}]}
+      - A double-encoded JSON string: "{\"messages\":[{\"role\":\"user\",\"text\":\"hi\"}]}"
       - A plain string (the message text itself)
       - A JSON-encoded string: "\"hello\""
     """
@@ -105,7 +117,10 @@ def _extract_user_text(raw: str) -> str | None:
         return raw.strip() or None
 
     if isinstance(data, str):
-        return data.strip() or None
+        try:
+            data = json.loads(data)
+        except (json.JSONDecodeError, TypeError):
+            return data.strip() or None
 
     if isinstance(data, dict):
         messages = data.get("messages", [])
@@ -114,7 +129,10 @@ def _extract_user_text(raw: str) -> str | None:
             if isinstance(last, dict):
                 text = last.get("text", "")
                 if text and isinstance(text, str):
-                    return text.strip() or None
+                    result = text.strip() or None
+                    return result
+
+        # Fallback: check for direct text/message/content keys
         for key in ("text", "message", "content"):
             val = data.get(key)
             if val and isinstance(val, str):

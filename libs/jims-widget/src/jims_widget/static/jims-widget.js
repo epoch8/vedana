@@ -186,8 +186,6 @@
     if (params.length) wsUrl += "?" + params.join("&");
 
     chat.connect = { websocket: true, url: wsUrl };
-
-    chat.introMessage = { text: "Hello! How can I help you today?" };
     chat.textInput = { placeholder: { text: "Type a message…" } };
 
     chat.avatars = {
