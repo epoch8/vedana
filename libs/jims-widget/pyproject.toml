@@ -1,7 +1,7 @@
 [project]
-name = "jims-api"
+name = "jims-widget"
 dynamic = ["version"]
-description = "universal API for JIMS application"
+description = "Embeddable DeepChat-based widget for Jims applications"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -9,8 +9,7 @@ dependencies = [
     "fastapi>=0.128.0",
     "jims-core>=0.5.1",
     "loguru>=0.7.3",
-    "uvicorn>=0.35.0",
-    "httpx>=0.28.0",
+    "uvicorn[standard]>=0.35.0",
 ]
 
 [tool.uv.sources]
@@ -36,11 +35,14 @@ dev = [
 ]
 
 [project.scripts]
-jims-api = "jims_api.main:main"
+jims-widget = "jims_widget.main:main"
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/jims_widget"]
 
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
@@ -50,3 +52,6 @@ enable = true
 vcs = "git"
 pattern = "default-unprefixed"
 pattern-prefix = "jims-"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"

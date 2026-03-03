@@ -1,8 +1,10 @@
 import asyncio
-from typing import Any, Awaitable
+from contextlib import asynccontextmanager
+from typing import Any, Awaitable, AsyncIterator
 from uuid import UUID
 
 import click
+import httpx
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException
 from jims_core.app import JimsApp
@@ -49,14 +51,28 @@ def _extract_token(authorization: str | None) -> str | None:
     return authorization
 
 
-def _auth_dependency(api_key: str | None):
+def _auth_dependency(
+    api_key: str | None,
+    authentik_url: str | None,
+    authentik_app_slug: str | None,
+    http_client: httpx.AsyncClient,
+):
     async def require_auth(authorization: str | None = Header(default=None, alias="Authorization")) -> None:
-        if api_key is None:
+        if api_key is None and authentik_url is None:
             return
 
         token = _extract_token(authorization)
-        if token != api_key:
-            raise HTTPException(status_code=401, detail="Unauthorized")
+
+        if api_key is not None and token == api_key:
+            return
+
+        if authentik_url is not None and authentik_app_slug is not None and token is not None:
+            url = f"{authentik_url}/api/v3/core/applications/{authentik_app_slug}/check_access/"
+            resp = await http_client.get(url, headers={"Authorization": f"Bearer {token}"})
+            if resp.status_code == 200 and resp.json().get("passing") is True:
+                return
+
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
     return require_auth
 
@@ -68,9 +84,18 @@ async def _resolve_jims_app(app_name: str) -> JimsApp:
     return loaded_app
 
 
-def create_api(jims_app: JimsApp, api_key: str | None) -> FastAPI:
-    app = FastAPI(title="JIMS API", version="0.1.0")
-    require_auth = _auth_dependency(api_key)
+def create_api(
+    jims_app: JimsApp, api_key: str | None, authentik_url: str | None = None, authentik_app_slug: str | None = None
+) -> FastAPI:
+    http_client = httpx.AsyncClient()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        yield
+        await http_client.aclose()
+
+    app = FastAPI(title="JIMS API", version="0.1.0", lifespan=lifespan)
+    require_auth = _auth_dependency(api_key, authentik_url, authentik_app_slug, http_client)
 
     @app.get("/healthz")
     async def health() -> dict[str, str]:
@@ -141,6 +166,8 @@ def create_api(jims_app: JimsApp, api_key: str | None) -> FastAPI:
 @click.option("--host", type=click.STRING, default="0.0.0.0")
 @click.option("--port", type=click.INT, default=8080)
 @click.option("--api-key", type=click.STRING, default=None, help="Optional bearer token for API auth.")
+@click.option("--authentik-url", type=click.STRING, default=None, help="Authentik instance base URL.")
+@click.option("--authentik-app-slug", type=click.STRING, default=None, help="Authentik application slug.")
 @click.option("--enable-sentry", is_flag=True, help="Enable tracing to Sentry", default=False)
 @click.option("--metrics-port", type=click.INT, default=8000)
 @click.option("--verbose", is_flag=True, default=False)
@@ -149,6 +176,8 @@ def cli(
     host: str,
     port: int,
     api_key: str | None,
+    authentik_url: str | None,
+    authentik_app_slug: str | None,
     enable_sentry: bool,
     metrics_port: int,
     verbose: bool,
@@ -163,7 +192,7 @@ def cli(
 
     async def run_api() -> None:
         jims_app = await _resolve_jims_app(app)
-        api = create_api(jims_app, api_key=api_key)
+        api = create_api(jims_app, api_key=api_key, authentik_url=authentik_url, authentik_app_slug=authentik_app_slug)
         server = uvicorn.Server(uvicorn.Config(api, host=host, port=port, log_level="info"))
         await server.serve()
 
