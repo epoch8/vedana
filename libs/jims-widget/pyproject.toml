@@ -55,3 +55,6 @@ enable = true
 vcs = "git"
 pattern = "default-unprefixed"
 pattern-prefix = "jims-"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
