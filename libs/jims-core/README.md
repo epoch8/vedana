@@ -50,14 +50,6 @@ These events are:
 - Collected into `ThreadContext.history`.
 
 
-#### Pipeline‑specific domains 
-
-Defined in a Pipeline, these events are produced via `ThreadContext.send_event(...)` and consumed elsewhere.
-
-example: `rag.*`
-- **`rag.query_processed`**
-- **`rag.error`**
-
 #### `context.*` - `comm.*` extended with pipeline context
 
 Conversational AI Pipelines can benefit from preserving some extra data (context) about the conversation in between messages (previous reasoning, extra data, etc.). For this, we use a superset of `comm.` domain called `context.`. It includes everything in `comm.` (everything in `ThreadContext.history`), and adds `context.` events passed from Pipeline. `context.` events are internal and not sent/shown to the end user.
@@ -82,3 +74,12 @@ Example:
 
 - **`jims.lifecycle.thread_created`**: emitted when a thread is first created
   by `ThreadController.new_thread(...)`.
+
+
+#### Pipeline‑specific domains 
+
+Defined in a Pipeline, these events are produced via `ThreadContext.send_event(...)` and consumed elsewhere.
+
+example: `rag.*`
+- **`rag.query_processed`**
+- **`rag.error`**
