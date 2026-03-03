@@ -57,6 +57,19 @@ services:
       db:
         condition: service_healthy
 
+  widget:
+    <<: *app-common
+    ports:
+      - "8090:8090"
+    command: uv run python -m jims_widget.main --app vedana_core.app:app --host 0.0.0.0 --port 8090
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      memgraph:
+        condition: service_started
+      db:
+        condition: service_healthy
+
   memgraph:
     image: memgraph/memgraph-mage
     ports:
