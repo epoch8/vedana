@@ -14,11 +14,24 @@ Environment variables:
 - `JIMS_APP` - JIMS app import path (`module:attr`)
 - `JIMS_PORT` - HTTP port
 - `JIMS_HOST` - HTTP host
-- `JIMS_API_KEY` - optional bearer token for auth
+- `JIMS_API_KEY` - optional static bearer token for auth
+- `JIMS_AUTHENTIK_URL` - Authentik instance base URL (e.g. `https://authentik.epoch8.dev`)
+- `JIMS_AUTHENTIK_APP_SLUG` - Authentik application slug to check access against
+
+## Authentication
+
+Auth is checked in the following order:
+
+1. If `JIMS_API_KEY` is set and the provided bearer token matches — allow
+2. If `JIMS_AUTHENTIK_URL` and `JIMS_AUTHENTIK_APP_SLUG` are set — validate the bearer token against Authentik's `/api/v3/core/applications/{slug}/check_access/` endpoint. If 200 — allow
+3. If no auth is configured (neither static key nor Authentik) — open access
+4. Otherwise — 401 Unauthorized
+
+Send the token as `Authorization: Bearer <token>`.
 
 ## Endpoints
 
-- `GET /health`
+- `GET /healthz`
 - `POST /api/v1/chat`
 
 ### `POST /api/v1/chat`
@@ -52,4 +65,4 @@ Response:
 }
 ```
 
-If `JIMS_API_KEY` is set, send it as `Authorization: Bearer <token>`
+Send the API token as `Authorization: Bearer <token>` (see [Authentication](#authentication) above).
