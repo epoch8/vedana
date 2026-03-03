@@ -101,6 +101,22 @@ class ThreadContext:
                 return state_type.model_validate(event.event_data)
         return None
 
+    def context(self, conversation_length: int = 20) -> list[CommunicationEvent]:
+        """Enriched history: comm.* + context.* (last N comm. messages + related context.* events)."""
+        comm_counter = 0
+        result: list[CommunicationEvent] = []
+        for event in reversed(self.events):  # + self.outgoing_events):
+            # we determine conversation length by counting comm.* events only. other types are extras related to answers.
+            if event.event_type.startswith("comm."):
+                result.append(CommunicationEvent(**event.event_data))
+                comm_counter += 1
+            if event.event_type.startswith("context."):
+                result.append(CommunicationEvent(**event.event_data))    
+            if comm_counter > conversation_length:
+                break
+
+        return result[::-1]
+
     async def update_agent_status(self, status: str) -> None:
         """Update the agent status."""
         if self.status_updater:

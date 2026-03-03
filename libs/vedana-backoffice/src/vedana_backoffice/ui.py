@@ -53,39 +53,66 @@ def debug_badge() -> rx.Component:
                 },
                 on_click=DebugState.open_dialog,
             ),
-            content="Debug mode enabled! Some features are not for production use. Click to reset LLM API_KEY"
+            content="Click to enter or reset your OpenAI / OpenRouter API key (required for chat and eval model selection)",
         ),
         rx.fragment(),
     )
 
 
 def api_key_setup_dialog() -> rx.Component:
-    """Dialog to prompt user for API key in debug mode when no keys are configured."""
+    """Dialog to prompt for OpenAI and OpenRouter API keys; highlights missing fields."""
+    _missing_style = {
+        "border": "2px solid #d97706",
+        "border_radius": "6px",
+        "outline": "none",
+    }
+    _normal_style = {"width": "100%"}
     return rx.dialog.root(
         rx.dialog.content(
             rx.dialog.title("API Key Setup"),
             rx.dialog.description(
-                "Please provide an OpenAI or OpenRouter API key to use the chat functionality.",
+                "Add API keys for the providers you use.",
                 margin_bottom="1em",
             ),
             rx.vstack(
-                rx.select(
-                    ["openai", "openrouter"],
-                    value=DebugState.api_key_type,
-                    on_change=DebugState.set_api_key_type,
-                    placeholder="Select API provider",
-                ),
-                rx.input(
-                    placeholder="Enter your API key",
-                    value=DebugState.api_key,
-                    on_change=DebugState.set_api_key,
-                    type="password",
+                rx.vstack(
+                    rx.text("OpenAI API Key", font_size="2", font_weight="500"),
+                    rx.input(
+                        placeholder="sk-...",
+                        on_change=DebugState.set_openai_api_key,
+                        type="password",
+                        width="100%",
+                        style=rx.cond(
+                            DebugState.openai_key_empty,
+                            {**_normal_style, **_missing_style},
+                            _normal_style,
+                        ),
+                    ),
+                    spacing="2",
                     width="100%",
+                    align="start",
+                ),
+                rx.vstack(
+                    rx.text("OpenRouter API Key", font_size="2", font_weight="500"),
+                    rx.input(
+                        placeholder="sk-or-...",
+                        on_change=DebugState.set_openrouter_api_key,
+                        type="password",
+                        width="100%",
+                        style=rx.cond(
+                            DebugState.openrouter_key_empty,
+                            {**_normal_style, **_missing_style},
+                            _normal_style,
+                        ),
+                    ),
+                    spacing="2",
+                    width="100%",
+                    align="start",
                 ),
                 rx.hstack(
                     rx.dialog.close(
                         rx.button(
-                            "Skip",
+                            "Close",
                             variant="soft",
                             color_scheme="gray",
                             on_click=DebugState.close_dialog,
@@ -94,7 +121,7 @@ def api_key_setup_dialog() -> rx.Component:
                     rx.button(
                         "Save",
                         color_scheme="blue",
-                        on_click=DebugState.save_api_key,
+                        on_click=DebugState.save_api_keys,
                     ),
                     justify="end",
                     spacing="3",
@@ -149,7 +176,6 @@ def app_header() -> rx.Component:
                 "backdrop-filter": "blur(10px)",  # enables non-transparent background
                 "zIndex": "1000",
             },
-            on_mount=DebugState.check_and_show_dialog,
         ),
         api_key_setup_dialog(),
     )

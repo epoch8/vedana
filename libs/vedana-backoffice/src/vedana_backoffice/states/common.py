@@ -133,40 +133,41 @@ class DebugState(rx.State):
     """State for debug mode API key setup."""
 
     debug_mode: bool = DEBUG_MODE
-    needs_api_key: bool = DEBUG_MODE and not HAS_OPENAI_KEY and not HAS_OPENROUTER_KEY
     show_api_key_dialog: bool = False
-    api_key: str = ""
-    api_key_type: str = "openai"  # "openai" or "openrouter"
+    default_openai_api_key: str = os.environ.get("OPENAI_API_KEY", "")
+    default_openrouter_api_key: str = os.environ.get("OPENROUTER_API_KEY", "")
+    openai_api_key: str = ""
+    openrouter_api_key: str = ""
     api_key_saved: bool = False
 
-    def check_and_show_dialog(self) -> None:
-        """Called on app mount to show dialog if needed."""
-        if self.needs_api_key and not self.api_key_saved:
-            self.show_api_key_dialog = True
+    @rx.var
+    def openai_key_empty(self) -> bool:
+        return not self.openai_api_key and not os.environ.get("OPENAI_API_KEY")
 
-    def set_api_key(self, value: str) -> None:
-        self.api_key = value
+    @rx.var
+    def openrouter_key_empty(self) -> bool:
+        return not self.openrouter_api_key and not os.environ.get("OPENROUTER_API_KEY")
 
-    def set_api_key_type(self, value: str) -> None:
-        self.api_key_type = value
+    def set_openai_api_key(self, value: str) -> None:
+        self.openai_api_key = value
 
-    def save_api_key(self) -> None:
-        """Save the API key and close dialog."""
-        if self.api_key.strip() and self.debug_mode:  # extra check for debug mode
-            self.api_key_saved = True
-            self.show_api_key_dialog = False
-            # Set environment variable so it's available throughout the app
-            if self.api_key_type == "openai":
-                os.environ["OPENAI_API_KEY"] = self.api_key.strip()
-            else:
-                os.environ["OPENROUTER_API_KEY"] = self.api_key.strip()
+    def set_openrouter_api_key(self, value: str) -> None:
+        self.openrouter_api_key = value
+
+    def save_api_keys(self) -> None:
+        if not self.debug_mode:
+            return
+        os.environ["OPENAI_API_KEY"] = self.openai_api_key
+        os.environ["OPENROUTER_API_KEY"] = self.openrouter_api_key
+        self.api_key_saved = bool(self.openai_api_key or self.openrouter_api_key)
+        self.show_api_key_dialog = False
 
     def close_dialog(self) -> None:
-        """Close dialog without saving."""
         self.show_api_key_dialog = False
 
     def open_dialog(self) -> None:
-        """Manually open the dialog to change API key."""
+        self.openai_api_key = self.default_openai_api_key
+        self.openrouter_api_key = self.default_openrouter_api_key
         self.show_api_key_dialog = True
 
 

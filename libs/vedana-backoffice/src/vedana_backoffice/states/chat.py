@@ -10,12 +10,13 @@ import orjson as json
 import reflex as rx
 from datapipe.compute import Catalog, run_pipeline
 from jims_core.thread.thread_controller import ThreadController
+from jims_core.llms.llm_provider import LLMSettings
 from jims_core.util import uuid7
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.pipeline import get_data_model_pipeline
 
-from vedana_backoffice.states.common import MemLogger, get_vedana_app, load_openrouter_models, DEBUG_MODE, datapipe_log_capture
+from vedana_backoffice.states.common import MemLogger, get_vedana_app, load_openrouter_models, DEBUG_MODE, datapipe_log_capture, DebugState
 from vedana_backoffice.states.jims import ThreadViewState
 
 
@@ -44,37 +45,62 @@ class ChatState(rx.State):
         "gpt-4o-mini",
         "o4-mini",
     )
-    custom_openrouter_key: str = ""
-    default_openrouter_key_present: bool = bool(os.environ.get("OPENROUTER_API_KEY"))  # to require api_key input
-    openai_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
+    openai_models: list[str] = list(
+        set(list(_default_models) + [core_settings.model, core_settings.filter_model])
+    )
     openrouter_models: list[str] = []
     openrouter_models_loaded: bool = False
-    available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
     model_selection_allowed: bool = DEBUG_MODE
-    enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
+    enable_dm_filtering: bool = core_settings.enable_dm_filtering
+    dm_filter_model: str = core_settings.filter_model
+
+    def _models_for_provider(self, provider: str) -> list[str]:
+        """Return the list of model names for the given provider (openai or openrouter)."""
+        if provider == "openrouter":
+            if self.openrouter_models:
+                return list(self.openrouter_models)
+            if self.openrouter_models_loaded:
+                return list(self.openai_models)
+            return list(self.openai_models)
+        return list(self.openai_models)
+
+    @rx.var
+    def available_models(self) -> list[str]:
+        return self._models_for_provider(self.provider)
+
+    @rx.var
+    def dm_filter_available_models(self) -> list[str]:
+        return self._models_for_provider(self.provider)
 
     async def mount(self):
         """Load OpenRouter models (fetches on first call, cached thereafter)."""
         self.openrouter_models = await load_openrouter_models()
         self.openrouter_models_loaded = True
         self._sync_available_models()
+        self._sync_dm_filter_model()
 
     def set_input(self, value: str) -> None:
         self.input_text = value
 
     def set_model(self, value: str) -> None:
-        if value in self.available_models:
+        models = self._models_for_provider(self.provider)
+        if value in models:
             self.model = value
-
-    def set_custom_openrouter_key(self, value: str) -> None:
-        self.custom_openrouter_key = value  # need validating?
 
     def set_enable_dm_filtering(self, value: bool) -> None:
         self.enable_dm_filtering = value
 
     def set_provider(self, value: str) -> None:
         self.provider = value
+        if self.provider == "openai":  # reset defaults when changing back
+            self.model = core_settings.model
+            self.dm_filter_model = core_settings.filter_model
         self._sync_available_models()
+        self._sync_dm_filter_model()
+
+    def set_dm_filter_model(self, value: str) -> None:
+        if value in self.dm_filter_available_models:
+            self.dm_filter_model = value
 
     def _sync_available_models(self) -> None:
         """
@@ -97,6 +123,12 @@ class ChatState(rx.State):
 
         if self.model not in self.available_models and self.available_models:
             self.model = self.available_models[0]
+
+    def _sync_dm_filter_model(self) -> None:
+        """Realign selected filter model when provider or model list changes."""
+        models = self._models_for_provider(self.provider)
+        if self.dm_filter_model not in models and models:
+            self.dm_filter_model = models[0]
 
     def toggle_details_by_id(self, message_id: str) -> None:
         for idx, m in enumerate(self.messages):
@@ -230,14 +262,11 @@ class ChatState(rx.State):
         pipeline.logger = mem_logger
         pipeline.model = f"{self.provider}/{self.model}"
         pipeline.enable_filtering = self.enable_dm_filtering
+        pipeline.filter_model = f"{self.provider}/{self.dm_filter_model}"
+        api_key = os.environ.get("OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY")
 
-        ctx = await ctl.make_context()
-
-        # override model api_key if custom api_key is provided
-        if self.custom_openrouter_key and self.provider == "openrouter":
-            ctx.llm.model_api_key = self.custom_openrouter_key
-            # embeddings model is not customisable in chat, it's configured on project level.
-
+        ctx = await ctl.make_context(llm_settings=LLMSettings(model=self.model, model_api_key=api_key))
+        
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
         answer: str = ""
@@ -275,6 +304,11 @@ class ChatState(rx.State):
 
         user_text = (self.input_text or "").strip()
         if not user_text:
+            return
+
+        env_key = "OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY"
+        if not os.environ.get(env_key):
+            yield DebugState.open_dialog()
             return
 
         self._append_message("user", user_text)

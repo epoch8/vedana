@@ -167,6 +167,17 @@ class RagPipeline:
         if self.enable_filtering:
             await ctx.update_agent_status("Analyzing query structure...")
             data_model_description, filter_selection = await self.filter_data_model(query, ctx)
+            
+            # Send reasoning for enhanced context.
+            if not filter_selection.reasoning.startswith("Filtering failed"):
+                ctx.send_event(
+                    "context.dm_filter_reasoning",
+                    {
+                        "role": "assistant",
+                        "content": filter_selection.reasoning,
+                    },
+                )
+
         else:
             data_model_description = await self.data_model.to_text_descr()
             filter_selection = DataModelSelection()
@@ -278,11 +289,12 @@ class RagPipeline:
             if self.filter_model:  # if different model specified for filtering - use it
                 filter_llm.set_model(self.filter_model)
 
-            # Use structured output to get the selection
-            selection = await filter_llm.chat_completion_structured(messages, DataModelSelection)
-
-            if base_model:  # select base model back
-                ctx.llm.set_model(base_model)
+            try:
+                # Use structured output to get the selection
+                selection = await filter_llm.chat_completion_structured(messages, DataModelSelection)
+            finally:
+                if base_model:  # select base model back
+                    ctx.llm.set_model(base_model)
 
             if selection is None:
                 raise ValueError("LLM returned empty response")
@@ -315,7 +327,7 @@ class RagPipeline:
             self.logger.exception(f"Data model filtering failed: {e}. Using full data model.")
             descr = await self.data_model.to_text_descr()
             return descr, DataModelSelection(
-                reasoning=f"Filtering failed: {e}. Using full data model.",
+                reasoning=f"Filtering failed: {e}. Using full data model.",  # not passed into context
                 anchor_nouns=[],
                 link_sentences=[],
                 anchor_attribute_names=[],
