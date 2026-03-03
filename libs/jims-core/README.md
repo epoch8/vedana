@@ -16,6 +16,7 @@ Each event has id, type and data
 
 Example:
 
+```
 {
     "event_id": "...",
     "event_type": "comm.user_message",
@@ -23,6 +24,7 @@ Example:
         "content": "Hello!"
     }
 }
+```
 
 ### event_type and event_domain
 
