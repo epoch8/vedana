@@ -56,13 +56,13 @@ def resolve_api_key(provider: str, page_api_key: Optional[str] = None) -> Option
             return key
 
     if provider == "openrouter":
-        if RUNTIME_OPENROUTER_API_KEY:
+        if DEBUG_MODE and RUNTIME_OPENROUTER_API_KEY:
             return RUNTIME_OPENROUTER_API_KEY
         if llm_settings.openrouter_api_key:
             return llm_settings.openrouter_api_key
         return None
 
-    if RUNTIME_OPENAI_API_KEY:
+    if DEBUG_MODE and RUNTIME_OPENAI_API_KEY:
         return RUNTIME_OPENAI_API_KEY
     if llm_settings.model_api_key:
         return llm_settings.model_api_key

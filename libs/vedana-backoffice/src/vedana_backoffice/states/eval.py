@@ -3,7 +3,6 @@ import difflib
 import hashlib
 import json
 import logging
-import os
 import statistics
 import traceback
 from dataclasses import asdict, dataclass
