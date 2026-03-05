@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import io
 import logging
 import os
-from typing import Iterable
+from typing import Iterable, Optional
 
 import httpx
 import reflex as rx
@@ -22,6 +22,51 @@ DEBUG_MODE = (os.environ.get("VEDANA_BACKOFFICE_DEBUG", "").lower() in ("true", 
               or os.environ.get("DEBUG", "").lower() in ("true", "1"))
 HAS_OPENAI_KEY = bool(os.environ.get("OPENAI_API_KEY"))
 HAS_OPENROUTER_KEY = bool(os.environ.get("OPENROUTER_API_KEY"))
+
+# Runtime-scoped API keys configured from the backoffice (debug UI).
+# not persisted to environment variables.
+RUNTIME_OPENAI_API_KEY: Optional[str] = None
+RUNTIME_OPENROUTER_API_KEY: Optional[str] = None
+
+
+def set_runtime_api_keys(openai_api_key: Optional[str] = None, openrouter_api_key: Optional[str] = None) -> None:
+    """Update in-process API key overrides used by backoffice (chat/eval)."""
+    global RUNTIME_OPENAI_API_KEY, RUNTIME_OPENROUTER_API_KEY
+
+    if openai_api_key is not None:
+        openai_api_key = openai_api_key.strip()
+        if openai_api_key:
+            RUNTIME_OPENAI_API_KEY = openai_api_key
+
+    if openrouter_api_key is not None:
+        openrouter_api_key = openrouter_api_key.strip()
+        if openrouter_api_key:
+            RUNTIME_OPENROUTER_API_KEY = openrouter_api_key
+
+
+def resolve_api_key(provider: str, page_api_key: Optional[str] = None) -> Optional[str]:
+    """
+    Resolve the effective API key for a given provider
+    """
+    provider = (provider or "openai").lower()
+
+    if page_api_key:
+        key = page_api_key.strip()
+        if key:
+            return key
+
+    if provider == "openrouter":
+        if RUNTIME_OPENROUTER_API_KEY:
+            return RUNTIME_OPENROUTER_API_KEY
+        if llm_settings.openrouter_api_key:
+            return llm_settings.openrouter_api_key
+        return None
+
+    if RUNTIME_OPENAI_API_KEY:
+        return RUNTIME_OPENAI_API_KEY
+    if llm_settings.model_api_key:
+        return llm_settings.model_api_key
+    return None
 
 
 def _filter_chat_capable_models(models: Iterable[dict]) -> list[str]:
@@ -50,6 +95,7 @@ def _filter_chat_capable_models(models: Iterable[dict]) -> list[str]:
 async def load_openrouter_models() -> list[str]:
     if not DEBUG_MODE:
         return []
+    api_key = resolve_api_key("openrouter")
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(f"{llm_settings.openrouter_api_base_url}/models")
@@ -157,8 +203,13 @@ class DebugState(rx.State):
     def save_api_keys(self) -> None:
         if not self.debug_mode:
             return
-        os.environ["OPENAI_API_KEY"] = self.openai_api_key
-        os.environ["OPENROUTER_API_KEY"] = self.openrouter_api_key
+        set_runtime_api_keys(
+            openai_api_key=self.openai_api_key,
+            openrouter_api_key=self.openrouter_api_key,
+        )
+        # Keep defaults in sync so reopening the dialog reflects the last saved values.
+        self.default_openai_api_key = self.openai_api_key
+        self.default_openrouter_api_key = self.openrouter_api_key
         self.api_key_saved = bool(self.openai_api_key or self.openrouter_api_key)
         self.show_api_key_dialog = False
 

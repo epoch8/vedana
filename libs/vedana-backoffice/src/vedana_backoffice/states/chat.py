@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 import traceback
 from datetime import datetime
 from typing import Any, Dict, Tuple
@@ -16,7 +15,15 @@ from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.pipeline import get_data_model_pipeline
 
-from vedana_backoffice.states.common import MemLogger, get_vedana_app, load_openrouter_models, DEBUG_MODE, datapipe_log_capture, DebugState
+from vedana_backoffice.states.common import (
+    MemLogger,
+    get_vedana_app,
+    load_openrouter_models,
+    DEBUG_MODE,
+    datapipe_log_capture,
+    DebugState,
+    resolve_api_key,
+)
 from vedana_backoffice.states.jims import ThreadViewState
 
 
@@ -263,7 +270,7 @@ class ChatState(rx.State):
         pipeline.model = f"{self.provider}/{self.model}"
         pipeline.enable_filtering = self.enable_dm_filtering
         pipeline.filter_model = f"{self.provider}/{self.dm_filter_model}"
-        api_key = os.environ.get("OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY")
+        api_key = resolve_api_key(self.provider)
 
         ctx = await ctl.make_context(llm_settings=LLMSettings(model=self.model, model_api_key=api_key))
         
@@ -306,9 +313,10 @@ class ChatState(rx.State):
         if not user_text:
             return
 
-        env_key = "OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY"
-        if not os.environ.get(env_key):
-            yield DebugState.open_dialog()
+        api_key = resolve_api_key(self.provider)
+        if not api_key:
+            if DEBUG_MODE:
+                yield DebugState.open_dialog()
             return
 
         self._append_message("user", user_text)
