@@ -95,7 +95,6 @@ def _filter_chat_capable_models(models: Iterable[dict]) -> list[str]:
 async def load_openrouter_models() -> list[str]:
     if not DEBUG_MODE:
         return []
-    api_key = resolve_api_key("openrouter")
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(f"{llm_settings.openrouter_api_base_url}/models")
