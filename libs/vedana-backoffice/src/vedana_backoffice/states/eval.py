@@ -173,6 +173,18 @@ EMPTY_SUMMARY: RunSummary = {
 }
 
 
+eval_judge_prompt_template = """\
+You are a strict evaluation judge. Compare the model's answer with the golden answer and the expected retrieval context. 
+Consider whether the model's answer is factually aligned and sufficiently complete. 
+Use the provided technical info (retrieval queries) only as hints for whether the context seems adequate. 
+Return a JSON object with fields: test_status in {'pass','fail'}, comment, errors.
+
+In comments return answer scoring from 1 to 10, where:
+1 – totally wrong answer
+10 – totally correct answer
+"""
+
+
 class EvalState(rx.State):
     """State holder for evaluation workflow."""
 
@@ -577,7 +589,7 @@ class EvalState(rx.State):
 
         vedana_app = await get_vedana_app()
         dm_pt = await vedana_app.data_model.prompt_templates()
-        judge_prompt = dm_pt.get("eval_judge_prompt")
+        judge_prompt = dm_pt.get("eval_judge_prompt", eval_judge_prompt_template)
 
         if judge_prompt:
             text_b = bytearray(judge_prompt, "utf-8")
@@ -1824,7 +1836,7 @@ class EvalState(rx.State):
             self.error_message = "Select at least one question to run tests."
             return
         if not self.judge_prompt:
-            self.error_message = "Judge prompt not loaded. Refresh judge config first."
+            self.error_message = "Judge prompt not loaded. Refresh data model first."
             return
 
         test_run_name = self.test_run_name.strip() or ""
