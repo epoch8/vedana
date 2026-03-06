@@ -1,14 +1,14 @@
 import asyncio
-from async_lru import alru_cache
-from contextlib import contextmanager
 import io
 import logging
 import os
+from contextlib import contextmanager
 from typing import Iterable
 
 import httpx
 import reflex as rx
 import requests
+from async_lru import alru_cache
 from jims_core.llms.llm_provider import env_settings as llm_settings
 from vedana_core.app import VedanaApp, make_vedana_app
 
@@ -155,8 +155,6 @@ class DebugState(rx.State):
     def save_api_keys(self) -> None:
         if not self.debug_mode:
             return
-        self.default_openai_api_key = self.openai_api_key
-        self.default_openrouter_api_key = self.openrouter_api_key
         self.api_key_saved = bool(self.runtime_openai_api_key or self.runtime_openrouter_api_key)
         self.show_api_key_dialog = False
 
@@ -164,8 +162,6 @@ class DebugState(rx.State):
         self.show_api_key_dialog = False
 
     def open_dialog(self) -> None:
-        self.openai_api_key = self.default_openai_api_key or self.runtime_openai_api_key
-        self.openrouter_api_key = self.default_openrouter_api_key or self.runtime_openrouter_api_key
         self.show_api_key_dialog = True
 
     def resolve_api_key(self, provider: str) -> str | None:

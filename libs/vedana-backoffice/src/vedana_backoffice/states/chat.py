@@ -8,20 +8,21 @@ from uuid import UUID, uuid4
 import orjson as json
 import reflex as rx
 from datapipe.compute import Catalog, run_pipeline
+from jims_core.llms.llm_provider import LLMSettings
+from jims_core.llms.llm_provider import env_settings as llm_settings
 from jims_core.thread.thread_controller import ThreadController
-from jims_core.llms.llm_provider import LLMSettings, env_settings as llm_settings
 from jims_core.util import uuid7
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.pipeline import get_data_model_pipeline
 
 from vedana_backoffice.states.common import (
+    DEBUG_MODE,
+    DebugState,
     MemLogger,
+    datapipe_log_capture,
     get_vedana_app,
     load_openrouter_models,
-    DEBUG_MODE,
-    datapipe_log_capture,
-    DebugState,
 )
 from vedana_backoffice.states.jims import ThreadViewState
 
@@ -51,9 +52,7 @@ class ChatState(rx.State):
         "gpt-4o-mini",
         "o4-mini",
     )
-    openai_models: list[str] = list(
-        set(list(_default_models) + [core_settings.model, core_settings.filter_model])
-    )
+    openai_models: list[str] = list(set(list(_default_models) + [core_settings.model, core_settings.filter_model]))
     openrouter_models: list[str] = []
     openrouter_models_loaded: bool = False
     model_selection_allowed: bool = DEBUG_MODE
@@ -269,14 +268,21 @@ class ChatState(rx.State):
         pipeline.model = f"{self.provider}/{self.model}"
         pipeline.enable_filtering = self.enable_dm_filtering
         pipeline.filter_model = f"{self.provider}/{self.dm_filter_model}"
-        api_key = llm_settings.model_api_key if not DEBUG_MODE else DebugState.resolve_api_key(self.provider)
 
-        ctx = await ctl.make_context(llm_settings=LLMSettings(
-            provider=self.provider,
-            model=self.model,
-            model_api_key=api_key,
-        ))
-        
+        if DEBUG_MODE:
+            debug_state = await self.get_state(DebugState)
+            api_key = debug_state.resolve_api_key(self.provider)
+        else:
+            api_key = llm_settings.model_api_key
+
+        ctx = await ctl.make_context(
+            llm_settings=LLMSettings(
+                provider=self.provider,
+                model=self.model,
+                model_api_key=api_key,
+            )
+        )
+
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
         answer: str = ""
@@ -355,9 +361,11 @@ class ChatState(rx.State):
     @rx.event(background=True)  # type: ignore[operator]
     async def reload_data_model_background(self):
         try:
+
             def _run_dm_pipeline():
                 with datapipe_log_capture():
                     run_pipeline(etl_app.ds, Catalog({}), get_data_model_pipeline())
+
             await asyncio.to_thread(_run_dm_pipeline)
             async with self:
                 va = await get_vedana_app()

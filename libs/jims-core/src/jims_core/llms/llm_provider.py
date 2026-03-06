@@ -192,7 +192,7 @@ class LLMProvider:
                 model=self.embeddings_model,
                 input=batch,
                 dimensions=self.embeddings_dim,
-                api_key=self.embeddings_model_api_key,
+                api_key=self.model_api_key,
             )
             self.observe_create_embedding(response)
             results.extend(d["embedding"] for d in response.data)
