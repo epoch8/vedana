@@ -1713,7 +1713,11 @@ class EvalState(rx.State):
 
         api_key = resolve_api_key(self.provider)
 
-        ctx = await ctl.make_context(llm_settings=LLMSettings(model=resolved_model, model_api_key=api_key))
+        ctx = await ctl.make_context(llm_settings=LLMSettings(
+            provider=self.provider,
+            model=resolved_model,
+            model_api_key=api_key,
+        ))
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
         answer: str = ""
@@ -1734,16 +1738,7 @@ class EvalState(rx.State):
         if not judge_prompt:
             return "fail", "Judge prompt not loaded", 0, 0.0
 
-        provider = LLMProvider()
-        resolved_judge_model = f"{self.provider}/{self.judge_model}"
-        try:
-            provider.set_model(resolved_judge_model)
-        except Exception:
-            logging.warning(f"Failed to set judge model {resolved_judge_model}")
-
-        api_key = resolve_api_key(self.provider)
-        if api_key:
-            provider.model_api_key = api_key
+        provider = LLMProvider(settings=LLMSettings(provider=self.provider, model=f"{self.provider}/{self.judge_model}", model_api_key=resolve_api_key(self.provider)))
 
         class JudgeResult(BaseModel):
             test_status: str = Field(description="pass / fail")

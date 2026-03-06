@@ -272,7 +272,11 @@ class ChatState(rx.State):
         pipeline.filter_model = f"{self.provider}/{self.dm_filter_model}"
         api_key = resolve_api_key(self.provider)
 
-        ctx = await ctl.make_context(llm_settings=LLMSettings(model=self.model, model_api_key=api_key))
+        ctx = await ctl.make_context(llm_settings=LLMSettings(
+            provider=self.provider,
+            model=self.model,
+            model_api_key=api_key,
+        ))
         
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
