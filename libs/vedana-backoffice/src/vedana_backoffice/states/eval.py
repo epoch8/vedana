@@ -1987,6 +1987,7 @@ class EvalState(rx.State):
         self.tests_page = 0  # Reset to first page
         yield
         yield EvalState.load_eval_data_background()
+        yield EvalState.refresh_golden_dataset_background()
 
     @rx.event(background=True)  # type: ignore[operator]
     async def load_eval_data_background(self):
