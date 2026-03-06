@@ -79,6 +79,7 @@ def api_key_setup_dialog() -> rx.Component:
                     rx.text("OpenAI API Key", font_size="2", font_weight="500"),
                     rx.input(
                         placeholder="sk-...",
+                        value=DebugState.runtime_openai_api_key,
                         on_change=DebugState.set_openai_api_key,
                         type="password",
                         width="100%",
@@ -96,6 +97,7 @@ def api_key_setup_dialog() -> rx.Component:
                     rx.text("OpenRouter API Key", font_size="2", font_weight="500"),
                     rx.input(
                         placeholder="sk-or-...",
+                        value=DebugState.runtime_openrouter_api_key,
                         on_change=DebugState.set_openrouter_api_key,
                         type="password",
                         width="100%",

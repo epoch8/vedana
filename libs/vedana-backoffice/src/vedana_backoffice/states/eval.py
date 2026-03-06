@@ -3,7 +3,6 @@ import difflib
 import hashlib
 import json
 import logging
-import os
 import statistics
 import traceback
 from dataclasses import asdict, dataclass
@@ -15,14 +14,20 @@ import reflex as rx
 import sqlalchemy as sa
 from datapipe.compute import run_steps
 from jims_core.db import ThreadDB, ThreadEventDB
-from jims_core.llms.llm_provider import LLMProvider, LLMSettings
+from jims_core.llms.llm_provider import LLMProvider, LLMSettings, env_settings as llm_settings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from pydantic import BaseModel, Field
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 
-from vedana_backoffice.states.common import get_vedana_app, load_openrouter_models, datapipe_log_capture, DebugState
+from vedana_backoffice.states.common import (
+    get_vedana_app,
+    load_openrouter_models,
+    datapipe_log_capture,
+    DebugState,
+    DEBUG_MODE,
+)
 from vedana_backoffice.util import safe_render_value
 
 
@@ -166,6 +171,18 @@ EMPTY_SUMMARY: RunSummary = {
     "avg_answer_time_sec": 0.0,
     "median_answer_time_sec": 0.0,
 }
+
+
+eval_judge_prompt_template = """\
+You are a strict evaluation judge. Compare the model's answer with the golden answer and the expected retrieval context. 
+Consider whether the model's answer is factually aligned and sufficiently complete. 
+Use the provided technical info (retrieval queries) only as hints for whether the context seems adequate. 
+Return a JSON object with fields: test_status in {'pass','fail'}, comment, errors.
+
+In comments return answer scoring from 1 to 10, where:
+1 – totally wrong answer
+10 – totally correct answer
+"""
 
 
 class EvalState(rx.State):
@@ -572,7 +589,7 @@ class EvalState(rx.State):
 
         vedana_app = await get_vedana_app()
         dm_pt = await vedana_app.data_model.prompt_templates()
-        judge_prompt = dm_pt.get("eval_judge_prompt")
+        judge_prompt = dm_pt.get("eval_judge_prompt", eval_judge_prompt_template)
 
         if judge_prompt:
             text_b = bytearray(judge_prompt, "utf-8")
@@ -1705,11 +1722,21 @@ class EvalState(rx.State):
         pipeline.enable_filtering = self.enable_dm_filtering
         pipeline.filter_model = f"{self.provider}/{self.dm_filter_model}"
 
-        api_key = (os.environ.get(
-            "OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY"
-        ) or "").strip() or None
+        if DEBUG_MODE:
+            debug_state = await self.get_state(DebugState)
+            api_key = debug_state.resolve_api_key(self.provider)
+            if not api_key:
+                raise ValueError(f"API key not found for {self.provider}/{resolved_model}")
+        else:
+            api_key = llm_settings.model_api_key
 
-        ctx = await ctl.make_context(llm_settings=LLMSettings(model=resolved_model, model_api_key=api_key))
+        ctx = await ctl.make_context(
+            llm_settings=LLMSettings(
+                provider=self.provider,
+                model=resolved_model,
+                model_api_key=api_key,
+            )
+        )
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
         answer: str = ""
@@ -1730,18 +1757,19 @@ class EvalState(rx.State):
         if not judge_prompt:
             return "fail", "Judge prompt not loaded", 0, 0.0
 
-        provider = LLMProvider()
-        resolved_judge_model = f"{self.provider}/{self.judge_model}"
-        try:
-            provider.set_model(resolved_judge_model)
-        except Exception:
-            logging.warning(f"Failed to set judge model {resolved_judge_model}")
+        if DEBUG_MODE:
+            debug_state = await self.get_state(DebugState)
+            api_key = debug_state.resolve_api_key(self.provider)
+            if not api_key:
+                raise ValueError(f"API key not found for {self.provider}/{self.judge_model}")
+        else:
+            api_key = llm_settings.model_api_key
 
-        api_key = (os.environ.get(
-            "OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY"
-        ) or "").strip()
-        if api_key:
-            provider.model_api_key = api_key
+        provider = LLMProvider(
+            settings=LLMSettings(
+                provider=self.provider, model=f"{self.provider}/{self.judge_model}", model_api_key=api_key
+            )
+        )
 
         class JudgeResult(BaseModel):
             test_status: str = Field(description="pass / fail")
@@ -1808,12 +1836,7 @@ class EvalState(rx.State):
             self.error_message = "Select at least one question to run tests."
             return
         if not self.judge_prompt:
-            self.error_message = "Judge prompt not loaded. Refresh judge config first."
-            return
-
-        env_key = "OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY"
-        if not os.environ.get(env_key):
-            yield DebugState.open_dialog()
+            self.error_message = "Judge prompt not loaded. Refresh data model first."
             return
 
         test_run_name = self.test_run_name.strip() or ""
@@ -1976,6 +1999,7 @@ class EvalState(rx.State):
         self.tests_page = 0  # Reset to first page
         yield
         yield EvalState.load_eval_data_background()
+        yield EvalState.refresh_golden_dataset_background()
 
     @rx.event(background=True)  # type: ignore[operator]
     async def load_eval_data_background(self):

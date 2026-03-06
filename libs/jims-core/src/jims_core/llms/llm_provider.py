@@ -17,6 +17,8 @@ class LLMSettings(BaseSettings):
         extra="ignore",
     )
 
+    provider: str = "openai"  #  "openai" / "openrouter"
+    model_api_key: str | None = None
     model: str = "gpt-4.1-nano"
     embeddings_model: str = "text-embedding-3-large"
     embeddings_dim: int = 1024
@@ -25,10 +27,6 @@ class LLMSettings(BaseSettings):
     embeddings_max_tokens_per_batch: int = 200000
 
     # passable api_keys; if None, defaults to env vars
-    model_api_key: str | None = None
-    embeddings_model_api_key: str | None = None
-
-    # openrouter_api_key: str | None = None
     openrouter_api_base_url: str = "https://openrouter.ai/api/v1"
 
 
@@ -76,10 +74,10 @@ class ModelUsage:
 class LLMProvider:
     def __init__(self, settings: LLMSettings | None = None) -> None:
         self._settings = settings or env_settings
-        self.model = self._settings.model
+        self.provider = self._settings.provider
+        self.model = f"{self.provider}/{self._settings.model}"
         self.model_api_key = self._settings.model_api_key
-        self.embeddings_model = self._settings.embeddings_model
-        self.embeddings_model_api_key = self._settings.embeddings_model_api_key
+        self.embeddings_model = f"{self.provider}/{self._settings.embeddings_model}"
         self.embeddings_dim = self._settings.embeddings_dim
         self.max_batch_size = self._settings.embeddings_max_batch_size
         self.max_tokens_per_batch = self._settings.embeddings_max_tokens_per_batch
@@ -135,7 +133,7 @@ class LLMProvider:
             model=self.embeddings_model,
             input=[text],
             dimensions=self.embeddings_dim,
-            api_key=self.embeddings_model_api_key,
+            api_key=self.model_api_key,
         )
         self.observe_create_embedding(response)
         return response.data[0]["embedding"]
@@ -170,7 +168,7 @@ class LLMProvider:
                 model=self.embeddings_model,
                 input=batch,
                 dimensions=self.embeddings_dim,
-                api_key=self.embeddings_model_api_key,
+                api_key=self.model_api_key,
             )
             self.observe_create_embedding(response)
             results.extend(d["embedding"] for d in response.data)
@@ -181,7 +179,7 @@ class LLMProvider:
             model=self.embeddings_model,
             input=[text],
             dimensions=self.embeddings_dim,
-            api_key=self.embeddings_model_api_key,
+            api_key=self.model_api_key,
         )
         self.observe_create_embedding(response)
         return response.data[0]["embedding"]
@@ -194,7 +192,7 @@ class LLMProvider:
                 model=self.embeddings_model,
                 input=batch,
                 dimensions=self.embeddings_dim,
-                api_key=self.embeddings_model_api_key,
+                api_key=self.model_api_key,
             )
             self.observe_create_embedding(response)
             results.extend(d["embedding"] for d in response.data)
