@@ -1744,7 +1744,14 @@ class EvalState(rx.State):
         judge_prompt = self.judge_prompt
         if not judge_prompt:
             return "fail", "Judge prompt not loaded", 0, 0.0
-        api_key = llm_settings.model_api_key if not DEBUG_MODE else DebugState.resolve_api_key(self.provider)
+
+        if DEBUG_MODE:
+            debug_state = await self.get_state(DebugState)
+            api_key = debug_state.resolve_api_key(self.provider)
+            if not api_key:
+                raise ValueError(f"API key not found for {self.provider}/{self.judge_model}")
+        else:
+            api_key = llm_settings.model_api_key
 
         provider = LLMProvider(
             settings=LLMSettings(
