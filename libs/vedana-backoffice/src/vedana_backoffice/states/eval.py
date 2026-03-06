@@ -14,7 +14,7 @@ import reflex as rx
 import sqlalchemy as sa
 from datapipe.compute import run_steps
 from jims_core.db import ThreadDB, ThreadEventDB
-from jims_core.llms.llm_provider import LLMProvider, LLMSettings
+from jims_core.llms.llm_provider import LLMProvider, LLMSettings, env_settings as llm_settings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from pydantic import BaseModel, Field
@@ -26,7 +26,6 @@ from vedana_backoffice.states.common import (
     load_openrouter_models,
     datapipe_log_capture,
     DebugState,
-    resolve_api_key,
     DEBUG_MODE,
 )
 from vedana_backoffice.util import safe_render_value
@@ -1710,8 +1709,7 @@ class EvalState(rx.State):
         pipeline.model = resolved_model
         pipeline.enable_filtering = self.enable_dm_filtering
         pipeline.filter_model = f"{self.provider}/{self.dm_filter_model}"
-
-        api_key = resolve_api_key(self.provider)
+        api_key = llm_settings.model_api_key if not DEBUG_MODE else DebugState.resolve_api_key(self.provider)
 
         ctx = await ctl.make_context(llm_settings=LLMSettings(
             provider=self.provider,
@@ -1737,8 +1735,9 @@ class EvalState(rx.State):
         judge_prompt = self.judge_prompt
         if not judge_prompt:
             return "fail", "Judge prompt not loaded", 0, 0.0
+        api_key = llm_settings.model_api_key if not DEBUG_MODE else DebugState.resolve_api_key(self.provider)
 
-        provider = LLMProvider(settings=LLMSettings(provider=self.provider, model=f"{self.provider}/{self.judge_model}", model_api_key=resolve_api_key(self.provider)))
+        provider = LLMProvider(settings=LLMSettings(provider=self.provider, model=f"{self.provider}/{self.judge_model}", model_api_key=api_key))
 
         class JudgeResult(BaseModel):
             test_status: str = Field(description="pass / fail")
@@ -1806,12 +1805,6 @@ class EvalState(rx.State):
             return
         if not self.judge_prompt:
             self.error_message = "Judge prompt not loaded. Refresh judge config first."
-            return
-
-        api_key = resolve_api_key(self.provider)
-        if not api_key:
-            if DEBUG_MODE:
-                yield DebugState.open_dialog()
             return
 
         test_run_name = self.test_run_name.strip() or ""

@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import io
 import logging
 import os
-from typing import Iterable, Optional
+from typing import Iterable
 
 import httpx
 import reflex as rx
@@ -20,53 +20,6 @@ TELEGRAM_BOT_INFO_REQUESTED: bool = False
 EVAL_ENABLED = bool(os.environ.get("GRIST_TEST_SET_DOC_ID"))
 DEBUG_MODE = (os.environ.get("VEDANA_BACKOFFICE_DEBUG", "").lower() in ("true", "1")
               or os.environ.get("DEBUG", "").lower() in ("true", "1"))
-HAS_OPENAI_KEY = bool(os.environ.get("OPENAI_API_KEY"))
-HAS_OPENROUTER_KEY = bool(os.environ.get("OPENROUTER_API_KEY"))
-
-# Runtime-scoped API keys configured from the backoffice (debug UI).
-# not persisted to environment variables.
-RUNTIME_OPENAI_API_KEY: Optional[str] = None
-RUNTIME_OPENROUTER_API_KEY: Optional[str] = None
-
-
-def set_runtime_api_keys(openai_api_key: Optional[str] = None, openrouter_api_key: Optional[str] = None) -> None:
-    """Update in-process API key overrides used by backoffice (chat/eval)."""
-    global RUNTIME_OPENAI_API_KEY, RUNTIME_OPENROUTER_API_KEY
-
-    if openai_api_key is not None:
-        openai_api_key = openai_api_key.strip()
-        if openai_api_key:
-            RUNTIME_OPENAI_API_KEY = openai_api_key
-
-    if openrouter_api_key is not None:
-        openrouter_api_key = openrouter_api_key.strip()
-        if openrouter_api_key:
-            RUNTIME_OPENROUTER_API_KEY = openrouter_api_key
-
-
-def resolve_api_key(provider: str, page_api_key: Optional[str] = None) -> Optional[str]:
-    """
-    Resolve the effective API key for a given provider
-    """
-    provider = (provider or "openai").lower()
-
-    if page_api_key:
-        key = page_api_key.strip()
-        if key:
-            return key
-
-    if provider == "openrouter":
-        if DEBUG_MODE and RUNTIME_OPENROUTER_API_KEY:
-            return RUNTIME_OPENROUTER_API_KEY
-        if llm_settings.openrouter_api_key:
-            return llm_settings.openrouter_api_key
-        return None
-
-    if DEBUG_MODE and RUNTIME_OPENAI_API_KEY:
-        return RUNTIME_OPENAI_API_KEY
-    if llm_settings.model_api_key:
-        return llm_settings.model_api_key
-    return None
 
 
 def _filter_chat_capable_models(models: Iterable[dict]) -> list[str]:
@@ -181,44 +134,56 @@ class DebugState(rx.State):
     show_api_key_dialog: bool = False
     default_openai_api_key: str = os.environ.get("OPENAI_API_KEY", "")
     default_openrouter_api_key: str = os.environ.get("OPENROUTER_API_KEY", "")
-    openai_api_key: str = ""
-    openrouter_api_key: str = ""
+    runtime_openai_api_key: str = ""
+    runtime_openrouter_api_key: str = ""
     api_key_saved: bool = False
 
     @rx.var
     def openai_key_empty(self) -> bool:
-        return not self.openai_api_key and not os.environ.get("OPENAI_API_KEY")
+        return not self.runtime_openai_api_key and not self.default_openai_api_key
 
     @rx.var
     def openrouter_key_empty(self) -> bool:
-        return not self.openrouter_api_key and not os.environ.get("OPENROUTER_API_KEY")
+        return not self.runtime_openrouter_api_key and not self.default_openrouter_api_key
 
     def set_openai_api_key(self, value: str) -> None:
-        self.openai_api_key = value
+        self.runtime_openai_api_key = value
 
     def set_openrouter_api_key(self, value: str) -> None:
-        self.openrouter_api_key = value
+        self.runtime_openrouter_api_key = value
 
     def save_api_keys(self) -> None:
         if not self.debug_mode:
             return
-        set_runtime_api_keys(
-            openai_api_key=self.openai_api_key,
-            openrouter_api_key=self.openrouter_api_key,
-        )
-        # Keep defaults in sync so reopening the dialog reflects the last saved values.
         self.default_openai_api_key = self.openai_api_key
         self.default_openrouter_api_key = self.openrouter_api_key
-        self.api_key_saved = bool(self.openai_api_key or self.openrouter_api_key)
+        self.api_key_saved = bool(self.runtime_openai_api_key or self.runtime_openrouter_api_key)
         self.show_api_key_dialog = False
 
     def close_dialog(self) -> None:
         self.show_api_key_dialog = False
 
     def open_dialog(self) -> None:
-        self.openai_api_key = self.default_openai_api_key
-        self.openrouter_api_key = self.default_openrouter_api_key
+        self.openai_api_key = self.default_openai_api_key or self.runtime_openai_api_key
+        self.openrouter_api_key = self.default_openrouter_api_key or self.runtime_openrouter_api_key
         self.show_api_key_dialog = True
+
+    def resolve_api_key(self, provider: str) -> str | None:
+        if provider == "openai":
+            if self.runtime_openai_api_key:
+                return self.runtime_openai_api_key
+            if llm_settings.provider == "openai":
+                return llm_settings.model_api_key
+            if self.default_openai_api_key:
+                return self.default_openai_api_key
+        elif provider == "openrouter":
+            if self.runtime_openrouter_api_key:
+                return self.runtime_openrouter_api_key
+            if llm_settings.provider == "openrouter":
+                return llm_settings.model_api_key
+            if self.default_openrouter_api_key:
+                return self.default_openrouter_api_key
+        return None
 
 
 class TelegramBotState(rx.State):

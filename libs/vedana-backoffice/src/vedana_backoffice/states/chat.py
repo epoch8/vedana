@@ -9,7 +9,7 @@ import orjson as json
 import reflex as rx
 from datapipe.compute import Catalog, run_pipeline
 from jims_core.thread.thread_controller import ThreadController
-from jims_core.llms.llm_provider import LLMSettings
+from jims_core.llms.llm_provider import LLMSettings, env_settings as llm_settings
 from jims_core.util import uuid7
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
@@ -22,7 +22,6 @@ from vedana_backoffice.states.common import (
     DEBUG_MODE,
     datapipe_log_capture,
     DebugState,
-    resolve_api_key,
 )
 from vedana_backoffice.states.jims import ThreadViewState
 
@@ -270,7 +269,7 @@ class ChatState(rx.State):
         pipeline.model = f"{self.provider}/{self.model}"
         pipeline.enable_filtering = self.enable_dm_filtering
         pipeline.filter_model = f"{self.provider}/{self.dm_filter_model}"
-        api_key = resolve_api_key(self.provider)
+        api_key = llm_settings.model_api_key if not DEBUG_MODE else DebugState.resolve_api_key(self.provider)
 
         ctx = await ctl.make_context(llm_settings=LLMSettings(
             provider=self.provider,
@@ -315,12 +314,6 @@ class ChatState(rx.State):
 
         user_text = (self.input_text or "").strip()
         if not user_text:
-            return
-
-        api_key = resolve_api_key(self.provider)
-        if not api_key:
-            if DEBUG_MODE:
-                yield DebugState.open_dialog()
             return
 
         self._append_message("user", user_text)
