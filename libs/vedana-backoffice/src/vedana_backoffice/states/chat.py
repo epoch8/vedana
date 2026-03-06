@@ -272,6 +272,8 @@ class ChatState(rx.State):
         if DEBUG_MODE:
             debug_state = await self.get_state(DebugState)
             api_key = debug_state.resolve_api_key(self.provider)
+            if not api_key:
+                raise ValueError(f"API key not found for {self.provider}/{self.model}")
         else:
             api_key = llm_settings.model_api_key
 

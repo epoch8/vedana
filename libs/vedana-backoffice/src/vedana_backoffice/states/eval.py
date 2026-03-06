@@ -1709,13 +1709,22 @@ class EvalState(rx.State):
         pipeline.model = resolved_model
         pipeline.enable_filtering = self.enable_dm_filtering
         pipeline.filter_model = f"{self.provider}/{self.dm_filter_model}"
-        api_key = llm_settings.model_api_key if not DEBUG_MODE else DebugState.resolve_api_key(self.provider)
 
-        ctx = await ctl.make_context(llm_settings=LLMSettings(
-            provider=self.provider,
-            model=resolved_model,
-            model_api_key=api_key,
-        ))
+        if DEBUG_MODE:
+            debug_state = await self.get_state(DebugState)
+            api_key = debug_state.resolve_api_key(self.provider)
+            if not api_key:
+                raise ValueError(f"API key not found for {self.provider}/{resolved_model}")
+        else:
+            api_key = llm_settings.model_api_key
+
+        ctx = await ctl.make_context(
+            llm_settings=LLMSettings(
+                provider=self.provider,
+                model=resolved_model,
+                model_api_key=api_key,
+            )
+        )
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
         answer: str = ""
@@ -1737,7 +1746,11 @@ class EvalState(rx.State):
             return "fail", "Judge prompt not loaded", 0, 0.0
         api_key = llm_settings.model_api_key if not DEBUG_MODE else DebugState.resolve_api_key(self.provider)
 
-        provider = LLMProvider(settings=LLMSettings(provider=self.provider, model=f"{self.provider}/{self.judge_model}", model_api_key=api_key))
+        provider = LLMProvider(
+            settings=LLMSettings(
+                provider=self.provider, model=f"{self.provider}/{self.judge_model}", model_api_key=api_key
+            )
+        )
 
         class JudgeResult(BaseModel):
             test_status: str = Field(description="pass / fail")
