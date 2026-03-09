@@ -106,15 +106,16 @@ services:
   grist:
     image: gristlabs/grist:latest
     environment:
-      GRIST_API_KEY: "e30d2f274a538c05fecd14510887f8a3b7eab718"
-      GRIST_DATA_MODEL_DOC_ID: "aAco4qS9Dvf8"
-      GRIST_DATA_DOC_ID: "kB1iVADLPGU5"
+      GRIST_API_KEY: "095081eeddd406bae50e8d034df81ed2832b44e8"
+      GRIST_DATA_MODEL_DOC_ID: "j6PTmqgw4caBDdQdpyz7au"
+      GRIST_TEST_SET_DOC_ID: "2FDgbBNtEDmgNc5AJ3ufkh"
+      GRIST_DATA_DOC_ID: "eB5kH8Z7NVErycp32wx1Ge"
       GRIST_ORG_IN_PATH: "true"
       GRIST_SESSION_SECRET: dev-secret
     ports:
       - "8484:8484"
     volumes:
-      - ../../libs/vedana-etl/tests/infra/persist/grist:/persist
+      - ./infra/grist:/persist
     healthcheck:
       test:
         [
