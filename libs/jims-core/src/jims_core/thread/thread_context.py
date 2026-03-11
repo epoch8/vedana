@@ -111,7 +111,7 @@ class ThreadContext:
                 result.append(CommunicationEvent(**event.event_data))
                 comm_counter += 1
             if event.event_type.startswith("context."):
-                result.append(CommunicationEvent(**event.event_data))    
+                result.append(CommunicationEvent(**event.event_data))
             if comm_counter > conversation_length:
                 break
 

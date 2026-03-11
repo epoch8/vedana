@@ -14,7 +14,7 @@ import reflex as rx
 import sqlalchemy as sa
 from datapipe.compute import run_steps
 from jims_core.db import ThreadDB, ThreadEventDB
-from jims_core.llms.llm_provider import LLMProvider, LLMSettings, env_settings as llm_settings
+from jims_core.llms.llm_provider import LLMProvider, LLMSettings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from pydantic import BaseModel, Field
@@ -22,11 +22,9 @@ from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 
 from vedana_backoffice.states.common import (
-    get_vedana_app,
-    load_openrouter_models,
-    datapipe_log_capture,
     DebugState,
-    DEBUG_MODE,
+    datapipe_log_capture,
+    get_vedana_app,
 )
 from vedana_backoffice.util import safe_render_value
 
@@ -196,52 +194,16 @@ class EvalState(rx.State):
     selected_question_ids: list[str] = []
     test_run_name: str = ""
     selected_scenario: str = "all"  # Filter by scenario
-    judge_model: str = core_settings.judge_model
     judge_prompt_id: str = ""
     judge_prompt: str = ""
-    provider: str = "openai"
     pipeline_model: str = core_settings.model
     embeddings_model: str = core_settings.embeddings_model
     embeddings_dim: int = core_settings.embeddings_dim
     enable_dm_filtering: bool = core_settings.enable_dm_filtering
-    _default_models: tuple[str, ...] = (
-        "gpt-5.1-chat-latest",
-        "gpt-5.1",
-        "gpt-5-chat-latest",
-        "gpt-5",
-        "gpt-5-mini",
-        "gpt-5-nano",
-        "gpt-4.1",
-        "gpt-4.1-mini",
-        "gpt-4.1-nano",
-        "gpt-4o",
-        "gpt-4o-mini",
-        "o4-mini",
-    )
-    openai_models: list[str] = list(
-        set([core_settings.model, core_settings.filter_model, core_settings.judge_model] + list(_default_models))
-    )
-    openrouter_models: list[str] = []
+    available_models: list[str] = list({core_settings.model, core_settings.filter_model, core_settings.judge_model})
     dm_filter_model: str = core_settings.filter_model
     dm_id: str = ""
-
-    def _models_for_provider(self, provider: str) -> list[str]:
-        """Return the list of model names for the given provider (openai or openrouter)."""
-        if provider == "openrouter":
-            return list(self.openrouter_models)
-        return list(self.openai_models)
-
-    @rx.var
-    def available_models(self) -> list[str]:
-        return self._models_for_provider(self.provider)
-
-    @rx.var
-    def dm_filter_available_models(self) -> list[str]:
-        return self._models_for_provider(self.provider)
-
-    @rx.var
-    def judge_available_models(self) -> list[str]:
-        return self._models_for_provider(self.provider)
+    judge_model: str = core_settings.judge_model
 
     tests_rows: list[dict[str, Any]] = []
     tests_cost_total: float = 0.0
@@ -403,16 +365,12 @@ class EvalState(rx.State):
         )
 
     @rx.var
-    def available_models_view(self) -> list[str]:
-        return self.available_models
-
-    @rx.var
     def dm_filter_model_display(self) -> str:
-        return f"{self.provider}/{self.dm_filter_model}"
+        return self.dm_filter_model
 
     @rx.var
     def judge_model_display(self) -> str:
-        return f"{self.provider}/{self.judge_model}"
+        return self.judge_model
 
     def toggle_question_selection(self, question: str, checked: bool) -> None:
         question = str(question or "").strip()
@@ -476,7 +434,7 @@ class EvalState(rx.State):
         self.test_run_name = str(value or "").strip()
 
     def set_pipeline_model(self, value: str) -> None:
-        models = self._models_for_provider(self.provider)
+        models = self._available_models()
         if value in models:
             self.pipeline_model = value
 
@@ -484,27 +442,14 @@ class EvalState(rx.State):
         self.enable_dm_filtering = value
 
     def set_dm_filter_model(self, value: str) -> None:
-        models = self._models_for_provider(self.provider)
+        models = self._available_models()
         if value in models:
             self.dm_filter_model = value
 
     def set_judge_model(self, value: str) -> None:
-        models = self._models_for_provider(self.provider)
+        models = self._available_models()
         if value in models:
             self.judge_model = value
-
-    async def set_provider(self, value: str) -> None:
-        self.provider = str(value or "openai")
-        if self.provider == "openrouter" and not self.openrouter_models:
-            self.openrouter_models = await load_openrouter_models()
-        else:
-            # When switching back to OpenAI, reset models to settings defaults
-            self.pipeline_model = core_settings.model
-            self.dm_filter_model = core_settings.filter_model
-            self.judge_model = core_settings.judge_model
-        self._sync_available_models()
-        self._sync_dm_filter_model()
-        self._sync_judge_model()
 
     def set_compare_run_a(self, value: str) -> None:
         self.compare_run_a = str(value or "").strip()
@@ -521,28 +466,42 @@ class EvalState(rx.State):
         self.selected_question_ids = [q for q in (self.selected_question_ids or []) if q in valid]
 
     def _sync_available_models(self) -> None:
-        """Realign selected pipeline model when provider or model list changes."""
-        if self.provider == "openrouter" and not self.openrouter_models:
-            self.provider = "openai"
-        models = self._models_for_provider(self.provider)
+        """Realign selected pipeline model when model list changes."""
+        models = self.available_models
         if self.pipeline_model not in models and models:
-            self.pipeline_model = models[0]
+            if core_settings.model in models:
+                self.pipeline_model = core_settings.model
+            else:
+                self.pipeline_model = models[0]
 
     def _sync_dm_filter_model(self) -> None:
-        """Realign selected filter model when provider or model list changes."""
-        models = self._models_for_provider(self.provider)
+        """Realign selected filter model when model list changes."""
+        models = self.available_models
         if self.dm_filter_model not in models and models:
-            self.dm_filter_model = models[0]
+            if core_settings.filter_model in models:
+                self.dm_filter_model = core_settings.filter_model
+            else:
+                self.dm_filter_model = models[0]
 
     def _sync_judge_model(self) -> None:
-        """Realign selected judge model when provider or model list changes."""
-        models = self._models_for_provider(self.provider)
+        """Realign selected judge model when model list changes."""
+        models = self.available_models
         if self.judge_model not in models and models:
-            self.judge_model = models[0]
+            if core_settings.judge_model in models:
+                self.judge_model = core_settings.judge_model
+            else:
+                self.judge_model = models[0]
+
+    @rx.event(background=True)  # type: ignore[operator]
+    async def refresh_model_list(self) -> None:
+        async with self:
+            self.available_models = await self.get_var_value(DebugState.available_models)
+            self._sync_available_models()
+            self._sync_dm_filter_model()
+            self._sync_judge_model()
 
     def _resolved_pipeline_model(self) -> str:
-        provider = self.provider or "openai"
-        return f"{provider}/{self.pipeline_model}"
+        return self.pipeline_model
 
     def get_eval_gds_from_grist(self):
         step = next((s for s in etl_app.steps if s._name == "get_eval_gds_from_grist"), None)
@@ -1674,7 +1633,6 @@ class EvalState(rx.State):
             "judge_model": self.judge_model,
             "judge_prompt_id": self.judge_prompt_id,
             "pipeline_model": resolved_model,
-            "pipeline_provider": self.provider,
             "embeddings_model": self.embeddings_model,
             "embeddings_dim": self.embeddings_dim,
             "dm_id": self.dm_id,
@@ -1720,23 +1678,9 @@ class EvalState(rx.State):
         resolved_model = self._resolved_pipeline_model()
         pipeline.model = resolved_model
         pipeline.enable_filtering = self.enable_dm_filtering
-        pipeline.filter_model = f"{self.provider}/{self.dm_filter_model}"
+        pipeline.filter_model = self.dm_filter_model
 
-        if DEBUG_MODE:
-            debug_state = await self.get_state(DebugState)
-            api_key = debug_state.resolve_api_key(self.provider)
-            if not api_key:
-                raise ValueError(f"API key not found for {self.provider}/{resolved_model}")
-        else:
-            api_key = llm_settings.model_api_key
-
-        ctx = await ctl.make_context(
-            llm_settings=LLMSettings(
-                provider=self.provider,
-                model=resolved_model,
-                model_api_key=api_key,
-            )
-        )
+        ctx = await ctl.make_context(llm_settings=LLMSettings(model=resolved_model))
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
         answer: str = ""
@@ -1749,7 +1693,9 @@ class EvalState(rx.State):
 
         return str(thread_id), answer, technical_info
 
-    async def _judge_answer(self, question_row: dict[str, Any], answer: str, tool_calls: str) -> tuple[str, str, int, float]:
+    async def _judge_answer(
+        self, question_row: dict[str, Any], answer: str, tool_calls: str
+    ) -> tuple[str, str, int, float]:
         """Judge model answer with current judge prompt/model and rating.
         Returns (status, comment, rating, judge_cost).
         """
@@ -1757,19 +1703,7 @@ class EvalState(rx.State):
         if not judge_prompt:
             return "fail", "Judge prompt not loaded", 0, 0.0
 
-        if DEBUG_MODE:
-            debug_state = await self.get_state(DebugState)
-            api_key = debug_state.resolve_api_key(self.provider)
-            if not api_key:
-                raise ValueError(f"API key not found for {self.provider}/{self.judge_model}")
-        else:
-            api_key = llm_settings.model_api_key
-
-        provider = LLMProvider(
-            settings=LLMSettings(
-                provider=self.provider, model=f"{self.provider}/{self.judge_model}", model_api_key=api_key
-            )
-        )
+        provider = LLMProvider(settings=LLMSettings(model=self.judge_model))
 
         class JudgeResult(BaseModel):
             test_status: str = Field(description="pass / fail")
@@ -2005,7 +1939,7 @@ class EvalState(rx.State):
     async def load_eval_data_background(self):
         try:
             async with self:
-                self.openrouter_models = await load_openrouter_models()
+                self.available_models = await self.get_var_value(DebugState.available_models)
                 self._sync_available_models()
                 self._sync_dm_filter_model()
                 self._sync_judge_model()

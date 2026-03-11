@@ -1,6 +1,6 @@
 import reflex as rx
 
-from vedana_backoffice.states.common import AppVersionState
+from vedana_backoffice.states.common import AppVersionState, DebugState
 from vedana_backoffice.states.eval import EvalState, RunSummary
 from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.ui import app_header
@@ -175,7 +175,7 @@ def _judge_card() -> rx.Component:
                 rx.cond(
                     AppVersionState.debug_mode,
                     rx.select(
-                        items=EvalState.judge_available_models,
+                        items=DebugState.available_models,
                         value=EvalState.judge_model,
                         on_change=EvalState.set_judge_model,
                         width="100%",
@@ -235,25 +235,12 @@ def _pipeline_card() -> rx.Component:
                     rx.text("Pipeline model", weight="medium", width="100%"),
                     rx.cond(
                         ChatState.model_selection_allowed,
-                        rx.hstack(
-                            rx.select(
-                                items=["openai", "openrouter"],
-                                value=EvalState.provider,
-                                on_change=EvalState.set_provider,
-                                width="100%",
-                                placeholder="Provider",
-                            ),
-                            rx.select(
-                                items=EvalState.available_models_view,
-                                value=EvalState.pipeline_model,
-                                on_change=EvalState.set_pipeline_model,
-                                width="100%",
-                                placeholder="Select model",
-                            ),
-                            spacing="2",
-                            align="center",
-                            wrap="wrap",
+                        rx.select(
+                            items=DebugState.available_models,
+                            value=EvalState.pipeline_model,
+                            on_change=EvalState.set_pipeline_model,
                             width="100%",
+                            placeholder="Select model",
                         ),
                         rx.text(EvalState.pipeline_model, size="3"),
                     ),
@@ -270,7 +257,7 @@ def _pipeline_card() -> rx.Component:
                             rx.cond(
                                 AppVersionState.debug_mode,
                                 rx.select(
-                                    items=EvalState.dm_filter_available_models,
+                                    items=DebugState.available_models,
                                     value=EvalState.dm_filter_model,
                                     on_change=EvalState.set_dm_filter_model,
                                     width="100%",
