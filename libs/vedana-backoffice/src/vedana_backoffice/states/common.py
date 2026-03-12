@@ -121,7 +121,7 @@ class DebugState(rx.State):
         return ["openai", "openrouter", "anthropic", "cohere", "xai"]
 
     @rx.event(background=True)  # type: ignore[operator]
-    async def load_available_models(self) -> None:
+    async def load_available_models(self):
         if not self.debug_mode:
             return
         models = await load_litellm_models(
