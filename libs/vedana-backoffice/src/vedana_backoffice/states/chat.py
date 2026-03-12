@@ -49,7 +49,7 @@ class ChatState(rx.State):
     @rx.event(background=True)  # type: ignore[operator]
     async def refresh_model_list(self) -> None:
         async with self:
-            self.available_models = await self.get_var_value(DebugState.available_models)
+            self.available_models = await self.get_var_value(DebugState.available_models)  # type: ignore[arg-type]
             self._sync_model()
             self._sync_dm_filter_model()
 

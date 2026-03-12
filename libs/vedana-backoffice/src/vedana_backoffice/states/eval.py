@@ -434,21 +434,18 @@ class EvalState(rx.State):
         self.test_run_name = str(value or "").strip()
 
     def set_pipeline_model(self, value: str) -> None:
-        models = self._available_models()
-        if value in models:
+        if value in self.available_models:
             self.pipeline_model = value
 
     def set_enable_dm_filtering(self, value: bool) -> None:
         self.enable_dm_filtering = value
 
     def set_dm_filter_model(self, value: str) -> None:
-        models = self._available_models()
-        if value in models:
+        if value in self.available_models:
             self.dm_filter_model = value
 
     def set_judge_model(self, value: str) -> None:
-        models = self._available_models()
-        if value in models:
+        if value in self.available_models:
             self.judge_model = value
 
     def set_compare_run_a(self, value: str) -> None:
@@ -495,7 +492,7 @@ class EvalState(rx.State):
     @rx.event(background=True)  # type: ignore[operator]
     async def refresh_model_list(self) -> None:
         async with self:
-            self.available_models = await self.get_var_value(DebugState.available_models)
+            self.available_models = await self.get_var_value(DebugState.available_models)  # type: ignore[arg-type]
             self._sync_available_models()
             self._sync_dm_filter_model()
             self._sync_judge_model()
