@@ -467,32 +467,41 @@ class EvalState(rx.State):
     def _sync_available_models(self) -> None:
         """Realign selected pipeline model when model list changes."""
         if self.pipeline_model not in self.available_models and self.available_models:
-            if core_settings.model in self.available_models:
-                self.pipeline_model = core_settings.model
-            elif self.available_models[0].startswith("openrouter") and "openrouter/openrouter/free" in self.available_models:
-                self.pipeline_model = "openrouter/openrouter/free"  # Openrouter has an endpoint with all free models, set it as default
+            for model in self.available_models:
+                if model.endswith(core_settings.model):
+                    self.pipeline_model = model
+                    break
             else:
-                self.pipeline_model = self.available_models[0]
+                if "openrouter/openrouter/free" in self.available_models:  # openrouter provider
+                    self.pipeline_model = "openrouter/openrouter/free"  # Openrouter has an endpoint with all free models, set it as default
+                else:
+                    self.pipeline_model = self.available_models[0] 
 
     def _sync_dm_filter_model(self) -> None:
         """Realign selected filter model when model list changes."""
         if self.dm_filter_model not in self.available_models and self.available_models:
-            if core_settings.filter_model in self.available_models:
-                self.dm_filter_model = core_settings.filter_model
-            elif self.available_models[0].startswith("openrouter") and "openrouter/openrouter/free" in self.available_models:
-                self.dm_filter_model = "openrouter/openrouter/free"
+            for model in self.available_models:
+                if model.endswith(core_settings.filter_model):
+                    self.dm_filter_model = model
+                    break
             else:
-                self.dm_filter_model = self.available_models[0]
+                if "openrouter/openrouter/free" in self.available_models:
+                    self.dm_filter_model = "openrouter/openrouter/free"
+                else:
+                    self.dm_filter_model = self.available_models[0] 
 
     def _sync_judge_model(self) -> None:
         """Realign selected judge model when model list changes."""
         if self.judge_model not in self.available_models and self.available_models:
-            if core_settings.judge_model in self.available_models:
-                self.judge_model = core_settings.judge_model
-            elif self.available_models[0].startswith("openrouter") and "openrouter/openrouter/free" in self.available_models:
-                self.judge_model = "openrouter/openrouter/free"
+            for model in self.available_models:
+                if model.endswith(core_settings.judge_model):
+                    self.judge_model = model
+                    break
             else:
-                self.judge_model = self.available_models[0]
+                if "openrouter/openrouter/free" in self.available_models:
+                    self.judge_model = "openrouter/openrouter/free"
+                else:
+                    self.judge_model = self.available_models[0] 
 
     @rx.event(background=True)  # type: ignore[operator]
     async def refresh_model_list(self) -> None:

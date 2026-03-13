@@ -68,22 +68,28 @@ class ChatState(rx.State):
     def _sync_model(self) -> None:
         """Realign selected model when model list changes."""
         if self.model not in self.available_models and self.available_models:
-            if core_settings.model in self.available_models:
-                self.model = core_settings.model
-            elif self.available_models[0].startswith("openrouter") and "openrouter/openrouter/free" in self.available_models:
-                self.model = "openrouter/openrouter/free"  # Openrouter has an endpoint with all free models, set it as default
+            for model in self.available_models:
+                if model.endswith(core_settings.model):  # or model.rsplit("/", 1)[-1] == core_settings.model
+                    self.model = model
+                    break
             else:
-                self.model = self.available_models[0]
+                if "openrouter/openrouter/free" in self.available_models:
+                    self.model = "openrouter/openrouter/free"  # Openrouter has an endpoint with all free models, set it as default
+                else:
+                    self.model = self.available_models[0]
 
     def _sync_dm_filter_model(self) -> None:
         """Realign selected filter model when model list changes."""
         if self.dm_filter_model not in self.available_models and self.available_models:
-            if core_settings.filter_model in self.available_models:
-                self.dm_filter_model = core_settings.filter_model
-            elif self.available_models[0].startswith("openrouter") and "openrouter/openrouter/free" in self.available_models:
-                self.dm_filter_model = "openrouter/openrouter/free"
+            for model in self.available_models:
+                if model.endswith(core_settings.filter_model):
+                    self.dm_filter_model = model
+                    break
             else:
-                self.dm_filter_model = self.available_models[0]
+                if "openrouter/openrouter/free" in self.available_models:  # openrouter provider
+                    self.dm_filter_model = "openrouter/openrouter/free"
+                else:
+                    self.dm_filter_model = self.available_models[0]
 
     def toggle_details_by_id(self, message_id: str) -> None:
         for idx, m in enumerate(self.messages):
