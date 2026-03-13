@@ -100,7 +100,7 @@ class LLMProvider:
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             cached_tokens=cached_tokens,
-            request_cost=completion._hidden_params.get("response_cost", 0),  # or litellm.completion_cost(completion)
+            request_cost=completion._hidden_params.get("response_cost") or 0,  # or litellm.completion_cost(completion)
         )
 
         llm_calls_total.labels(completion.model).inc()
@@ -116,7 +116,7 @@ class LLMProvider:
         if usage is not None:
             self.usage[model].observe(
                 prompt_tokens=usage.prompt_tokens,
-                request_cost=res._hidden_params.get("response_cost", 0),  # or litellm.completion_cost(res)
+                request_cost=res._hidden_params.get("response_cost") or 0,  # or litellm.completion_cost(res)
             )
             llm_usage_prompt_tokens_total.labels(model).inc(usage.prompt_tokens)
 
