@@ -23,6 +23,8 @@ from vedana_etl.app import app as etl_app
 
 from vedana_backoffice.states.common import (
     DebugState,
+    DEBUG_MODE,
+    EVAL_ENABLED,
     datapipe_log_capture,
     get_vedana_app,
 )
@@ -1934,6 +1936,12 @@ class EvalState(rx.State):
         yield
         yield EvalState.load_eval_data_background()
         yield EvalState.refresh_golden_dataset_background()
+
+    async def mount(self):
+        if EVAL_ENABLED:
+            # yield EvalState.load_eval_data_background()
+            if DEBUG_MODE:
+                yield DebugState.load_available_models()
 
     @rx.event(background=True)  # type: ignore[operator]
     async def load_eval_data_background(self):

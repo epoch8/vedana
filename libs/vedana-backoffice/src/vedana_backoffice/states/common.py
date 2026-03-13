@@ -126,10 +126,14 @@ class DebugState(rx.State):
             return
         models = await load_litellm_models(
             provider=self.runtime_model_provider,
-            check_provider_endpoint=True if self.runtime_model_provider else False,
+            # check_provider is not necessary in most cases 
+            # check_provider_endpoint=True if self.runtime_model_provider and self.runtime_model_provider == "openrouter" else False,
         )
         async with self:
             self.available_models = models
+            if not models and not self.api_key_saved:
+                self.show_api_key_dialog = True
+
         from vedana_backoffice.states.chat import ChatState
         from vedana_backoffice.states.eval import EvalState
 

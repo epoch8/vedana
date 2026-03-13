@@ -1,8 +1,8 @@
 import reflex as rx
 
+from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.states.common import AppVersionState, DebugState
 from vedana_backoffice.states.eval import EvalState, RunSummary
-from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.ui import app_header
 
 
