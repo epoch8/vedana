@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 import traceback
 from datetime import datetime
 from typing import Any, Dict, Tuple
@@ -9,14 +8,20 @@ from uuid import UUID, uuid4
 import orjson as json
 import reflex as rx
 from datapipe.compute import Catalog, run_pipeline
-from jims_core.thread.thread_controller import ThreadController
 from jims_core.llms.llm_provider import LLMSettings
+from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 from vedana_etl.pipeline import get_data_model_pipeline
 
-from vedana_backoffice.states.common import MemLogger, get_vedana_app, load_openrouter_models, DEBUG_MODE, datapipe_log_capture, DebugState
+from vedana_backoffice.states.common import (
+    DEBUG_MODE,
+    DebugState,
+    MemLogger,
+    datapipe_log_capture,
+    get_vedana_app,
+)
 from vedana_backoffice.states.jims import ThreadViewState
 
 
@@ -29,106 +34,62 @@ class ChatState(rx.State):
     chat_thread_id: str = ""
     data_model_text: str = ""
     is_refreshing_dm: bool = False
-    provider: str = "openai"  # default llm provider
     model: str = core_settings.model
-    _default_models: tuple[str, ...] = (
-        "gpt-5.1-chat-latest",
-        "gpt-5.1",
-        "gpt-5-chat-latest",
-        "gpt-5",
-        "gpt-5-mini",
-        "gpt-5-nano",
-        "gpt-4.1",
-        "gpt-4.1-mini",
-        "gpt-4.1-nano",
-        "gpt-4o",
-        "gpt-4o-mini",
-        "o4-mini",
-    )
-    openai_models: list[str] = list(
-        set(list(_default_models) + [core_settings.model, core_settings.filter_model])
-    )
-    openrouter_models: list[str] = []
-    openrouter_models_loaded: bool = False
+    default_models: list[str] = list({core_settings.model, core_settings.filter_model})
+    available_models: list[str] = default_models
+
     model_selection_allowed: bool = DEBUG_MODE
     enable_dm_filtering: bool = core_settings.enable_dm_filtering
     dm_filter_model: str = core_settings.filter_model
 
-    def _models_for_provider(self, provider: str) -> list[str]:
-        """Return the list of model names for the given provider (openai or openrouter)."""
-        if provider == "openrouter":
-            if self.openrouter_models:
-                return list(self.openrouter_models)
-            if self.openrouter_models_loaded:
-                return list(self.openai_models)
-            return list(self.openai_models)
-        return list(self.openai_models)
-
-    @rx.var
-    def available_models(self) -> list[str]:
-        return self._models_for_provider(self.provider)
-
-    @rx.var
-    def dm_filter_available_models(self) -> list[str]:
-        return self._models_for_provider(self.provider)
-
     async def mount(self):
-        """Load OpenRouter models (fetches on first call, cached thereafter)."""
-        self.openrouter_models = await load_openrouter_models()
-        self.openrouter_models_loaded = True
-        self._sync_available_models()
-        self._sync_dm_filter_model()
+        if DEBUG_MODE:
+            yield DebugState.load_available_models()
+
+    @rx.event(background=True)  # type: ignore[operator]
+    async def refresh_model_list(self) -> None:
+        async with self:
+            self.available_models = await self.get_var_value(DebugState.available_models)  # type: ignore[arg-type]
+            self._sync_model()
+            self._sync_dm_filter_model()
 
     def set_input(self, value: str) -> None:
         self.input_text = value
 
     def set_model(self, value: str) -> None:
-        models = self._models_for_provider(self.provider)
-        if value in models:
-            self.model = value
+        self.model = value
 
     def set_enable_dm_filtering(self, value: bool) -> None:
         self.enable_dm_filtering = value
 
-    def set_provider(self, value: str) -> None:
-        self.provider = value
-        if self.provider == "openai":  # reset defaults when changing back
-            self.model = core_settings.model
-            self.dm_filter_model = core_settings.filter_model
-        self._sync_available_models()
-        self._sync_dm_filter_model()
-
     def set_dm_filter_model(self, value: str) -> None:
-        if value in self.dm_filter_available_models:
-            self.dm_filter_model = value
+        self.dm_filter_model = value
 
-    def _sync_available_models(self) -> None:
-        """
-        Recompute available_models based on selected provider, and realign
-        the selected model if it is no longer valid.
-        """
-
-        if self.provider == "openrouter":
-            models = self.openrouter_models
-            if not models:
-                if self.openrouter_models_loaded:
-                    self.provider = "openai"
-                    models = self.openai_models
-                else:
-                    models = self.available_models or self.openai_models
-        else:
-            models = self.openai_models
-
-        self.available_models = list(models)
-
+    def _sync_model(self) -> None:
+        """Realign selected model when model list changes."""
         if self.model not in self.available_models and self.available_models:
-            self.model = self.available_models[0]
+            for model in self.available_models:
+                if model.endswith(core_settings.model):  # or model.rsplit("/", 1)[-1] == core_settings.model
+                    self.model = model
+                    break
+            else:
+                if "openrouter/openrouter/free" in self.available_models:
+                    self.model = "openrouter/openrouter/free"  # Openrouter has an endpoint with all free models, set it as default
+                else:
+                    self.model = self.available_models[0]
 
     def _sync_dm_filter_model(self) -> None:
-        """Realign selected filter model when provider or model list changes."""
-        models = self._models_for_provider(self.provider)
-        if self.dm_filter_model not in models and models:
-            self.dm_filter_model = models[0]
+        """Realign selected filter model when model list changes."""
+        if self.dm_filter_model not in self.available_models and self.available_models:
+            for model in self.available_models:
+                if model.endswith(core_settings.filter_model):
+                    self.dm_filter_model = model
+                    break
+            else:
+                if "openrouter/openrouter/free" in self.available_models:  # openrouter provider
+                    self.dm_filter_model = "openrouter/openrouter/free"
+                else:
+                    self.dm_filter_model = self.available_models[0]
 
     def toggle_details_by_id(self, message_id: str) -> None:
         for idx, m in enumerate(self.messages):
@@ -260,13 +221,14 @@ class ChatState(rx.State):
 
         pipeline = vedana_app.pipeline
         pipeline.logger = mem_logger
-        pipeline.model = f"{self.provider}/{self.model}"
+        pipeline.model = self.model
         pipeline.enable_filtering = self.enable_dm_filtering
-        pipeline.filter_model = f"{self.provider}/{self.dm_filter_model}"
-        api_key = os.environ.get("OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY")
+        pipeline.filter_model = self.dm_filter_model
 
-        ctx = await ctl.make_context(llm_settings=LLMSettings(model=self.model, model_api_key=api_key))
-        
+        ctx = await ctl.make_context(
+            llm_settings=LLMSettings(model=self.model)
+        )
+
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
         answer: str = ""
@@ -304,11 +266,6 @@ class ChatState(rx.State):
 
         user_text = (self.input_text or "").strip()
         if not user_text:
-            return
-
-        env_key = "OPENROUTER_API_KEY" if self.provider == "openrouter" else "OPENAI_API_KEY"
-        if not os.environ.get(env_key):
-            yield DebugState.open_dialog()
             return
 
         self._append_message("user", user_text)
@@ -350,9 +307,11 @@ class ChatState(rx.State):
     @rx.event(background=True)  # type: ignore[operator]
     async def reload_data_model_background(self):
         try:
+
             def _run_dm_pipeline():
                 with datapipe_log_capture():
                     run_pipeline(etl_app.ds, Catalog({}), get_data_model_pipeline())
+
             await asyncio.to_thread(_run_dm_pipeline)
             async with self:
                 va = await get_vedana_app()

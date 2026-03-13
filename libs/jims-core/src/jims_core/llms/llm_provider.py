@@ -24,13 +24,6 @@ class LLMSettings(BaseSettings):
     embeddings_max_batch_size: int = 2048
     embeddings_max_tokens_per_batch: int = 200000
 
-    # passable api_keys; if None, defaults to env vars
-    model_api_key: str | None = None
-    embeddings_model_api_key: str | None = None
-
-    # openrouter_api_key: str | None = None
-    openrouter_api_base_url: str = "https://openrouter.ai/api/v1"
-
 
 env_settings = LLMSettings()  # type: ignore
 
@@ -77,9 +70,7 @@ class LLMProvider:
     def __init__(self, settings: LLMSettings | None = None) -> None:
         self._settings = settings or env_settings
         self.model = self._settings.model
-        self.model_api_key = self._settings.model_api_key
         self.embeddings_model = self._settings.embeddings_model
-        self.embeddings_model_api_key = self._settings.embeddings_model_api_key
         self.embeddings_dim = self._settings.embeddings_dim
         self.max_batch_size = self._settings.embeddings_max_batch_size
         self.max_tokens_per_batch = self._settings.embeddings_max_tokens_per_batch
@@ -109,7 +100,7 @@ class LLMProvider:
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             cached_tokens=cached_tokens,
-            request_cost=completion._hidden_params.get("response_cost", 0),  # or litellm.completion_cost(completion)
+            request_cost=completion._hidden_params.get("response_cost") or 0,  # or litellm.completion_cost(completion)
         )
 
         llm_calls_total.labels(completion.model).inc()
@@ -125,7 +116,7 @@ class LLMProvider:
         if usage is not None:
             self.usage[model].observe(
                 prompt_tokens=usage.prompt_tokens,
-                request_cost=res._hidden_params.get("response_cost", 0),  # or litellm.completion_cost(res)
+                request_cost=res._hidden_params.get("response_cost") or 0,  # or litellm.completion_cost(res)
             )
             llm_usage_prompt_tokens_total.labels(model).inc(usage.prompt_tokens)
 
@@ -135,7 +126,6 @@ class LLMProvider:
             model=self.embeddings_model,
             input=[text],
             dimensions=self.embeddings_dim,
-            api_key=self.embeddings_model_api_key,
         )
         self.observe_create_embedding(response)
         return response.data[0]["embedding"]
@@ -170,7 +160,6 @@ class LLMProvider:
                 model=self.embeddings_model,
                 input=batch,
                 dimensions=self.embeddings_dim,
-                api_key=self.embeddings_model_api_key,
             )
             self.observe_create_embedding(response)
             results.extend(d["embedding"] for d in response.data)
@@ -181,7 +170,6 @@ class LLMProvider:
             model=self.embeddings_model,
             input=[text],
             dimensions=self.embeddings_dim,
-            api_key=self.embeddings_model_api_key,
         )
         self.observe_create_embedding(response)
         return response.data[0]["embedding"]
@@ -194,7 +182,6 @@ class LLMProvider:
                 model=self.embeddings_model,
                 input=batch,
                 dimensions=self.embeddings_dim,
-                api_key=self.embeddings_model_api_key,
             )
             self.observe_create_embedding(response)
             results.extend(d["embedding"] for d in response.data)
@@ -210,7 +197,6 @@ class LLMProvider:
             model=self.model,
             messages=list(messages),
             response_format=response_format,
-            api_key=self.model_api_key,
         )
         assert isinstance(completion, litellm.ModelResponse)
 
@@ -234,7 +220,6 @@ class LLMProvider:
             model=self.model,
             messages=list(messages),
             caching=use_cache,
-            api_key=self.model_api_key,
         )
         assert isinstance(completion, litellm.ModelResponse)
 
@@ -258,7 +243,6 @@ class LLMProvider:
             model=self.model,
             messages=list(messages),
             tools=tools,
-            api_key=self.model_api_key,
         )
         assert isinstance(completion, litellm.ModelResponse)
 

@@ -1,15 +1,12 @@
 import asyncio
-from async_lru import alru_cache
-from contextlib import contextmanager
 import io
 import logging
 import os
-from typing import Iterable
+from contextlib import contextmanager
 
-import httpx
+import litellm
 import reflex as rx
 import requests
-from jims_core.llms.llm_provider import env_settings as llm_settings
 from vedana_core.app import VedanaApp, make_vedana_app
 
 vedana_app: VedanaApp | None = None
@@ -20,45 +17,24 @@ TELEGRAM_BOT_INFO_REQUESTED: bool = False
 EVAL_ENABLED = bool(os.environ.get("GRIST_TEST_SET_DOC_ID"))
 DEBUG_MODE = (os.environ.get("VEDANA_BACKOFFICE_DEBUG", "").lower() in ("true", "1")
               or os.environ.get("DEBUG", "").lower() in ("true", "1"))
-HAS_OPENAI_KEY = bool(os.environ.get("OPENAI_API_KEY"))
-HAS_OPENROUTER_KEY = bool(os.environ.get("OPENROUTER_API_KEY"))
 
 
-def _filter_chat_capable_models(models: Iterable[dict]) -> list[str]:
-    """Filter models that support text chat with tool calls."""
-    result: list[str] = []
-    for m in models:
-        model_id = str(m.get("id", "")).strip()
-        if not model_id:
-            continue
-
-        architecture = m.get("architecture", {})
-        has_chat = bool(
-            architecture
-            and "text" in architecture.get("input_modalities", [])
-            and "text" in architecture.get("output_modalities", [])
+async def load_litellm_models(
+    *,
+    provider: str | None = None,
+    check_provider_endpoint: bool = False,
+) -> list[str]:
+    def _fetch() -> list[str]:
+        raw = litellm.get_valid_models(
+            custom_llm_provider=provider,
+            check_provider_endpoint=check_provider_endpoint,
         )
-        has_tools = "tools" in m.get("supported_parameters", [])
+        result: list[str] = [
+            model if (provider is None or model.startswith(provider)) else f"{provider}/{model}" for model in raw
+        ]
+        return sorted(set(result))
 
-        if has_chat and has_tools:
-            result.append(model_id)
-
-    return result
-
-
-@alru_cache
-async def load_openrouter_models() -> list[str]:
-    if not DEBUG_MODE:
-        return []
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(f"{llm_settings.openrouter_api_base_url}/models")
-            resp.raise_for_status()
-            models = resp.json().get("data", [])
-            return sorted(_filter_chat_capable_models(models))
-    except Exception as exc:
-        logging.warning(f"Failed to fetch OpenRouter models: {exc}")
-        return []
+    return await asyncio.to_thread(_fetch)  # type: ignore[return-value]
 
 
 async def get_vedana_app():
@@ -70,6 +46,7 @@ async def get_vedana_app():
 
 class DatapipeStepError(RuntimeError):
     """Raised when a datapipe step fails without propagating the exception."""
+
     pass
 
 
@@ -134,40 +111,62 @@ class DebugState(rx.State):
 
     debug_mode: bool = DEBUG_MODE
     show_api_key_dialog: bool = False
-    default_openai_api_key: str = os.environ.get("OPENAI_API_KEY", "")
-    default_openrouter_api_key: str = os.environ.get("OPENROUTER_API_KEY", "")
-    openai_api_key: str = ""
-    openrouter_api_key: str = ""
+    runtime_model_api_key: str = ""
+    runtime_model_provider: str | None = None
     api_key_saved: bool = False
+    available_models: list[str] = []
 
     @rx.var
-    def openai_key_empty(self) -> bool:
-        return not self.openai_api_key and not os.environ.get("OPENAI_API_KEY")
+    def provider_options(self) -> list[str]:
+        return ["openai", "openrouter", "anthropic", "cohere", "xai"]
 
-    @rx.var
-    def openrouter_key_empty(self) -> bool:
-        return not self.openrouter_api_key and not os.environ.get("OPENROUTER_API_KEY")
-
-    def set_openai_api_key(self, value: str) -> None:
-        self.openai_api_key = value
-
-    def set_openrouter_api_key(self, value: str) -> None:
-        self.openrouter_api_key = value
-
-    def save_api_keys(self) -> None:
+    @rx.event(background=True)  # type: ignore[operator]
+    async def load_available_models(self):
         if not self.debug_mode:
             return
-        os.environ["OPENAI_API_KEY"] = self.openai_api_key
-        os.environ["OPENROUTER_API_KEY"] = self.openrouter_api_key
-        self.api_key_saved = bool(self.openai_api_key or self.openrouter_api_key)
-        self.show_api_key_dialog = False
+        models = await load_litellm_models(
+            provider=self.runtime_model_provider,
+            # check_provider is not necessary in most cases 
+            # check_provider_endpoint=True if self.runtime_model_provider and self.runtime_model_provider == "openrouter" else False,
+        )
+        async with self:
+            self.available_models = models
+            if not models and not self.api_key_saved:
+                self.show_api_key_dialog = True
+
+        from vedana_backoffice.states.chat import ChatState
+        from vedana_backoffice.states.eval import EvalState
+
+        yield ChatState.refresh_model_list()
+        yield EvalState.refresh_model_list()
+
+    def set_model_api_key(self, value: str) -> None:
+        self.runtime_model_api_key = value
+
+    def set_model_provider(self, value: str) -> None:
+        self.runtime_model_provider = value
+
+    def save_api_key(self):
+        if not self.debug_mode:
+            return
+        key = self.runtime_model_api_key.strip()
+        if key:
+            litellm.api_key = key
+            self.api_key_saved = True
+            self.show_api_key_dialog = False
+        else:
+            litellm.api_key = None
+            self.api_key_saved = False
+            self.show_api_key_dialog = False
+            self.available_models = []
+            self.runtime_model_provider = None
+        # Background refresh will repopulate available_models and notify Chat/Eval.
+        yield DebugState.load_available_models()
 
     def close_dialog(self) -> None:
         self.show_api_key_dialog = False
 
     def open_dialog(self) -> None:
-        self.openai_api_key = self.default_openai_api_key
-        self.openrouter_api_key = self.default_openrouter_api_key
         self.show_api_key_dialog = True
 
 

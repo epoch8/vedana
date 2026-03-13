@@ -15,4 +15,4 @@ app.add_page(main_dashboard_page, route="/", title="Vedana Backoffice", on_load=
 app.add_page(etl_page, route="/etl", title="ETL", on_load=EtlState.load_pipeline_metadata)
 app.add_page(chat_page, route="/chat", title="Chat", on_load=ChatState.reset_session)
 app.add_page(jims_thread_list_page, route="/jims", title="JIMS", on_load=ThreadListState.get_data)
-app.add_page(eval_page, route="/eval", title="Evaluation", on_load=EvalState.load_eval_data)
+app.add_page(eval_page, route="/eval", title="Evaluation", on_load=EvalState.mount)
