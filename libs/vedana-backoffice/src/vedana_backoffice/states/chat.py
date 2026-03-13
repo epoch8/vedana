@@ -70,6 +70,8 @@ class ChatState(rx.State):
         if self.model not in self.available_models and self.available_models:
             if core_settings.model in self.available_models:
                 self.model = core_settings.model
+            elif self.available_models[0].startswith("openrouter") and "openrouter/openrouter/free" in self.available_models:
+                self.model = "openrouter/openrouter/free"  # Openrouter has an endpoint with all free models, set it as default
             else:
                 self.model = self.available_models[0]
 
@@ -78,6 +80,8 @@ class ChatState(rx.State):
         if self.dm_filter_model not in self.available_models and self.available_models:
             if core_settings.filter_model in self.available_models:
                 self.dm_filter_model = core_settings.filter_model
+            elif self.available_models[0].startswith("openrouter") and "openrouter/openrouter/free" in self.available_models:
+                self.dm_filter_model = "openrouter/openrouter/free"
             else:
                 self.dm_filter_model = self.available_models[0]
 
