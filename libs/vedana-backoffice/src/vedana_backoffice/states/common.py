@@ -38,7 +38,7 @@ async def load_litellm_models(
     return await asyncio.to_thread(_fetch)  # type: ignore[return-value]
 
 
-async def get_vedana_app():
+async def get_vedana_app() -> VedanaApp:
     global vedana_app
     if vedana_app is None:
         vedana_app = await make_vedana_app()
@@ -123,7 +123,7 @@ class DebugState(rx.State):
         return ["openai", "openrouter", "anthropic", "cohere", "xai"]
 
     @rx.var
-    def embeddings_model(self) -> bool:
+    def embeddings_model(self) -> str | None:
         """embeddings model is fixed so its availability/correct name can be resolved here."""
         models = self.available_models
         if not models:

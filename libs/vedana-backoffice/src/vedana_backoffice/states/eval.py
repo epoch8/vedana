@@ -1178,7 +1178,7 @@ class EvalState(rx.State):
         )
         run_config = RunConfig(
             pipeline_model=self._resolved_pipeline_model(),
-            embeddings_model=core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model),
+            embeddings_model=core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model),  # type: ignore[arg-type]
             embeddings_dim=self.embeddings_dim,
         )
         return {
@@ -1688,12 +1688,12 @@ class EvalState(rx.State):
         pipeline.filter_model = self.dm_filter_model
 
         async with self:
-            pipeline_embeddings_model = core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model)
+            pipeline_embeddings_model = core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model)  # type: ignore[arg-type]
 
         ctx = await ctl.make_context(
             llm_settings=LLMSettings(
                 model=resolved_model, 
-                embeddings_model=pipeline_embeddings_model,
+                embeddings_model=pipeline_embeddings_model
             )
         )
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
@@ -1721,7 +1721,7 @@ class EvalState(rx.State):
         provider = LLMProvider(
             settings=LLMSettings(
                 model=self.judge_model, 
-                embeddings_model=core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model)
+                embeddings_model=core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model)  # type: ignore[arg-type]
             )
         )
 

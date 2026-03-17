@@ -228,7 +228,7 @@ class ChatState(rx.State):
         ctx = await ctl.make_context(
             llm_settings=LLMSettings(
                 model=self.model, 
-                embeddings_model=core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model)
+                embeddings_model=core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model)  # type: ignore[arg-type]
             )
         )
 
