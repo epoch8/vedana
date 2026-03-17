@@ -226,7 +226,10 @@ class ChatState(rx.State):
         pipeline.filter_model = self.dm_filter_model
 
         ctx = await ctl.make_context(
-            llm_settings=LLMSettings(model=self.model)
+            llm_settings=LLMSettings(
+                model=self.model, 
+                embeddings_model=core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model)
+            )
         )
 
         events = await ctl.run_pipeline_with_context(pipeline, ctx)

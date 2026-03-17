@@ -120,6 +120,23 @@ def page() -> rx.Component:
                         rx.text(ChatState.dm_filter_model, size="1", color="gray"),
                     ),
                     rx.spacer(),
+                    rx.cond(
+                        AppVersionState.debug_mode,
+                        rx.cond(
+                            DebugState.embeddings_model_available,
+                            rx.text(
+                                f"Embeddings: {DebugState.embeddings_model}",
+                                size="1",
+                                color="gray",
+                            ),
+                            rx.text(
+                                f"Embeddings: {DebugState.default_embeddings_model} (unavailable for provider)",
+                                size="1",
+                                color="red",
+                            ),
+                        ),
+                        rx.fragment(),
+                    ),
                     rx.hstack(
                         rx.cond(
                             ChatState.chat_thread_id != "",

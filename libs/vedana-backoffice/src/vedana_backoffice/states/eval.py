@@ -199,7 +199,7 @@ class EvalState(rx.State):
     judge_prompt_id: str = ""
     judge_prompt: str = ""
     pipeline_model: str = core_settings.model
-    embeddings_model: str = core_settings.embeddings_model
+    default_embeddings_model: str = core_settings.embeddings_model
     embeddings_dim: int = core_settings.embeddings_dim
     enable_dm_filtering: bool = core_settings.enable_dm_filtering
     available_models: list[str] = list({core_settings.model, core_settings.filter_model, core_settings.judge_model})
@@ -306,10 +306,6 @@ class EvalState(rx.State):
     def all_selected(self) -> bool:
         rows = len(self.eval_gds_rows_with_selection)  # Use filtered count
         return 0 < rows == self.selected_count
-
-    @rx.var
-    def can_run(self) -> bool:
-        return (self.selected_count > 0) and (not self.is_running)
 
     @rx.var
     def cost_label(self) -> str:
@@ -1182,7 +1178,7 @@ class EvalState(rx.State):
         )
         run_config = RunConfig(
             pipeline_model=self._resolved_pipeline_model(),
-            embeddings_model=self.embeddings_model,
+            embeddings_model=core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model),
             embeddings_dim=self.embeddings_dim,
         )
         return {
@@ -1644,7 +1640,7 @@ class EvalState(rx.State):
             "judge_model": self.judge_model,
             "judge_prompt_id": self.judge_prompt_id,
             "pipeline_model": resolved_model,
-            "embeddings_model": self.embeddings_model,
+            "embeddings_model": core_settings.embeddings_model,
             "embeddings_dim": self.embeddings_dim,
             "dm_id": self.dm_id,
         }
@@ -1691,7 +1687,15 @@ class EvalState(rx.State):
         pipeline.enable_filtering = self.enable_dm_filtering
         pipeline.filter_model = self.dm_filter_model
 
-        ctx = await ctl.make_context(llm_settings=LLMSettings(model=resolved_model))
+        async with self:
+            pipeline_embeddings_model = core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model)
+
+        ctx = await ctl.make_context(
+            llm_settings=LLMSettings(
+                model=resolved_model, 
+                embeddings_model=pipeline_embeddings_model,
+            )
+        )
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
         answer: str = ""
@@ -1714,7 +1718,12 @@ class EvalState(rx.State):
         if not judge_prompt:
             return "fail", "Judge prompt not loaded", 0, 0.0
 
-        provider = LLMProvider(settings=LLMSettings(model=self.judge_model))
+        provider = LLMProvider(
+            settings=LLMSettings(
+                model=self.judge_model, 
+                embeddings_model=core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model)
+            )
+        )
 
         class JudgeResult(BaseModel):
             test_status: str = Field(description="pass / fail")
@@ -1846,7 +1855,7 @@ class EvalState(rx.State):
                         "judge_prompt_id": self.judge_prompt_id,
                         "dm_id": self.dm_id,
                         "pipeline_model": resolved_pipeline_model,
-                        "embeddings_model": self.embeddings_model,
+                        "embeddings_model": core_settings.embeddings_model,
                         "embeddings_dim": self.embeddings_dim,
                         "test_run_id": test_run_id,
                         "test_run_name": test_run_name,

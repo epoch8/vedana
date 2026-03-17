@@ -8,6 +8,7 @@ import litellm
 import reflex as rx
 import requests
 from vedana_core.app import VedanaApp, make_vedana_app
+from vedana_core.settings import settings as core_settings
 
 vedana_app: VedanaApp | None = None
 
@@ -113,12 +114,38 @@ class DebugState(rx.State):
     show_api_key_dialog: bool = False
     runtime_model_api_key: str = ""
     runtime_model_provider: str | None = None
+    default_embeddings_model: str = core_settings.embeddings_model
     api_key_saved: bool = False
     available_models: list[str] = []
 
     @rx.var
     def provider_options(self) -> list[str]:
         return ["openai", "openrouter", "anthropic", "cohere", "xai"]
+
+    @rx.var
+    def embeddings_model(self) -> bool:
+        """embeddings model is fixed so its availability/correct name can be resolved here."""
+        models = self.available_models
+        if not models:
+            return core_settings.embeddings_model
+        for m in models:
+            if m.rsplit("/", 1)[-1] == core_settings.embeddings_model:
+                return m
+        else:
+            _model, embeddings_model_provider, _1, _2 = litellm.get_llm_provider(core_settings.embeddings_model)
+
+            if self.runtime_model_provider == "openrouter":  # openrouter does not list embeddings models in its model list
+                if embeddings_model_provider == "openrouter":
+                    return core_settings.embeddings_model
+                elif core_settings.embeddings_model.startswith(embeddings_model_provider):
+                    return f"openrouter/{core_settings.embeddings_model}"
+                elif embeddings_model_provider:
+                    return f"openrouter/{embeddings_model_provider}/{core_settings.embeddings_model}"
+        return None
+
+    @rx.var
+    def embeddings_model_available(self) -> bool:
+        return self.embeddings_model is not None
 
     @rx.event(background=True)  # type: ignore[operator]
     async def load_available_models(self):

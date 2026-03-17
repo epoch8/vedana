@@ -21,7 +21,11 @@ def _selection_and_actions() -> rx.Component:
                 color_scheme="blue",
                 on_click=EvalState.run_selected_tests,
                 loading=EvalState.is_running,
-                disabled=rx.cond(EvalState.can_run, False, True),  # type: ignore[arg-type]
+                disabled=rx.cond(
+                    DebugState.debug_mode & ~DebugState.embeddings_model_available,
+                    True,
+                    rx.cond((EvalState.selected_count > 0) & ~EvalState.is_running, False, True),  # type: ignore[arg-type]
+                ),
             ),
             rx.spacer(),
             rx.button(
@@ -278,9 +282,18 @@ def _pipeline_card() -> rx.Component:
                 ),
                 rx.box(
                     rx.text("Embeddings", weight="medium"),
-                    rx.text(
-                        rx.cond(EvalState.embeddings_model != "", EvalState.embeddings_model, "—"),
-                        size="3",
+                    rx.cond(
+                        AppVersionState.debug_mode,
+                        rx.cond(
+                            DebugState.embeddings_model_available,
+                            rx.text(DebugState.embeddings_model, size="3"),
+                            rx.text(
+                                f"{EvalState.default_embeddings_model} (unavailable for provider)",
+                                size="3",
+                                color="red",
+                            ),
+                        ),
+                        rx.text(EvalState.default_embeddings_model, size="3"),
                     ),
                     rx.text(
                         EvalState.embeddings_dim_label,
