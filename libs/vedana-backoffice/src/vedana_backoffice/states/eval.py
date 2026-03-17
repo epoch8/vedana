@@ -549,7 +549,7 @@ class EvalState(rx.State):
         self._prune_selection()
 
     async def _load_judge_config(self) -> None:
-        self.judge_model = core_settings.judge_model
+        self.judge_model = core_settings.judge_model if not self.judge_model else self.judge_model
         self.judge_prompt_id = ""
         self.judge_prompt = ""
 
