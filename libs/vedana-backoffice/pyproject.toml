@@ -12,6 +12,7 @@ authors = [
 dependencies = [
     "reflex>=0.8.27,<0.9.0",
     "orjson>=3.11.3",
+    "jims-backoffice",
     "vedana-core",
     "vedana-etl",
 ]
@@ -25,6 +26,9 @@ packages = ["vedana_backoffice"]
 include = [
   { path = "vedana_backoffice/Caddyfile" }
 ]
+
+[tool.uv.sources]
+jims-backoffice = { workspace = true }
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
