@@ -5,7 +5,8 @@ from typing import Any
 import reflex as rx
 
 from vedana_backoffice.states.chat import ChatState
-from vedana_backoffice.states.common import AppVersionState, DebugState, TelegramBotState
+from jims_backoffice.states.common import AppVersionState
+from vedana_backoffice.states.common import DebugState, TelegramBotState
 
 
 def telegram_link_box() -> rx.Component:
