@@ -9,7 +9,7 @@ from sqlalchemy import RowMapping, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from vedana_etl.catalog import edges, nodes, rag_anchor_embeddings, rag_edge_embeddings
 
-from vedana_core.db import get_sessionmaker
+from jims_core.db import get_sessionmaker
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)

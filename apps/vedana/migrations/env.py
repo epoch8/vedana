@@ -1,7 +1,6 @@
 from logging.config import fileConfig
 
 import jims_core.db
-import vedana_core.db
 from alembic import context
 import vedana_etl.app
 
@@ -60,7 +59,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = vedana_core.db.get_db_engine()
+    connectable = jims_core.db.get_db_engine()
 
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
