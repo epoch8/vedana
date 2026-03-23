@@ -22,7 +22,7 @@ from vedana_backoffice.states.common import (
     datapipe_log_capture,
     get_vedana_app,
 )
-from vedana_backoffice.states.jims import ThreadViewState
+from jims_backoffice.states.jims import ThreadViewState
 
 
 class ChatState(rx.State):
