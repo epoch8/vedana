@@ -18,6 +18,7 @@ members = [
 jims-backoffice = { workspace = true }
 jims-core = { workspace = true }
 jims-api = { workspace = true }
+jims-max = { workspace = true }
 jims-telegram = { workspace = true }
 jims-tui = { workspace = true }
 jims-widget = { workspace = true }
