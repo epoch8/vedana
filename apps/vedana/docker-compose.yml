@@ -1,14 +1,19 @@
 x-app-common: &app-common
+  image: vedana/vedana:dev
   build:
     context: ../../
     dockerfile: apps/vedana/Dockerfile
   volumes:
     - ./data:/app/vedana/data
+    - ${HOME}/.kube/config-kind-vedana-local-docker:/root/.kube/config:ro
+    - /var/run/docker.sock:/var/run/docker.sock:ro
   env_file:
     - .env
   depends_on:
     - memgraph
     - db
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
 
 services:
   db-migrate:
