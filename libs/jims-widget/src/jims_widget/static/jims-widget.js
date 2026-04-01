@@ -36,6 +36,16 @@
     return;
   }
 
+  const storageKey = `jims-widget:thread:${cfg.server}:${cfg.contactId || "anonymous"}`;
+  if (!cfg.threadId) {
+    try {
+      const savedThreadId = window.localStorage.getItem(storageKey);
+      if (savedThreadId) cfg.threadId = savedThreadId;
+    } catch (err) {
+      // Ignore browsers/environments where localStorage is blocked.
+    }
+  }
+
   const DEEP_CHAT_CDN =
     "https://cdn.jsdelivr.net/npm/deep-chat@2.4.1/dist/deepChat.bundle.js";
 
@@ -176,6 +186,7 @@
     const chat = document.querySelector("#jims-widget-panel deep-chat");
 
     const server = ${JSON.stringify(cfg.server)};
+    const localStorageKey = ${JSON.stringify(storageKey)};
     const wsProto = server.startsWith("https") ? "wss:" : "ws:";
     const host = server.replace(/^https?:\\/\\//, "");
 
@@ -224,11 +235,37 @@
     };
 
     chat.responseInterceptor = (response) => {
-      if (!response) return;
-      if (response.thread_id) return {};
-      if (response.error) return { error: response.error };
-      if (response.text)  return { text: response.text };
-      return response;
+      try {
+        if (response == null) return { error: "Empty server response" };
+
+        let payload = response;
+        if (typeof payload === "string") {
+          try {
+            payload = JSON.parse(payload);
+          } catch (err) {
+            return { text: payload };
+          }
+        }
+
+        if (Array.isArray(payload)) return payload;
+        if (typeof payload !== "object") return { text: String(payload) };
+
+        if (payload.thread_id) {
+          try {
+            window.localStorage.setItem(localStorageKey, String(payload.thread_id));
+          } catch (err) {
+            // Ignore browsers/environments where localStorage is blocked.
+          }
+        }
+
+        if (payload.error) return { error: String(payload.error) };
+        if (payload.text != null) return { text: String(payload.text) };
+        if (payload.html || payload.files) return payload;
+
+        return { error: "Invalid response format from server" };
+      } catch (err) {
+        return { error: "Failed to process server response" };
+      }
     };
   `;
   document.body.appendChild(script);

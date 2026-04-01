@@ -55,29 +55,33 @@ def create_widget_app(jims_app: JimsApp, cors_origins: list[str] | None = None) 
             except Exception:
                 pass
 
+        new_thread = False
         if ctl is None:
+            new_thread = True
             tid = uuid7()
             ctl = await jims_app.new_thread(
                 contact_id=effective_contact_id,
                 thread_id=tid,
                 thread_config={"interface": "widget"},
             )
-            if jims_app.conversation_start_pipeline is not None:
-                try:
-                    start_events = await ctl.run_pipeline_with_context(jims_app.conversation_start_pipeline)
-                    # Extract assistant messages from conversation_start_pipeline
-                    start_messages = [
-                        str(ev.event_data.get("content", ""))
-                        for ev in start_events
-                        if ev.event_type == "comm.assistant_message" and isinstance(ev.event_data, dict)
-                    ]
-                    # Send the start message immediately over WebSocket
-                    if start_messages:
-                        start_text = "\n\n".join(start_messages)
-                        await websocket.send_json({"text": start_text})
-                        logger.info(f"Sent conversation start message: {start_text}")
-                except Exception as exc:
-                    logger.warning(f"conversation_start_pipeline failed: {exc}")
+        if new_thread and jims_app.conversation_start_pipeline is not None:
+            try:
+                start_events = await ctl.run_pipeline_with_context(jims_app.conversation_start_pipeline)
+                # Extract assistant messages from conversation_start_pipeline
+                start_messages = [
+                    str(ev.event_data.get("content", ""))
+                    for ev in start_events
+                    if ev.event_type == "comm.assistant_message" and isinstance(ev.event_data, dict)
+                ]
+                # Send the start message immediately over WebSocket
+                if start_messages:
+                    start_text = "\n\n".join(start_messages)
+                    await websocket.send_json(
+                        {"text": start_text, "thread_id": str(ctl.thread.thread_id)}
+                    )
+                    logger.info(f"Sent conversation start message: {start_text}")
+            except Exception as exc:
+                logger.warning(f"conversation_start_pipeline failed: {exc}")
 
         logger.info(f"Widget WS connected: thread={ctl.thread.thread_id} contact={effective_contact_id}")
 
@@ -91,7 +95,9 @@ def create_widget_app(jims_app: JimsApp, cors_origins: list[str] | None = None) 
 
                 try:
                     assistant_text = await _handle_message(jims_app, ctl, user_text)
-                    await websocket.send_json({"text": assistant_text})
+                    await websocket.send_json(
+                        {"text": assistant_text, "thread_id": str(ctl.thread.thread_id)}
+                    )
                 except Exception as exc:
                     logger.exception(f"Pipeline error on thread {ctl.thread.thread_id}")
                     await websocket.send_json({"error": f"Processing error: {exc}"})
