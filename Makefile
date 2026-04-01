@@ -11,6 +11,9 @@ build_jims_api:
 build_jims_telegram:
 	uv build libs/jims-telegram
 
+build_jims_max:
+	uv build libs/jims-max
+
 build_jims_tui:
 	uv build libs/jims-tui
 	
@@ -26,7 +29,7 @@ build_vedana_etl:
 build_vedana_backoffice:
 	uv build libs/vedana-backoffice
 
-build: build_jims_backoffice build_jims_core build_jims_api build_jims_telegram build_jims_tui build_jims_widget build_vedana_core build_vedana_etl build_vedana_backoffice
+build: build_jims_backoffice build_jims_core build_jims_api build_jims_telegram build_jims_max build_jims_tui build_jims_widget build_vedana_core build_vedana_etl build_vedana_backoffice
 
 build-vedana-project:
 	cd apps/vedana && make build
