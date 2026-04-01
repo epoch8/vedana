@@ -4,6 +4,11 @@ x-app-common: &app-common
     dockerfile: apps/vedana/Dockerfile
   volumes:
     - ./data:/app/vedana/data
+  environment:
+    GRIST_API_KEY: "095081eeddd406bae50e8d034df81ed2832b44e8"
+    GRIST_DATA_MODEL_DOC_ID: "j6PTmqgw4caBDdQdpyz7au"
+    GRIST_TEST_SET_DOC_ID: "2FDgbBNtEDmgNc5AJ3ufkh"
+    GRIST_DATA_DOC_ID: "eB5kH8Z7NVErycp32wx1Ge"
   env_file:
     - .env
   depends_on:
@@ -106,10 +111,6 @@ services:
   grist:
     image: gristlabs/grist:latest
     environment:
-      GRIST_API_KEY: "095081eeddd406bae50e8d034df81ed2832b44e8"
-      GRIST_DATA_MODEL_DOC_ID: "j6PTmqgw4caBDdQdpyz7au"
-      GRIST_TEST_SET_DOC_ID: "2FDgbBNtEDmgNc5AJ3ufkh"
-      GRIST_DATA_DOC_ID: "eB5kH8Z7NVErycp32wx1Ge"
       GRIST_ORG_IN_PATH: "true"
       GRIST_SESSION_SECRET: dev-secret
     ports:
