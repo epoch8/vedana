@@ -124,6 +124,7 @@
 
     var chat = document.getElementById("ai-chat");
     chat.connect = { websocket: true, url: wsUrl };
+    chat.introMessage = { text: "Hi! I'm your AI Assistant. How can I help you?" };
     chat.displayLoadingBubble = true;
     chat.scrollButton = true;
 
@@ -143,11 +144,7 @@
 
         var payload = response;
         if (typeof payload === "string") {
-          try {
-            payload = JSON.parse(payload);
-          } catch (err) {
-            return { text: payload };
-          }
+          try { payload = JSON.parse(payload); } catch (err) { return { text: payload }; }
         }
 
         if (Array.isArray(payload)) return payload;
@@ -155,7 +152,7 @@
         if (payload.error) return { error: String(payload.error) };
         if (payload.text != null) return { text: String(payload.text) };
         if (payload.html || payload.files) return payload;
-        return { error: "Invalid response format from server" };
+        return response;
       } catch (err) {
         return { error: "Failed to process server response" };
       }

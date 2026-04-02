@@ -12,6 +12,7 @@
  *   data-server      — Vedana widget backend origin (required)
  *   data-contact-id  — persistent visitor identifier (optional)
  *   data-thread-id   — resume an existing thread (optional)
+ *   data-intro-message — initial AI greeting shown on load (optional)
  *   data-position    — "bottom-right" (default) | "bottom-left"
  *   data-open        — "true" to start expanded
  *   data-title       — chat header title (default "Vedana Assistant")
@@ -25,6 +26,7 @@
     server: scriptTag.getAttribute("data-server") || "",
     contactId: scriptTag.getAttribute("data-contact-id") || "",
     threadId: scriptTag.getAttribute("data-thread-id") || "",
+    introMessage: scriptTag.getAttribute("data-intro-message") || "",
     position: scriptTag.getAttribute("data-position") || "bottom-right",
     open: scriptTag.getAttribute("data-open") === "true",
     title: scriptTag.getAttribute("data-title") || "Vedana Assistant",
@@ -34,16 +36,6 @@
   if (!cfg.server) {
     console.error("[jims-widget] data-server attribute is required.");
     return;
-  }
-
-  const storageKey = `jims-widget:thread:${cfg.server}:${cfg.contactId || "anonymous"}`;
-  if (!cfg.threadId) {
-    try {
-      const savedThreadId = window.localStorage.getItem(storageKey);
-      if (savedThreadId) cfg.threadId = savedThreadId;
-    } catch (err) {
-      // Ignore browsers/environments where localStorage is blocked.
-    }
   }
 
   const DEEP_CHAT_CDN =
@@ -186,7 +178,6 @@
     const chat = document.querySelector("#jims-widget-panel deep-chat");
 
     const server = ${JSON.stringify(cfg.server)};
-    const localStorageKey = ${JSON.stringify(storageKey)};
     const wsProto = server.startsWith("https") ? "wss:" : "ws:";
     const host = server.replace(/^https?:\\/\\//, "");
 
@@ -198,6 +189,11 @@
 
     chat.connect = { websocket: true, url: wsUrl };
     chat.textInput = { placeholder: { text: "Type a message…" } };
+
+    const introMsg = ${JSON.stringify(cfg.introMessage)};
+    if (introMsg) {
+      chat.introMessage = { text: introMsg };
+    }
 
     chat.avatars = {
       ai: {
@@ -240,29 +236,15 @@
 
         let payload = response;
         if (typeof payload === "string") {
-          try {
-            payload = JSON.parse(payload);
-          } catch (err) {
-            return { text: payload };
-          }
+          try { payload = JSON.parse(payload); } catch (err) { return { text: payload }; }
         }
 
         if (Array.isArray(payload)) return payload;
         if (typeof payload !== "object") return { text: String(payload) };
-
-        if (payload.thread_id) {
-          try {
-            window.localStorage.setItem(localStorageKey, String(payload.thread_id));
-          } catch (err) {
-            // Ignore browsers/environments where localStorage is blocked.
-          }
-        }
-
         if (payload.error) return { error: String(payload.error) };
         if (payload.text != null) return { text: String(payload.text) };
         if (payload.html || payload.files) return payload;
-
-        return { error: "Invalid response format from server" };
+        return response;
       } catch (err) {
         return { error: "Failed to process server response" };
       }

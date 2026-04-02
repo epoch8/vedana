@@ -34,7 +34,6 @@ def test_websocket_chat(app) -> None:
             data = ws.receive_json()
             assert "text" in data
             assert "Echo: Hello" in data["text"]
-            assert "thread_id" in data
 
 
 def test_websocket_empty_message_returns_error(app) -> None:
