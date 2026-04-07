@@ -40,7 +40,7 @@ pattern-prefix = "jims-"
 
 [tool.uv-workspace-codegen]
 generate = true
-template_type = ["lib", "publish"]
+template_type = ["lib"]
 generate_standard_pytest_step = false
 typechecker = "mypy"
 
