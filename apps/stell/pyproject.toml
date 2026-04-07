@@ -1,0 +1,29 @@
+[project]
+name = "stell"
+version = "0.1.3"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Rudolf Shenfeld", email = "nerudxlf@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.18.0",
+    "jims-core>=0.5.1",
+    "jims-api>=0.5.1",
+    "jims-widget>=0.5.1",
+    "jims-tui",
+    "jims-chatwoot",
+    "stell-core",
+]
+[project.scripts]
+stell = "stell:main"
+
+[build-system]
+requires = ["uv_build>=0.9.26,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=1.3.0",
+]

@@ -1,0 +1,24 @@
+[project]
+name = "jims-chatwoot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Rudolf Shenfeld", email = "nerudxlf@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "click>=8.3.1",
+    "fastapi>=0.128.0",
+    "httpx>=0.28.1",
+    "loguru>=0.7.3",
+    "pydantic-settings>=2.12.0",
+    "uvicorn>=0.40.0",
+]
+
+[project.scripts]
+jims-chatwoot = "jims_chatwoot:main"
+
+[build-system]
+requires = ["uv_build>=0.9.26,<0.10.0"]
+build-backend = "uv_build"

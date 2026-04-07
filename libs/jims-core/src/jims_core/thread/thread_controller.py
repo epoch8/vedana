@@ -82,6 +82,37 @@ class ThreadController:
         await ctl.store_event_dict(event_id=uuid7(), event_type="jims.lifecycle.thread_created", event_data={})
 
         return ctl
+    
+    @classmethod
+    async def new_thread_via_external_id(
+        cls,
+        sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession],
+        external_id: str,
+        thread_config: dict,
+        contact_id: str | None = None,
+    ) -> "ThreadController":
+        async with sessionmaker() as session:
+            stmt = sa.select(ThreadDB).filter_by(external_id=external_id)
+            existing_thread = (await session.execute(stmt)).scalar_one_or_none()
+
+            if existing_thread:
+                return cls(sessionmaker, existing_thread)
+            
+            new_thread = ThreadDB(
+                thread_id=uuid7(),
+                contact_id=contact_id,
+                external_id=external_id,
+                created_at=datetime.datetime.now(),
+                thread_config=thread_config,
+            )
+            session.add(new_thread)
+            await session.commit()
+
+        ctl = cls(sessionmaker, new_thread)
+
+        await ctl.store_event_dict(event_id=uuid7(), event_type="jims.lifecycle.thread_created", event_data={})
+
+        return ctl
 
     @classmethod
     async def from_thread_id(
@@ -94,6 +125,24 @@ class ThreadController:
         """
         async with sessionmaker() as session:
             stmt = sa.select(ThreadDB).filter_by(thread_id=thread_id)
+            thread = (await session.execute(stmt)).scalar_one_or_none()
+
+        if thread:
+            return cls(sessionmaker, thread)
+        else:
+            return None
+        
+    @classmethod
+    async def from_external_id(
+        cls,
+        sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession],
+        external_id: str,
+    ) -> "ThreadController | None":
+        """
+        Retrieve a thread by external ID.
+        """
+        async with sessionmaker() as session:
+            stmt = sa.select(ThreadDB).filter_by(external_id=external_id)
             thread = (await session.execute(stmt)).scalar_one_or_none()
 
         if thread:

@@ -8,10 +8,12 @@ requires-python = ">=3.12,<3.13"
 [tool.uv.workspace]
 members = [
     "libs/jims-*",
+    "libs/stell-*",
     "libs/vedana-*",
     "apps/vedana",
     "apps/vedana-*",
     "apps/jims-*",
+    "apps/stell",
 ]
 
 [tool.uv.sources]
@@ -21,9 +23,20 @@ jims-api = { workspace = true }
 jims-telegram = { workspace = true }
 jims-tui = { workspace = true }
 jims-widget = { workspace = true }
+jims-stell = {workspace = true}
+jims-chatwoot = {workspace = true}
+stell-core = { workspace = true }
 vedana-backoffice = { workspace = true }
 vedana-core = { workspace = true }
 vedana-etl = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.0",
+    "psycopg2-binary>=2.9.11",
+    "pytest>=8.0.0",
+    "python-dotenv>=1.0.0",
+]
 
 [tool.mypy]
 ignore_missing_imports = true
