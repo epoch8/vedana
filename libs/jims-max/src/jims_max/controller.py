@@ -13,7 +13,7 @@ from maxapi import Bot, Dispatcher, F
 from maxapi.enums.sender_action import SenderAction
 from maxapi.filters.command import CommandStart
 from maxapi.types import ButtonsPayload, CallbackButton
-from maxapi.types.updates import MessageCallback, MessageCreated
+from maxapi.types.updates import BotStarted, MessageCallback, MessageCreated
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing_extensions import TypedDict
 
@@ -61,6 +61,7 @@ class MaxController:
         self.bot = Bot(settings.bot_token)
         self.dispatcher = Dispatcher()
 
+        self.dispatcher.bot_started.register(self.handle_bot_started)
         self.dispatcher.message_created.register(self.command_start, CommandStart())
         self.dispatcher.message_created.register(self.handle_message)
         self.dispatcher.message_callback.register(self.handle_callback, F.callback.payload.startswith("btn:"))
@@ -117,17 +118,10 @@ class MaxController:
         if from_user is None:
             logger.error("MessageCreated must include user information")
             return
-        from_id = from_user.user_id
-
-        ctl = await self.app.new_thread(
-            contact_id=f"max:{from_id}",
-            thread_id=uuid7(),
-            thread_config={
-                "interface": "max",
-                "max_chat_id": chat_id,
-                "max_user_id": from_id,
-                "max_user_name": from_user.username,
-            },
+        ctl = await self._start_new_conversation(
+            user_id=from_user.user_id,
+            chat_id=chat_id,
+            username=from_user.username,
         )
 
         if event.message.body is not None and event.message.body.text:
@@ -138,6 +132,15 @@ class MaxController:
 
         if self.app.conversation_start_pipeline is not None:
             await self._run_pipeline(ctl, chat_id, self.app.conversation_start_pipeline)
+
+    async def handle_bot_started(self, event: BotStarted) -> None:
+        ctl = await self._start_new_conversation(
+            user_id=event.user.user_id,
+            chat_id=event.chat_id,
+            username=event.user.username,
+        )
+        if self.app.conversation_start_pipeline is not None:
+            await self._run_pipeline(ctl, event.chat_id, self.app.conversation_start_pipeline)
 
     async def handle_message(self, event: MessageCreated) -> None:
         from_user = event.from_user or event.message.sender
@@ -240,4 +243,22 @@ class MaxController:
 
     async def run(self) -> None:
         await self.dispatcher.start_polling(self.bot)
+
+    async def _start_new_conversation(
+        self,
+        *,
+        user_id: int,
+        chat_id: int,
+        username: str | None,
+    ) -> ThreadController:
+        return await self.app.new_thread(
+            contact_id=f"max:{user_id}",
+            thread_id=uuid7(),
+            thread_config={
+                "interface": "max",
+                "max_chat_id": chat_id,
+                "max_user_id": user_id,
+                "max_user_name": username,
+            },
+        )
 
