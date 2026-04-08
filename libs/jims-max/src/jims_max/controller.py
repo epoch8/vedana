@@ -10,6 +10,10 @@ from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from loguru import logger
 from maxapi import Bot, Dispatcher, F
+from maxapi.enums.sender_action import SenderAction
+from maxapi.filters.command import CommandStart
+from maxapi.types import ButtonsPayload, CallbackButton
+from maxapi.types.updates import MessageCallback, MessageCreated
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing_extensions import TypedDict
 
@@ -30,10 +34,8 @@ settings = MaxSettings()  # type: ignore
 uuid_namespace = uuid.UUID("00000000-0000-0000-0000-000000000000")
 
 
-def uuid_from_int(value: int) -> uuid.UUID:
-    if not 0 <= value < 2**64:
-        raise ValueError(f"Integer value must be between 0 and 2^64-1, got {value}")
-    return uuid.uuid5(uuid_namespace, value.to_bytes(8, byteorder="big"))
+def uuid_from_str(value: str) -> uuid.UUID:
+    return uuid.uuid5(uuid_namespace, value)
 
 
 class MaxStatusUpdater(StatusUpdater):
@@ -42,6 +44,9 @@ class MaxStatusUpdater(StatusUpdater):
         self.chat_id = chat_id
 
     async def update_status(self, status: str) -> None:
+        # MAX uses sender actions instead of "typing..." status messages.
+        with suppress(Exception):
+            await self.bot.send_action(chat_id=self.chat_id, action=SenderAction.TYPING_ON)
         logger.debug(f"Status updated to: {status} for chat_id={self.chat_id}")
 
 
@@ -56,9 +61,9 @@ class MaxController:
         self.bot = Bot(settings.bot_token)
         self.dispatcher = Dispatcher()
 
-        self.dispatcher.message.register(self.command_start, F.text == "/start")
-        self.dispatcher.message.register(self.handle_message)
-        self.dispatcher.callback_query.register(self.handle_callback, F.data.startswith("btn:"))
+        self.dispatcher.message_created.register(self.command_start, CommandStart())
+        self.dispatcher.message_created.register(self.handle_message)
+        self.dispatcher.message_callback.register(self.handle_callback, F.callback.payload.startswith("btn:"))
 
     @overload
     @classmethod
@@ -103,52 +108,44 @@ class MaxController:
                 await self.bot.send_message(
                     chat_id=chat_id,
                     text=str(event.event_data.get("content", "")),
-                    reply_markup=self._build_inline_keyboard(event.event_data.get("buttons", [])),
+                    attachments=self._build_inline_keyboard(event.event_data.get("buttons", [])),
                 )
 
-    async def command_start(self, message: Any) -> None:
-        from_user = getattr(message, "from_user", None)
-        chat = getattr(message, "chat", None)
-        if from_user is None or chat is None:
-            logger.error("from_user or chat not found in message")
+    async def command_start(self, event: MessageCreated) -> None:
+        from_user = event.from_user or event.message.sender
+        chat_id = event.chat.chat_id if event.chat is not None else event.message.recipient.chat_id
+        if from_user is None:
+            logger.error("MessageCreated must include user information")
             return
-
-        from_id = getattr(from_user, "id", None)
-        if from_id is None:
-            logger.error("from_user.id not found in message")
-            return
+        from_id = from_user.user_id
 
         ctl = await self.app.new_thread(
             contact_id=f"max:{from_id}",
             thread_id=uuid7(),
             thread_config={
                 "interface": "max",
-                "max_chat_id": chat.id,
+                "max_chat_id": chat_id,
                 "max_user_id": from_id,
-                "max_user_name": getattr(from_user, "username", None),
+                "max_user_name": from_user.username,
             },
         )
 
-        if getattr(message, "text", None):
+        if event.message.body is not None and event.message.body.text:
             await ctl.store_user_message(
-                event_id=uuid_from_int(getattr(message, "message_id", 0)),
-                content=message.text,
+                event_id=uuid_from_str(event.message.body.mid),
+                content=event.message.body.text,
             )
 
         if self.app.conversation_start_pipeline is not None:
-            await self._run_pipeline(ctl, chat.id, self.app.conversation_start_pipeline)
+            await self._run_pipeline(ctl, chat_id, self.app.conversation_start_pipeline)
 
-    async def handle_message(self, message: Any) -> None:
-        from_user = getattr(message, "from_user", None)
-        chat = getattr(message, "chat", None)
-        if from_user is None or chat is None:
-            logger.error("from_user or chat not found in message")
+    async def handle_message(self, event: MessageCreated) -> None:
+        from_user = event.from_user or event.message.sender
+        chat_id = event.chat.chat_id if event.chat is not None else event.message.recipient.chat_id
+        if from_user is None:
+            logger.error("MessageCreated must include user information")
             return
-
-        from_id = getattr(from_user, "id", None)
-        if from_id is None:
-            logger.error("from_user.id not found in message")
-            return
+        from_id = from_user.user_id
 
         ctl = await ThreadController.latest_thread_from_contact_id(self.app.sessionmaker, f"max:{from_id}")
         if ctl is None:
@@ -158,29 +155,26 @@ class MaxController:
                 thread_id=uuid7(),
                 thread_config={
                     "interface": "max",
-                    "max_chat_id": chat.id,
+                    "max_chat_id": chat_id,
                     "max_user_id": from_id,
-                    "max_user_name": getattr(from_user, "username", None),
+                    "max_user_name": from_user.username,
                 },
             )
 
-        if getattr(message, "text", None):
+        if event.message.body is not None and event.message.body.text:
             await ctl.store_user_message(
-                event_id=uuid_from_int(getattr(message, "message_id", 0)),
-                content=message.text,
+                event_id=uuid_from_str(event.message.body.mid),
+                content=event.message.body.text,
             )
 
-        await self._run_pipeline(ctl, chat.id, self.app.pipeline)
+        await self._run_pipeline(ctl, chat_id, self.app.pipeline)
 
-    async def handle_callback(self, callback: Any) -> None:
-        from_user = getattr(callback, "from_user", None)
-        if from_user is None or getattr(from_user, "id", None) is None:
-            return
-        from_id = from_user.id
+    async def handle_callback(self, event: MessageCallback) -> None:
+        from_id = event.callback.user.user_id
 
         ctl = await ThreadController.latest_thread_from_contact_id(self.app.sessionmaker, f"max:{from_id}")
-        message = getattr(callback, "message", None)
-        chat = getattr(message, "chat", None) if message else None
+        message = event.message
+        chat_id = message.recipient.chat_id if message is not None else None
 
         if ctl is None:
             ctl = await ThreadController.new_thread(
@@ -189,9 +183,9 @@ class MaxController:
                 thread_id=uuid7(),
                 thread_config={
                     "interface": "max",
-                    "max_chat_id": getattr(chat, "id", None),
+                    "max_chat_id": chat_id,
                     "max_user_id": from_id,
-                    "max_user_name": getattr(from_user, "username", None),
+                    "max_user_name": event.callback.user.username,
                 },
             )
 
@@ -200,19 +194,49 @@ class MaxController:
             event_type="comm.user_button_click",
             event_data={
                 "role": "user",
-                "content": getattr(callback, "data", ""),
-                "message_id": getattr(message, "message_id", None) if message else None,
+                "content": str(event.callback.payload or ""),
+                "message_id": message.body.mid if message is not None and message.body is not None else None,
             },
         )
 
-        chat_id = getattr(chat, "id", from_id)
-        await self._run_pipeline(ctl, chat_id, self.app.pipeline)
+        with suppress(Exception):
+            await event.answer()
+
+        await self._run_pipeline(ctl, chat_id if chat_id is not None else from_id, self.app.pipeline)
 
     @staticmethod
-    def _build_inline_keyboard(buttons: list[list[MaxButton]] | list[MaxButton] | list[Any]) -> Any | None:
+    def _build_inline_keyboard(
+        buttons: list[list[MaxButton]] | list[MaxButton] | list[Any],
+    ) -> list[Any] | None:
         if not buttons:
             return None
-        return buttons
+        rows: list[list[CallbackButton]] = []
+        source_rows = buttons if not all(isinstance(b, dict) for b in buttons) else [buttons]
+
+        for row in source_rows:
+            if not isinstance(row, list):
+                continue
+            kb_row: list[CallbackButton] = []
+            for button in row:
+                if not isinstance(button, dict):
+                    continue
+                text_v = button.get("text")
+                if text_v is None:
+                    continue
+                text = str(text_v)
+                raw_payload = str(
+                    button.get("id")
+                    or button.get("callback_data")
+                    or text
+                )
+                payload = raw_payload if raw_payload.startswith("btn:") else f"btn:{raw_payload}"
+                kb_row.append(CallbackButton(text=text, payload=payload))
+            if kb_row:
+                rows.append(kb_row)
+
+        if not rows:
+            return None
+        return [ButtonsPayload(buttons=rows).pack()]
 
     async def run(self) -> None:
         await self.dispatcher.start_polling(self.bot)
