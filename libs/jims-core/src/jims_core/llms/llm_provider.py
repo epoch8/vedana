@@ -137,7 +137,7 @@ class LLMProvider:
         tokens = 0
         for text in texts:
             t = litellm.token_counter(model=self.embeddings_model, text=text)
-            if t >= self.max_tokens_per_batch:
+            if t >= self.max_tokens_per_batch:  # todo max tokens per single text here
                 raise ValueError(
                     f'Cannot process embedding - single text exceeds max_tokens limit '
                     f'({t} >= {self.max_tokens_per_batch}); text="{text}"'
