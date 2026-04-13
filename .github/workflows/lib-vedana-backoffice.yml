@@ -8,6 +8,12 @@ on:
   pull_request:
     paths:
       - "libs/vedana-backoffice/**"
+      - "libs/vedana-core/**"
+      - "libs/vedana-etl/**"
+      - "libs/jims-backoffice/**"
+      - "libs/jims-core/**"
+      - "libs/jims-telegram/**"
+      - "libs/jims-tui/**"
   push:
     branches: [master]
     paths:

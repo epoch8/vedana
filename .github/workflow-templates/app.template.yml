@@ -4,8 +4,11 @@ on:
   pull_request:
     paths:
       - "{{ package.path }}/**"
-      - "libs/jims*/**"
-      - "libs/vedana*/**"
+      {%- for dependency in package.workspace_dependencies %}
+      - "{{ dependency.path }}/**"
+      {%- endfor %}
+      - "pyproject.toml"
+      - "uv.lock"
   push:
     branches: [master]
     paths:

@@ -8,8 +8,15 @@ on:
   pull_request:
     paths:
       - "apps/vedana/**"
-      - "libs/jims*/**"
-      - "libs/vedana*/**"
+      - "libs/jims-core/**"
+      - "libs/jims-tui/**"
+      - "libs/vedana-backoffice/**"
+      - "libs/vedana-etl/**"
+      - "libs/vedana-core/**"
+      - "libs/jims-backoffice/**"
+      - "libs/jims-telegram/**"
+      - "pyproject.toml"
+      - "uv.lock"
   push:
     branches: [master]
     paths:

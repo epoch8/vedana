@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "{{ package.path }}/**"
+      {%- for dependency in package.workspace_dependencies %}
+      - "{{ dependency.path }}/**"
+      {%- endfor %}
   push:
     branches: [master]
     paths:
