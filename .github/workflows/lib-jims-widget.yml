@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - "libs/jims-widget/**"
+      - "libs/jims-core/**"
   push:
     branches: [master]
     paths:
