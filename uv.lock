@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.12.*"
 
 [manifest]
@@ -9,6 +9,7 @@ members = [
     "jims-backoffice",
     "jims-cli-demo",
     "jims-core",
+    "jims-max",
     "jims-telegram",
     "jims-tui",
     "jims-widget",
@@ -1114,6 +1115,7 @@ source = { editable = "libs/jims-api" }
 dependencies = [
     { name = "click" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "jims-core" },
     { name = "loguru" },
     { name = "uvicorn" },
@@ -1133,6 +1135,7 @@ dev = [
 requires-dist = [
     { name = "click", specifier = ">=8.0" },
     { name = "fastapi", specifier = ">=0.128.0" },
+    { name = "httpx", specifier = ">=0.28.0" },
     { name = "jims-core", editable = "libs/jims-core" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "uvicorn", specifier = ">=0.35.0" },
@@ -1278,6 +1281,46 @@ dev = [
 ]
 google = [{ name = "google-cloud-aiplatform", specifier = ">=1.105.0" }]
 sentry = [{ name = "sentry-sdk", specifier = ">=2.35.0" }]
+
+[[package]]
+name = "jims-max"
+source = { editable = "libs/jims-max" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "click" },
+    { name = "jims-core" },
+    { name = "loguru" },
+    { name = "maxapi" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "ruff" },
+    { name = "types-pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.11.16" },
+    { name = "click", specifier = ">=8.0" },
+    { name = "jims-core", editable = "libs/jims-core" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "maxapi", specifier = ">=0.1" },
+    { name = "pydantic", specifier = ">=2.4.1" },
+    { name = "pydantic-settings", specifier = ">=2.8.1" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.19.0" },
+    { name = "pytest", specifier = ">=8.4.1" },
+    { name = "ruff", specifier = ">=0.14.10" },
+    { name = "types-pyyaml", specifier = ">=6.0.12.20250822" },
+]
 
 [[package]]
 name = "jims-telegram"
@@ -1621,6 +1664,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c7/74/97e72a36efd4ae2bccb3463284300f8953f199b5ffbc04cbbb0ec78f74b1/matplotlib_inline-0.2.1.tar.gz", hash = "sha256:e1ee949c340d771fc39e241ea75683deb94762c8fa5f2927ec57c83c4dffa9fe", size = 8110, upload-time = "2025-10-23T09:00:22.126Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/af/33/ee4519fa02ed11a94aef9559552f3b17bb863f2ecfe1a35dc7f548cde231/matplotlib_inline-0.2.1-py3-none-any.whl", hash = "sha256:d56ce5156ba6085e00a9d54fead6ed29a9c47e215cd1bba2e976ef39f5710a76", size = 9516, upload-time = "2025-10-23T09:00:20.675Z" },
+]
+
+[[package]]
+name = "maxapi"
+version = "0.9.18"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiofiles" },
+    { name = "aiohttp" },
+    { name = "magic-filter" },
+    { name = "puremagic" },
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/80/77/3c5fcde2799b34f818bea898030d1661eb0b6162ef8bbdfda519fab9d03a/maxapi-0.9.18.tar.gz", hash = "sha256:39d9d271214a882cbec2243693aa29f72ea8277e1753f8a2947918c1b57199db", size = 101050, upload-time = "2026-03-27T14:30:57.385Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7e/fd/8cf1369c31a9022b57752d9efad2dc2b4bb2f71ed7462aafc45107dd7fbd/maxapi-0.9.18-py3-none-any.whl", hash = "sha256:727d2dd190b12f627b77f8c51185219c831c2f65908d8da6b5e0ef5dea50dda6", size = 143678, upload-time = "2026-03-27T14:30:56.068Z" },
 ]
 
 [[package]]
@@ -2269,6 +2328,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/cd/05/0a34433a064256a578f1783a10da6df098ceaa4a57bbeaa96a6c0352786b/pure_eval-0.2.3.tar.gz", hash = "sha256:5f4e983f40564c576c7c8635ae88db5956bb2229d7e9237d03b3c0b0190eaf42", size = 19752, upload-time = "2024-07-21T12:58:21.801Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8e/37/efad0257dc6e593a18957422533ff0f87ede7c9c6ea010a2177d738fb82f/pure_eval-0.2.3-py3-none-any.whl", hash = "sha256:1db8e35b67b3d218d818ae653e27f06c3aa420901fa7b081ca98cbedc874e0d0", size = 11842, upload-time = "2024-07-21T12:58:20.04Z" },
+]
+
+[[package]]
+name = "puremagic"
+version = "1.30"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/dd/7f/9998706bc516bdd664ccf929a1da6c6e5ee06e48f723ce45aae7cf3ff36e/puremagic-1.30.tar.gz", hash = "sha256:f9ff7ac157d54e9cf3bff1addfd97233548e75e685282d84ae11e7ffee1614c9", size = 314785, upload-time = "2025-07-04T18:48:36.061Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/91/ed/1e347d85d05b37a8b9a039ca832e5747e1e5248d0bd66042783ef48b4a37/puremagic-1.30-py3-none-any.whl", hash = "sha256:5eeeb2dd86f335b9cfe8e205346612197af3500c6872dffebf26929f56e9d3c1", size = 43304, upload-time = "2025-07-04T18:48:34.801Z" },
 ]
 
 [[package]]
