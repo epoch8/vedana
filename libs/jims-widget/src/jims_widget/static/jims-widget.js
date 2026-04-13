@@ -1,20 +1,21 @@
 /**
- * Vedana Chat Widget — embeddable snippet.
+ * JIMS Chat Widget — embeddable snippet.
  *
  * Usage:
  *   <script
- *     src="https://YOUR_VEDANA_HOST/static/jims-widget.js"
- *     data-server="https://YOUR_VEDANA_HOST"
+ *     src="https://YOUR_HOST/static/jims-widget.js"
+ *     data-server="https://YOUR_HOST"
  *     data-contact-id="optional-visitor-id"
  *   ></script>
  *
  * Attributes (on the <script> tag):
- *   data-server      — Vedana widget backend origin (required)
+ *   data-server      — Widget backend origin (required)
  *   data-contact-id  — persistent visitor identifier (optional)
  *   data-thread-id   — resume an existing thread (optional)
+ *   data-intro-message — initial AI greeting shown on load (optional)
  *   data-position    — "bottom-right" (default) | "bottom-left"
  *   data-open        — "true" to start expanded
- *   data-title       — chat header title (default "Vedana Assistant")
+ *   data-title       — chat header title (default "AI Assistant")
  *   data-accent      — accent hex colour (default "#4f46e5")
  */
 (function () {
@@ -25,9 +26,10 @@
     server: scriptTag.getAttribute("data-server") || "",
     contactId: scriptTag.getAttribute("data-contact-id") || "",
     threadId: scriptTag.getAttribute("data-thread-id") || "",
+    introMessage: scriptTag.getAttribute("data-intro-message") || "",
     position: scriptTag.getAttribute("data-position") || "bottom-right",
     open: scriptTag.getAttribute("data-open") === "true",
-    title: scriptTag.getAttribute("data-title") || "Vedana Assistant",
+    title: scriptTag.getAttribute("data-title") || "AI Assistant",
     accent: scriptTag.getAttribute("data-accent") || "#4f46e5",
   };
 
@@ -188,9 +190,14 @@
     chat.connect = { websocket: true, url: wsUrl };
     chat.textInput = { placeholder: { text: "Type a message…" } };
 
+    const introMsg = ${JSON.stringify(cfg.introMessage)};
+    if (introMsg) {
+      chat.introMessage = { text: introMsg };
+    }
+
     chat.avatars = {
       ai: {
-        src: "https://api.dicebear.com/9.x/bottts/svg?seed=vedana",
+        src: "https://api.dicebear.com/9.x/bottts/svg?seed=JIMS",
         styles: { avatar: { width: "26px", height: "26px" } },
       },
       user: {
@@ -224,11 +231,23 @@
     };
 
     chat.responseInterceptor = (response) => {
-      if (!response) return;
-      if (response.thread_id) return {};
-      if (response.error) return { error: response.error };
-      if (response.text)  return { text: response.text };
-      return response;
+      try {
+        if (response == null) return { error: "Empty server response" };
+
+        let payload = response;
+        if (typeof payload === "string") {
+          try { payload = JSON.parse(payload); } catch (err) { return { text: payload }; }
+        }
+
+        if (Array.isArray(payload)) return payload;
+        if (typeof payload !== "object") return { text: String(payload) };
+        if (payload.error) return { error: String(payload.error) };
+        if (payload.text != null) return { text: String(payload.text) };
+        if (payload.html || payload.files) return payload;
+        return response;
+      } catch (err) {
+        return { error: "Failed to process server response" };
+      }
     };
   `;
   document.body.appendChild(script);
