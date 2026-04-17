@@ -1,36 +1,31 @@
 [project]
 name = "jims-backoffice"
 dynamic = ["version"]
-description = "Add your description here"
+description = "Reflex-based admin/backoffice UI for JIMS apps"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
-    { name = "Andrey Tatarinov", email = "a@tatarinov.co" },
+    { name = "Timur Sheydaev", email = "tsheyd@epoch8.co" },
 ]
 
 dependencies = [
-    "fastapi>=0.115.0",
-    "fastui>=0.7.0",
-    "pydantic-settings>=2.10.1",
-    "sqlalchemy>=2.0.41",
-    "psycopg2-binary>=2.9.10",
-    "uvicorn>=0.29.0",
-    "pydantic==2.9.2",
-    "jims-core>=0.5.1",
-    "python-multipart>=0.0.18",
-    "asyncpg>=0.31.0",
-]
-
-[dependency-groups]
-dev = [
-    "mypy>=1.19.0",
-    "pytest>=8.4.1",
-    "ruff>=0.14.10",
-    "types-pyyaml>=6.0.12.20250822",
+    "reflex>=0.8.27,<0.9.0",
+    "orjson>=3.11.3",
+    "jims-core",
 ]
 
 [project.scripts]
-jims-backoffice = "jims_backoffice.app:main"
+jims-backoffice-with-caddy = "jims_backoffice.start_services:main"
+
+[tool.uv.build.wheel]
+packages = ["jims_backoffice"]
+
+include = [
+  { path = "jims_backoffice/Caddyfile" }
+]
+
+[tool.uv.sources]
+jims-core = { workspace = true }
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
@@ -44,6 +39,21 @@ enable = true
 vcs = "git"
 pattern = "default-unprefixed"
 pattern-prefix = "jims-"
+
+[tool.mypy]
+plugins = ['pydantic.mypy']
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.10",
+    "mypy>=1.19.0",
+    "pytest>=8.4.0",
+    "pandas-stubs==2.3.2.250926",
+    "types-requests>=2.32.4.20250913",
+]
+
+[tool.ruff]
+line-length = 120
 
 [tool.uv-workspace-codegen]
 generate = true

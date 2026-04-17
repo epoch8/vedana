@@ -101,12 +101,6 @@ class MemLogger(logging.Logger):
         self._buf.seek(0)
 
 
-class AppVersionState(rx.State):
-    version: str = f"`{os.environ.get('VERSION', 'unspecified_version')}`"  # md-formatted
-    eval_enabled: bool = EVAL_ENABLED
-    debug_mode: bool = DEBUG_MODE
-
-
 class DebugState(rx.State):
     """State for debug mode API key setup."""
 
