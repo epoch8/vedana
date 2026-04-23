@@ -1,0 +1,50 @@
+[project]
+name = "jims-core"
+dynamic = ["version"]
+description = "Add your description here"
+readme = "README.md"
+authors = [{ name = "Andrey Tatarinov", email = "a@tatarinov.co" }]
+requires-python = ">=3.12"
+dependencies = [
+    "backoff>=2.2.1",
+    "litellm>=1.79.0",
+    "opentelemetry-api>=1.34.1",
+    "opentelemetry-sdk>=1.34.1",
+    "prometheus-client>=0.21.1",
+    "pydantic-settings>=2.8.1",
+    "sqlalchemy[asyncio]>=2.0.40",
+    "uuid7>=0.1.0",
+    "opentelemetry-exporter-otlp",
+    "openinference-instrumentation-litellm>=0.1.25",
+]
+
+[dependency-groups]
+google = ["google-cloud-aiplatform>=1.105.0"]
+dev = [
+    "aiosqlite>=0.21.0",
+    "mypy>=1.19.0",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=1.0.0",
+    "pytest-vcr>=1.0.2",
+    "ruff>=0.14.10",
+]
+sentry = ["sentry-sdk>=2.35.0"]
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+enable = true
+vcs = "git"
+pattern = "default-unprefixed"
+pattern-prefix = "jims-"
+
+[tool.uv-workspace-codegen]
+generate = true
+template_type = ["lib", "publish"]
+generate_standard_pytest_step = true
+typechecker = "mypy"
