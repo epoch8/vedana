@@ -1,0 +1,19 @@
+.states
+assets/external/
+*.py[cod]
+*.db
+.web
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.mypy_cache/
+
+# Virtual environments
+.venv
+
+.env
+.env.k8s.*

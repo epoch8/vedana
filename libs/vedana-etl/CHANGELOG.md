@@ -1,0 +1,23 @@
+# 2026.01.29 - 0.6.0
+
+* Republish to PyPI
+* handle vedana-core's DataModel through ETL
+* move Eval away from ETL, processing tests using JIMS & Backoffice now
+* store embeddings in tables for PGVector
+
+# 2025-09-19
+
+* Refactored evaluation script into a Datapipe pipeline
+
+# 2025-09-04
+
+* Covered get_grist_data / filter_grist_data with tests
+* More fixes in processing "reference" type columns for both links and attrs
+
+# 2025-09-02
+
+* Refactor to var-style Table declaration in pipeline
+
+# 0.2.0
+
+* Initial pipeline

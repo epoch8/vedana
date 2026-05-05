@@ -1,0 +1,49 @@
+x-app-common: &app-common
+  build:
+    context: ../../
+    dockerfile: apps/stell/Dockerfile
+  volumes:
+    - ./data:/app/stell/data
+  env_file:
+    - .env
+  depends_on:
+    - db
+
+services:
+  db-migrate:
+    <<: *app-common
+    command: uv run alembic upgrade head
+    working_dir: /app/apps/stell
+    depends_on:
+      db:
+        condition: service_healthy
+
+  chatwoot-api:
+    <<: *app-common
+    ports:
+      - "8100:8100"
+    command: uv run python -m jims_chatwoot.main --app stell_core.app:app --host 0.0.0.0 --port 8100 --enable-stell-api
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+
+
+  db:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  #  TODO: add complete snapshots for SQL and Cypherl (db / memgraph)
+  postgres_data:
