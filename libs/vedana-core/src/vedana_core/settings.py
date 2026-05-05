@@ -19,7 +19,7 @@ class VedanaCoreSettings(BaseSettings):
 
     debug: bool = False
     model: str = "gpt-4.1"
-    enable_dm_filtering: bool = True
+    enable_dm_filtering: bool = False
     filter_model: str = "gpt-4.1-mini"
     judge_model: str = "gpt-4.1-mini"
     embeddings_model: str = "text-embedding-3-large"
