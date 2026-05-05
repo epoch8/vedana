@@ -26,6 +26,9 @@ dev = [
     "types-pyyaml>=6.0.12.20250822",
 ]
 
+[tool.uv.sources]
+jims-core = { workspace = true }
+
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"

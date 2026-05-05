@@ -29,6 +29,11 @@ dependencies = [
     "async-lru>=2.0.5",
 ]
 
+[tool.uv.sources]
+jims-core     = { workspace = true }
+jims-telegram = { workspace = true }
+vedana-etl    = { workspace = true }
+
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"

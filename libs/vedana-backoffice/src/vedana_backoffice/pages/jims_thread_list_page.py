@@ -687,7 +687,13 @@ def jims_thread_list_page() -> rx.Component:
         rx.text(ThreadListState.rows_display, size="2", color="gray"),
         rx.spacer(),
         rx.hstack(
-            rx.button("⏮", variant="soft", size="1", on_click=ThreadListState.first_page, disabled=~ThreadListState.has_prev_page),  # type: ignore[operator]
+            rx.button(
+                "⏮",
+                variant="soft",
+                size="1",
+                on_click=ThreadListState.first_page,
+                disabled=~ThreadListState.has_prev_page,
+            ),  # type: ignore[operator]
             rx.button(
                 "← Prev",
                 variant="soft",
@@ -703,7 +709,13 @@ def jims_thread_list_page() -> rx.Component:
                 on_click=ThreadListState.next_page,
                 disabled=~ThreadListState.has_next_page,
             ),  # type: ignore[operator]
-            rx.button("⏭", variant="soft", size="1", on_click=ThreadListState.last_page, disabled=~ThreadListState.has_next_page),  # type: ignore[operator]
+            rx.button(
+                "⏭",
+                variant="soft",
+                size="1",
+                on_click=ThreadListState.last_page,
+                disabled=~ThreadListState.has_next_page,
+            ),  # type: ignore[operator]
             spacing="2",
             align="center",
         ),

@@ -1273,7 +1273,7 @@ class EtlState(rx.State):
     @staticmethod
     def _preview_select_exprs(columns: list[str], table_alias: str | None = None) -> str:
         """Build SELECT expressions replacing heavy embedding vectors with a placeholder."""
-        prefix = f'{table_alias}.' if table_alias else ""
+        prefix = f"{table_alias}." if table_alias else ""
         exprs: list[str] = []
         for col in columns:
             if str(col) == "embedding":

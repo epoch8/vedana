@@ -2,7 +2,7 @@ import reflex as rx
 
 from vedana_backoffice.components.ui_chat import render_message_bubble
 from vedana_backoffice.states.chat import ChatState
-from vedana_backoffice.states.common import AppVersionState
+from vedana_backoffice.states.common import AppVersionState, DebugState
 from vedana_backoffice.ui import app_header
 
 
@@ -111,7 +111,7 @@ def page() -> rx.Component:
                     rx.cond(
                         ChatState.enable_dm_filtering & AppVersionState.debug_mode,
                         rx.select(
-                            items=ChatState.dm_filter_available_models,
+                            items=DebugState.available_models,
                             value=ChatState.dm_filter_model,
                             on_change=ChatState.set_dm_filter_model,
                             width="16em",
@@ -120,6 +120,23 @@ def page() -> rx.Component:
                         rx.text(ChatState.dm_filter_model, size="1", color="gray"),
                     ),
                     rx.spacer(),
+                    rx.cond(
+                        AppVersionState.debug_mode,
+                        rx.cond(
+                            DebugState.embeddings_model_available,
+                            rx.text(
+                                f"Embeddings: {DebugState.embeddings_model}",
+                                size="1",
+                                color="gray",
+                            ),
+                            rx.text(
+                                f"Embeddings: {DebugState.default_embeddings_model} (unavailable for provider)",
+                                size="1",
+                                color="red",
+                            ),
+                        ),
+                        rx.fragment(),
+                    ),
                     rx.hstack(
                         rx.cond(
                             ChatState.chat_thread_id != "",
@@ -157,21 +174,12 @@ def page() -> rx.Component:
                         ),
                         rx.cond(
                             ChatState.model_selection_allowed,
-                            rx.hstack(
-                                rx.select(
-                                items=["openai", "openrouter"],
-                                value=ChatState.provider,
-                                on_change=ChatState.set_provider,
-                                width="10em",
-                                placeholder="Provider",
-                                ),
-                                rx.select(
-                                    items=ChatState.available_models,
-                                    value=ChatState.model,
-                                    on_change=ChatState.set_model,
-                                    width="16em",
-                                    placeholder="Select model",
-                                ),
+                            rx.select(
+                                items=DebugState.available_models,
+                                value=ChatState.model,
+                                on_change=ChatState.set_model,
+                                width="20em",
+                                placeholder="Select model",
                             ),
                             rx.badge(ChatState.model, variant="surface", color_scheme="gray", size="3"),
                         ),
