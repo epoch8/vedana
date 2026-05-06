@@ -23,6 +23,9 @@ dependencies = [
   "pytest>=8.4.1",
 ]
 
+[tool.uv.sources]
+vedana-core = { workspace = true }
+
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
 build-backend = "hatchling.build"

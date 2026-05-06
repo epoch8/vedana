@@ -19,3 +19,9 @@ class EventEnvelope[T](BaseModel):
 class CommunicationEvent(TypedDict, total=False):
     role: str  # "user" or "assistant"
     content: str
+
+
+class ComunicationEventWithButtons(TypedDict, total=False):
+    role: str
+    content: str
+    buttons: list[dict]
