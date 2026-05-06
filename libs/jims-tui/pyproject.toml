@@ -1,0 +1,38 @@
+[project]
+name = "jims-tui"
+dynamic = ["version"]
+description = "Add your description here"
+readme = "README.md"
+authors = [{ name = "Andrey Tatarinov", email = "a@tatarinov.co" }]
+requires-python = ">=3.12"
+dependencies = ["textual>=3.1.0"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.0",
+    "pytest>=8.4.1",
+    "ruff>=0.14.10",
+    "types-pyyaml>=6.0.12.20250822",
+]
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+enable = true
+vcs = "git"
+pattern = "default-unprefixed"
+pattern-prefix = "jims-"
+
+[tool.uv-workspace-codegen]
+generate = true
+template_type = ["lib", "publish"]
+generate_standard_pytest_step = false
+typechecker = "mypy"
+
+[project.scripts]
+jims-tui = "jims_tui.main:main"
