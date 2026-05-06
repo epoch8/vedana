@@ -1,0 +1,49 @@
+[project]
+name = "jims-max"
+dynamic = ["version"]
+description = "MAX messenger interface for JIMS applications"
+readme = "README.md"
+authors = [
+    { name = "Timur Sheydaev", email = "tsheyd@epoch8.co" },
+]
+requires-python = ">=3.12"
+dependencies = [
+    "maxapi>=0.1",
+    "aiohttp>=3.11.16",
+    "loguru>=0.7.3",
+    "pydantic>=2.4.1",
+    "pydantic-settings>=2.8.1",
+    "click>=8.0",
+    "jims-core>=0.5.1",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.0",
+    "pytest>=8.4.1",
+    "ruff>=0.14.10",
+    "types-pyyaml>=6.0.12.20250822",
+]
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+enable = true
+vcs = "git"
+pattern = "default-unprefixed"
+pattern-prefix = "jims-"
+
+[tool.uv-workspace-codegen]
+generate = true
+template_type = ["lib"]
+generate_standard_pytest_step = false
+typechecker = "mypy"
+
+[project.scripts]
+jims-max = "jims_max.main:main"
+
