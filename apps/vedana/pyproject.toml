@@ -6,17 +6,34 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.16.4",
-    "google-cloud-kms >= 2.21.3",
-    "google-cloud-iam >= 2.19.1",
-    "jims-core>=0.5.1",
+    "datapipe-core>=0.14.2",
+    "google-cloud-iam>=2.19.1",
+    "google-cloud-kms>=2.21.3",
+    "grist-api>=0.1.1",
     "jims-api>=0.5.1",
-    "jims-widget>=0.5.1",
-    "vedana-backoffice",
-    "vedana-etl",
+    "jims-core>=0.5.1",
+    "jims-telegram>=0.5.1",
     "jims-tui",
-    "reflex>=0.8.25",
+    "jims-widget>=0.5.1",
     "orjson>=3.11.3",
+    "pandas>=2.0.0",
+    "reflex>=0.8.25",
+    "requests>=2.32.4",
+    "sqlalchemy>=2.0.41",
+    "vedana-backoffice>=2025.11.25.dev26",
+    "vedana-core>=2025.11.25.dev26",
+    "vedana-etl>=2025.11.25.dev26",
 ]
+
+[tool.uv.sources]
+vedana-core       = { workspace = true }
+vedana-etl        = { workspace = true }
+vedana-backoffice  = { workspace = true }
+jims-core         = { workspace = true }
+jims-api          = { workspace = true }
+jims-widget       = { workspace = true }
+jims-telegram     = { workspace = true }
+jims-tui          = { workspace = true }
 
 [tool.uv-workspace-codegen]
 generate = true
@@ -34,6 +51,13 @@ exclude = ["migrations/"]
 
 [tool.ruff]
 line-length = 120
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vedana"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [

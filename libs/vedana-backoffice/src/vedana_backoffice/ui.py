@@ -53,14 +53,14 @@ def debug_badge() -> rx.Component:
                 },
                 on_click=DebugState.open_dialog,
             ),
-            content="Click to enter or reset your OpenAI / OpenRouter API key (required for chat and eval model selection)",
+            content="Click to set your LiteLLM API key for debug mode model selection",
         ),
         rx.fragment(),
     )
 
 
 def api_key_setup_dialog() -> rx.Component:
-    """Dialog to prompt for OpenAI and OpenRouter API keys; highlights missing fields."""
+    """Dialog to prompt for a runtime API key used by LiteLLM in debug mode."""
     _missing_style = {
         "border": "2px solid #d97706",
         "border_radius": "6px",
@@ -71,39 +71,33 @@ def api_key_setup_dialog() -> rx.Component:
         rx.dialog.content(
             rx.dialog.title("API Key Setup"),
             rx.dialog.description(
-                "Add API keys for the providers you use.",
+                "Paste your LiteLLM-compatible API key here and click 'Save' to use compatible models. Remove the key to revert to default key and models.",
                 margin_bottom="1em",
             ),
             rx.vstack(
                 rx.vstack(
-                    rx.text("OpenAI API Key", font_size="2", font_weight="500"),
-                    rx.input(
-                        placeholder="sk-...",
-                        on_change=DebugState.set_openai_api_key,
-                        type="password",
+                    rx.text("Provider", font_size="2", font_weight="500"),
+                    rx.select(
+                        items=DebugState.provider_options,
+                        value=DebugState.runtime_model_provider,
+                        on_change=DebugState.set_model_provider,
                         width="100%",
-                        style=rx.cond(
-                            DebugState.openai_key_empty,
-                            {**_normal_style, **_missing_style},
-                            _normal_style,
-                        ),
+                        placeholder="Select provider",
+                        style=_normal_style,
                     ),
                     spacing="2",
                     width="100%",
                     align="start",
                 ),
                 rx.vstack(
-                    rx.text("OpenRouter API Key", font_size="2", font_weight="500"),
+                    rx.text("Runtime API Key", font_size="2", font_weight="500"),
                     rx.input(
-                        placeholder="sk-or-...",
-                        on_change=DebugState.set_openrouter_api_key,
+                        placeholder="sk-...",
+                        value=DebugState.runtime_model_api_key,
+                        on_change=DebugState.set_model_api_key,
                         type="password",
                         width="100%",
-                        style=rx.cond(
-                            DebugState.openrouter_key_empty,
-                            {**_normal_style, **_missing_style},
-                            _normal_style,
-                        ),
+                        style=_normal_style,
                     ),
                     spacing="2",
                     width="100%",
@@ -121,7 +115,7 @@ def api_key_setup_dialog() -> rx.Component:
                     rx.button(
                         "Save",
                         color_scheme="blue",
-                        on_click=DebugState.save_api_keys,
+                        on_click=DebugState.save_api_key,
                     ),
                     justify="end",
                     spacing="3",
