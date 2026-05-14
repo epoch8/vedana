@@ -412,43 +412,49 @@ class DataModel:
 
 # default templates
 dm_descr_template = """\
-## Nodes:
+## Узлы:
 {anchors}
 
-## Node attributes:
+## Атрибуты узлов:
 {anchor_attrs}
 
-## Links between nodes:
+## Связи между узлами:
 {links}
 
-## Link attributes:
+## Атрибуты связей:
 {link_attrs}
 
-## Typical question answering scenarios:
+## Типичные вопросы:
 {queries}
 """
 
-dm_anchor_descr_template = "- {anchor.noun}: {anchor.description}; ID example: {anchor.id_example}; retrieval query: {anchor.query}"
-dm_attr_descr_template = "- {anchor.noun}.{attr.name}: {attr.description}; example: {attr.example}; retrieval query: {attr.query}"
-dm_link_descr_template = "- {link.sentence}: {link.description}; query example: {link.query}"
-dm_link_attr_descr_template = "- {link.sentence}.{attr.name}: {attr.description}; example: {attr.example}; retrieval query: {attr.query}"
-dm_query_descr_template = "- {query.name}:\n{query.example}"
+dm_anchor_descr_template = (
+    "- {anchor.noun}: {anchor.description}; пример ID: {anchor.id_example}; запрос для получения: {anchor.query}"
+)
+dm_attr_descr_template = (
+    "- {anchor.noun}.{attr.name}: {attr.description}; пример: {attr.example}; запрос для получения: {attr.query}"
+)
+dm_link_descr_template = "- {link.sentence}: {link.description}; пример запроса: {link.query}"
+dm_link_attr_descr_template = (
+    "- {link.sentence}.{attr.name}: {attr.description}; пример: {attr.example}; запрос для получения: {attr.query}"
+)
+dm_query_descr_template = "- {query.name}\n{query.example}"
 
 # Compact templates (without cypher queries)
 dm_compact_descr_template = """\
-## Nodes:
+## Узлы:
 {anchors}
 
-## Node Attributes:
+## Атрибуты узлов:
 {anchor_attrs}
 
-## Relationships Between Nodes:
+## Связи между узлами:
 {links}
 
-## Relationship Attributes:
+## Атрибуты связей:
 {link_attrs}
 
-## Question Scenarios:
+## Сценарии вопросов:
 {queries}
 """
 

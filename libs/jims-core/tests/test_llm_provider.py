@@ -1,5 +1,4 @@
 import pytest
-import litellm
 from jims_core.llms.llm_provider import LLMProvider, LLMSettings
 
 
@@ -12,7 +11,6 @@ def vcr_config():
 @pytest.mark.asyncio
 @pytest.mark.vcr
 async def test_aggregate_usage():
-    litellm.api_key = "test"
     llm = LLMProvider(settings=LLMSettings(model="gpt-4.1-nano-2025-04-14"))
 
     await llm.chat_completion_plain(messages=[{"role": "user", "content": "Hello"}])

@@ -10,6 +10,7 @@ import reflex as rx
 from datapipe.compute import Catalog, run_pipeline
 from jims_core.llms.llm_provider import LLMSettings
 from jims_core.thread.thread_controller import ThreadController
+from jims_core.llms.llm_provider import LLMSettings
 from jims_core.util import uuid7
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
