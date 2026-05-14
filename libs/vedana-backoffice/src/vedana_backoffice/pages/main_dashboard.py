@@ -1,0 +1,664 @@
+import reflex as rx
+
+from vedana_backoffice.states.main_dashboard import DashboardState
+from vedana_core.settings import settings as core_settings
+from vedana_backoffice.ui import app_header
+
+
+def _stat_tile(title: str, value: rx.Var | str, subtitle: str = "", color: str = "indigo") -> rx.Component:
+    return rx.card(
+        rx.vstack(
+            rx.text(title, size="1", color="gray"),
+            rx.heading(value, size="6"),
+            rx.cond(subtitle != "", rx.text(subtitle, size="1", color="gray"), rx.box()),
+            spacing="1",
+            width="100%",
+        ),
+        variant="surface",
+        width="100%",
+        padding="1em",
+        style={"borderTop": f"3px solid var(--{color}-9)"},
+    )
+
+
+def _graph_stats_card() -> rx.Component:
+    return rx.card(
+        rx.vstack(
+            rx.hstack(
+                rx.heading("Graph stats", size="3"),
+                rx.spacer(),
+                rx.badge(
+                    rx.cond(
+                        (DashboardState.nodes_total_diff == 0) & (DashboardState.edges_total_diff == 0),  # type: ignore[operator]
+                        "OK",
+                        "Warning!",
+                    ),
+                    color_scheme=rx.cond(  # type: ignore[operator]
+                        (DashboardState.nodes_total_diff == 0) & (DashboardState.edges_total_diff == 0),
+                        "green",
+                        "red",
+                    ),
+                    variant="soft",
+                ),
+                align="center",
+                width="100%",
+            ),
+            rx.grid(
+                _stat_tile(
+                    "Total Nodes",
+                    DashboardState.graph_total_nodes,  # type: ignore[arg-type]
+                    subtitle=rx.cond(  # type: ignore[arg-type]
+                        DashboardState.nodes_total_diff == 0,  # type: ignore[operator]
+                        "Matches pipeline",
+                        rx.cond(  # type: ignore[arg-type]
+                            DashboardState.nodes_total_diff > 0,
+                            rx.text(f"+{DashboardState.nodes_total_diff} vs ETL", color_scheme="red", weight="bold"),
+                            rx.text(f"{DashboardState.nodes_total_diff} vs ETL", color_scheme="red", weight="bold"),
+                        ),
+                    ),
+                    color="green",
+                ),
+                _stat_tile(
+                    "Total Edges",
+                    DashboardState.graph_total_edges,  # type: ignore[arg-type]
+                    subtitle=rx.cond(  # type: ignore[arg-type]
+                        DashboardState.edges_total_diff == 0,  # type: ignore[operator]
+                        "Matches pipeline",
+                        rx.cond(  # type: ignore[operator]
+                            DashboardState.edges_total_diff > 0,
+                            rx.text(f"+{DashboardState.edges_total_diff} vs ETL", color_scheme="red", weight="bold"),
+                            rx.text(f"{DashboardState.edges_total_diff} vs ETL", color_scheme="red", weight="bold"),
+                        ),
+                    ),
+                    color="green",
+                ),
+                columns="2",
+                spacing="4",
+                width="100%",
+            ),
+            rx.grid(
+                _stat_tile("Nodes Added", DashboardState.new_nodes, color="indigo"),  # type: ignore[arg-type]
+                _stat_tile("Edges Added", DashboardState.new_edges, color="indigo"),  # type: ignore[arg-type]
+                _stat_tile("Nodes Updated", DashboardState.updated_nodes, color="amber"),  # type: ignore[arg-type]
+                _stat_tile("Edges Updated", DashboardState.updated_edges, color="amber"),  # type: ignore[arg-type]
+                _stat_tile("Nodes Deleted", DashboardState.deleted_nodes, color="red"),  # type: ignore[arg-type]
+                _stat_tile("Edges Deleted", DashboardState.deleted_edges, color="red"),  # type: ignore[arg-type]
+                columns="2",
+                spacing="4",
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        padding="1em",
+        width="100%",
+        style={"height": "100%", "display": "flex", "flexDirection": "column"},
+    )
+
+
+def _changes_preview_table() -> rx.Component:
+    """Table with expandable cells for changes preview."""
+
+    def _expandable_cell(row: dict[str, rx.Var], col: rx.Var) -> rx.Component:
+        """Create an expandable/collapsible cell for long text content."""
+        row_id = row.get("row_id", "")
+        return rx.table.cell(
+            rx.box(
+                rx.cond(
+                    row.get("expanded", False),
+                    rx.text(
+                        row.get(col, "—"),  # type: ignore[call-overload]
+                        size="1",
+                        white_space="pre-wrap",
+                        style={"wordBreak": "break-word"},
+                    ),
+                    rx.text(
+                        row.get(col, "—"),  # type: ignore[call-overload]
+                        size="1",
+                        style={
+                            "display": "-webkit-box",
+                            "WebkitLineClamp": "2",
+                            "WebkitBoxOrient": "vertical",
+                            "overflow": "hidden",
+                            "textOverflow": "ellipsis",
+                            "maxWidth": "400px",
+                            "wordBreak": "break-word",
+                        },
+                    ),
+                ),
+                cursor="pointer",
+                on_click=DashboardState.toggle_changes_preview_row_expand(row_id=row_id),  # type: ignore[arg-type,call-arg,func-returns-value]
+                style={"minWidth": "0", "width": "100%"},
+            ),
+            style={"minWidth": "0"},
+        )
+
+    def _make_row_renderer(row: dict[str, rx.Var]):
+        """Create a column renderer that captures the row context."""
+        return lambda col: _expandable_cell(row, col)
+
+    def _row(r: dict[str, rx.Var]) -> rx.Component:
+        return rx.table.row(
+            rx.foreach(DashboardState.changes_preview_columns, _make_row_renderer(r)),  # type: ignore[arg-type]
+            style=r.get("row_style", {}),
+        )
+
+    return rx.table.root(
+        rx.table.header(
+            rx.table.row(
+                rx.foreach(
+                    DashboardState.changes_preview_columns,  # type: ignore[arg-type]
+                    lambda c: rx.table.column_header_cell(c),
+                )
+            )
+        ),
+        rx.table.body(rx.foreach(DashboardState.changes_preview_rows, _row)),  # type: ignore[arg-type]
+        variant="surface",
+        style={"width": "100%", "tableLayout": "auto"},
+    )
+
+
+def _changes_preview_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                rx.hstack(
+                    rx.dialog.title(
+                        rx.cond(
+                            DashboardState.changes_preview_table_name,  # type: ignore[operator]
+                            DashboardState.changes_preview_table_name,  # type: ignore[arg-type]
+                            "",
+                        ),
+                        size="4",
+                    ),
+                    rx.spacer(),
+                    rx.dialog.close(
+                        rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
+                    ),
+                    align="center",
+                    width="100%",
+                ),
+                rx.cond(
+                    DashboardState.changes_has_preview,  # type: ignore[operator]
+                    rx.vstack(
+                        rx.scroll_area(
+                            _changes_preview_table(),
+                            type="always",
+                            scrollbars="both",
+                            style={"maxHeight": "68vh", "maxWidth": "calc(90vw - 3em)"},
+                        ),
+                        # Server-side pagination controls
+                        rx.hstack(
+                            rx.text(DashboardState.changes_preview_rows_display, size="2", color="gray"),  # type: ignore[arg-type]
+                            # Color legend
+                            rx.hstack(
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(34,197,94,0.08)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Added", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(245,158,11,0.08)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Updated", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                rx.hstack(
+                                    rx.box(
+                                        style={
+                                            "width": "12px",
+                                            "height": "12px",
+                                            "backgroundColor": "rgba(239,68,68,0.08)",
+                                            "borderRadius": "2px",
+                                        }
+                                    ),
+                                    rx.text("Deleted", size="1", color="gray"),
+                                    spacing="1",
+                                    align="center",
+                                ),
+                                spacing="3",
+                                align="center",
+                            ),
+                            rx.spacer(),
+                            rx.hstack(
+                                rx.button(
+                                    "⏮",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=DashboardState.changes_preview_first_page,
+                                    disabled=~DashboardState.changes_preview_has_prev,  # type: ignore[operator]
+                                ),
+                                rx.button(
+                                    "← Prev",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=DashboardState.changes_preview_prev_page,
+                                    disabled=~DashboardState.changes_preview_has_prev,  # type: ignore[operator]
+                                ),
+                                rx.text(
+                                    DashboardState.changes_preview_page_display,  # type: ignore[arg-type]
+                                    size="2",
+                                    style={"minWidth": "100px", "textAlign": "center"},
+                                ),
+                                rx.button(
+                                    "Next →",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=DashboardState.changes_preview_next_page,
+                                    disabled=~DashboardState.changes_preview_has_next,  # type: ignore[operator]
+                                ),
+                                rx.button(
+                                    "⏭",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=DashboardState.changes_preview_last_page,
+                                    disabled=~DashboardState.changes_preview_has_next,  # type: ignore[operator]
+                                ),
+                                spacing="2",
+                                align="center",
+                            ),
+                            width="100%",
+                            align="center",
+                            padding_top="0.5em",
+                        ),
+                        width="100%",
+                        spacing="2",
+                    ),
+                    rx.box(rx.text("No updates in selected span")),
+                ),
+                spacing="3",
+                width="100%",
+            ),
+            style={
+                "maxWidth": "90vw",
+                "maxHeight": "85vh",
+                "width": "fit-content",
+                "minWidth": "400px",
+            },
+        ),
+        open=DashboardState.changes_preview_open,  # type: ignore[arg-type]
+        on_open_change=DashboardState.set_changes_preview_open,  # type: ignore[arg-type]
+    )
+
+
+def _graph_stats_expanded_card() -> rx.Component:
+    return rx.card(
+        rx.grid(
+            _per_label_stats_table("Graph Nodes by Label", DashboardState.graph_nodes_by_label, "nodes"),  # type: ignore[arg-type]
+            _per_label_stats_table("Graph Edges by Type", DashboardState.graph_edges_by_type, "edges"),  # type: ignore[arg-type]
+            columns="1",  # type: ignore[arg-type]
+            spacing="4",  # type: ignore[arg-type]
+            width="100%",
+            style={"height": "100%"},
+        ),
+        padding="1em",
+        style={"height": "100%", "display": "flex", "flexDirection": "column"},
+    )
+
+
+def _embeddings_stats_card() -> rx.Component:
+    return rx.card(
+        rx.vstack(
+            rx.hstack(
+                rx.heading("Embeddings stats", size="3"),
+                rx.spacer(),
+                rx.badge(f"Vector({core_settings.embeddings_dim})", variant="soft"),
+                align="center",
+                width="100%",
+            ),
+            rx.grid(
+                _stat_tile("Anchor Embeddings", DashboardState.emb_anchor_total, color="green"),  # type: ignore[arg-type]
+                _stat_tile("Edge Embeddings", DashboardState.emb_edge_total, color="green"),  # type: ignore[arg-type]
+                columns="2",
+                spacing="4",
+                width="100%",
+            ),
+            rx.grid(
+                _stat_tile("Anchors Added", DashboardState.emb_new_anchor, color="indigo"),  # type: ignore[arg-type]
+                _stat_tile("Edges Added", DashboardState.emb_new_edge, color="indigo"),  # type: ignore[arg-type]
+                _stat_tile("Anchors Updated", DashboardState.emb_updated_anchor, color="amber"),  # type: ignore[arg-type]
+                _stat_tile("Edges Updated", DashboardState.emb_updated_edge, color="amber"),  # type: ignore[arg-type]
+                _stat_tile("Anchors Deleted", DashboardState.emb_deleted_anchor, color="red"),  # type: ignore[arg-type]
+                _stat_tile("Edges Deleted", DashboardState.emb_deleted_edge, color="red"),  # type: ignore[arg-type]
+                columns="2",
+                spacing="4",
+                width="100%",
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        padding="1em",
+        width="100%",
+        style={"height": "100%", "display": "flex", "flexDirection": "column"},
+    )
+
+
+def _embeddings_breakdown_table(title: str, rows: rx.Var | list[dict], kind: str) -> rx.Component:
+    def _row(r: dict) -> rx.Component:
+        label = r.get("label", "")
+        return rx.table.row(
+            rx.table.cell(rx.text(label)),
+            rx.table.cell(rx.text(r.get("count", 0))),
+            rx.table.cell(rx.text(r.get("added", 0))),
+            rx.table.cell(rx.text(r.get("updated", 0))),
+            rx.table.cell(rx.text(r.get("deleted", 0))),
+            on_click=DashboardState.open_embedding_per_label_changes_preview(kind=kind, label=label),  # type: ignore
+            style={"cursor": "pointer"},
+        )
+
+    return rx.vstack(
+        rx.hstack(rx.heading(title, size="3"), align="center", justify="between", width="100%"),
+        rx.box(
+            rx.scroll_area(
+                rx.table.root(
+                    rx.table.header(
+                        rx.table.row(
+                            rx.table.column_header_cell("Label"),
+                            rx.table.column_header_cell("Total"),
+                            rx.table.column_header_cell("Added"),
+                            rx.table.column_header_cell("Updated"),
+                            rx.table.column_header_cell("Deleted"),
+                        )
+                    ),
+                    rx.table.body(rx.foreach(rows, _row)),
+                    variant="surface",
+                    style={"width": "100%", "tableLayout": "fixed"},
+                ),
+                type="always",
+                scrollbars="vertical",
+                style={
+                    "position": "absolute",
+                    "top": 0,
+                    "bottom": 0,
+                    "left": 0,
+                    "right": 0,
+                },
+            ),
+            style={
+                "position": "relative",
+                "flex": "1 1 0",
+                "minHeight": 0,
+                "width": "100%",
+            },
+        ),
+        spacing="2",
+        style={"height": "100%", "display": "flex", "flexDirection": "column"},
+    )
+
+
+def _embeddings_stats_expanded_card() -> rx.Component:
+    return rx.card(
+        rx.grid(
+            _embeddings_breakdown_table(
+                "Anchor Embeddings by node_type",
+                DashboardState.emb_anchor_by_node_type,
+                "emb_anchor",
+            ),  # type: ignore[arg-type]
+            _embeddings_breakdown_table(
+                "Edge Embeddings by edge_label",
+                DashboardState.emb_edge_by_label,
+                "emb_edge",
+            ),  # type: ignore[arg-type]
+            columns="1",  # type: ignore[arg-type]
+            spacing="4",  # type: ignore[arg-type]
+            width="100%",
+            style={"height": "100%"},
+        ),
+        padding="1em",
+        style={"height": "100%", "display": "flex", "flexDirection": "column"},
+    )
+
+
+def _graph_embeddings_tabs() -> rx.Component:
+    return rx.tabs.root(
+        rx.tabs.list(
+            rx.tabs.trigger("Graph", value="graph"),
+            rx.tabs.trigger("Embeddings", value="embeddings"),
+        ),
+        rx.tabs.content(
+            rx.grid(
+                _graph_stats_card(),
+                _graph_stats_expanded_card(),
+                columns="2",
+                spacing="4",
+                width="100%",
+                align="start",
+                style={"gridTemplateColumns": "2fr 5fr", "height": "90vh", "align-items": "stretch"},
+            ),
+            value="graph",
+        ),
+        rx.tabs.content(
+            rx.grid(
+                _embeddings_stats_card(),
+                _embeddings_stats_expanded_card(),
+                columns="2",
+                spacing="4",
+                width="100%",
+                align="start",
+                style={"gridTemplateColumns": "2fr 5fr", "height": "90vh", "align-items": "stretch"},
+            ),
+            value="embeddings",
+        ),
+        default_value="graph",
+        width="100%",
+    )
+
+
+def _ingest_source_tabs() -> rx.Component:
+    return rx.tabs.root(
+        rx.tabs.list(
+            rx.foreach(
+                DashboardState.ingest_source_tabs,
+                lambda source: rx.tabs.trigger(source, value=source),
+            ),
+        ),
+        rx.foreach(
+            DashboardState.ingest_source_tabs,
+            lambda source: rx.tabs.content(
+                _ingest_card(),
+                value=source,
+            ),
+        ),
+        value=DashboardState.selected_ingest_source_tab,
+        on_change=DashboardState.set_selected_source_tab,  # type: ignore[arg-type]
+        width="100%",
+    )
+
+
+def _ingest_card() -> rx.Component:
+    return rx.card(
+        rx.vstack(
+            rx.hstack(
+                rx.heading("Ingest Activity", size="3"),
+                rx.spacer(),
+                # rx.text("Generator tables", size="1", color="gray"),
+                align="center",
+                width="100%",
+            ),
+            rx.grid(
+                _stat_tile("New Entries", DashboardState.ingest_new_total_selected, color="indigo"),  # type: ignore[arg-type]
+                _stat_tile("Updated Entries", DashboardState.ingest_updated_total_selected, color="amber"),  # type: ignore[arg-type]
+                _stat_tile("Deleted Entries", DashboardState.ingest_deleted_total_selected, color="red"),  # type: ignore[arg-type]
+                columns="3",
+                spacing="4",
+                width="100%",
+            ),
+            rx.table.root(
+                rx.table.header(
+                    rx.table.row(
+                        rx.table.column_header_cell("Table"),
+                        rx.table.column_header_cell("Total"),
+                        rx.table.column_header_cell("Added"),
+                        rx.table.column_header_cell("Updated"),
+                        rx.table.column_header_cell("Deleted"),
+                    )
+                ),
+                rx.table.body(
+                    rx.foreach(
+                        DashboardState.ingest_breakdown_selected,  # type: ignore[arg-type]
+                        lambda r: rx.table.row(
+                            rx.table.cell(rx.text(r.get("table", ""))),
+                            # todo order by ?
+                            rx.table.cell(rx.text(r.get("total", 0))),  # type: ignore[arg-type]
+                            rx.table.cell(rx.text(r.get("added", 0))),  # type: ignore[arg-type]
+                            rx.table.cell(rx.text(r.get("updated", 0))),  # type: ignore[arg-type]
+                            rx.table.cell(rx.text(r.get("deleted", 0))),  # type: ignore[arg-type]
+                            on_click=DashboardState.open_changes_preview(table_name=r.get("table", "")),  # type: ignore
+                            style={"cursor": "pointer"},
+                        ),
+                    )
+                ),
+                variant="surface",
+                style={"width": "100%", "tableLayout": "fixed"},
+            ),
+            spacing="3",
+            width="100%",
+        ),
+        padding="1em",
+        width="100%",
+        style={"height": "100%", "display": "flex", "flexDirection": "column"},
+    )
+
+
+def _per_label_stats_table(title: str, rows: rx.Var | list[dict], kind: str) -> rx.Component:
+    def _row(r: dict) -> rx.Component:
+        label = r.get("label", "")
+        return rx.table.row(
+            rx.table.cell(rx.text(label)),
+            rx.table.cell(rx.text(r.get("graph_count", 0))),
+            rx.table.cell(rx.text(r.get("etl_count", 0))),
+            rx.table.cell(rx.text(r.get("added", 0))),
+            rx.table.cell(rx.text(r.get("updated", 0))),
+            rx.table.cell(rx.text(r.get("deleted", 0))),
+            on_click=rx.cond(
+                kind == "nodes",
+                DashboardState.open_graph_per_label_changes_preview(kind="nodes", label=label),  # type: ignore
+                DashboardState.open_graph_per_label_changes_preview(kind="edges", label=label),  # type: ignore
+            ),
+            style={"cursor": "pointer"},
+        )
+
+    return rx.vstack(
+        rx.hstack(rx.heading(title, size="3"), align="center", justify="between", width="100%"),
+        rx.box(
+            rx.scroll_area(
+                rx.table.root(
+                    rx.table.header(
+                        rx.table.row(
+                            rx.table.column_header_cell("Label"),
+                            rx.table.column_header_cell("Graph"),
+                            rx.table.column_header_cell("ETL"),
+                            rx.table.column_header_cell("Added"),
+                            rx.table.column_header_cell("Updated"),
+                            rx.table.column_header_cell("Deleted"),
+                        )
+                    ),
+                    rx.table.body(rx.foreach(rows, _row)),
+                    variant="surface",
+                    style={"width": "100%", "tableLayout": "fixed"},
+                ),
+                type="always",
+                scrollbars="vertical",
+                style={
+                    "position": "absolute",
+                    "top": 0,
+                    "bottom": 0,
+                    "left": 0,
+                    "right": 0,
+                },
+            ),
+            style={
+                "position": "relative",
+                "flex": "1 1 0",
+                "minHeight": 0,
+                "width": "100%",
+            },
+        ),
+        spacing="2",
+        style={"height": "100%", "display": "flex", "flexDirection": "column"},
+    )
+
+
+def page() -> rx.Component:
+    return rx.flex(
+        app_header(),
+        rx.box(
+            rx.vstack(
+                rx.card(
+                    rx.vstack(
+                        rx.hstack(
+                            rx.hstack(
+                                rx.text("ETL Overview", weight="medium"),
+                                align="center",
+                                spacing="3",
+                            ),
+                            rx.spacer(),
+                            rx.hstack(
+                                rx.text("Timeframe (days):", size="1", color="gray"),
+                                rx.select(
+                                    items=DashboardState.time_window_options,  # type: ignore[arg-type]
+                                    value=DashboardState.time_window_days_str,
+                                    on_change=[DashboardState.set_time_window_days, DashboardState.load_dashboard],  # type: ignore[arg-type]
+                                    width="8em",
+                                ),
+                                rx.button(
+                                    rx.cond(DashboardState.loading, "Refreshing…", "Refresh"),  # type: ignore[operator]
+                                    on_click=DashboardState.load_dashboard,  # type: ignore[arg-type]
+                                    loading=DashboardState.loading,
+                                    size="2",
+                                ),
+                                spacing="3",
+                                align="center",
+                            ),
+                            align="center",
+                            width="100%",
+                        ),
+                        rx.grid(
+                            _ingest_source_tabs(),
+                            _graph_embeddings_tabs(),
+                            columns="2",
+                            spacing="4",
+                            width="100%",
+                            align="start",
+                            style={"gridTemplateColumns": "3fr 7fr", "height": "90vh", "align-items": "stretch"},
+                        ),
+                    ),
+                    padding="1em",
+                    width="100%",
+                ),
+                rx.cond(
+                    DashboardState.error_message != "",  # type: ignore[operator]
+                    rx.callout(DashboardState.error_message, color_scheme="red", variant="soft"),  # type: ignore[arg-type]
+                    rx.box(),
+                ),
+                _changes_preview_dialog(),
+                spacing="4",
+                align="start",
+                width="100%",
+            ),
+            flex="1",
+            min_height="0",
+            overflow="auto",
+            padding="1em",
+            width="100%",
+        ),
+        direction="column",
+        height="100vh",
+        overflow="hidden",
+        width="100%",
+    )
