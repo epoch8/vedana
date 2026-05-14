@@ -86,7 +86,7 @@ class RagPipeline:
         data_model: DataModel,
         logger,
         threshold: float = 0.8,
-        top_n: int = 5,
+        top_n: int | None = None,
         model: str | None = None,
         filter_model: str | None = None,
         enable_filtering: bool | None = None,
@@ -96,7 +96,7 @@ class RagPipeline:
         self.data_model = data_model
         self.logger = logger or logging.getLogger(__name__)
         self.threshold = threshold
-        self.top_n = top_n
+        self.top_n = top_n or settings.embeddings_top_n
         self.model = model or settings.model
         self.filter_model = filter_model or settings.filter_model  # or self.model
         self.enable_filtering = enable_filtering or settings.enable_dm_filtering
@@ -151,7 +151,7 @@ class RagPipeline:
         if self.enable_filtering:
             await ctx.update_agent_status("Analyzing query structure...")
             data_model_description, filter_selection = await self.filter_data_model(query, ctx)
-            
+
             # Send reasoning for enhanced context.
             if not filter_selection.reasoning.startswith("Filtering failed"):
                 ctx.send_event(

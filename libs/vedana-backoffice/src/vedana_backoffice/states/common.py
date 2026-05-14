@@ -123,7 +123,7 @@ class DebugState(rx.State):
         return ["openai", "openrouter", "anthropic", "cohere", "xai"]
 
     @rx.var
-    def embeddings_model(self) -> str | None:
+    def embeddings_model(self) -> str:
         """embeddings model is fixed so its availability/correct name can be resolved here."""
         models = self.available_models
         if not models:
@@ -141,7 +141,7 @@ class DebugState(rx.State):
                     return f"openrouter/{core_settings.embeddings_model}"
                 elif embeddings_model_provider:
                     return f"openrouter/{embeddings_model_provider}/{core_settings.embeddings_model}"
-        return None
+        return core_settings.embeddings_model
 
     @rx.var
     def embeddings_model_available(self) -> bool:

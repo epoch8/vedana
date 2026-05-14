@@ -471,7 +471,7 @@ class EvalState(rx.State):
                 if "openrouter/openrouter/free" in self.available_models:  # openrouter provider
                     self.pipeline_model = "openrouter/openrouter/free"  # Openrouter has an endpoint with all free models, set it as default
                 else:
-                    self.pipeline_model = self.available_models[0] 
+                    self.pipeline_model = self.available_models[0]
 
     def _sync_dm_filter_model(self) -> None:
         """Realign selected filter model when model list changes."""
@@ -484,7 +484,7 @@ class EvalState(rx.State):
                 if "openrouter/openrouter/free" in self.available_models:
                     self.dm_filter_model = "openrouter/openrouter/free"
                 else:
-                    self.dm_filter_model = self.available_models[0] 
+                    self.dm_filter_model = self.available_models[0]
 
     def _sync_judge_model(self) -> None:
         """Realign selected judge model when model list changes."""
@@ -497,7 +497,7 @@ class EvalState(rx.State):
                 if "openrouter/openrouter/free" in self.available_models:
                     self.judge_model = "openrouter/openrouter/free"
                 else:
-                    self.judge_model = self.available_models[0] 
+                    self.judge_model = self.available_models[0]
 
     @rx.event(background=True)  # type: ignore[operator]
     async def refresh_model_list(self) -> None:

@@ -18,12 +18,14 @@ class VedanaCoreSettings(BaseSettings):
     grist_data_doc_id: str
 
     debug: bool = False
-    model: str = "gpt-4.1"
+    model: str = "gpt-4.1-mini"
     enable_dm_filtering: bool = False
     filter_model: str = "gpt-4.1-mini"
     judge_model: str = "gpt-4.1-mini"
     embeddings_model: str = "text-embedding-3-large"
     embeddings_dim: int = 1024
+    embeddings_threshold: float = 0.8
+    embeddings_top_n: int = 10
 
     pipeline_history_length: int = 20
 

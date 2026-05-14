@@ -23,7 +23,7 @@ class VectorStore(abc.ABC):
         prop_name: str,
         embedding: list[float],
         threshold: float,
-        top_n: int = 5,
+        top_n: int,
     ):
         raise NotImplementedError
 
@@ -46,7 +46,7 @@ class MemgraphVectorStore(VectorStore):
         prop_name: str,
         embedding: np.ndarray | list[float],
         threshold: float,
-        top_n: int = 5,
+        top_n: int,
     ) -> list[Record]:
         with tracer.start_as_current_span("memgraph.vector_search") as span:
             span.set_attribute("memgraph.label", label)
@@ -102,7 +102,7 @@ class PGVectorStore(VectorStore):
         prop_name: str,
         embedding: np.ndarray | list[float],
         threshold: float,
-        top_n: int = 5,
+        top_n: int,
     ) -> Sequence[RowMapping]:
         with tracer.start_as_current_span("pgvector.vector_search") as span:
             span.set_attribute("pgvector.label", label)

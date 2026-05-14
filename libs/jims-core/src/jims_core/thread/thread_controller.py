@@ -82,7 +82,7 @@ class ThreadController:
         await ctl.store_event_dict(event_id=uuid7(), event_type="jims.lifecycle.thread_created", event_data={})
 
         return ctl
-    
+
     @classmethod
     async def new_thread_via_external_id(
         cls,
@@ -97,7 +97,7 @@ class ThreadController:
 
             if existing_thread:
                 return cls(sessionmaker, existing_thread)
-            
+
             new_thread = ThreadDB(
                 thread_id=uuid7(),
                 contact_id=contact_id,
@@ -131,7 +131,7 @@ class ThreadController:
             return cls(sessionmaker, thread)
         else:
             return None
-        
+
     @classmethod
     async def from_external_id(
         cls,

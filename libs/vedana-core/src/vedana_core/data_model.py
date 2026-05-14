@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 import sqlalchemy.ext.asyncio as sa_aio
 from sqlalchemy import select
+from vedana_core.settings import settings as core_settings
 from vedana_etl.catalog import (
     dm_anchor_attributes,
     dm_anchors,
@@ -23,8 +24,9 @@ class Attribute:
     example: str
     dtype: str
     query: str
-    embeddable: bool = False
-    embed_threshold: float = 0
+    embeddable: bool
+    embed_threshold: float
+    embed_top_n: int
 
 
 @dataclass
@@ -101,6 +103,7 @@ class DataModel:
                 anchors_attr_table.c.query.label("attr_query"),
                 anchors_attr_table.c.dtype,
                 anchors_attr_table.c.embed_threshold,
+                anchors_attr_table.c.embed_top_n,
             ).select_from(
                 anchors_table.join(  # left join
                     anchors_attr_table,
@@ -132,7 +135,8 @@ class DataModel:
                             embeddable=row.embeddable if row.embeddable is not None else False,
                             query=row.attr_query if row.attr_query else "",
                             dtype=row.dtype if row.dtype else "",
-                            embed_threshold=row.embed_threshold if row.embed_threshold is not None else 1.0,
+                            embed_threshold=row.embed_threshold if row.embed_threshold is not None else core_settings.embeddings_threshold,
+                            embed_top_n=row.embed_top_n if row.embed_top_n is not None else core_settings.embeddings_top_n,
                         )
                     )
 
@@ -164,6 +168,7 @@ class DataModel:
                 links_attr_table.c.query.label("attr_query"),
                 links_attr_table.c.dtype,
                 links_attr_table.c.embed_threshold,
+                links_attr_table.c.embed_top_n,
             ).select_from(
                 links_table.join(  # left join
                     links_attr_table,
@@ -206,7 +211,8 @@ class DataModel:
                             embeddable=row.embeddable if row.embeddable is not None else False,
                             query=row.attr_query if row.attr_query else "",
                             dtype=row.dtype if row.dtype else "",
-                            embed_threshold=row.embed_threshold if row.embed_threshold is not None else 1.0,
+                            embed_threshold=row.embed_threshold if row.embed_threshold is not None else core_settings.embeddings_threshold,
+                            embed_top_n=row.embed_top_n if row.embed_top_n is not None else core_settings.embeddings_top_n,
                         )
                     )
 
@@ -247,24 +253,24 @@ class DataModel:
         prompts = await self.get_prompts()
         return {p.name: p.text for p in prompts}
 
-    async def vector_indices(self) -> list[tuple[str, str, str, float]]:
+    async def vector_indices(self) -> list[tuple[str, str, str, float, int]]:
         """
         returns list
-        ("anchor", anchor.noun, anchor.attribute, anchor.th) +
-        ("edge", link.sentence, link.attribute, link.th)
-        for all embeddable attributes
+        ("anchor", anchor.noun, anchor.attribute, anchor.th, anchor.top_n) +
+        ("edge", link.sentence, link.attribute, link.th, link.top_n)
+        for all embeddable attributes.
         """
         anchors = await self.get_anchors()
         links = await self.get_links(anchors_dict={a.noun: a for a in anchors})
 
         a_i = [
-            ("anchor", anchor.noun, attr.name, attr.embed_threshold)
+            ("anchor", anchor.noun, attr.name, attr.embed_threshold, attr.embed_top_n)
             for anchor in anchors
             for attr in anchor.attributes
             if attr.embeddable
         ]
         l_i = [
-            ("edge", link.sentence, attr.name, attr.embed_threshold)
+            ("edge", link.sentence, attr.name, attr.embed_threshold, attr.embed_top_n)
             for link in links
             for attr in link.attributes
             if attr.embeddable
