@@ -79,7 +79,7 @@ class RagAgent:
         self.vts = vts
         self.llm = llm
         self.logger = logger or logging.getLogger(__name__)
-        self._vts_meta_args: dict[str, dict[str, tuple[str, float]]] = {}  # stuff not passed through toolcall
+        self._vts_meta_args: dict[str, dict[str, tuple[str, float, int]]] = {}
         self._vts_args = self._build_vts_arg_model(data_model_vts_indices)
         self.data_model_description = data_model_description
         self.ctx = ctx
@@ -90,17 +90,20 @@ class RagAgent:
         if not vts_indices:
             return VTSArgs
 
-        # fill in lookup for resolving idx type and getting custom threshold
-        for idx_type, i_name, i_attr, i_th in vts_indices:
+        # fill in lookup for resolving idx type and per-attribute threshold/top_n overrides
+        for idx_type, i_name, i_attr, i_th, i_top_n in vts_indices:
             if not self._vts_meta_args.get(i_name):
                 self._vts_meta_args[i_name] = {}
-            self._vts_meta_args[i_name][i_attr] = (idx_type, i_th)
+            self._vts_meta_args[i_name][i_attr] = (idx_type, i_th, i_top_n)
 
         # Label Enum – keys of `vts_indices`
-        LabelEnum = enum.Enum("LabelEnum", {name: name for (_type, name, _attr, _th) in vts_indices})  # type: ignore
+        LabelEnum = enum.Enum(  # type: ignore
+            "LabelEnum",
+            {name: name for (_type, name, _attr, _th, _top_n) in vts_indices},
+        )
 
         # Property Enum – unique values of `vts_indices`
-        unique_props = set(attr for (_type, _name, attr, _th) in vts_indices)
+        unique_props = set(attr for (_type, _name, attr, _th, _top_n) in vts_indices)
         prop_member_mapping: dict[str, str] = {}
 
         used_names: set[str] = set()
@@ -130,7 +133,7 @@ class RagAgent:
         prop_name: str,
         search_value: str,
         threshold: float,
-        top_n: int = 5,
+        top_n: int,
     ) -> list[Record]:
         embed = await self.llm.llm.create_embedding(search_value)
         return await self.vts.vector_search(label, prop_type, prop_name, embed, threshold=threshold, top_n=top_n)
@@ -158,7 +161,7 @@ class RagAgent:
         return "\n\n".join(self.result_to_text(str(q), r) for q, r in all_results)
 
     async def text_to_answer_with_vts_and_cypher(
-        self, text_query: str, threshold: float, top_n: int = 5
+        self, text_query: str, threshold: float, top_n: int
     ) -> tuple[str, list, list[VTSQuery], list[CypherQuery]]:
         vts_queries: list[VTSQuery] = []
         cypher_queries: list[CypherQuery] = []
@@ -168,11 +171,11 @@ class RagAgent:
             prop = args.property.value if isinstance(args.property, enum.Enum) else args.property
 
             # default fallback treats toolcall as node vector search
-            prop_type, th = self._vts_meta_args.get(label, {}).get(prop, ("node", threshold))
-            self.logger.debug(f"vts_fn(on={prop_type} label={label}, property={prop}, th={th}, n={top_n})")
+            prop_type, th, t_n = self._vts_meta_args.get(label, {}).get(prop, ("node", threshold, top_n))
+            self.logger.debug(f"vts_fn(on={prop_type} label={label}, property={prop}, th={th}, n={t_n})")
 
             vts_queries.append(VTSQuery(label, prop, args.text))
-            vts_res = await self.search_vector_text(label, prop_type, prop, args.text, threshold=th, top_n=top_n)
+            vts_res = await self.search_vector_text(label, prop_type, prop, args.text, threshold=th, top_n=t_n)
             return self.result_to_text(VTS_TOOL_NAME, vts_res)
 
         async def cypher_fn(args: CypherArgs) -> str:

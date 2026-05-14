@@ -36,7 +36,13 @@ data_model_steps = [
             dm_prompts,
             dm_conversation_lifecycle,
         ],
-        labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "extract"), ("source", "Data Model"), ("stage", "data-model")],
+        labels=[
+            ("flow", "regular"),
+            ("flow", "on-demand"),
+            ("stage", "extract"),
+            ("source", "Data Model"),
+            ("stage", "data-model"),
+        ],
     ),
 ]
 

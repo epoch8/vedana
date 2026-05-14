@@ -17,7 +17,7 @@ class LLMSettings(BaseSettings):
         extra="ignore",
     )
 
-    model: str = "gpt-4.1-nano"
+    model: str = "gpt-4.1-mini"
     embeddings_model: str = "text-embedding-3-large"
     embeddings_dim: int = 1024
 

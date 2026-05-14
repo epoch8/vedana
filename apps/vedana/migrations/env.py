@@ -23,6 +23,19 @@ target_metadata = [
     vedana_etl.app.app.ds.meta_dbconn.sqla_metadata,
 ]
 
+# pgvector indexes managed separately
+VTS_INDEXES = {
+    "rag_anchor_embeddings_hnsw_idx",
+    "rag_edge_embeddings_hnsw_idx",
+}
+
+
+def include_object(object_, name, type_, reflected, compare_to):
+    # Prevent autogenerate from trying to drop/recreate manual indexes.
+    if type_ == "index" and name in VTS_INDEXES:
+        return False
+    return True
+
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
@@ -45,6 +58,7 @@ def run_migrations_offline() -> None:
     context.configure(
         url=url,
         target_metadata=target_metadata,
+        include_object=include_object,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -63,7 +77,11 @@ def run_migrations_online() -> None:
     connectable = vedana_core.db.get_db_engine()
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
+        )
 
         with context.begin_transaction():
             context.run_migrations()

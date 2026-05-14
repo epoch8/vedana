@@ -2,7 +2,7 @@ from datapipe.compute import Table
 from datapipe.store.database import TableStoreDB
 from datapipe.store.neo4j import Neo4JStore
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, Column, Float, String
+from sqlalchemy import Boolean, Column, Float, Integer, String
 from vedana_core.settings import settings as core_settings
 
 import vedana_etl.schemas as schemas
@@ -40,6 +40,7 @@ dm_anchor_attributes = Table(
             Column("query", String),
             Column("dtype", String),
             Column("embed_threshold", Float),
+            Column("embed_top_n", Integer),
         ],
     ),
 )
@@ -58,6 +59,7 @@ dm_link_attributes = Table(
             Column("query", String),
             Column("dtype", String),
             Column("embed_threshold", Float),
+            Column("embed_top_n", Integer),
         ],
     ),
 )
