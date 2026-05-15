@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/epoch8/vedana/discussions
+    about: Ideas, design questions, "how would you approach X?" — anything open-ended.
+  - name: 📖 Documentation
+    url: https://vedana.tech/docs/
+    about: Concepts, getting started, guides, architecture, API reference, operations.
+  - name: 🔒 Security
+    url: https://github.com/epoch8/vedana/security/advisories/new
+    about: Private vulnerability reporting. Do NOT file security issues publicly.
