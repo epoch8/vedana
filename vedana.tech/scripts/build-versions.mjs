@@ -19,7 +19,7 @@
      DOCS_MAX_VERSIONS  cap on the number of versioned snapshots (0 = unlimited)
      DOCS_STABLE        explicit stable version id (default: highest matching tag)
      DOCS_DOCS_PATH     path inside the tag holding docs content,
-                        default "vedana.tech/src/content/docs"
+                        default "docs"
      DOCS_LATEST_LABEL  label for the "latest" entry, default "latest"
 
    The script is intentionally idempotent: it wipes .generated/docs
@@ -40,8 +40,7 @@ const REPO_ROOT = path.resolve(SITE_ROOT, "..");
 const TAG_PATTERN = process.env.DOCS_TAG_PATTERN || "v[0-9]*.[0-9]*.[0-9]*";
 const MAX_VERSIONS = parseInt(process.env.DOCS_MAX_VERSIONS || "0", 10);
 const FORCED_STABLE = process.env.DOCS_STABLE || "";
-const DOCS_PATH_IN_TAG =
-  process.env.DOCS_DOCS_PATH || "vedana.tech/src/content/docs";
+const DOCS_PATH_IN_TAG = process.env.DOCS_DOCS_PATH || "docs";
 const LATEST_LABEL = process.env.DOCS_LATEST_LABEL || "latest";
 
 const GENERATED_DIR = path.join(SITE_ROOT, ".generated");

@@ -46,7 +46,8 @@ function deriveSlug(id: string): string {
    The docs collection contains entries for every published version
    of the documentation:
 
-   - "latest" entries come from src/content/docs/**.
+   - "latest" entries come from ../docs/** (the repo-root docs/ tree,
+     where contributors actually edit the markdown).
    - Each snapshotted version "vX.Y.Z" comes from
      .generated/docs/vX.Y.Z/**, which the build script
      scripts/build-versions.mjs materializes from git tags.
@@ -146,7 +147,9 @@ const docsCollection = defineCollection({
 
 function resolveVersionContentBase(versionId: string): string {
   if (versionId === LATEST_ID) {
-    return "./src/content/docs";
+    // Docs live at the repo root in `/docs/`; the Astro project root
+    // is `vedana.tech/`, so we walk up one level.
+    return "../docs";
   }
 
   return `./.generated/docs/${versionId}`;
