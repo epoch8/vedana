@@ -1,0 +1,37 @@
+---
+import { getCollection, render } from "astro:content";
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import { LATEST_ID } from "../../lib/docs/versions";
+
+const docs = await getCollection("docs");
+
+const readme =
+  docs.find((doc) => {
+    const id = doc.id.toLowerCase();
+    const v = (doc.data as any).version ?? LATEST_ID;
+
+    return v === LATEST_ID && (id === "readme" || id.endsWith("/readme"));
+  }) ?? null;
+
+const { Content } = readme
+  ? await render(readme)
+  : { Content: null };
+---
+
+<DocsLayout
+  headings={[]}
+  title="Vedana Docs"
+  currentVersion={LATEST_ID}
+>
+  <div class="docs-home">
+    {Content && <Content />}
+  </div>
+</DocsLayout>
+
+<style>
+.docs-home {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 16px 80px;
+}
+</style>

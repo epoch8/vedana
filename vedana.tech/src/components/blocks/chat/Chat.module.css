@@ -1,0 +1,333 @@
+/* ======================================================
+   CHAT — COMPACT
+====================================================== */
+
+.chat {
+  width: 100%;
+  max-width: 520px;
+
+  display: flex;
+  flex-direction: column;
+
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+
+  min-height: 400px;
+  height: 100%;
+}
+
+/* ======================================================
+   HEADER
+====================================================== */
+
+.header {
+  padding: var(--space-4) var(--space-6);
+  background: var(--color-bg-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
+}
+
+/* ======================================================
+   MESSAGES
+====================================================== */
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.date {
+  align-self: center;
+  padding: 4px var(--space-3);
+  font-size: var(--font-size-sm);
+
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+}
+
+/* ======================================================
+   MESSAGE ROWS
+====================================================== */
+
+.messageRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.left {
+  justify-content: flex-start;
+}
+
+.right {
+  justify-content: flex-end;
+}
+
+.messageBlock {
+  max-width: 72%;
+  display: grid;
+  grid-template-rows: auto auto;
+  row-gap: 2px;
+}
+
+.name {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* ======================================================
+   BUBBLE
+====================================================== */
+
+.bubble {
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--color-bg-muted);
+  line-height: 1.4;
+}
+
+/* Compact inner HTML spacing */
+
+.bubble p {
+  margin: 0 0 6px;
+}
+
+.bubble p:last-child {
+  margin-bottom: 0;
+}
+
+.bubble ul {
+  margin: 0 0 6px;
+  padding-left: 1.1em;
+}
+
+.bubble li {
+  margin-bottom: 3px;
+}
+
+.bubble li:last-child {
+  margin-bottom: 0;
+}
+
+.bubble strong {
+  font-weight: 600;
+}
+
+/* ======================================================
+   AVATAR
+====================================================== */
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+
+  margin-top: 24px;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: block;
+}
+
+.avatarPlaceholder {
+  width: 100%;
+  height: 100%;
+  background: var(--color-border);
+  border-radius: 50%;
+}
+
+/* ======================================================
+   REACTIONS
+====================================================== */
+
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  padding: 12px 16px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.reaction {
+  appearance: none;
+  cursor: pointer;
+
+  padding: 6px 12px;
+  border-radius: 999px;
+
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-soft);
+  color: var(--color-text);
+
+  font-size: 12px;
+  font-weight: 500;
+
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.reaction:hover {
+  border-color: var(--color-border-strong);
+  transform: translateY(-1px);
+}
+
+.reaction::before {
+  content: "Try:";
+  margin-right: 6px;
+  opacity: 0.6;
+}
+
+/* ======================================================
+   INPUT
+====================================================== */
+
+.inputArea {
+  padding: var(--space-4) var(--space-6);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.inputWrapper {
+  flex: 1;
+  min-height: 40px;
+
+  display: flex;
+  align-items: center;
+
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.placeholder {
+  color: var(--color-text-muted);
+}
+
+.inputValue {
+  color: var(--color-text);
+}
+
+/* ======================================================
+   SEND BUTTON
+====================================================== */
+
+.sendBtn {
+  width: 40px;
+  height: 40px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+
+  background: var(--color-primary);
+  color: var(--color-on-primary, #fff);
+
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.sendBtn:hover {
+  background: var(--color-primary-hover);
+  transform: translateY(-1px);
+}
+
+.sendIcon {
+  width: 18px;
+  height: 18px;
+}
+
+/* ======================================================
+   EMPTY STATE
+====================================================== */
+
+.emptyState {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.emptyInner {
+  max-width: 420px;
+}
+
+.emptyTitle {
+  margin: 0 0 12px;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.emptySubtitle {
+  margin: 0 0 24px;
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.emptyActions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scenarioCard {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.scenarioCard:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+}
+
+.scenarioLabel {
+  display: block;
+  font-weight: 600;
+}
+
+.scenarioHint {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* When Chat has only messages area (no input/reactions) */
+.messages:only-child {
+  border-bottom-left-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+}

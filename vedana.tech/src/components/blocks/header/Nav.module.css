@@ -1,0 +1,191 @@
+/* ======================================
+   Z-INDEX SYSTEM (НЕ МАГИЯ, А СИСТЕМА)
+====================================== */
+
+:root {
+  --z-header: 1000;
+  --z-overlay: 1050;
+  --z-menu: 1100;
+}
+
+
+/* ======================================
+   HEADER
+====================================== */
+
+.nav-header {
+  width: 100%;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+
+/* ======================================
+   INNER LAYOUT
+====================================== */
+
+.nav-inner {
+  position: relative;
+
+  width: 100%;
+  height: var(--header-height);
+
+  display: flex;
+  align-items: center;
+}
+
+
+/* ======================================
+   BRAND
+====================================== */
+
+.nav-brand {
+  position: absolute;
+  left: calc(var(--layout-left-offset) - 18px);
+
+  display: flex;
+  align-items: center;
+}
+
+
+/* ======================================
+   NAV LINKS (DESKTOP)
+====================================== */
+
+.nav-links {
+  max-width: var(--container-wide);
+  margin: 0 auto;
+
+  width: 100%;
+
+  padding-left: var(--layout-content-offset);
+  padding-right: var(--container-padding-x);
+
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-6);
+}
+
+.nav-link {
+  text-decoration: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  transition: color 0.15s ease;
+}
+
+.nav-link:hover {
+  color: var(--color-text);
+}
+
+.nav-link[aria-current="page"] {
+  color: var(--color-text);
+}
+
+
+/* ======================================
+   CTA
+====================================== */
+
+.nav-cta {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+
+  background: var(--color-primary);
+  color: #fff;
+
+  font-weight: var(--font-weight-semibold);
+}
+
+.nav-cta:hover {
+  background: var(--color-primary-hover);
+  color: #fff;
+}
+
+
+/* ======================================
+   BURGER
+====================================== */
+
+.nav-menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  z-index: var(--z-menu); /* 👈 чтобы не перекрывался */
+}
+
+
+/* ======================================
+   OVERLAY
+====================================== */
+
+.nav-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+
+/* ======================================
+   MOBILE
+====================================== */
+
+@media (max-width: 768px) {
+
+  .nav-brand {
+    left: var(--container-padding-x);
+  }
+
+  .nav-menu-toggle {
+    display: block;
+    position: absolute;
+    right: var(--container-padding-x);
+  }
+
+  /* 👉 МЕНЮ */
+  .nav-links {
+    position: fixed;
+    top: 0;
+    right: 0;
+
+    height: 100vh;
+    width: 280px;
+
+    flex-direction: column;
+    justify-content: flex-start;
+
+    padding: 96px var(--space-8);
+
+    background: var(--color-bg);
+    box-shadow: var(--shadow-lg);
+
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+
+    z-index: var(--z-menu);
+  }
+
+  /* 👉 ОТКРЫТОЕ СОСТОЯНИЕ */
+  .nav-header[data-open="true"] .nav-links {
+    transform: translateX(0);
+  }
+
+  .nav-header[data-open="true"] + .nav-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}

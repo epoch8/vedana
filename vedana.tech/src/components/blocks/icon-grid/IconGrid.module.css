@@ -1,0 +1,92 @@
+/* ======================================================
+   ICON GRID
+   (layout-agnostic: no max-width, no outer padding)
+====================================================== */
+
+.icon-grid__container {
+  /* removed:
+     max-width
+     margin: 0 auto
+     padding-x
+  */
+
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-8);
+}
+
+/* ======================================================
+   CARD
+====================================================== */
+
+.icon-grid__item {
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-8);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.icon-grid__item:hover {
+  border-color: var(--color-divider);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ======================================================
+   ICON CIRCLE
+====================================================== */
+
+.icon-grid__icon-wrapper {
+  width: var(--space-10);
+  height: var(--space-10);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: var(--color-primary); /* was danger */
+  color: var(--color-bg);
+}
+
+/* SVG inherits currentColor */
+
+.icon-grid__icon-wrapper svg {
+  width: var(--space-5);
+  height: var(--space-5);
+  stroke: currentColor;
+}
+
+/* ======================================================
+   TITLE
+====================================================== */
+
+.icon-grid__title {
+  margin: 0;
+
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-tight);
+  color: var(--color-text-strong);
+}
+
+/* ======================================================
+   TEXT
+====================================================== */
+
+.icon-grid__text {
+  margin: 0;
+
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  color: var(--color-text-muted);
+}

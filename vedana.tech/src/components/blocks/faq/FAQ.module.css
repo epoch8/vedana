@@ -1,0 +1,89 @@
+/* ======================================================
+   FAQ — Component Layer
+====================================================== */
+
+/* 
+  Component-level variables with fallback.
+  Theme может их переопределить.
+*/
+
+.accordion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--faq-gap, var(--space-3));
+}
+
+/* ------------------ Item ------------------ */
+
+.item {
+  border: 1px solid var(--faq-border-color, var(--color-border));
+  border-radius: var(--faq-radius, var(--radius-md));
+  background: var(--faq-bg, var(--color-bg));
+  transition: border-color var(--dur-fast) ease;
+  overflow: hidden;
+}
+
+.item:hover {
+  border-color: var(--faq-border-hover, var(--color-border-strong));
+}
+
+.item[open] {
+  border-color: var(--faq-border-active, var(--color-primary));
+}
+
+/* ------------------ Summary ------------------ */
+
+.summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--faq-summary-padding-y, var(--space-5))
+           var(--faq-summary-padding-x, var(--space-6));
+  cursor: pointer;
+  list-style: none;
+
+  font-weight: var(--faq-question-weight, var(--font-weight-medium));
+  font-size: var(--faq-question-size, var(--font-size-base));
+  line-height: var(--faq-question-line-height, var(--line-height-base));
+  color: var(--faq-question-color, var(--color-text-strong));
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ------------------ Icon ------------------ */
+
+.icon {
+  display: inline-flex;
+  transition: transform 0.2s ease, color 0.2s ease;
+  color: var(--faq-icon-color, var(--color-text-muted));
+  font-weight: var(--font-weight-medium);
+}
+
+.item[open] .icon {
+  transform: rotate(45deg);
+  color: var(--faq-icon-active, var(--color-primary));
+}
+
+/* ------------------ Content ------------------ */
+
+.content {
+  padding: 0 var(--faq-content-padding-x, var(--space-6))
+           var(--faq-content-padding-bottom, var(--space-6));
+
+  font-size: var(--faq-answer-size, var(--font-size-base));
+  line-height: var(--faq-answer-line-height, var(--line-height-base));
+  color: var(--faq-answer-color, var(--color-text-muted));
+}
+
+/* Optional subtle spacing between items */
+
+.item + .item {
+  margin-top: var(--faq-item-spacing, var(--space-2));
+}

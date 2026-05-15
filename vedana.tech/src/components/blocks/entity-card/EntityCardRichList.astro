@@ -1,0 +1,62 @@
+---
+import styles from "./EntityCard.module.css";
+
+export interface Props {
+  columns?: 1 | 2 | 3 | 4;
+  class?: string;
+}
+
+const {
+  columns = 3,
+  class: className
+} = Astro.props;
+---
+
+<div
+  data-entity-rich-root
+  class={`${styles["entity-card-list"]} ${styles[`entity-card-list--${columns}`]} ${styles["entity-card-rich-list"]} ${className ?? ""}`.trim()}
+>
+  <slot />
+</div>
+
+<script is:inline>
+(() => {
+  const root = document.currentScript.previousElementSibling;
+  if (!root) return;
+
+  function clearHighlight() {
+    root.querySelectorAll("[data-entity-type]").forEach((card) => {
+      card.classList.remove("is-highlighted", "is-dimmed");
+    });
+  }
+
+  root.addEventListener("mouseover", (event) => {
+    const chip = event.target.closest("[data-target-type]");
+    if (!chip || !root.contains(chip)) return;
+
+    const targetType = chip.dataset.targetType;
+    if (!targetType) return;
+
+    root.querySelectorAll("[data-entity-type]").forEach((card) => {
+      if (card.dataset.entityType === targetType) {
+        card.classList.add("is-highlighted");
+        card.classList.remove("is-dimmed");
+      } else {
+        card.classList.add("is-dimmed");
+        card.classList.remove("is-highlighted");
+      }
+    });
+  });
+
+  root.addEventListener("mouseout", (event) => {
+    const chip = event.target.closest("[data-target-type]");
+    if (!chip) return;
+
+    // Проверяем, не перешли ли мы внутри того же чипа
+    const related = event.relatedTarget;
+    if (related && chip.contains(related)) return;
+
+    clearHighlight();
+  });
+})();
+</script>

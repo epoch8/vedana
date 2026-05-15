@@ -1,0 +1,274 @@
+/* src/components/MiniDemo.module.css*/ 
+.demo-section {
+  padding: 5rem 0;
+  background: #f8fafc;
+}
+.demo-inner {
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+.demo-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: center;
+  margin: 0;
+}
+@media (min-width: 768px) {
+  .demo-title { font-size: 2.25rem; }
+}
+.demo-subtitle {
+  margin: 0.5rem 0 0;
+  color: #475569;
+  text-align: center;
+}
+.query-buttons {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+.response-grid {
+  margin-top: 2rem;
+  display: grid;
+  gap: 1.5rem;
+  align-items: start;
+}
+@media (min-width: 768px) {
+  .response-grid { grid-template-columns: 1fr 1fr; }
+}
+.response-panel {
+  position: relative;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 1.25rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.response-label {
+  position: absolute;
+  top: -0.75rem;
+  left: 1rem;
+  font-size: 0.75rem;
+  color: #64748b;
+  background: #fff;
+  padding: 0 0.5rem;
+}
+.response-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.response-header h3 {
+  font-weight: 600;
+  margin: 0;
+  font-size: 1rem;
+}
+.response-subtext {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+.response-content {
+  margin-top: 0.75rem;
+  overflow: hidden;
+}
+.response-measure {
+  visibility: hidden;
+  position: absolute;
+  left: 1.25rem;
+  right: 1.25rem;
+}
+.typewriter-output {
+  font-size: 0.875rem;
+  color: #1e293b;
+}
+.typewriter-output p {
+  white-space: pre-wrap;
+  margin: 0.5rem 0 0;
+}
+.typewriter-output p:first-child {
+  margin-top: 0;
+}
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1rem;
+  vertical-align: middle;
+  background: #334155;
+  margin-left: 2px;
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.why-grid {
+  margin-top: 1rem;
+  display: grid;
+  gap: 1.5rem;
+  transition: opacity 0.3s;
+}
+@media (min-width: 768px) {
+  .why-grid { grid-template-columns: 1fr 1fr; }
+}
+.why-panel {
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 1rem;
+}
+.why-title {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.why-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.875rem;
+  color: #334155;
+}
+.why-list li {
+  margin-top: 0.5rem;
+}
+.why-list li:first-child {
+  margin-top: 0;
+}
+.chat-avatar {
+  display: inline-flex;
+  height: 1.5rem;
+  width: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: linear-gradient(to bottom right, #3b82f6, #4f46e5);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  flex-shrink: 0;
+}
+.chat-avatar-dot {
+  height: 0.625rem;
+  width: 0.625rem;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.9);
+}
+.mark-red {
+  color: #991b1b;
+  background: #fee2e2;
+  border-radius: 2px;
+  padding: 0 0px;
+}
+
+.mark-green {
+  color: #14532d;
+  background: #dcfce7;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+.mark-red,
+.mark-green {
+  display: inline;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  line-height: 1.4;
+}
+
+.why-panel {
+  border-radius: 0.75rem;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  padding: 1rem;
+  box-shadow: none;
+}
+
+.why-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+.why-title::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #94a3b8;
+}
+
+.why-list {
+  margin: 0.75rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.875rem;
+  color: #334155;
+}
+
+.response-label {
+  position: absolute;
+  top: -0.65rem;
+  left: 1rem;
+  font-size: 0.75rem;
+  color: #64748b;
+  background: #f8fafc;      /* как demo-section */
+  padding: 0.1rem 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-bottom: none;
+  border-top-left-radius: 9999px;
+  border-top-right-radius: 9999px;
+}
+
+/* =======================
+   MiniDemo.module.css (patch)
+   Response label as FULL PILL
+   =======================
+
+   Replace previous tab styles with this.
+   This makes “Response 1 / Response 2” a clean floating pill
+   fully rounded, not attached to the border.
+*/
+
+/* attach pill to the card border line */
+.response-panel {
+  /* remove extra top padding so layout stays tight */
+  padding-top: 1.25rem;
+  position: relative;
+}
+
+.response-label {
+  position: absolute;
+  top: 0;                 /* anchor to top border */
+  left: 1rem;
+  transform: translateY(-50%);  /* lift so it sits on the border line */
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  height: 1.6rem;
+  padding: 0 0.9rem;
+
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+
+  color: #334155;
+  background: #ffffff; /* match card surface */
+
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+
+  z-index: 3;
+}

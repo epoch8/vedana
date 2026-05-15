@@ -1,0 +1,357 @@
+/* ======================================================
+   ENTITY CARD LIST — MASONRY (COLUMN-BASED)
+====================================================== */
+
+.entity-card-list {
+  width: 100%;
+  column-gap: var(--space-6);
+}
+
+/* Количество колонок */
+
+.entity-card-list--1 {
+  column-count: 1;
+}
+
+.entity-card-list--2 {
+  column-count: 2;
+}
+
+.entity-card-list--3 {
+  column-count: 3;
+}
+
+.entity-card-list--4 {
+  column-count: 4;
+}
+
+/* Responsive */
+
+@media (max-width: 1024px) {
+  .entity-card-list {
+    column-count: 2 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .entity-card-list {
+    column-count: 1 !important;
+  }
+}
+
+
+/* ======================================================
+   ENTITY CARD
+====================================================== */
+
+.entity-card {
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  margin-bottom: var(--space-6);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+
+  padding: var(--space-4);      /* ужали */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);          /* ужали */
+}
+
+/* Header */
+
+.entity-card__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.entity-card__title {
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  letter-spacing: var(--letter-tight);
+  color: var(--color-text);
+}
+
+.entity-card__hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* Body */
+
+.entity-card__body {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* Rows */
+
+.entity-item {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.9fr) 1.1fr;
+  gap: var(--space-3);
+  padding: 4px 0;
+}
+
+.entity-item + .entity-item {
+  border-top: 1px solid var(--color-divider);
+}
+
+.entity-item__key {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-subtle);
+}
+
+.entity-item__value {
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+.entity-item__link {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.entity-item__link:hover {
+  text-decoration: underline;
+}
+
+
+/* ======================================================
+   ENTITY CARD RICH EXTENSIONS
+====================================================== */
+
+.entity-card-rich {
+  position: relative;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+/* Accent stripe */
+
+.entity-card-rich::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--entity-accent, transparent);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+
+/* ======================================================
+   RELATIONS
+====================================================== */
+
+.entity-relations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.entity-relation-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.entity-relation-label {
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-wide);
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+  font-weight: 600;
+}
+
+
+/* ======================================================
+   CHIPS
+====================================================== */
+
+.entity-relation-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.entity-chip {
+  --chip-color: var(--color-primary);
+
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;             /* компактнее */
+  border-radius: 999px;
+  font-size: 0.85rem;
+
+  border: 1px solid var(--chip-color);
+  color: var(--chip-color);
+  background: color-mix(in srgb, var(--chip-color) 10%, transparent);
+
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.entity-chip:hover {
+  background: var(--chip-color);
+  color: white;
+}
+
+
+/* ======================================================
+   HOVER GRAPH EFFECT
+====================================================== */
+
+:global(.is-dimmed) {
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+
+:global(.is-highlighted) {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--entity-accent) 30%, transparent),
+    0 6px 16px rgba(0,0,0,0.08);
+}
+
+.entity-card-rich-list .entity-card {
+  transition: all 0.2s ease;
+}
+
+/* ======================================================
+   MINI VARIANT (FOR REASONING EVIDENCE)
+   Compact / Dense / Machine-like
+====================================================== */
+
+.entity-card-mini {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+
+  padding: 6px 8px;
+  gap: 4px;
+    margin-bottom: 8px;   /* или 6px если хочешь плотнее */
+
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+
+  animation: cardMaterialize 0.2s ease forwards;
+  opacity: 0;
+  transform: translateY(4px);
+
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard),
+    transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 200ms ease;
+}
+
+/* Title */
+
+.entity-card-mini .entity-card__title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.15;
+  margin: 0;
+}
+
+/* Attribute rows */
+
+.entity-card-mini .entity-item {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: 2px;
+}
+
+.entity-card-mini .entity-item__key {
+  font-size: 0.6rem;
+  color: var(--color-text-subtle);
+  line-height: 1.1;
+}
+
+.entity-card-mini .entity-item__value {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--color-text);
+  line-height: 1.1;
+}
+
+/* Hover */
+
+.entity-card-mini:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+}
+
+/* Animation */
+
+@keyframes cardMaterialize {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* MINI variant accent stripe */
+
+.entity-card-mini {
+  position: relative;
+}
+
+.entity-card-mini::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--entity-accent, transparent);
+  border-radius: 6px 0 0 6px;
+}
+
+/* ======================================================
+   MINI RAIL — ADAPTIVE GRID
+====================================================== */
+
+.entity-card-mini-rail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px;
+
+  width: 100%;
+  padding-top: 6px;
+}
+
+/* ======================================================
+   OPTIONAL: subtle section spacing inside reasoning
+====================================================== */
+
+.reasoningBlock + .reasoningBlock {
+  margin-top: var(--space-5);
+}
+
+/* ======================================
+   STACK COMPATIBILITY FIX
+====================================== */
+
+.stack .entity-card,
+.stack .entity-card-mini {
+  break-inside: auto;
+  -webkit-column-break-inside: auto;
+}
+
+.stack .entity-card-mini:hover {
+  transform: none;
+}
+
+.stack .entity-card-mini {
+  transform: none;
+}

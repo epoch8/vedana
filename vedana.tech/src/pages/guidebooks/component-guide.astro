@@ -1,0 +1,255 @@
+---
+import "@/styles/global.css";
+import "@/styles/vedana/extra-tokens.css";
+
+
+import Anchor from "@/components/blocks/graph-elements/Anchor.astro";
+
+import EntityCardList from "@/components/blocks/entity-card/EntityCardList.astro";
+import EntityCard from "@/components/blocks/entity-card/EntityCard.astro";
+import EntityCardRich from "@/components/blocks/entity-card/EntityCardRich.astro";
+import EntityCardRichList from "@/components/blocks/entity-card/EntityCardRichList.astro";
+
+
+import Chat from "@/components/blocks/chat/Chat.astro";
+import ChatItem from "@/components/blocks/chat/ChatItem.astro";
+
+import ProductDemo from "@/components/products/vedana/product-demo/ProductDemo.tsx";
+import { scenarios } from "@/content/vedana/demo/horeca"
+import { cardRegistry } from "@/content/vedana/demo/horeca"
+
+
+const bot = {
+  name: "Demo Bot",
+  bubbleBg: "#eef3ff"
+};
+
+const user = {
+  name: "User",
+  bubbleBg: "#2A5BFF",
+  bubbleColor: "#fff"
+};
+---
+
+<section class="section">
+  <div class="container">
+    <ProductDemo
+      scenarios={scenarios}
+      cardRegistry={cardRegistry}
+      client:load
+    />
+  </div>
+</section>
+
+<EntityCardRichList columns={3}>
+
+  <EntityCardRich
+    title="Nordic Harbor"
+    entityType="brand"
+    color="var(--entity-brand)"
+    attributes={[
+      { key: "concept type", value: "Casual seafood restaurant" },
+      { key: "opening year", value: "2014" },
+      { key: "website", value: "nordic-harbor.de", href: "https://nordic-harbor.de", external: true }
+    ]}
+    relations={[
+      {
+        label: "Operates in",
+        targets: [
+          { title: "Berlin", entityType: "location", color: "var(--entity-location)" },
+          { title: "Munich", entityType: "location", color: "var(--entity-location)" },
+          { title: "Hamburg", entityType: "location", color: "var(--entity-location)" }
+        ]
+      },
+      {
+        label: "Holds",
+        targets: [
+          { title: "ComplianceRequirement", entityType: "compliance", color: "var(--entity-compliance)" }
+        ]
+      }
+    ]}
+  />
+
+  <EntityCardRich
+    title="Grilled Atlantic Salmon"
+    entityType="dish"
+    color="var(--entity-dish)"
+    attributes={[
+      { key: "category", value: "Main course" },
+      { key: "preparation time", value: "18 min" },
+      { key: "serving size", value: "320 g" }
+    ]}
+    relations={[
+      {
+        label: "Contains",
+        targets: [
+          { title: "Ingredient", entityType: "ingredient", color: "var(--entity-ingredient)" }
+        ]
+      },
+      {
+        label: "Pairs with",
+        targets: [
+          { title: "Wine", entityType: "wine", color: "var(--entity-wine)" }
+        ]
+      }
+    ]}
+  />
+
+  <EntityCardRich
+    title="Ingredient"
+    entityType="ingredient"
+    color="var(--entity-ingredient)"
+    attributes={[
+      { key: "category", value: "Fish" },
+      { key: "is allergen", value: "Yes" },
+      { key: "shelf life", value: "3 days" },
+      { key: "storage", value: "2–4°C refrigerated" },
+      { key: "cost", value: "€8.40 / kg" }
+    ]}
+    relations={[
+      {
+        label: "Supplied by",
+        targets: [
+          { title: "Supplier", entityType: "supplier", color: "var(--entity-supplier)" }
+        ]
+      }
+    ]}
+  />
+
+  <EntityCardRich
+    title="Wine"
+    entityType="wine"
+    color="var(--entity-wine)"
+    attributes={[
+      { key: "type", value: "Red wine" },
+      { key: "origin", value: "Burgundy, France" },
+      { key: "serving temperature", value: "16–18°C" },
+      { key: "body", value: "Medium" },
+      { key: "acidity", value: "High" }
+    ]}
+    relations={[
+      {
+        label: "Complements",
+        targets: [
+          { title: "Atlantic Salmon", entityType: "ingredient", color: "var(--entity-ingredient)" },
+          { title: "Chef's Pasta", entityType: "ingredient", color: "var(--entity-ingredient)" }
+
+        ]
+      }
+    ]}
+  />
+
+  <EntityCardRich
+    title="HACCP Certification 2023–2026"
+    entityType="compliance"
+    color="var(--entity-compliance)"
+    attributes={[
+      { key: "standard number", value: "HACCP-DE-2023-4581" },
+      { key: "scope", value: "Kitchen & cold storage operations" },
+      { key: "issuing body", value: "German Food Safety Authority" },
+      { key: "valid until", value: "Dec 2026" }
+    ]}
+  />
+
+</EntityCardRichList>
+
+<Chat
+  title="Chat with demo bot"
+  showDate={true}
+  dateLabel="Monday, June 9, 2025"
+  reactions={[
+    { label: "Great!" },
+    { label: "Can you do something else?" }
+  ]}
+>
+
+  <ChatItem
+    participant={1}
+    text="Hello, this is a demo bot."
+    participant1={bot}
+    participant2={user}
+  />
+
+  <ChatItem
+    participant={2}
+    text="Hello!"
+    participant1={bot}
+    participant2={user}
+  />
+    <ChatItem
+    participant={1}
+    text="Hello, this is a demo bot."
+    participant1={bot}
+    participant2={user}
+  />
+
+  <ChatItem
+    participant={2}
+    text="Hello!"
+    participant1={bot}
+    participant2={user}
+  />
+<ChatItem
+    participant={2}
+    text="Hello!"
+    participant1={bot}
+    participant2={user}
+  />
+
+  <ChatItem
+  participant={1}
+  participant1={bot}
+  participant2={user}
+    >
+    <p><strong>Understood:</strong></p>
+
+    <ul>
+        <li><code>organic certification standards</code> standard</li>
+        <li><code>seared duck breast with cherry reduction</code> dish type</li>
+        <li><code>pair_well_with</code> - relation between wine and dish</li>
+    </ul>
+
+    <p>Querying graph...</p>
+
+    <p><strong>Answer:</strong></p>
+
+    <ul>
+        <li><strong>Pinot Noir from Burgundy</strong></li>
+        <li><strong>Syrah from Rhône Valley</strong></li>
+    </ul>
+
+    <p>
+        All meet the Restaurant Association's sustainable sourcing guidelines for organic wines.
+    </p>
+  </ChatItem>
+
+</Chat>
+
+<Anchor>Industry</Anchor>
+<Anchor size="sm">VEDANA</Anchor>
+<Anchor size={72} maxLines={3}>suits-for</Anchor>
+<Anchor href="/industries/legal" title="Industry: Legal">Legal</Anchor>
+
+<EntityCardList columns={4}>
+
+  <EntityCard
+    title="Brand"
+    attributes={[
+      { key: "region", value: "EU" },
+      { key: "opening_year", value: "2014" },
+      { key: "website", value: "example.com", href: "https://example.com", external: true },
+      { key: "type", value: "restaurant" }
+    ]}
+  />
+
+  <EntityCard
+    title="Menu Item"
+    attributes={[
+      { key: "category", value: "Main course" },
+      { key: "ingredients", value: "Salmon, lemon, herbs" },
+      { key: "allergens", value: "Fish" },
+      { key: "preparation_time", value: "18 min" }
+    ]}
+  />
+
+</EntityCardList>

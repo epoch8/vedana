@@ -1,0 +1,217 @@
+---
+import styles from "./EntityStack.module.css";
+
+export interface Props {
+  entityType: string;
+  color?: string;
+  description?: string;
+  class?: string;
+}
+
+const {
+  entityType,
+  color,
+  description,
+  class: className
+} = Astro.props;
+---
+
+<section
+  class={`${styles["stack"]} ${className ?? ""}`.trim()}
+  data-entity-stack
+  data-entity-type={entityType}
+  style={color ? `--entity-accent:${color}` : undefined}
+>
+  <header class={styles["stack__header"]}>
+    <div class={styles["stack__type"]}>
+      {entityType}
+    </div>
+
+    <div class={styles["stack__controls"]}>
+      <button
+        class={styles["stack__btn"]}
+        data-stack-prev
+        aria-label="Previous"
+        type="button"
+      >
+        ‹
+      </button>
+
+      <button
+        class={styles["stack__btn"]}
+        data-stack-next
+        aria-label="Next"
+        type="button"
+      >
+        ›
+      </button>
+    </div>
+  </header>
+
+  <div class={styles["stack__body"]} data-stack-body>
+    <div class={styles["stack__shadow"]}></div>
+    <div class={styles["stack__shadow"]}></div>
+
+    <div class={styles["stack__front"]} data-stack-front>
+      <slot />
+    </div>
+  </div>
+
+  {description && (
+    <div class={styles["stack__description"]}>
+      {description}
+    </div>
+  )}
+</section>
+
+
+<script is:inline>
+(() => {
+  const root = document.currentScript?.previousElementSibling;
+  if (!(root instanceof HTMLElement)) return;
+
+  if (root.dataset.stackInitialized === "true") return;
+  root.dataset.stackInitialized = "true";
+
+  /* =====================================================
+     GLOBAL REGISTRY
+  ===================================================== */
+
+  window.__VEDANA_STACKS ??= {};
+
+  /* =====================================================
+     REGISTER STACK
+  ===================================================== */
+
+  const entityType = root.dataset.entityType;
+  if (entityType) {
+    window.__VEDANA_STACKS[entityType] = root;
+  }
+
+  /* =====================================================
+     STACK ELEMENTS
+  ===================================================== */
+
+  const front = root.querySelector("[data-stack-front]");
+  if (!(front instanceof HTMLElement)) return;
+
+  const cards = [...front.querySelectorAll("[data-entity-id]")];
+  if (!cards.length) return;
+
+  root.dataset.hasStack = cards.length > 1 ? "true" : "false";
+
+  let index = 0;
+
+  /* =====================================================
+     RENDER
+  ===================================================== */
+
+  function render() {
+    cards.forEach((card, i) => {
+      if (i === index) {
+        card.setAttribute("data-active", "true");
+      } else {
+        card.removeAttribute("data-active");
+      }
+    });
+  }
+
+  /* expose safe API for external graph navigation */
+  root.__setActiveCardById = (targetId) => {
+    const targetIndex = cards.findIndex(
+      (card) => card.dataset.entityId === targetId
+    );
+
+    if (targetIndex === -1) return false;
+
+    index = targetIndex;
+    render();
+    return true;
+  };
+
+  root.__setActiveCardByIndex = (targetIndex) => {
+    if (targetIndex < 0 || targetIndex >= cards.length) return false;
+    index = targetIndex;
+    render();
+    return true;
+  };
+
+  render();
+
+  /* =====================================================
+     NAVIGATION
+  ===================================================== */
+
+  const prev = root.querySelector("[data-stack-prev]");
+  const next = root.querySelector("[data-stack-next]");
+
+  if (cards.length > 1) {
+    prev?.addEventListener("click", () => {
+      index = (index - 1 + cards.length) % cards.length;
+      render();
+    });
+
+    next?.addEventListener("click", () => {
+      index = (index + 1) % cards.length;
+      render();
+    });
+  }
+})();
+</script>
+
+
+<script is:inline>
+(() => {
+  if (window.__VEDANA_GRAPH_NAV_INITIALIZED === true) return;
+  window.__VEDANA_GRAPH_NAV_INITIALIZED = true;
+
+  /* =====================================================
+     GRAPH CLICK NAVIGATION
+  ===================================================== */
+
+  document.addEventListener("click", (e) => {
+    const link = e.target.closest("[data-target-id]");
+    if (!(link instanceof HTMLElement)) return;
+
+    e.preventDefault();
+
+    const targetType = link.dataset.targetType;
+    const targetId = link.dataset.targetId;
+
+    if (!targetType || !targetId) return;
+
+    const stack = window.__VEDANA_STACKS?.[targetType];
+    if (!(stack instanceof HTMLElement)) return;
+
+    const changed = stack.__setActiveCardById?.(targetId);
+    if (!changed) return;
+
+    /* clear previous graph states */
+    document
+      .querySelectorAll("[data-graph-active]")
+      .forEach((el) => el.removeAttribute("data-graph-active"));
+
+    document
+      .querySelectorAll("[data-graph-source]")
+      .forEach((el) => el.removeAttribute("data-graph-source"));
+
+    /* highlight clicked relation */
+    link.setAttribute("data-graph-active", "true");
+
+    /* highlight target card */
+    const targetCard = stack.querySelector(
+      `[data-entity-id="${CSS.escape(targetId)}"]`
+    );
+    targetCard?.setAttribute("data-graph-active", "true");
+
+    /* highlight source card */
+    const sourceCard = link.closest("[data-entity-id]");
+    sourceCard?.setAttribute("data-graph-source", "true");
+
+    stack.scrollIntoView({
+      block: "nearest",
+      behavior: "smooth"
+    });
+  });
+})();
+</script>

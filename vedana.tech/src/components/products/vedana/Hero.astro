@@ -1,0 +1,73 @@
+<section id="home" class="hero-section">
+  <div class="hero-bg-gradient"></div>
+
+  <div class="hero-inner">
+    <h1 class="hero-title">
+      Structure-first AI that reasons <br /> over your knowledge
+    </h1>
+
+    <!-- Rotating block -->
+    <div class="dynamic-viewport" id="dynamicViewport">
+      <div class="dynamic-stack" id="dynamicStack">
+        <span>Knows your business like your best engineer</span>
+        <span>Knows your numbers like your CFO</span>
+        <span>Knows your protocols like your clinician</span>
+        <span>Knows your compliance like your regulator</span>
+        <span>Knows your inventory like your operations lead</span>
+        <span>Knows your customers like your account manager</span>
+      </div>
+    </div>
+
+    <p class="hero-lead">
+      VEDANA turns your knowledge into
+      <strong>structured data</strong><br />
+      and lets AI
+      <strong>explore it with tools</strong>
+    </p>
+
+      <div class="hero-ctas">
+        <a href="#" class="btn btn--primary">See how it works</a>
+        <a href="#" class="btn btn--link">Talk to us</a>
+      </div>
+
+    <!-- Feature strip -->
+    <div class="hero-features">
+      <span>Open-core engine</span>
+      <span>Managed cloud</span>
+      <span>Enterprise support</span>
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  const stack = document.getElementById("dynamicStack");
+  const viewport = document.getElementById("dynamicViewport");
+
+  if (stack && viewport) {
+    const items = Array.from(stack.children);
+    let index = 0;
+    let offsets = [];
+
+    function calculateOffsets() {
+      offsets = [];
+      let total = 0;
+
+      items.forEach((item) => {
+        offsets.push(total);
+        total += item.offsetHeight;
+      });
+
+      viewport.style.height = items[index].offsetHeight + "px";
+    }
+
+    calculateOffsets();
+    requestAnimationFrame(calculateOffsets);
+    window.addEventListener("resize", calculateOffsets);
+
+    setInterval(() => {
+      index = (index + 1) % items.length;
+      stack.style.transform = `translateY(-${offsets[index]}px)`;
+      viewport.style.height = items[index].offsetHeight + "px";
+    }, 2600);
+  }
+</script>

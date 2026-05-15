@@ -1,0 +1,198 @@
+/* =========================
+   BASE HELPERS
+========================= */
+/* Explicit section wrapper */
+.section {
+  padding: clamp(2rem, 2vw, 4rem) 0;
+}
+
+.container {
+  max-width: var(--container-wide);
+  margin: 0 auto;
+/*  padding: 0 var(--container-padding-x);*/
+}
+
+/* Vertical rhythm utility */
+.flow > * + * {
+  margin-top: var(--space-10);
+}
+
+/* Horizontal rhythm utility */
+
+.row {
+  display: grid;
+  gap: var(--space-6);
+
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(320px, max-content)
+  );
+
+  justify-content: center;
+}
+
+/* =========================
+   SECTION
+======================== */
+
+.section-bg-gradient {
+  position: absolute;
+  inset: 0;
+
+  background: radial-gradient(
+    ellipse at top,
+    var(--section-radial-color),
+    transparent var(--section-radial-stop)
+  );
+
+  pointer-events: none;
+}
+
+
+
+/* =========================
+   BUTTONS
+========================= */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: var(--space-3) var(--space-5);
+
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+
+  transition:
+    background-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+
+/* =========================
+   PRIMARY
+========================= */
+
+.btn--primary {
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn--primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+
+/* =========================
+   DARK
+========================= */
+
+.btn--dark {
+  background-color: var(--color-dark);
+  color: var(--color-on-dark);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn--dark:hover {
+  background-color: var(--color-dark-hover);
+}
+
+
+/* =========================
+   LINK
+========================= */
+
+.btn--link {
+  padding: 0;
+  background: transparent;
+  color: var(--color-primary-ink);
+}
+
+.btn--link:hover {
+  text-decoration: underline;
+}
+
+/* ======================================================
+   HEADINGS — GLOBAL TYPOGRAPHY SYSTEM
+====================================================== */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-family: var(--font-family-base);
+  letter-spacing: var(--heading-letter);
+  color: var(--heading-color);
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* ------------------ H1 ------------------ */
+
+h1 {
+  font-size: var(--heading-1-size);
+  line-height: var(--heading-line-tight);
+}
+
+/* ------------------ H2 ------------------ */
+
+h2 {
+  font-size: var(--heading-2-size);
+  line-height: var(--heading-line-tight);
+}
+
+/* ------------------ H3 ------------------ */
+
+h3 {
+  font-size: var(--heading-3-size);
+  line-height: var(--heading-line-tight);
+}
+
+/* ------------------ H4 ------------------ */
+
+h4 {
+  font-size: var(--heading-4-size);
+  line-height: var(--heading-line-normal);
+}
+
+/* ------------------ H5 ------------------ */
+
+h5 {
+  font-size: var(--heading-5-size);
+  line-height: var(--heading-line-normal);
+}
+
+/* ------------------ H6 ------------------ */
+
+h6 {
+  font-size: var(--heading-6-size);
+  line-height: var(--heading-line-normal);
+  font-weight: var(--font-weight-medium);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: var(--heading-weight);
+}
+
+h1 strong,
+h2 strong,
+h3 strong,
+h4 strong,
+h5 strong,
+h6 strong {
+  font-weight: var(font-weight-heavy);
+}

@@ -1,0 +1,89 @@
+---
+import BaseLayout from "@/layouts/baseLayout.astro";
+import GraphBreadcrumb from "@/components/blocks/graph-elements/GraphBreadcrumb.astro";
+
+import {
+  buildBreadcrumbSchema,
+} from "@/lib/seo/breadcrumbSchema";
+
+import styles from "./InternalLayout.module.css";
+import "../styles/global.css";
+
+import type { SEOConfig } from "@/lib/seo/types";
+
+type Crumb = {
+  label: string;
+  href?: string;
+  nodeId?: string;
+};
+
+interface Props {
+  baseSEO: SEOConfig;
+  pageSEO?: Partial<SEOConfig>;
+  structuredData?: object | object[];
+
+  crumbs: Crumb[];
+
+  class?: string;
+}
+
+const {
+  baseSEO,
+  pageSEO,
+  structuredData,
+  crumbs = [],
+  class: extraClass = ""
+} = Astro.props;
+
+/* ======================================================
+   BASE URL (единый источник)
+====================================================== */
+
+const baseUrl = import.meta.env.PUBLIC_SITE_URL;
+
+/* ======================================================
+   BREADCRUMB SCHEMA (генерация здесь, не в компоненте)
+====================================================== */
+
+const breadcrumbSchema =
+  crumbs.length > 0
+    ? buildBreadcrumbSchema(baseUrl, crumbs)
+    : null;
+
+/* ======================================================
+   MERGE STRUCTURED DATA
+====================================================== */
+
+const mergedStructuredData = [
+  ...(breadcrumbSchema ? [breadcrumbSchema] : []),
+  ...(structuredData
+    ? Array.isArray(structuredData)
+      ? structuredData
+      : [structuredData]
+    : []),
+];
+---
+
+<BaseLayout
+  baseSEO={baseSEO}
+  pageSEO={pageSEO}
+  structuredData={mergedStructuredData}
+>
+
+  <div class={styles["header-spine-gap"]} aria-hidden="true"></div>
+
+  <div class={`${styles["internal-layout"]} ${extraClass}`}>
+    
+    <aside class={styles["spine"]}>
+      <GraphBreadcrumb
+        crumbs={crumbs}
+        baseUrl={baseUrl}
+      />
+    </aside>
+
+    <main class={styles["content"]}>
+      <slot />
+    </main>
+
+  </div>
+</BaseLayout>

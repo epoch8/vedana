@@ -1,0 +1,80 @@
+/* =========================================
+   BASE
+========================================= */
+
+.anchor {
+  text-decoration: none;
+  user-select: none;
+
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+
+/* =========================================
+   CIRCLE (graph node)
+========================================= */
+
+.anchor {
+  position: relative;
+
+  width: var(--anchor-size);
+  height: var(--anchor-size);
+
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+
+  background: var(--color-bg);
+
+  border: 1px solid color-mix(
+    in srgb,
+    var(--color-primary) 25%,
+    transparent
+  );
+
+  opacity: 0.9;
+}
+
+.anchor:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+
+/* =========================================
+   TEXT
+========================================= */
+
+.anchor__text {
+  width: 100%;
+
+  text-align: center;
+  letter-spacing: var(--letter-tight);
+  font-weight: var(--font-weight-semibold);
+
+  color: color-mix(
+    in srgb,
+    var(--color-primary) 60%,
+    var(--color-text)
+  );
+
+  line-height: 1.05;
+
+  white-space: normal;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+
+  line-clamp: var(--anchor-lines);
+  -webkit-line-clamp: var(--anchor-lines);
+
+  overflow: hidden;
+
+  font-size: clamp(10px, calc(var(--anchor-size) / 5.5), 14px);
+}

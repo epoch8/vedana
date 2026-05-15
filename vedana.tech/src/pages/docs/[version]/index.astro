@@ -1,0 +1,77 @@
+---
+import { getCollection, render, type CollectionEntry } from "astro:content";
+import type { GetStaticPaths } from "astro";
+
+import DocsLayout from "../../../layouts/DocsLayout.astro";
+import {
+  LATEST_ID,
+  getDocsVersions,
+} from "../../../lib/docs/versions";
+
+type Doc = CollectionEntry<"docs">;
+
+/* ========================================
+   STATIC PATHS
+
+   One route per non-latest version. The latest home is rendered
+   by /docs/index.astro at /docs/.
+======================================== */
+
+export const getStaticPaths = (async () => {
+  const docs: Doc[] = await getCollection("docs");
+  const versions = getDocsVersions().filter((v) => !v.isLatest);
+
+  return versions.map((version) => {
+    const readme =
+      docs.find((doc) => {
+        const v = (doc.data as any).version ?? LATEST_ID;
+        if (v !== version.id) return false;
+
+        const id = doc.id.toLowerCase();
+        return id === `${version.id.toLowerCase()}/readme`;
+      }) ?? null;
+
+    return {
+      params: { version: version.id },
+      props: { entry: readme, versionId: version.id },
+    };
+  });
+}) satisfies GetStaticPaths;
+
+/* ========================================
+   PROPS
+======================================== */
+
+interface Props {
+  entry: Doc | null;
+  versionId: string;
+}
+
+const { entry, versionId } = Astro.props;
+
+const { Content } = entry
+  ? await render(entry)
+  : { Content: null };
+---
+
+<DocsLayout
+  headings={[]}
+  title={`Vedana Docs (${versionId})`}
+  currentVersion={versionId}
+>
+  <div class="docs-home">
+    {Content ? (
+      <Content />
+    ) : (
+      <p>No README found for version <code>{versionId}</code>.</p>
+    )}
+  </div>
+</DocsLayout>
+
+<style>
+.docs-home {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 16px 80px;
+}
+</style>

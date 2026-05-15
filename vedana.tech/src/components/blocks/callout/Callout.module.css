@@ -1,0 +1,144 @@
+/* ======================================================
+   CALLOUT (SURFACE)
+====================================================== */
+
+.callout {
+
+  /* ----------------------------------
+     THEME TOKENS
+  ---------------------------------- */
+
+  --callout-bg: var(--color-bg-muted);
+  --callout-gradient: none;
+
+  --callout-border-color: var(--color-border);
+  --callout-border-width: 1px;
+
+  --callout-ink: var(--color-text);
+
+  /* spacing tokens */
+  --callout-padding-block: var(--space-6);
+  --callout-padding-inline: var(--container-padding-x); /* fallback по умолчанию */
+
+  /* ----------------------------------
+     SURFACE
+  ---------------------------------- */
+
+  position: relative;
+
+  border-radius: var(--radius-md);
+
+  border: var(--callout-border-width) solid var(--callout-border-color);
+
+  color: var(--callout-ink);
+
+  background:
+    var(--callout-gradient),
+    var(--callout-bg);
+}
+
+
+/* ======================================================
+   SIZE VARIANTS
+====================================================== */
+
+.callout--sm {
+  --callout-padding-block: var(--space-4);
+  --callout-padding-inline: var(--space-4);
+}
+
+.callout--md {
+  --callout-padding-block: var(--space-6);
+  --callout-padding-inline: var(--space-6);
+}
+
+.callout--lg {
+  --callout-padding-block: var(--space-8);
+  --callout-padding-inline: var(--space-8);
+}
+
+
+/* ======================================================
+   CONTAINER (width constraint)
+====================================================== */
+
+.callout__container {
+
+  max-width: var(--container-wide);
+  margin-inline: auto;
+
+  /* 🔑 главный фикс */
+  padding-inline: var(--callout-padding-inline, var(--container-padding-x));
+}
+
+
+/* ======================================================
+   INNER (layout)
+====================================================== */
+
+.callout__inner {
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: var(--space-6);
+
+  padding-block: var(--callout-padding-block);
+}
+
+
+/* ======================================================
+   CONTENT
+====================================================== */
+
+.callout__content {
+
+  flex: 1;
+  min-width: 0;
+
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+}
+
+.callout__content strong {
+  color: var(--color-text-strong);
+  font-weight: var(--font-weight-semibold);
+}
+
+
+/* ======================================================
+   ACTIONS
+====================================================== */
+
+.callout__actions {
+
+  display: flex;
+  align-items: center;
+
+  gap: var(--space-4);
+
+  flex-shrink: 0;
+}
+
+.callout__actions a {
+  white-space: nowrap;
+}
+
+
+/* ======================================================
+   RESPONSIVE
+====================================================== */
+
+@media (max-width: 720px) {
+
+  .callout__inner {
+
+    flex-direction: column;
+    align-items: flex-start;
+
+    gap: var(--space-4);
+
+  }
+
+}

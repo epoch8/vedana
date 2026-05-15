@@ -1,0 +1,284 @@
+---
+import InternalLayout from "@/layouts/InternalLayout.astro";
+
+import { SEOBase } from "@content/vedana/seo/seo";
+import type { SEOConfig } from "@/lib/seo/types";
+
+import Footer from "@/components/products/vedana/footer/Footer.astro";
+
+import IconGrid from "@/components/blocks/icon-grid/IconGrid.astro";
+import IconGridItem from "@/components/blocks/icon-grid/IconGridItem.astro";
+
+import Callout from "@/components/blocks/callout/Callout.astro";
+
+import CardGrid from "../components/blocks/card-grid/CardGrid.astro";
+import CardGridItem from "../components/blocks/card-grid/CardGridItem.astro";
+
+import Timeline from "@/components/blocks/timeline/Timeline.astro";
+import TimelineItem from "@/components/blocks/timeline/TimelineItem.astro";
+
+import "../styles/global.css";
+import "@/styles/vedana/extra-tokens.css";
+
+const crumbs = [
+  { label: "Industries", href: "/industries" }
+];
+
+const pageSEO: Partial<SEOConfig> = {
+  title: "Vedana for Industrues",
+  description:
+    "Structured AI platform for different industries.",
+  canonical: "https://vedana.tech/industries/",
+  og: {
+    type: "website",
+    image: "https://vedana.tech/og-industries.png",
+    imageAlt: "Vedana for Industries"
+  }
+};
+---
+
+<InternalLayout
+  baseSEO={SEOBase}
+  pageSEO={pageSEO}
+  crumbs={crumbs}
+>
+
+    <section class="page-hero">
+        <div class="page-hero-inner">
+            <h1 class="page-hero-title">
+                <strong>Vedana</strong> is built for industries<br />
+                where correct answers are critical
+            </h1>
+
+          <p class="page-hero-lead">
+                Vedana is an open-core AI platform for teams who can’t afford 
+                <strong>mostly right.</strong>  
+                Built for regulated environments with strict rules,
+                complex catalogs, and audit requirements.
+          </p>
+        </div>
+    </section>
+
+    <section class="section">
+    <div class="container flow">
+        <h2>Industry specifics</h2>
+
+        <CardGrid id="industry">
+
+        <CardGridItem
+            title="Automotive"
+            text="Compliance, homologation, and structured product validation for regulated automotive environments."
+            href="/industries/automotive"
+            buttonLabel="Explore Automotive"
+            position={1}
+            span={1}
+            rowSpan={1}
+            background="var(--industry-automotive-bg)"
+            borderColor="var(--industry-automotive)"
+        />
+
+        <CardGridItem
+            title="Development"
+            text="Validate investigation scopes, check regulatory requirements, and estimate engineering work for development projects using structured project and regulatory data."
+            href="/industries/development"
+            buttonLabel="Explore Development"
+            position={1}
+            background="var(--industry-development-bg)"
+            borderColor="var(--industry-development)"
+        />
+
+        <CardGridItem
+            title="HoReCa"
+            text="Deterministic reasoning over regulations, contracts, and structured legal knowledge."
+            href="/industries/horeca"
+            buttonLabel="Explore HoReCa"
+            position={2}
+            background="var(--industry-horeca-bg)"
+            borderColor="var(--industry-horeca)"
+        />
+
+        <CardGridItem
+            title="Legal"
+            text="Deterministic reasoning over regulations, contracts, and structured legal knowledge."
+            href="/industries/legal"
+            buttonLabel="Explore Legal"
+            position={2}
+            background="var(--industry-legal-bg)"
+            borderColor="var(--industry-legal)"
+        />
+
+        </CardGrid>
+    </div>
+    </section>
+
+    <section class="section">
+        <div class="container flow">
+            <h2>Why <strong>Vedana</strong> is different?</h2>
+            <CardGrid id="approach">
+
+            <CardGridItem
+                position={1}
+                title="Generic LLM Chatbots"
+                imageAlt="Generic LLM chatbot architecture"
+                text={`
+                <ul>
+                    <li>Retrieve something that looks relevant, then improvise the answer</li>
+                    <li>Produce plausible outputs that erode trust under scrutiny</li>
+                </ul>
+                `}
+            />
+
+            <CardGridItem
+                position={2}
+                title="Vedana's Approach"
+                imageAlt="Graph-based deterministic reasoning"
+                text={`
+                <ul>
+                    <li>AI is the language interface — not the brain</li>
+                    <li>The brain is structured knowledge and deterministic logic</li>
+                    <li>Answers grounded in verifiable reasoning</li>
+                </ul>
+                `}
+            />
+
+            </CardGrid>
+
+        </div>
+    </section>
+
+    <section class="section">
+    <div class="container flow">
+        <h2>Where VEDANA makes the biggest impact</h2>
+        <p>
+            Vedana is a strong fit when at least <strong>two</strong> of the following conditions describe your environment. The more that apply, the greater the gap between what generic AI delivers and what your organization actually needs.
+        </p>
+
+        <IconGrid>
+        <IconGridItem
+            title="Rules & Exceptions Matter"
+            text="Policies, regulations, eligibility criteria, and approval workflows include nuanced edge cases."
+        >
+            <svg
+            slot="icon"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            >
+            <path d="M12 2l7 4v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-4z"/>
+            </svg>
+        </IconGridItem>
+
+        <IconGridItem
+            title="Exact Identifiers Required"
+            text="SKUs, product codes, legal references, and clause numbers must be precise — never hallucinated."
+        >
+            <svg
+            slot="icon"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            >
+            <path d="M20 12V7a2 2 0 0 0-2-2h-5l-5 5 5 5h5a2 2 0 0 0 2-2v-1"/>
+            <path d="M8 7h.01"/>
+            </svg>
+        </IconGridItem>
+
+        <IconGridItem
+            title="Auditability Is Required"
+            text="Stakeholders need to see why this answer was given, based on which rules and sources."
+        >
+            <svg
+            slot="icon"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            >
+            <path d="M9 11l3 3L22 4"/>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+        </IconGridItem>
+
+        <IconGridItem
+            title="Errors Are Expensive"
+            text="Mistakes carry legal, financial, operational, or safety consequences that can't be walked back."
+        >
+            <svg
+            slot="icon"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            >
+            <path d="M12 9v4"/>
+            <path d="M12 17h.01"/>
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.72 3h16.92a2 2 0 0 0 1.72-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            </svg>
+        </IconGridItem>
+        </IconGrid>
+
+            <Callout style="--callout-bg: var(--color-danger-soft);">
+                <svg
+                    slot="icon"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.72 3h16.92a2 2 0 0 0 1.72-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                </svg>
+
+                If your main goal is creative writing, open-ended brainstorming, or casual Q&A —
+                Vedana is not the right tool.
+                It is purpose-built for <strong>decision-grade answers</strong> in high-stakes environments.
+            </Callout>
+    </div>
+    </section>
+
+    <section class="section">
+        <div class="container flow"> 
+            <h2ыч>Why we don't list every industry</h2>
+            <p>
+                Most AI vendors claim they serve everyone. In reality, they ship the same generic chatbot everywhere and let customers absorb the risk when it fails. Vedana is intentionally narrower — it is built for environments where you must be able to demonstrate, clearly and defensibly, how every answer was produced.
+            </p>
+
+            <Timeline orientation="vertical" lines={false}>
+                    <TimelineItem index="1" title="What was checked">
+                    <p>
+                      Full visibility into which knowledge sources, graph entities, and constraints were evaluated during answer generation
+                    </p>
+                    </TimelineItem> 
+                    <TimelineItem index="2" title="What rules applied">
+                    <p>
+                      Explicit mapping of which policies, conditions, and business logic governed the response
+                    </p>
+                    </TimelineItem> 
+                    <TimelineItem index="3" title="What sources were used">
+                    <p>
+                      Direct traceability to the specific documents, data points, and structured entries that informed the answer
+                    </p>
+                    </TimelineItem> 
+            </Timeline>
+
+        </div>
+    </section>
+        
+
+    <Footer />

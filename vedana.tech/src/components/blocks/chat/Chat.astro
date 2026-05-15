@@ -1,0 +1,91 @@
+---
+import styles from "./Chat.module.css";
+
+interface Reaction {
+  label: string;
+}
+
+interface Props {
+  title?: string;
+
+  showDate?: boolean;
+  dateLabel?: string;
+
+  reactions?: Reaction[];
+
+  inputPlaceholder?: string;
+  inputValue?: string;
+
+  showSendButton?: boolean;
+}
+
+const {
+  title,
+
+  showDate = false,
+  dateLabel,
+
+  reactions = [],
+
+  inputPlaceholder = "Type a message",
+  inputValue = "",
+
+  showSendButton = true,
+} = Astro.props;
+---
+
+<div class={styles.chat}>
+  {title && (
+    <div class={styles.header}>
+      <h3 class={styles.title}>{title}</h3>
+    </div>
+  )}
+
+  <div class={styles.messages}>
+    {showDate && dateLabel && (
+      <div class={styles.date}>{dateLabel}</div>
+    )}
+
+    <slot />
+
+    {reactions.length > 0 && (
+      <div class={styles.reactions}>
+        {reactions.map((r) => (
+          <button type="button" class={styles.reaction}>
+            {r.label}
+          </button>
+        ))}
+      </div>
+    )}
+  </div>
+
+  <div class={styles.inputArea}>
+    <div class={styles.inputWrapper}>
+      {inputValue ? (
+        <span class={styles.inputValue}>{inputValue}</span>
+      ) : (
+        <span class={styles.placeholder}>{inputPlaceholder}</span>
+      )}
+    </div>
+
+    {showSendButton && (
+      <button type="button" class={styles.sendBtn} aria-label="Send message">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class={styles.sendIcon}
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path d="M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z" />
+          <path d="M6 12h16" />
+        </svg>
+      </button>
+    )}
+  </div>
+</div>

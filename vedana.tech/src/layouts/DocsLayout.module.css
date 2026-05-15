@@ -1,0 +1,267 @@
+.container {
+  display: flex;
+  max-width: var(--container-wide);
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+  align-items: flex-start;
+  gap: 3rem;
+}
+
+/* ---------- SIDEBAR ---------- */
+
+.sidebar {
+  width: 280px;
+  position: sticky;
+  top: 100px;
+  height: calc(100vh - 100px);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+/* ---------- CONTENT ---------- */
+
+.content {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* ---------- TYPOGRAPHY ---------- */
+
+.content h1 {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  color: var(--color-text);
+}
+
+.content h2 {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  color: var(--color-text);
+}
+
+.content h3 {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  color: var(--color-text);
+}
+
+.content p {
+  font-size: var(--font-size-base);
+  line-height: 1.75;
+  margin-bottom: 1.25rem;
+  color: var(--color-text-muted);
+}
+
+.content a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.content a:hover {
+  text-decoration: underline;
+}
+
+.content ul,
+.content ol {
+  margin-bottom: 1.25rem;
+  padding-left: 1.5rem;
+  color: var(--color-text-muted);
+  line-height: 1.75;
+}
+
+.content li {
+  margin-bottom: 0.5rem;
+}
+
+/* ---------- MEDIA / IMAGES ---------- */
+
+.content :global(img) {
+  display: block;
+
+  max-width: 100%;
+  height: auto;
+
+  margin: 1.75rem auto 2rem;
+
+  border-radius: var(--radius-md);
+}
+
+.content :global(p > img) {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.content :global(figure) {
+  margin: 2rem 0;
+}
+
+.content :global(figure img) {
+  margin: 0 auto;
+}
+
+.content :global(figcaption) {
+  margin-top: 0.75rem;
+
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* ---------- TABLES ---------- */
+
+.content :global(table) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+
+  margin: 1.75rem 0 2rem;
+
+  overflow-x: auto;
+
+  border-collapse: collapse;
+  border-spacing: 0;
+
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+
+  color: var(--color-text);
+}
+
+.content :global(thead) {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.content :global(th),
+.content :global(td) {
+  padding: 0.75rem 1rem;
+
+  border: 1px solid rgba(15, 23, 42, 0.12);
+
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.content :global(th) {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.content :global(td) {
+  color: var(--color-text-muted);
+}
+
+.content :global(tr:nth-child(even) td) {
+  background: rgba(15, 23, 42, 0.025);
+}
+
+.content :global(th:first-child),
+.content :global(td:first-child) {
+  border-left-color: rgba(15, 23, 42, 0.16);
+}
+
+.content :global(th:last-child),
+.content :global(td:last-child) {
+  border-right-color: rgba(15, 23, 42, 0.16);
+}
+
+.content :global(td code),
+.content :global(th code) {
+  white-space: nowrap;
+}
+
+/* ---------- CODE ---------- */
+
+.content pre {
+  background: var(--color-code-bg);
+  color: var(--color-code-text);
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin-bottom: 1.5rem;
+}
+
+.content code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+
+.content :not(pre) > code {
+  background: var(--color-code-inline-bg);
+  border: 1px solid var(--color-code-inline-border);
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875em;
+  white-space: nowrap;
+}
+
+/* ---------- MERMAID ---------- */
+
+.content :global(pre[data-language="mermaid"]) {
+  display: none;
+}
+
+.content :global(.mermaid-diagram) {
+  margin: 1.75rem 0 2rem;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.content :global(.mermaid-diagram svg) {
+  max-width: 100%;
+  height: auto;
+}
+
+.content :global(.mermaid-diagram p) {
+  font-size: inherit;
+  line-height: inherit;
+  margin-bottom: 0;
+  color: inherit;
+}
+
+/* ---------- MOBILE ---------- */
+
+@media (max-width: 1024px) {
+  .container {
+    gap: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+    padding: 2rem 1rem;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+  }
+
+  .content {
+    width: 100%;
+  }
+
+  .content :global(img) {
+    margin: 1.25rem auto 1.5rem;
+    border-radius: var(--radius-sm);
+  }
+
+  .content :global(table) {
+    font-size: 13px;
+  }
+
+  .content :global(th),
+  .content :global(td) {
+    padding: 0.65rem 0.75rem;
+  }
+}

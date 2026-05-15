@@ -1,0 +1,26 @@
+.circle {
+  position: relative;
+  height: 5rem;
+  width: 5rem;
+  border-radius: 9999px;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+  overflow: hidden;
+  background: #e2e8f0;
+  flex-shrink: 0;
+  outline: 4px solid #fff;
+}
+.photo {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+.initials {
+  height: 100%;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(to bottom right, #fde68a, #fecaca);
+  color: #1e293b;
+  font-weight: 600;
+  font-size: 1.1rem;
+}

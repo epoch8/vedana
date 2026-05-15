@@ -1,0 +1,198 @@
+/* ======================================================
+   TIMELINE — CLEAN ONE-SIDED ARCHITECTURE
+====================================================== */
+
+/* ======================================================
+   ROOT
+====================================================== */
+
+.timeline {
+  --timeline-color: var(--color-primary);
+  --timeline-line-color: var(--color-border);
+  --timeline-marker-bg: #fff;
+  --timeline-marker-size: 40px;
+  --timeline-connector-length: var(--space-6);
+
+  width: 100%;
+  position: relative;
+  box-sizing: border-box;
+
+  /* единый вертикальный ритм */
+  padding-block: var(--space-16);
+  padding-inline: var(--container-padding-x);
+
+  margin: 0 auto;
+  list-style: none;
+}
+
+.timeline > * {
+  box-sizing: border-box;
+}
+
+/* ======================================================
+   MARKER
+====================================================== */
+
+.timeline__marker {
+  width: var(--timeline-marker-size);
+  height: var(--timeline-marker-size);
+
+  border-radius: 50%;
+  border: 2px solid var(--timeline-color);
+  background: var(--timeline-marker-bg);
+  color: var(--timeline-color);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: var(--font-weight-semibold);
+  z-index: 2;
+}
+
+/* ======================================================
+   HORIZONTAL (ONE-SIDED)
+====================================================== */
+
+.timeline--horizontal {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-12);
+
+  max-width: var(--container-wide);
+  position: relative;
+}
+
+/* horizontal spine */
+.timeline--with-lines.timeline--horizontal::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--timeline-marker-size) / 2);
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--timeline-line-color);
+  z-index: 0;
+}
+
+.timeline--horizontal .timeline__item {
+  position: relative;
+  text-align: center;
+  padding-top: calc(var(--timeline-marker-size) / 2 + var(--space-12));
+}
+
+/* marker centered on spine */
+.timeline--horizontal .timeline__marker {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* vertical connector down */
+.timeline--with-lines.timeline--horizontal .timeline__item::after {
+  content: "";
+  position: absolute;
+  top: var(--timeline-marker-size);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: var(--timeline-connector-length);
+  background: var(--timeline-line-color);
+}
+
+/* content */
+.timeline--horizontal .timeline__content {
+  max-width: 340px;
+  margin: 0 auto;
+}
+
+/* ======================================================
+   VERTICAL (ONE-SIDED)
+====================================================== */
+
+.timeline--vertical {
+  max-width: var(--container-wide);
+  margin: 0 auto;
+  position: relative;
+}
+
+/* vertical spine */
+.timeline--with-lines.timeline--vertical::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--timeline-marker-size) / 2);
+  top: var(--space-2);      /* не упирается в padding */
+  bottom: var(--space-2);   /* симметрия */
+  width: 2px;
+  background: var(--timeline-line-color);
+  z-index: 0;
+}
+
+.timeline--vertical .timeline__item {
+  position: relative;
+  margin: var(--space-8) 0;
+
+  padding-left: calc(
+    var(--timeline-marker-size) +
+    var(--timeline-connector-length) +
+    var(--space-6)
+  );
+}
+
+/* horizontal connector from spine */
+.timeline--with-lines.timeline--vertical .timeline__item::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--timeline-marker-size) / 2);
+  left: calc(var(--timeline-marker-size) / 2);
+  width: var(--timeline-connector-length);
+  height: 2px;
+  background: var(--timeline-line-color);
+}
+
+/* marker position */
+.timeline--vertical .timeline__marker {
+  position: absolute;
+  top: 0;
+  left: calc(
+    var(--timeline-marker-size) / 2 + var(--timeline-connector-length)
+  );
+}
+
+/* content full width */
+.timeline--vertical .timeline__content {
+  width: 100%;
+}
+
+/* ======================================================
+   TYPOGRAPHY
+====================================================== */
+
+.timeline__title {
+  margin: 0 0 var(--space-2);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-strong);
+}
+
+.timeline__body {
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: var(--line-height-base);
+}
+
+/* ======================================================
+   RESPONSIVE
+====================================================== */
+
+@media (max-width: 900px) {
+
+  .timeline--horizontal {
+    grid-template-columns: 1fr;
+  }
+
+  .timeline--horizontal .timeline__content {
+    max-width: none;
+  }
+
+}

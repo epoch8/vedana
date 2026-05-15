@@ -1,0 +1,488 @@
+---
+import BaseLayout from "@/layouts/baseLayout.astro";
+
+import { SEOBase } from "@content/vedana/seo/seo";
+
+import RotatingStatement from "@/components/blocks/rotating-statement/RotatingStatement.astro";
+
+import MiniDemo from "@/components/products/vedana/MiniDemo.jsx";
+import Footer from "@/components/products/vedana/footer/Footer.astro";
+import DomainModelDiagram from "@/components/products/vedana/DomainModelDiagram.astro";
+import ReasoningTraceDiagram from "@/components/products/vedana/ReasoningTraceDiagram.astro";
+
+
+import FAQ from "@/components/blocks/faq/FAQ.astro";
+import FAQItem from "@/components/blocks/faq/FAQItem.astro";
+
+import Timeline from "@/components/blocks/timeline/Timeline.astro";
+import TimelineItem from "@/components/blocks/timeline/TimelineItem.astro";
+
+import CardGrid from "../components/blocks/card-grid/CardGrid.astro";
+import CardGridItem from "../components/blocks/card-grid/CardGridItem.astro";
+
+import { EntityList } from "@/content/vedana/entity-registry/vedana.ts";
+import { groupEntitiesByType } from "@/lib/vedana/groupEntitiesByType";
+const entitiesByType = groupEntitiesByType(EntityList);
+
+import Table from "@/components/blocks/table/Table.astro"
+import { ragComparisonTable } from "@/content/vedana/tables/ragComparisonTable"
+
+import Callout from "@/components/blocks/callout/Callout.astro";
+import Button from "@/components/blocks/button/Button.astro";
+
+import "../styles/global.css";
+import "@/styles/vedana/extra-tokens.css";
+import "@/styles/vedana/problem.css";
+
+---
+
+<BaseLayout
+  baseSEO={SEOBase}
+  pageSEO={{
+    title: "Vedana — Deterministic Graph-First AI",
+    description:
+      "Vedana builds structured knowledge graphs so AI answers follow business rules, not similarity guesses.",
+    canonical: "https://vedana.tech/",
+  }}
+>
+
+<section class="hero-section">
+<div class="hero-docs">
+
+  <!-- LEFT CLOUD -->
+
+  <div class="doc doc-pdf"  style="top:3%;  left:-10%; --r:-18deg"></div>
+  <div class="doc doc-docx" style="top:7%;  left:-6%;  --r:11deg"></div>
+  <div class="doc doc-xlsx" style="top:12%; left:8%; --r:-7deg"></div>
+  <div class="doc doc-docx" style="top:15%; left:8%;   --r:14deg"></div>
+
+  <div class="doc doc-pdf"  style="top:23%; left:-1%; --r:-13deg"></div>
+  <div class="doc doc-docx" style="top:29%; left:-10%;   --r:9deg"></div> {/*central */}
+
+  <!-- ближе к центру -->
+
+  <div class="doc doc-docx" style="top:35%; left:-5%; --r:10deg"></div>
+  <div class="doc doc-pdf"  style="top:44%; left:-4%;   --r:12deg"></div>
+
+  <div class="doc doc-xlsx" style="top:56%; left:-8%; --r:-6deg"></div>
+
+  <!-- низ -->
+
+  <div class="doc doc-docx" style="top:66%; left:-2%; --r:10deg"></div>
+  <div class="doc doc-xlsx" style="top:72%; left:4%;   --r:-12deg"></div>
+  <div class="doc doc-pdf"  style="top:80%; left:-8%;  --r:15deg"></div>
+  <div class="doc doc-docx" style="top:88%; left:20%;   --r:-9deg"></div>
+  <div class="doc doc-xlsx" style="top:96%; left:-16%;  --r:6deg"></div>
+
+
+  <!-- RIGHT CLOUD -->
+
+  <div class="doc doc-docx" style="top:4%;  right:-16%; --r:17deg"></div>
+  <div class="doc doc-xlsx" style="top:9%;  right:-6%;  --r:-12deg"></div>
+  <div class="doc doc-pdf"  style="top:14%; right:-12%; --r:10deg"></div>
+  <div class="doc doc-docx" style="top:18%; right:2%;   --r:-14deg"></div>
+
+  <div class="doc doc-xlsx" style="top:26%; right:-14%; --r:9deg"></div>
+
+  <!-- ближе к центру -->
+
+  <div class="doc doc-pdf"  style="top:34%; right:8%;   --r:-11deg"></div>
+  <div class="doc doc-docx" style="top:42%; right:-4%;  --r:8deg"></div>
+
+  <div class="doc doc-xlsx" style="top:50%; right:-18%; --r:-6deg"></div>
+
+  <!-- низ -->
+
+  <div class="doc doc-pdf"  style="top:64%; right:-12%; --r:12deg"></div>
+  <div class="doc doc-docx" style="top:72%; right:4%;   --r:-10deg"></div>
+  <div class="doc doc-xlsx" style="top:80%; right:-8%;  --r:14deg"></div>
+  <div class="doc doc-pdf"  style="top:90%; right:2%;   --r:-8deg"></div>
+  <div class="doc doc-docx" style="top:97%; right:-6%;  --r:6deg"></div>
+
+
+  <!-- TOP FLOATERS -->
+
+  <div class="doc doc-xlsx" style="top:-2%; left:34%;  --r:-7deg"></div>
+  <div class="doc doc-docx" style="top:1%;  right:32%; --r:11deg"></div>
+
+</div>
+
+
+  <div class="hero-inner container">
+    <h1 class="hero-title">
+      Structure-first AI<br /> that reasons over your knowledge
+    </h1>
+
+  <RotatingStatement
+    items={[
+      "Knows your business like your best engineer",
+      "Knows your numbers like your CFO",
+      "Knows your protocols like your clinician",
+      "Knows your compliance like your regulator",
+      "Knows your inventory like your operations lead",
+      "Knows your customers like your account manager"
+    ]}
+  />
+
+    <p class="hero-lead">
+      Vedana turns your documents into <strong>structured data</strong><br/>
+      and lets AI <strong>explore it with tools</strong>
+    </p>
+
+    <div class="hero-ctas">
+      <a href="https://calendly.com/olga_t/60min" class="btn btn--primary">
+        Book a demo
+      </a>
+
+      <a href="/docs" class="btn btn--link">
+        See the docs <span>→</span>
+      </a>
+    </div>
+
+    <!-- Feature strip -->
+    <div class="hero-features">
+      <span>Open-core engine</span>
+      <span>Managed cloud</span>
+      <span>Enterprise support</span>
+    </div>
+  </div>  
+</section>
+
+<section class="knowledge-scene">
+
+  <!-- COPY -->
+
+  <div class="scene-top container">
+
+    <div class="problem-copy frame">
+
+      <h2 class="frame-title">
+        Your company knowledge<br />
+        lives in many places at once
+      </h2>
+
+      <p class="frame-text">
+        PDFs · Specs · Excel sheets · Shared drives · Emails · Wikis · ERP exports
+      </p>
+
+      <p class="frame-lead">
+        AI can read text. But your knowledge isn’t text – it’s a fragmented system.
+      </p>
+
+    </div>
+
+  </div>
+
+
+  <!-- FLOATING DOCUMENTS -->
+
+  <div class="scene-docs">
+    <div class="doc doc-pdf" style="top:11%; left:10%; --r:19deg">PDF</div>
+    <div class="doc doc-docx" style="top:22%; left:2%; --r:-2deg">DOCX</div>
+    <div class="doc doc-xlsx" style="top:40%; left:6%; --r:-2deg">XLSX</div>
+  </div>
+
+
+  <!-- MODEL PART -->
+
+  <div class="scene-bottom">
+
+    <div class="frame">
+
+      <h2 class="frame-title">
+        Vedana builds a data model of your business knowledge
+      </h2>
+      <p class="frame-lead">
+        It turns your documents into structured knowledge:<br/>
+        <strong>Anchors (entities) · Attributes (facts) · Links (relations)</strong>
+      <p class="frame-lead">
+        AI gets a model of how your world works.
+      </p>
+
+      <DomainModelDiagram />
+      <p></p>
+
+      <h2 class="frame-title">
+        AI explores your structured knowledge with tools
+      </h2>
+      <p>
+        It queries the model, compares options, and applies constraints step by step.<br/>
+        So answers follow your rules and you can trace how they were reached. <br/>
+      </p>
+
+      <ReasoningTraceDiagram />
+    </div>
+
+  </div>
+
+</section>
+
+<section class="section">
+    <div class="container flow">
+      <h2>Why similarity-based RAG fails for business questions</h2>
+      <Table table={ragComparisonTable}/>
+    </div>
+</section>
+
+
+    <MiniDemo client:visible />
+
+<section class="section">
+    <div class="container flow">
+      <h2>See industry-specific examples</h2>
+      
+        <CardGrid id="industry">
+
+        <CardGridItem
+            title="Automotive"
+            text="Compliance, homologation, and structured product validation for regulated automotive environments."
+            href="/industries/automotive"
+            buttonLabel="Explore Automotive"
+            position={1}
+            span={1}
+            rowSpan={1}
+            background="var(--industry-automotive-bg)"
+            borderColor="var(--industry-automotive)"
+        />
+
+        <CardGridItem
+            title="Development"
+            text="Validate investigation scopes, check regulatory requirements, and estimate engineering work for development projects using structured project and regulatory data."
+            href="/industries/development"
+            buttonLabel="Explore Development"
+            position={1}
+            background="var(--industry-development-bg)"
+            borderColor="var(--industry-development)"
+        />
+
+        <CardGridItem
+            title="HoReCa"
+            text="Deterministic reasoning over regulations, contracts, and structured legal knowledge."
+            href="/industries/horeca"
+            buttonLabel="Explore HoReCa"
+            position={2}
+            background="var(--industry-horeca-bg)"
+            borderColor="var(--industry-horeca)"
+        />
+
+        <CardGridItem
+            title="Legal"
+            text="Deterministic reasoning over regulations, contracts, and structured legal knowledge."
+            href="/industries/legal"
+            buttonLabel="Explore Legal"
+            position={2}
+            background="var(--industry-legal-bg)"
+            borderColor="var(--industry-legal)"
+        />
+
+        </CardGrid>
+
+
+    </div>
+</section>
+
+  <section class="section">
+    <div class="container flow">
+
+    <Callout
+      style={`
+        --callout-bg: hsl(228 60% 98%);
+        --callout-border-color: hsl(232 70% 90%);
+
+        --callout-gradient:
+          linear-gradient(
+            180deg,
+            transparent 0%,
+            hsla(238, 100%, 75%, 0.03) 50%,
+            hsla(242, 100%, 78%, 0.05) 80%,
+            hsla(245, 100%, 80%, 0.04) 100%
+          );
+
+        --callout-icon-color: hsl(238 90% 62%);
+      `}
+    >
+
+    <p style="font-size:12px; font-weight:600; letter-spacing:0.08em; color:hsl(223 70% 55%); text-transform:uppercase;">
+    MODELING FOUNDATION
+    </p>
+
+    <h3 style="margin-top:6px;">
+    Vedana is built on Minimal Modeling
+    </h3>
+    <p></p>
+    <p>
+    <a href="#">Minimal Modeling</a> is a data modeling discipline created by
+    Alexey Makhotkin, author of the
+    <a href="#">Database Design Book</a>.
+    </p>
+
+    <p>
+    Instead of treating knowledge as raw text, Minimal Modeling represents it as a
+    structured system of <strong>anchors, attributes, and links</strong>.
+    </p>
+
+    <ul>
+    <li>
+    <strong>Anchors</strong> represent entities — products, suppliers, regulations,
+    ingredients.
+    </li>
+
+    <li>
+    <strong>Attributes</strong> describe properties of those entities.
+    </li>
+
+    <li>
+    <strong>Links</strong> define relationships between them.
+    </li>
+    </ul>
+
+    <p>
+    This structure turns documents into a <strong>navigable knowledge graph</strong>
+    that an AI assistant can reason over.
+    </p>
+
+    <p>
+    If the assistant struggles with certain questions, you don’t rewrite prompts.
+    You simply <strong>lift that concept into the data model</strong> — as a new
+    anchor, attribute, or relationship.
+    </p>
+
+    <p>
+    <strong>Vedana doesn’t rely on prompts alone.</strong>
+    It reasons on top of an explicit data structure.
+    </p>
+
+    </Callout>
+
+    </div>
+  </section>
+
+  <section class="section timeline-section">
+    <div class="container flow">
+
+      <h2 class="text-center">Implementation timeline</h2>
+
+      <Timeline orientation="horizontal" lines={true}>
+        <TimelineItem index="1" title="Week 1: Discovery & Data Mapping">
+          <p>
+            We meet with your experts to identify recurring questions and key data sources – your products, services, pricing, operating procedures and other important knowledge sources.
+          </p>
+          <p>
+            <strong>Outcome:</strong> Your domain map + list of structured and unstructured sources.
+          </p>
+        </TimelineItem>
+
+        <TimelineItem index="2" title="Week 2: Domain Modeling">
+          <p>
+            We build your knowledge graph (entities, attributes, links) and define how VEDANA should reason via Playbook logic.
+          </p>
+          <p>
+            <strong>Outcome:</strong> Custom data model + reasoning framework for your use cases.
+          </p>
+        </TimelineItem>
+
+        <TimelineItem index="3" title="Week 3: Data Loading">
+          <p>
+            We ingest and normalize your data using the data model.
+          </p>
+          <p>
+            <strong>Outcome:</strong> Live knowledge graph populated with your real operational data.
+          </p>
+        </TimelineItem>
+
+        <TimelineItem index="4" title="Week 4: Testing & Launch">
+          <p>
+            We test the system on your golden dataset, fine-tune the Playbook reasoning rules, and launch an internal demo of your working assistant.
+          </p>
+          <p>
+            <strong>Outcome:</strong> AI Assistant that answers your team’s real questions with structured, constraint-aware reasoning.
+          </p>
+        </TimelineItem>
+      </Timeline>
+
+    </div>
+  </section>
+
+  <section class="section faq-section">
+    <div class="container flow">
+      <h2 class="text-center">Frequently Asked Questions</h2>
+
+      <FAQ>
+
+        <FAQItem question="Is Vedana just another RAG chatbot?">
+          <p>No. Vedana is graph-first reasoning infrastructure. It does not rely on similarity search alone. It builds and queries structured knowledge graphs to answer questions under explicit constraints.</p>
+        </FAQItem>
+
+        <FAQItem question="How is this different from vector search?">
+          <p>Vector search retrieves similar text fragments. Vedana evaluates entities, attributes, and relationships before answering. This reduces hallucinations and ensures answers follow business rules.</p>
+        </FAQItem>
+
+        <FAQItem question="Do I need a knowledge graph beforehand?">
+          <p>No. Vedana extracts entities and relations from your documents, normalizes them, and builds a structured graph layer on top of your existing data sources.</p>
+        </FAQItem>
+
+        <FAQItem question="What kind of companies is Vedana built for?">
+          <p>Enterprises where answers must follow constraints: healthcare compliance, product eligibility, logistics rules, regulatory environments, complex catalogs, and operational playbooks.</p>
+        </FAQItem>
+
+
+        <FAQItem question="How long does a pilot take?">
+          <p>A structured pilot can be delivered in 4 weeks. It includes data extraction, graph modeling, reasoning setup, and measurable validation.</p>
+        </FAQItem>
+
+        <FAQItem question="Is this SaaS or on-premise?">
+          <p>Both. Vedana can run in a managed cloud environment or be deployed inside your infrastructure, depending on security and compliance requirements."</p>
+        </FAQItem>
+
+    </FAQ>
+
+    </div>
+  </section>
+
+    <section class="section">
+        <div class="container flow">
+
+          <Callout
+            style={`
+
+            --callout-bg:
+            linear-gradient(
+              180deg,
+              hsl(210 100% 98%),
+              hsl(220 90% 96%)
+            );
+
+          --callout-gradient:
+            radial-gradient(
+              600px 200px at 20% -20%,
+              rgba(42, 91, 255, 0.08),
+              transparent 70%
+            );
+
+          --callout-border-color: var(--color-primary-border);
+          --callout-ink: var(--color-text);
+            `}
+          >
+            <div>
+              <h3>Try Vedana your way</h3>
+              <p></p>
+              <p>Start with the open-core docs, or work with us to design your data model and deployment.</p>
+            </div>
+
+            <div slot="actions">
+              <Button href="https://calendly.com/olga_t/60min" variant="primary">
+                Book a call
+              </Button>
+
+              <Button href="/docs" variant="secondary">
+                Read the docs <span>→</span>
+              </Button>
+            </div>
+          </Callout>
+
+        </div>
+    </section>
+
+
+    <Footer />
+</BaseLayout>

@@ -1,0 +1,162 @@
+---
+import styles from "./EntityBoard.module.css";
+
+export interface Props {
+  columns?: 1 | 2 | 3 | 4;
+  class?: string;
+}
+
+const {
+  columns = 3,
+  class: className
+} = Astro.props;
+
+/* безопасный выбор класса */
+const columnClassMap: Record<1 | 2 | 3 | 4, string> = {
+  1: styles["board--1"],
+  2: styles["board--2"],
+  3: styles["board--3"],
+  4: styles["board--4"]
+};
+
+const columnClass = columnClassMap[columns];
+
+const sectionClass = [
+  styles["board"],
+  columnClass,
+  className
+].filter(Boolean).join(" ");
+---
+
+<section
+  class={sectionClass}
+  data-entity-board
+>
+
+
+  <header class={styles["board__toolbar"]}>
+    {/* TODO: вернуть graph view когда-нибудь
+    <div class={styles["board__tabs"]}>
+
+      <button
+        class={`${styles["tab"]} ${styles["is-active"]}`}
+        data-view-tab="cards"
+      >
+        Card view
+      </button>
+
+      <button
+        class={styles["tab"]}
+        data-view-tab="graph"
+      >
+        Graph view
+      </button>
+      
+    </div>*/}
+
+  </header>
+
+
+  <div class={styles["board__viewport"]}>
+
+    <div
+      class={`${styles["board__layer"]} ${styles["is-active"]}`}
+      data-view="cards"
+    >
+      <slot />
+    </div>
+
+    <div
+      class={styles["board__layer"]}
+      data-view="graph"
+    >
+      <div class={styles["board__graph-placeholder"]}>
+        Graph view coming soon
+      </div>
+    </div>
+
+  </div>
+
+</section>
+
+
+<script is:inline>
+(() => {
+
+  const board = document.currentScript.closest("[data-entity-board]");
+  if (!board) return;
+
+  const tabs = board.querySelectorAll("[data-view-tab]");
+  const layers = board.querySelectorAll("[data-view]");
+
+  /* -------------------------------
+     VIEW SWITCH
+  --------------------------------*/
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+
+      const view = tab.dataset.viewTab;
+
+      tabs.forEach(t => t.classList.remove("is-active"));
+      tab.classList.add("is-active");
+
+      layers.forEach(layer => {
+        if (layer.dataset.view === view) {
+          layer.classList.add("is-active");
+        } else {
+          layer.classList.remove("is-active");
+        }
+      });
+
+    });
+  });
+
+
+  /* -------------------------------
+     GRAPH HIGHLIGHT ENGINE
+  --------------------------------*/
+
+  function clearHighlight() {
+    board.querySelectorAll("[data-entity-id]").forEach(card => {
+      card.classList.remove("is-highlighted", "is-dimmed");
+    });
+  }
+
+  board.addEventListener("mouseover", (event) => {
+
+    const chip = event.target.closest("[data-target-id]");
+    if (!chip) return;
+
+    const targetId = chip.dataset.targetId;
+    if (!targetId) return;
+
+    const targetCard = board.querySelector(`[data-entity-id="${targetId}"]`);
+    if (!targetCard) return;
+
+    board.querySelectorAll("[data-entity-id]").forEach(card => {
+
+      if (card.dataset.entityId === targetId) {
+        card.classList.add("is-highlighted");
+        card.classList.remove("is-dimmed");
+      } else {
+        card.classList.add("is-dimmed");
+        card.classList.remove("is-highlighted");
+      }
+
+    });
+
+  });
+
+
+  board.addEventListener("mouseout", (event) => {
+
+    const chip = event.target.closest("[data-target-id]");
+    if (!chip) return;
+
+    clearHighlight();
+
+  });
+
+})();
+</script>

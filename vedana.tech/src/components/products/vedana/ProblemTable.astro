@@ -1,0 +1,264 @@
+---
+// ProblemTable.astro
+
+const data = [
+  {
+    key: "1",
+    title: "Complete list with filters",
+    example: '“Which products can be sold in the EU?”',
+    classic:
+      "Returns a few similar products. May miss others that also qualify.",
+    semanticHtml:
+      "Checks all required conditions before answering. <br/> <strong>Returns the full validated list.</strong>",
+  },
+  {
+    key: "2",
+    title: "Exact product codes / SKUs",
+    example: '“Show details for SKU B49-6”',
+    classic:
+      "May surface similar-looking codes (e.g., B49-8) because they appear in related documents.",
+    semanticHtml:
+      "<strong>Exact identifier match.</strong> <br/> Only the requested SKU is evaluated and returned.",
+  },
+  {
+    key: "3",
+    title: "Business rules & constraints",
+    example: '“Can this battery be shipped by air?”',
+    classic:
+      "Finds documents mentioning air shipment, but does not verify weight or hazard class.",
+    semanticHtml:
+      "Verifies shipment rules before answering.<br/> <strong>Clear Yes/No answer based on the constraints.</strong>",
+  },
+  {
+    key: "4",
+    title: "Compatibility logic",
+    example: '“Which chargers work with Model X?”',
+    classic:
+      "Returns documents where both are mentioned. May include incompatible options.",
+    semanticHtml:
+      "Checks technical compatibility first. <br/> <strong>Only compatible options are returned.</strong>",
+  },
+  {
+    key: "5",
+    title: "Regulatory compliance",
+    example: '“Is this device compliant in Germany?”',
+    classic:
+      "Finds documents mentioning compliance, but does not confirm certificate validity.",
+    semanticHtml:
+      "Checks certification status before answering. <br/> <strong>Compliance is verified.</strong>",
+  },
+];
+---
+
+<div class="problem-table-wrapper">
+  <div class="table-header">
+    <div>Business Scenario</div>
+
+    <div class="header-classic">
+      Classic RAG
+      <span class="badge">Similarity-based</span>
+    </div>
+
+    <div class="header-semantic">
+      Semantic RAG (Vedana)
+      <span class="badge badge-primary">Rule-based</span>
+    </div>
+  </div>
+
+  <div class="problem-table">
+    {
+      data.map((row) => (
+        <div class="table-row">
+          <div class="aspect">
+            <div class="aspect-title">{row.title}</div>
+            <div class="aspect-example">{row.example}</div>
+          </div>
+
+          <div class="classic">
+            <span class="icon icon-bad">✕</span>
+            <div class="text">{row.classic}</div>
+          </div>
+
+          <div class="semantic">
+            <span class="icon icon-good">✓</span>
+            <div class="text" set:html={row.semanticHtml} />
+          </div>
+        </div>
+      ))
+    }
+  </div>
+</div>
+
+<style>
+.problem-table-wrapper {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Header */
+
+.table-header {
+  display: grid;
+  grid-template-columns: 28% 36% 36%;
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  background: var(--color-bg-muted);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-strong);
+}
+
+.header-classic {
+  padding-right: var(--space-6);
+  border-right: 1px solid var(--color-border);
+}
+
+.header-semantic {
+  padding-left: var(--space-6);
+}
+
+/* Badges */
+
+.badge {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-subtle);
+}
+
+.badge-primary {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+}
+
+/* Rows */
+
+.problem-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 28% 36% 36%;
+  padding: var(--space-6) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+
+.table-row:hover {
+  background: var(--color-bg-muted);
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+/* Aspect column */
+
+.aspect {
+  display: block;
+}
+
+.aspect-title {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-strong);
+  margin-bottom: var(--space-2);
+}
+
+.aspect-example {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-subtle);
+}
+
+/* Classic & Semantic layout */
+
+.classic,
+.semantic {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.classic {
+  padding-right: var(--space-6);
+  border-right: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.semantic {
+  padding-left: var(--space-6);
+}
+
+/* Text block */
+
+.text {
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+}
+
+/* Emphasis */
+
+.semantic strong {
+  color: var(--color-primary-ink);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Icons */
+
+.icon {
+  width: 18px;
+  height: 18px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+/* Red X */
+
+.icon-bad {
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  color: var(--color-danger);
+}
+
+/* Green ✓ */
+
+.icon-good {
+  background: rgba(22, 163, 74, 0.08);
+  border: 1px solid rgba(22, 163, 74, 0.2);
+  color: var(--color-success);
+}
+
+/* Responsive */
+
+@media (max-width: 900px) {
+  .table-header {
+    display: none;
+  }
+
+  .table-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+  }
+
+  .classic,
+  .semantic {
+    padding: 0;
+    border: none;
+  }
+}
+</style>

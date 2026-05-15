@@ -1,0 +1,300 @@
+/* =========================
+   THEME TOKENS
+========================= */
+
+:root {
+
+  /* ======================================
+     FOUNDATION TOKENS
+     (raw scales only)
+  ====================================== */
+
+  /* Font family */
+  --font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Font weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-heavy: 800;
+
+  /* Line heights */
+  --line-height-tight: 1.15;
+  --line-height-base: 1.6;
+
+  /* Letter spacing */
+  --letter-tight: -0.02em;
+  --letter-normal: 0;
+  --letter-wide: 0.08em;
+
+  /* Font family */
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
+  /* Font sizes (base scale) */
+  --font-size-base: 1rem;
+  --font-size-sm: 0.875rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+
+  /* Code */
+  --color-code-bg: #1a2540;
+  --color-code-text: #dde6f5;
+  --color-code-inline-bg: #eef1f8;
+  --color-code-inline-border: #d5dcea;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  /* Layout */
+  --container-wide: 1280px;
+  --container-padding-x: 24px;
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --space-9: 2.25rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 0.15s;
+  --dur-med: 0.3s;
+  --dur-slow: 0.6s;
+
+
+/* ======================================
+   SEMANTIC TOKENS
+   (role-based meaning)
+====================================== */
+
+/* Surfaces */
+--color-bg: #ffffff;
+--color-bg-muted: #f7f9fd;          /* чуть холоднее */
+
+/* Text */
+--color-text: #0c1426;              /* холодный deep ink */
+--color-text-strong: #070f1f;
+--color-text-muted: #45556f;
+--color-text-subtle: #60728f;
+
+/* Structural */
+--color-border: #dfe7f3;            /* немного синевы */
+--color-divider: #93a6c7;
+
+/* ======================================
+   Brand — REASONING BLUE
+====================================== */
+
+--color-primary: #2A5BFF;           /* reasoning blue: индиго-синий */
+--color-primary-hover: #1F49E6;
+--color-primary-ink: #1737B6;       /* для ссылок/текста/outline */
+
+--color-dark: #0b1630;              /* deep navy */
+--color-dark-hover: #12224a;
+
+--color-on-primary: #ffffff;
+--color-on-dark: #ffffff;
+
+/* Status */
+--color-success: #16a34a;
+--color-danger: #dc2626;
+
+/* ======================================
+   Soft backgrounds
+====================================== */
+
+--color-primary-soft: #eef3ff;      /* меньше “голубого”, больше “ледяного” */
+--color-primary-border: #b8ccff;
+
+--color-success-soft: #f0fdf4;
+--color-success-border: #bbf7d0;
+
+--color-danger-soft: #fef2f2;
+--color-danger-border: #fecaca;
+
+--color-neutral-soft: #f0f4fb;      /* нейтральный с холодным оттенком */
+
+/* ======================================
+   SIGNAL — ENGINE ENERGY
+   (НЕ для кнопок)
+====================================== */
+
+--color-signal: #00D4FF;           /* холодный вычислительный циан */
+--color-signal-hover: #00BCE6;
+--color-signal-soft: #E6FAFF;
+--color-signal-glow: rgba(0, 212, 255, 0.35);
+
+/* ======================================
+   Sections
+====================================== */
+
+--section-radial-color: rgba(42, 91, 255, 0.05);
+--section-radial-stop: 60%;
+
+  /* ======================================
+     TYPOGRAPHY SYSTEM
+  ====================================== */
+
+  /* Heading sizes */
+  --heading-1-size: clamp(2.4rem, 4vw, 3.2rem);
+  --heading-2-size: clamp(1.9rem, 3vw, 2.4rem);
+  --heading-3-size: clamp(1.4rem, 2vw, 1.8rem);
+  --heading-4-size: 1.25rem;
+  --heading-5-size: 1.1rem;
+  --heading-6-size: 1rem;
+
+  /* Heading structure */
+  --heading-weight: var(--font-weight-semibold);
+  --heading-strong-weight: var(--font-weight-bold);
+
+  --heading-line-tight: var(--line-height-tight);
+  --heading-line-normal: var(--line-height-base);
+
+  --heading-letter: var(--letter-tight);
+  --heading-color: var(--color-text-strong);
+
+
+  /* ======================================
+     COMPONENT TOKENS
+     (layout only)
+  ====================================== */
+
+  /* -----------------
+     HERO (landing)
+  ----------------- */
+
+  --hero-padding-top: 7rem;
+  --hero-padding-bottom: 5.5rem;
+  --hero-padding-x: var(--space-4);
+
+  --hero-max-width: 58rem;
+  --hero-lead-max-width: 40rem;
+
+  --hero-bg-start: var(--color-bg-muted);
+  --hero-bg-end: var(--color-bg);
+
+  --hero-ctas-gap: var(--space-5);
+  --hero-features-gap: var(--space-5);
+  --hero-features-dot-gap-left: var(--space-1);
+  --hero-features-dot-gap-right: var(--space-3);
+
+  --hero-viewport-transition: height var(--dur-med) ease;
+  --hero-stack-transition: transform var(--dur-slow) var(--ease-standard);
+
+
+  /* -----------------
+     PAGE HERO
+  ----------------- */
+
+  --page-hero-padding-top: 5rem;
+  --page-hero-padding-bottom: 3rem;
+
+  --page-hero-max-width: 64rem;
+  --page-hero-lead-max-width: 48rem;
+
+  --page-hero-divider-width: 72px;
+
+
+  /* -----------------
+     FRAME
+  ----------------- */
+
+  --frame-copy-max-width: 42rem;
+  --frame-copy-gap: var(--space-3);
+
+
+  /* -----------------
+     FAQ
+  ----------------- */
+
+  --faq-question-size: var(--font-size-lg);
+  --faq-answer-size: var(--font-size-base);
+
+
+
+/* -----------------
+   GRAPH BREADCRUMB (SPINE)
+----------------- */
+
+/* Geometry */
+--spine-column-width: 280px;              /* ширина левой колонки */
+--spine-x-offset: 22px;                   /* центр оси относительно колонки */
+
+--spine-line-width: 1px;
+--spine-line-length: 28px;
+
+/* Node */
+--spine-node-padding-y: var(--space-2);
+--spine-node-padding-x: var(--space-3);
+
+--spine-node-radius: 999px;
+--spine-node-font-size: var(--font-size-sm);
+--spine-node-font-weight: var(--font-weight-medium);
+--spine-node-font-weight-current: var(--font-weight-semibold);
+
+/* Colors */
+--spine-line-color: var(--color-border);
+--spine-line-hover-color: var(--color-divider);
+
+--spine-node-bg: var(--color-bg);
+--spine-node-border: var(--color-border);
+--spine-node-border-hover: var(--color-divider);
+
+--spine-node-color: var(--color-text-muted);
+--spine-node-color-hover: var(--color-text);
+--spine-node-color-current: var(--color-text);
+
+/* Motion */
+--spine-transition: color var(--dur-fast) var(--ease-standard),
+                    border-color var(--dur-fast) var(--ease-standard),
+                    background var(--dur-fast) var(--ease-standard);
+
+/* -----------------
+   STRUCTURAL AXIS
+----------------- */
+
+--layout-left-offset: 72px;      /* расстояние от края viewport */
+--layout-spine-width: 120px;     /* ширина breadcrumb оси */
+--layout-content-offset: 160px;  /* отступ контента от левого края */
+
+--header-height: 64px;
+
+/* -----------------
+   ANCHOR
+----------------- */
+
+--anchor-size-sm: 44px;
+--anchor-size-md: 60px;
+--anchor-size-lg: 80px;
+
+/* structural default */
+--anchor-size: var(--anchor-size-lg);
+
+--heading-1-baseline-ratio: 0.78;
+
+--internal-baseline-optical-shift: -12px;
+
+--internal-hero-offset: calc(
+  var(--header-height)
+  + var(--page-hero-padding-top)
+  + (var(--heading-1-size) * var(--heading-1-baseline-ratio))
+  - (var(--anchor-size-md) / 2)
+  + var(--internal-baseline-optical-shift)
+);
+
+
+}

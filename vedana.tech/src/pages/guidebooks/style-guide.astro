@@ -1,0 +1,238 @@
+---
+import BaseLayout from "@/layouts/baseLayout.astro";
+import { SEOBase } from "@content/vedana/seo/seo";
+
+import "@/styles/global.css";
+---
+
+<BaseLayout
+  baseSEO={SEOBase}
+  pageSEO={{
+    title: "Vedana — Style guidebook",
+    description:
+      "Vedana builds structured knowledge graphs so AI answers follow business rules, not similarity guesses.",
+    canonical: "https://vedana.tech/guidebooks/style",
+  }}
+>
+  {/* ================= HERO COMPONENT ================= */}
+
+  <section class="hero-section">
+
+    <div class="section-bg-gradient"></div>
+
+    <div class="container hero-inner">
+
+      <h1>
+        Vedana <strong>Design Guidebook</strong>
+      </h1>
+
+      <div class="dynamic-viewport">
+        <div class="dynamic-stack">
+          <span>Structured reasoning</span>
+          <span>Graph-first AI</span>
+          <span>Deterministic answers</span>
+        </div>
+      </div>
+
+      <p class="hero-lead">
+        Hero lead text. Supports <strong>strong emphasis</strong>.
+      </p>
+
+      <div class="hero-ctas">
+        <a href="#" class="btn btn--primary">See how it works</a>
+        <a href="#" class="btn btn--dark">Dark</a>
+        <a href="#" class="btn btn--link">Talk to us</a>
+      </div>
+
+      <div class="hero-features">
+        <span>Knowledge Graph</span>
+        <span>Playbooks</span>
+        <span>Governance</span>
+      </div>
+
+    </div>
+
+  </section>
+
+  {/* ================= PAGE HERO ================= */}
+
+  <section class="section page-hero">
+    <div class="container flow page-hero-inner">
+      <h1 class="page-hero-title">
+        Vedana <strong>Design Guidebook</strong>
+      </h1>
+
+      <p class="page-hero-lead">
+        Internal UI reference. Tokens, components, usage rules,
+        and real class examples from <strong>theme.css</strong>.
+      </p>
+    </div>
+  </section>
+
+  {/* ================= TYPOGRAPHY ================= */}
+
+  <section>
+    <div class="container flow">
+
+      <h2>Typography</h2>
+
+        <div class="container flow">
+          <h1>H1 — Main Page Title</h1>
+          <h2>H2 — Section Title</h2>
+          <h3>H3 — Block Title</h3>
+          <h4>H4 — Subheading</h4>
+          <h5>H5 — Minor Heading</h5>
+          <h6>H6 — Small Heading</h6>
+        </div>
+
+        <div class="container flow">
+          <p>
+            Base paragraph. Uses global typography defaults.
+          </p>
+          <p style="color: var(--color-text-muted);">
+            Muted text — use for explanations.
+          </p>
+          <p style="color: var(--color-text-subtle); text-transform: uppercase; letter-spacing: var(--letter-wide); font-size: var(--font-size-sm);">
+            SUBTLE LABEL
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  {/* ================= COLORS ================= */}
+
+  <section class="section">
+    <div class="container flow">
+
+      <h2>Color System</h2>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: var(--space-6);">
+
+        <div style="background: var(--color-primary); padding: var(--space-6); color:white; border-radius: var(--radius-md);">
+          Primary
+        </div>
+
+        <div style="background: var(--color-primary-soft); border:1px solid var(--color-primary-border); padding: var(--space-6); border-radius: var(--radius-md);">
+          Primary Soft
+        </div>
+
+        <div style="background: var(--color-success-soft); border:1px solid var(--color-success-border); padding: var(--space-6); border-radius: var(--radius-md);">
+          Success Soft
+        </div>
+
+        <div style="background: var(--color-danger-soft); border:1px solid var(--color-danger-border); padding: var(--space-6); border-radius: var(--radius-md);">
+          Danger Soft
+        </div>
+
+        <div style="background: var(--color-neutral-soft); padding: var(--space-6); border-radius: var(--radius-md);">
+          Neutral Soft
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+{/* ================= BUTTONS ================= */}
+
+<section class="section">
+  <div class="container flow">
+
+    <h2>Buttons</h2>
+
+    <div style="display:flex; gap: var(--space-6); flex-wrap:wrap;">
+
+      <a href="#" class="btn btn--primary">See how it works</a>
+      <a href="#" class="btn btn--dark">Dark</a>
+      <a href="#" class="btn btn--link">Talk to us</a>
+
+    </div>
+
+    <pre>
+.btn
+.btn--primary
+.btn--dark
+.btn--link
+    </pre>
+
+  </div>
+</section>
+
+
+
+  {/* ================= FRAME COPY ================= */}
+
+  <section>
+    <div class="container flow">
+
+      <h2>Frame Copy (Scroll Sections)</h2>
+
+      <div class="frame-copy">
+        <h3 class="frame-title">
+          Frame Title
+        </h3>
+
+        <p class="frame-lead">
+          Lead paragraph inside scroll frame.
+        </p>
+
+        <p class="frame-text">
+          Supporting explanation with <span class="frame-accent">accent highlight</span>.
+        </p>
+      </div>
+
+      <pre>
+.frame-copy
+.frame-title
+.frame-lead
+.frame-text
+.frame-accent
+      </pre>
+
+    </div>
+  </section>
+
+  {/* ================= PAGE HERO ================= */}
+
+  <section class="page-hero">
+    <div class="page-hero-inner">
+      <h2 class="page-hero-title">
+        Page Hero Title <strong>Structure</strong>
+      </h2>
+
+      <p class="page-hero-lead">
+        Used on inner pages like /platform, /industries, etc.
+      </p>
+    </div>
+  </section>
+
+  {/* ================= LAYOUT ================= */}
+
+  <section>
+    <div class="container flow">
+
+      <h2>Spacing Scale</h2>
+
+      <div style="display:grid; gap: var(--space-4);">
+
+        <div style="background: var(--color-primary-soft); padding: var(--space-4);">
+          space-4 padding
+        </div>
+
+        <div style="background: var(--color-primary-soft); padding: var(--space-8);">
+          space-8 padding
+        </div>
+
+        <div style="background: var(--color-primary-soft); padding: var(--space-12);">
+          space-12 padding
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+</BaseLayout>

@@ -1,0 +1,345 @@
+---
+import "@/styles/vedana/extra-tokens.css";
+
+import InternalLayout from "@/layouts/InternalLayout.astro";
+import { SEOBase } from "@content/vedana/seo/seo";
+import type { SEOConfig } from "@/lib/seo/types";
+
+import Callout from "@/components/blocks/callout/Callout.astro";
+
+import EntityCardList from "@/components/blocks/entity-card/EntityCardList.astro";
+import EntityCard from "@/components/blocks/entity-card/EntityCard.astro";
+import EntityCardRichList from "@/components/blocks/entity-card/EntityCardRichList.astro";
+import EntityCardRich from "@/components/blocks/entity-card/EntityCardRich.astro";
+
+import Timeline from "@/components/blocks/timeline/Timeline.astro";
+import TimelineItem from "@/components/blocks/timeline/TimelineItem.astro";
+
+import Chat from "@/components/blocks/chat/Chat.astro";
+import ChatItem from "@/components/blocks/chat/ChatItem.astro";
+
+import ProductDemo from "@/components/products/vedana/product-demo/ProductDemo.tsx";
+import { scenarios, cardRegistry } from "@/content/vedana/demo/development"
+
+const bot = {
+  name: "Vedana AI assistant",
+  bubbleBg: "#eef3ff"
+};
+
+const user = {
+  name: "User",
+  bubbleBg: "#2A5BFF",
+  bubbleColor: "#fff"
+};
+
+
+const crumbs = [
+  { label: "Industries", href: "/industries" },
+  { label: "Dev" }
+];
+
+const pageSEO: Partial<SEOConfig> = {
+  title: "Vedana for Development",
+  description:
+    "Structured AI platform for Development industry.",
+  canonical: "https://vedana.tech/industries/development",
+  og: {
+    type: "website",
+    image: "https://vedana.tech/og-development.png",
+    imageAlt: "Vedana for Development"
+  }
+};
+---
+
+<InternalLayout
+  baseSEO={SEOBase}
+  pageSEO={pageSEO}
+  crumbs={crumbs}
+>
+
+    <section class="page-hero">
+      <div class="page-hero-inner">
+
+        <h1 class="page-hero-title">
+          Development projects <br/> rely on expert judgement.<br />
+          But that <strong>knowledge is rarely structured</strong>.
+        </h1>
+
+        <p class="page-hero-lead">
+          Investigation scopes, regulatory requirements, and engineering practices live in documents and in people’s heads.  
+          Vedana converts this operational knowledge into a <strong>structured knowledge graph</strong>, so AI systems can reason over it and produce verifiable answers.
+        </p>
+
+      </div>
+    </section>
+
+    <section class="section">
+        <div class="container flow">
+    <h2>
+    Development knowledge captured in an <strong>AI-ready graph</strong>
+    </h2>
+
+    <Callout style="--callout-bg: hsl(43 20% 88%);">
+      <h3>
+      Pre-modeled Development ontology
+      </h3>
+          <p></p>
+      <p>
+      Vedana provides a base model for the Development domain: projects, technical assignments, investigations, work items, regulatory standards, and engineering requirements.
+      </p>
+
+      <p>
+      This model is extended with your internal documents, engineering practices, and company-specific rules.
+      </p>
+
+      <p>
+      The result is a structured knowledge base where project data, investigation scope, and regulatory constraints are represented as connected entities.
+      </p>
+    </Callout>
+
+    <h3>
+    Any domain = <strong>Anchors, Attributes, Links</strong>
+    </h3>
+    <p>
+    Vedana models a domain as a graph of <strong>anchors (entities), attributes (properties), and links (relationships)</strong>.<br/>
+    In this Development demo, projects, technical assignments, investigations, work items, and regulatory requirements are represented as typed nodes connected by explicit relationships.<br>
+    This structure allows AI systems to reason over engineering data instead of relying only on text prompts.
+    </p>
+
+
+<EntityCardRichList columns={3}>
+
+<EntityCardRich
+title="Project"
+entityType="project"
+color="var(--entity-project)"
+attributes={[
+{ key: "name", value: "Riverside Residential Complex" },
+{ key: "location", value: "Hamburg, Germany" },
+{ key: "project type", value: "Mixed-use residential development" },
+{ key: "client", value: "UrbanCore Development GmbH" },
+{ key: "site area", value: "1.8 ha" },
+{ key: "planned floors", value: "12" }
+]}
+relations={[
+{
+label: "Has technical assignment",
+targets: [
+{ title: "TA: Engineering Investigation Scope", entityType: "assignment", color: "var(--entity-assignment)" }
+]
+},
+{
+label: "Governed by",
+targets: [
+{ title: "regulation: Eurocode 7 – Geotechnical Design", entityType: "regulation", color: "var(--entity-regulation)" }
+]
+}
+]}
+/>
+
+<EntityCardRich
+title="Technical Assignment"
+entityType="assignment"
+color="var(--entity-assignment)"
+attributes={[
+{ key: "document type", value: "Engineering Investigation Scope" },
+{ key: "issued by", value: "UrbanCore Development GmbH" },
+{ key: "project phase", value: "Pre-design investigation" },
+{ key: "site area", value: "1.8 ha" },
+{ key: "document id", value: "TA-2025-0142" }
+]}
+relations={[
+{
+label: "Requires",
+targets: [
+{ title: "investigation: Geotechnical Survey", entityType: "investigation", color: "var(--entity-investigation)" }
+]
+},
+{
+label: "References",
+targets: [
+{ title: "regulation: Eurocode 7 – Geotechnical Design", entityType: "regulation", color: "var(--entity-regulation)" }
+]
+}
+]}
+/>
+
+<EntityCardRich
+title="Regulation"
+entityType="regulation"
+color="var(--entity-regulation)"
+attributes={[
+{ key: "name", value: "Eurocode 7 – Geotechnical Design" },
+{ key: "standard code", value: "EN 1997-1:2004" },
+{ key: "domain", value: "Geotechnical engineering" },
+{ key: "issuing body", value: "European Committee for Standardization" },
+{ key: "applies to", value: "Foundations and soil investigation" }
+]}
+relations={[
+{
+label: "Defines requirements",
+targets: [
+{ title: "requirement: Investigation Scope Definition", entityType: "requirement", color: "var(--entity-requirement)" },
+{ title: "requirement: Sampling Plan", entityType: "requirement", color: "var(--entity-requirement)" },
+{ title: "requirement: Groundwater Investigation", entityType: "requirement", color: "var(--entity-requirement)" },
+{ title: "requirement: Engineering Report", entityType: "requirement", color: "var(--entity-requirement)" }
+]
+}
+]}
+/>
+
+<EntityCardRich
+title="Requirement"
+entityType="requirement"
+color="var(--entity-requirement)"
+attributes={[
+{ key: "name", value: "Groundwater Investigation" },
+{ key: "category", value: "Investigation requirement" },
+{ key: "description", value: "Groundwater conditions must be investigated when relevant for foundation design." }
+]}
+relations={[
+{
+label: "Defined by",
+targets: [
+{ title: "regulation: Eurocode 7 – Geotechnical Design", entityType: "regulation", color: "var(--entity-regulation)" }
+]
+},
+{
+label: "Checked against",
+targets: [
+{ title: "TA: Engineering Investigation Scope", entityType: "assignment", color: "var(--entity-assignment)" }
+]
+}
+]}
+/>
+
+<EntityCardRich
+title="Investigation"
+entityType="investigation"
+color="var(--entity-investigation)"
+attributes={[
+{ key: "name", value: "Geotechnical Survey" },
+{ key: "category", value: "Subsurface investigation" },
+{ key: "output", value: "Engineering Geological Report" }
+]}
+relations={[
+{
+label: "Includes work",
+targets: [
+{ title: "work item: Borehole Drilling", entityType: "workitem", color: "var(--entity-workitem)" },
+{ title: "work item: Soil Sampling", entityType: "workitem", color: "var(--entity-workitem)" },
+{ title: "work item: Laboratory Testing", entityType: "workitem", color: "var(--entity-workitem)" }
+]
+}
+]}
+/>
+
+<EntityCardRich
+title="Work Item"
+entityType="workitem"
+color="var(--entity-workitem)"
+attributes={[
+{ key: "name", value: "Borehole Drilling" },
+{ key: "category", value: "Field investigation" },
+{ key: "unit", value: "meter" },
+{ key: "unit cost", value: "€120" },
+{ key: "typical depth", value: "25 m" },
+{ key: "purpose", value: "Determine subsurface soil structure" }
+]}
+relations={[
+{
+label: "Part of",
+targets: [
+{ title: "investigation: Geotechnical Survey", entityType: "investigation", color: "var(--entity-investigation)" }
+]
+},
+{
+label: "Required by",
+targets: [
+{ title: "TA: Engineering Investigation Scope", entityType: "assignment", color: "var(--entity-assignment)" }
+]
+}
+]}
+/>
+
+</EntityCardRichList>
+
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container flow">
+        <h2>
+            Vedana makes all your knowledge accessible.
+        </h2>
+        <h3>
+            See how Vedana helps in Development scenarios
+        </h3>
+
+          <div class="container">
+            <ProductDemo
+              scenarios={scenarios}
+              cardRegistry={cardRegistry}
+              client:load
+            />
+          </div>
+
+<section class="section">
+  <div class="container flow">
+
+    <h2>
+      How Vedana turns documents into answers
+    </h2>
+<p></p>
+    <Timeline orientation="horizontal" lines={true}>
+
+      <TimelineItem index="1" title="Extract and structure knowledge">
+        <p>
+          Vedana parses engineering documents such as technical assignments, investigation reports, and regulatory standards.
+        </p>
+
+        <p>
+          Relevant entities are extracted and normalized into structured records:
+          projects, work items, investigations, requirements, and regulations.
+        </p>
+      </TimelineItem>
+
+      <TimelineItem index="2" title="Build the domain graph">
+        <p>
+          Extracted entities are connected into a knowledge graph.
+        </p>
+
+        <p>
+          For example:
+          <br/>
+          Technical Assignment → Work Item → Investigation → Regulation → Requirement
+        </p>
+
+        <p>
+          These relationships encode engineering dependencies and constraints.
+        </p>
+      </TimelineItem>
+
+      <TimelineItem index="3" title="Reason over the graph">
+        <p>
+          When a user asks a question, Vedana traverses the graph and applies domain rules.
+        </p>
+
+        <p>
+          Answers are generated from structured data and traceable relationships, not from raw text generation.
+        </p>
+
+        <p>
+          Each step of the reasoning process can be inspected and verified.
+        </p>
+      </TimelineItem>
+
+    </Timeline>
+
+  </div>
+</section>
+
+
+
+
+</InternalLayout>

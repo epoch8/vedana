@@ -1,0 +1,243 @@
+---
+import BaseLayout from "@/layouts/baseLayout.astro";
+import DocsSidebar from "@/components/products/vedana/DocsSidebar.astro";
+import Footer from "@/components/products/vedana/footer/Footer.astro";
+
+import styles from "./DocsLayout.module.css";
+import "../styles/global.css";
+
+import { getDocsNavigation } from "@/lib/docs/navigation";
+import {
+  LATEST_ID,
+  buildDocsUrl,
+  getDocsVersions,
+} from "@/lib/docs/versions";
+
+import type { SEOConfig } from "@/lib/seo/types";
+
+interface Props {
+  baseSEO?: SEOConfig;
+  pageSEO?: Partial<SEOConfig>;
+  structuredData?: object | object[];
+
+  currentSlug?: string;
+  currentVersion?: string;
+  headings?: any;
+
+  title?: string;
+  description?: string;
+}
+
+const {
+  baseSEO,
+  pageSEO,
+  structuredData,
+
+  currentSlug,
+  currentVersion = LATEST_ID,
+  headings,
+
+  title,
+  description,
+} = Astro.props;
+
+/* ======================================================
+   VERSIONING
+====================================================== */
+
+const versions = getDocsVersions();
+const showVersionSwitcher = versions.length > 1;
+
+/**
+ * Strip the version prefix off the current slug to compute the
+ * counterpart page slug under a different version. Lets the switcher
+ * stay on the "same" page when toggling versions.
+ */
+function stripVersionPrefix(slug: string, versionId: string): string {
+  if (!slug) return "";
+  if (versionId === LATEST_ID) return slug;
+
+  const prefix = `${versionId}/`;
+  return slug.startsWith(prefix) ? slug.slice(prefix.length) : slug;
+}
+
+const baseSlug = currentSlug
+  ? stripVersionPrefix(currentSlug, currentVersion)
+  : "";
+
+const switcherOptions = versions.map((v) => ({
+  id: v.id,
+  label: v.label,
+  isCurrent: v.id === currentVersion,
+  href: buildDocsUrl(v.id, baseSlug),
+}));
+
+/* ======================================================
+   NAVIGATION (SOURCE OF TRUTH)
+====================================================== */
+
+const sections = await getDocsNavigation(currentVersion);
+
+/* ======================================================
+   SEO BASE
+====================================================== */
+
+const safeBaseSEO: SEOConfig = baseSEO ?? {
+  title: "Vedana Docs",
+  description:
+    "Documentation for Vedana — graph-first AI for enterprise decisions.",
+  canonical: "https://vedana.tech/docs",
+
+  og: {
+    type: "website",
+    image: "/og/vedana-docs.png",
+    imageAlt: "Vedana Docs",
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    image: "/og/vedana-docs.png",
+  },
+};
+
+/* ======================================================
+   PAGE SEO
+====================================================== */
+
+const canonicalPath = currentSlug
+  ? buildDocsUrl(currentVersion, baseSlug)
+  : buildDocsUrl(currentVersion);
+
+const safePageSEO: Partial<SEOConfig> = {
+  ...(pageSEO ?? {}),
+  ...(title && { title }),
+  ...(description && { description }),
+  canonical: `https://vedana.tech${canonicalPath}`,
+};
+---
+
+<BaseLayout
+  baseSEO={safeBaseSEO}
+  pageSEO={safePageSEO}
+  structuredData={structuredData}
+>
+  <div class="page-root">
+
+    <div class={styles.container}>
+      
+      <aside class={styles.sidebar}>
+        {showVersionSwitcher && (
+          <div class="docs-version-switcher">
+            <label class="docs-version-label" for="docs-version-select">
+              Version
+            </label>
+            <select
+              id="docs-version-select"
+              class="docs-version-select"
+              data-current-version={currentVersion}
+            >
+              {switcherOptions.map((opt) => (
+                <option
+                  value={opt.href}
+                  selected={opt.isCurrent}
+                >
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <DocsSidebar
+          sections={sections}
+          currentSlug={currentSlug ?? ""}
+        />
+      </aside>
+
+      <main class={styles.content}>
+        <slot />
+      </main>
+
+    </div>
+
+    <Footer />
+
+  </div>
+</BaseLayout>
+
+<style>
+.docs-version-switcher {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 0 12px;
+}
+
+.docs-version-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+}
+
+.docs-version-select {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 14px;
+
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+
+  cursor: pointer;
+}
+
+.docs-version-select:focus {
+  outline: none;
+  border-color: rgba(15, 23, 42, 0.4);
+}
+</style>
+
+<script>
+  const select = document.getElementById("docs-version-select") as
+    | HTMLSelectElement
+    | null;
+
+  if (select) {
+    select.addEventListener("change", () => {
+      const target = select.value;
+      if (target) window.location.href = target;
+    });
+  }
+</script>
+
+<script>
+  const blocks = document.querySelectorAll<HTMLElement>('pre[data-language="mermaid"]');
+
+  if (blocks.length > 0) {
+    const { default: mermaid } = await import("mermaid");
+
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "neutral",
+      fontSize: 13,
+      flowchart: { useMaxWidth: true },
+    });
+
+    for (const pre of blocks) {
+      const id = `mermaid-${Math.random().toString(36).slice(2)}`;
+
+      try {
+        const { svg } = await mermaid.render(id, pre.textContent ?? "");
+        const div = document.createElement("div");
+        div.className = "mermaid-diagram";
+        div.innerHTML = svg;
+        pre.replaceWith(div);
+      } catch {
+        pre.style.display = "block";
+      }
+    }
+  }
+</script>

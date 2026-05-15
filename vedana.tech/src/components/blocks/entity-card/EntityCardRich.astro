@@ -1,0 +1,115 @@
+---
+import styles from "./EntityCard.module.css";
+
+export interface Attribute {
+  key: string;
+  value?: string;
+  href?: string;
+  external?: boolean;
+}
+
+export interface RelationTarget {
+  title: string;
+  entityType: string;   // 👈 теперь тип сущности
+  color?: string;
+  href?: string;
+}
+
+export interface Relation {
+  label: string;
+  targets: RelationTarget[];
+}
+
+export interface Props {
+  title: string;        // конкретное имя instance (может быть)
+  entityType: string;   // 👈 ТИП сущности (dish, ingredient, wine)
+  color?: string;
+  attributes: Attribute[];
+  relations?: Relation[];
+  hint?: string;
+  class?: string;
+}
+
+const {
+  title,
+  entityType,
+  color,
+  attributes,
+  relations = [],
+  hint,
+  class: className
+} = Astro.props;
+---
+
+<article
+  class={`${styles["entity-card"]} ${styles["entity-card-rich"]} ${className ?? ""}`.trim()}
+  data-entity-type={entityType}
+  style={color ? `--entity-accent: ${color}` : undefined}
+>
+  <header class={styles["entity-card__header"]}>
+    <div class={styles["entity-card__title"]}>
+      {title}
+    </div>
+
+    {hint && (
+      <div class={styles["entity-card__hint"]}>
+        {hint}
+      </div>
+    )}
+  </header>
+
+  <div class={styles["entity-card__body"]}>
+    {attributes.map((attr) => {
+      const rel = attr.external ? "noreferrer noopener" : undefined;
+      const target = attr.external ? "_blank" : undefined;
+
+      return (
+        <div class={styles["entity-item"]}>
+          <div class={styles["entity-item__key"]}>
+            {attr.key}
+          </div>
+
+          <div class={styles["entity-item__value"]}>
+            {attr.href ? (
+              <a
+                href={attr.href}
+                rel={rel}
+                target={target}
+                class={styles["entity-item__link"]}
+              >
+                {attr.value ?? attr.href}
+              </a>
+            ) : (
+              attr.value
+            )}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+
+  {relations.length > 0 && (
+    <div class={styles["entity-relations"]}>
+      {relations.map((relation) => (
+        <div class={styles["entity-relation-group"]}>
+          <div class={styles["entity-relation-label"]}>
+            {relation.label}
+          </div>
+
+          <div class={styles["entity-relation-chips"]}>
+            {relation.targets.map((target) => (
+              <a
+                href={target.href ?? "#"}
+                class={styles["entity-chip"]}
+                data-target-type={target.entityType}
+                style={target.color ? `--chip-color: ${target.color}` : undefined}
+              >
+                {target.title}
+              </a>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</article>

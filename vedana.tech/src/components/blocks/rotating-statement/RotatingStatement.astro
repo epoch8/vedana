@@ -1,0 +1,63 @@
+---
+import styles from "./RotatingStatement.module.css"
+
+interface Props {
+  items: string[]
+  interval?: number
+}
+
+const { items = [], interval = 2600 } = Astro.props
+---
+
+<div class={styles.rotatingText} data-interval={interval}>
+  <div class={styles.viewport}>
+    <div class={styles.stack}>
+
+      {items.map((item) => (
+        <span class={styles.item}>{item}</span>
+      ))}
+
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  const components = document.querySelectorAll("[data-interval]")
+
+  components.forEach((component) => {
+    const stack = component.querySelector("[class*='stack']")
+    const viewport = component.querySelector("[class*='viewport']")
+    const items = component.querySelectorAll("[class*='item']")
+    const interval = Number(component.dataset.interval) || 2600
+
+    if (!stack || !viewport || items.length === 0) return
+
+    let index = 0
+    let itemHeight = 0
+
+    function measure() {
+      itemHeight = items[0].getBoundingClientRect().height
+      viewport.style.height = itemHeight + "px"
+    }
+
+    function update() {
+      stack.style.transform = `translateY(-${index * itemHeight}px)`
+    }
+
+    measure()
+
+    requestAnimationFrame(measure)
+
+    document.fonts?.ready.then(measure)
+
+    window.addEventListener("resize", () => {
+      measure()
+      update()
+    })
+
+    setInterval(() => {
+      index = (index + 1) % items.length
+      update()
+    }, interval)
+  })
+</script>

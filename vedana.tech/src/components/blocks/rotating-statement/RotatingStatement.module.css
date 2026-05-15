@@ -1,0 +1,36 @@
+.rotatingText {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.viewport {
+  margin-top: var(--space-8);
+
+  overflow: hidden;
+
+  transition: height .35s ease;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+
+  transition: transform .45s cubic-bezier(.4,0,.2,1);
+}
+
+.item {
+  font-size: var(--font-size-xl);
+  font-weight: 500;
+
+  color: var(--color-primary);
+  opacity: 0.85;
+
+  text-align: center;
+
+  padding: 0 var(--space-4);
+
+  line-height: 1.35;
+
+  white-space: nowrap;
+}

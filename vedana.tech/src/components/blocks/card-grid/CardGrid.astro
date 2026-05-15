@@ -1,0 +1,20 @@
+---
+import styles from "./CardGrid.module.css";
+
+interface Props {
+  id?: string;
+}
+
+const { id } = Astro.props as Props;
+---
+
+<section
+  id={id}
+  class={styles["card-grid"]}
+  itemscope
+  itemtype="https://schema.org/ItemList"
+>
+  <div class={styles["card-grid__container"]}>
+    <slot />
+  </div>
+</section>

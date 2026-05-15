@@ -1,0 +1,25 @@
+---
+import "@/styles/global.css";
+import "@/styles/vedana/extra-tokens.css";
+
+import BaseLayout from "@/layouts/baseLayout.astro";
+import { SEOBase } from "@content/vedana/seo/seo";
+
+import Table from "@/components/blocks/table/Table.astro"
+import { ragComparisonTable } from "@/content/vedana/tables/ragComparisonTable"
+---
+
+<BaseLayout
+  baseSEO={SEOBase}
+  pageSEO={{
+    title: "Vedana — Style guidebook",
+    description:
+      "Vedana builds structured knowledge graphs so AI answers follow business rules, not similarity guesses.",
+  }}
+>
+
+<h1>Table2</h1>
+
+<Table table={ragComparisonTable}/>
+
+</BaseLayout>

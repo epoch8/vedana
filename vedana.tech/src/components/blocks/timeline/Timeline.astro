@@ -1,0 +1,28 @@
+---
+import "./timeline.css";
+
+interface Props {
+  orientation?: "horizontal" | "vertical";
+  lines?: boolean;
+}
+
+const {
+  orientation = "horizontal",
+  lines = true,
+} = Astro.props;
+
+const classes = [
+  "timeline",
+  `timeline--${orientation}`,
+  "timeline--one-sided",
+  lines ? "timeline--with-lines" : "timeline--no-lines",
+].join(" ");
+---
+
+<ol
+  class={classes}
+  itemscope
+  itemtype="https://schema.org/HowTo"
+>
+  <slot />
+</ol>

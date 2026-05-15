@@ -1,0 +1,204 @@
+---
+interface Props {
+  href?: string;
+}
+
+const { href = "/" } = Astro.props;
+---
+
+<a href={href} class="brand-logo">
+  <svg
+    class="brand-icon"
+    viewBox="0 0 400 400"
+    aria-hidden="true"
+  >
+    <path
+      id="vedana-clover"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="27"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </svg>
+
+  <span>Vedana</span>
+</a>
+
+<style>
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 0.02em;   /* вместо rem */
+
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--color-dark);
+  text-decoration: none;
+}
+
+.brand-icon {
+  height: 2.4rem;
+  width: 2.4rem;
+  flex-shrink: 0;
+
+  color: var(--color-primary);
+
+  transform: translateY(1px);
+
+}
+</style>
+
+<script is:inline>
+function cloverPath({ a = 120, k = 2, steps = 360, cx = 200, cy = 200 }) {
+  const pts = [];
+
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * Math.PI * 2;
+
+    const r = a * Math.cos(k * t);
+
+    const x = cx + r * Math.cos(t);
+    const y = cy + r * Math.sin(t);
+
+    pts.push([x, y]);
+  }
+
+  return (
+    pts.map(([x, y], i) => `${i ? "L" : "M"} ${x} ${y}`).join(" ") + " Z"
+  );
+}
+
+const TAU = Math.PI * 2;
+
+function clamp01(x) {
+  return Math.max(0, Math.min(1, x));
+}
+
+function normPhase(p) {
+  // [0..TAU)
+  p = p % TAU;
+  if (p < 0) p += TAU;
+  return p;
+}
+
+function easeInOutSine(t) {
+  return -(Math.cos(Math.PI * t) - 1) / 2;
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+const logo = document.currentScript.parentElement;
+const path = logo.querySelector("#vedana-clover");
+
+/* =========================
+   TUNING
+========================= */
+
+const kStable = 2;     // точка 0 (идеальный клевер)
+const kMin = 0.2;      // “круг/неопределённость”
+const omega = 1.2;     // рад/сек — скорость прокрутки фазы (ПОСТОЯННАЯ)
+const ampUp = 0.9;     // 1/сек — скорость “надувания” (hover)
+const ampDown = 0.45;  // 1/сек — скорость “сдувания” (leave), медленнее
+const phaseEps = 0.03; // насколько близко к фазе 0 считаем “точно 0”
+
+/* =========================
+   STATE
+========================= */
+
+let phase = 0;         // фаза дыхания (0..TAU)
+let phaseDir = +1;     // направление прокрутки фазы (+1 / -1)
+let amp = 0;           // амплитуда дыхания (0..1)
+
+let hovering = false;
+let running = false;
+let rafId = null;
+let last = 0;
+
+path.setAttribute("d", cloverPath({ k: kStable }));
+
+/* =========================
+   LOOP
+========================= */
+
+function start() {
+  if (running) return;
+  running = true;
+  last = 0;
+  rafId = requestAnimationFrame(tick);
+}
+
+function stopAtZero() {
+  running = false;
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = null;
+  last = 0;
+
+  // жёстко в “точку 0”
+  phase = 0;
+  amp = 0;
+  path.setAttribute("d", cloverPath({ k: kStable }));
+}
+
+function tick(now) {
+  if (!running) return;
+  if (!last) last = now;
+
+  const dt = Math.min(0.05, (now - last) / 1000); // защита от больших скачков
+  last = now;
+
+  // 1) фаза крутится с ПОСТОЯННОЙ скоростью, без ускорений
+  phase += phaseDir * omega * dt;
+  const p = normPhase(phase);
+
+  // 2) амплитуда линейно “надувается/сдувается”
+  if (hovering) {
+    amp = clamp01(amp + ampUp * dt);
+  } else {
+    amp = clamp01(amp - ampDown * dt);
+  }
+
+  // 3) breathing wave в [0..1]
+  const wave = easeInOutSine((Math.sin(p) + 1) / 2);
+
+  // 4) k: при amp=0 всегда идеальный клевер (не зависит от фазы)
+  const k = lerp(kStable, kMin, amp * wave);
+
+  path.setAttribute("d", cloverPath({ k }));
+
+  // 5) условие полной остановки:
+  //    мы НЕ в hover, амплитуда уже 0, и фаза дошла до 0 (докрутили “шаг за шагом”)
+  const atZeroPhase = p < phaseEps || (TAU - p) < phaseEps;
+
+  if (!hovering && amp === 0 && atZeroPhase) {
+    stopAtZero();
+    return;
+  }
+
+  rafId = requestAnimationFrame(tick);
+}
+
+/* =========================
+   INTERACTION
+========================= */
+
+logo.addEventListener("pointerenter", () => {
+  hovering = true;
+
+  // если мы возвращались домой — разворачиваем фазу “в другую сторону”
+  // (ощущается как "крутим обратно к кругу")
+  phaseDir = +1;
+  start();
+});
+
+logo.addEventListener("pointerleave", () => {
+  hovering = false;
+
+  // режим возврата: та же скорость, но в обратную сторону
+  phaseDir = -1;
+  start();
+});
+</script>

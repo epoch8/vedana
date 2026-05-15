@@ -1,0 +1,124 @@
+/* ======================================================
+   BUTTON BASE
+====================================================== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: var(--space-2);
+
+  font-family: var(--font-family-base);
+  font-weight: var(--font-weight-medium);
+
+  border-radius: var(--radius-md);
+
+  text-decoration: none;
+  cursor: pointer;
+
+  border: 1px solid transparent;
+
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+
+/* ======================================================
+   SIZES
+====================================================== */
+
+.btn--sm {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.btn--md {
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--font-size-base);
+}
+
+.btn--lg {
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--font-size-lg);
+}
+
+
+/* ======================================================
+   PRIMARY
+====================================================== */
+
+.btn--primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.btn--primary:hover {
+  background: var(--color-primary-hover);
+}
+
+
+/* ======================================================
+   SECONDARY
+====================================================== */
+
+.btn--secondary {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.btn--secondary:hover {
+  border-color: var(--color-divider);
+  background: var(--color-bg-muted);
+}
+
+
+/* ======================================================
+   GHOST
+====================================================== */
+
+.btn--ghost {
+  background: transparent;
+  color: var(--color-text);
+}
+
+.btn--ghost:hover {
+  background: var(--color-neutral-soft);
+}
+
+
+/* ======================================================
+   LINK
+====================================================== */
+
+.btn--link {
+  padding: 0;
+
+  background: none;
+  border: none;
+
+  color: var(--color-primary-ink);
+  font-weight: var(--font-weight-medium);
+}
+
+.btn--link:hover {
+  text-decoration: underline;
+}
+
+
+/* ======================================================
+   HOVER MOTION
+====================================================== */
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(0);
+}

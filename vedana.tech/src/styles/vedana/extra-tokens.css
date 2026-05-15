@@ -1,0 +1,256 @@
+:root {
+
+
+--industry-horeca: hsl(79 60% 68%);
+--industry-automotive: hsl(43 62% 66%);
+--industry-legal: hsl(7 65% 64%);
+--industry-ecom: hsl(115 58% 66%);
+--industry-health: hsl(151 60% 64%);
+--industry-banking: hsl(259 65% 58%);
+--industry-development: hsl(215 72% 60%);
+
+--industry-automotive-bg: hsl(43 30% 95%);
+--industry-development-bg: hsl(215 30% 95%);
+--industry-horeca-bg: hsl(79 28% 95%);
+--industry-legal-bg: hsl(7 30% 95%);
+--industry-ecom-bg: hsl(115 28% 95%);
+--industry-health-bg: hsl(151 28% 95%);
+--industry-banking-bg: hsl(259 30% 95%);
+
+
+--color-engine-surface: #f4f7ff;
+--color-engine-border: #d6e0ff;
+/* ===============================
+   VEDANA COLOR SYSTEM
+   Core / Soft-Light / Soft-Dark
+================================ */
+
+/* B */
+--b-core: hsl(223 70% 60%);
+--b-light: hsl(223 60% 72%);
+--b-dark: hsl(223 62% 46%);
+
+/* GB */
+--gb-core: hsl(187 65% 62%);
+--gb-light: hsl(187 55% 74%);
+--gb-dark: hsl(187 58% 48%);
+
+/* G */
+--g-core: hsl(151 60% 64%);
+--g-light: hsl(151 50% 76%);
+--g-dark: hsl(151 52% 50%);
+
+/* YG */
+--yg-core: hsl(115 58% 66%);
+--yg-light: hsl(115 48% 78%);
+--yg-dark: hsl(115 50% 52%);
+
+/* Y */
+--y-core: hsl(79 60% 68%);
+--y-light: hsl(79 50% 80%);
+--y-dark: hsl(79 52% 54%);
+
+/* RY */
+--ry-core: hsl(43 62% 66%);
+--ry-light: hsl(43 52% 78%);
+--ry-dark: hsl(43 54% 52%);
+
+/* R */
+--r-core: hsl(7 65% 64%);
+--r-light: hsl(7 55% 76%);
+--r-dark: hsl(7 57% 50%);
+
+/* VR */
+--vr-core: hsl(331 63% 62%);
+--vr-light: hsl(331 53% 74%);
+--vr-dark: hsl(331 55% 48%);
+
+/* V */
+--v-core: hsl(295 60% 60%);
+--v-light: hsl(295 50% 72%);
+--v-dark: hsl(295 52% 46%);
+
+/* BV */
+--bv-core: hsl(259 65% 58%);
+--bv-light: hsl(259 55% 70%);
+--bv-dark: hsl(259 57% 44%);
+
+
+/* ======================================
+   Development domain entities — tuned
+====================================== */
+
+--entity-project: hsl(223 55% 54%);
+
+--entity-investigation: hsl(187 45% 56%);
+
+--entity-regulation: hsl(7 50% 56%);
+
+--entity-assignment: hsl(79 45% 60%);
+
+--entity-cost: hsl(43 48% 58%);
+
+--entity-program: hsl(259 55% 52%);
+--entity-requirement: hsl(140 40% 55%);
+--entity-workitem: hsl(32 55% 56%);
+
+/* ======================================
+   HoReCa domain entities — tuned
+====================================== */
+--entity-brand: hsl(187 65% 62%);
+--entity-location: hsl(215 16% 47%);
+
+--entity-menu: hsl(35 85% 60%);        /* warm menu accent */
+
+--entity-dish: hsl(82 65% 55%);
+
+--entity-ingredient: hsl(150 65% 46%); /* deeper green */
+
+--entity-wine: hsl(295 60% 60%);
+--entity-compliance: hsl(259 55% 70%);
+--entity-supplier: hsl(223 60% 72%);
+
+/* =====================================================
+   LEGAL DOMAIN ENTITY COLORS
+===================================================== */
+
+/* ---------------------------------
+   JURISDICTION
+---------------------------------- */
+
+--entity-country: hsl(220 45% 60%);
+/* countries / jurisdictions */
+
+
+/* ---------------------------------
+   STRUCTURE
+---------------------------------- */
+
+--entity-legal-area: hsl(210 35% 52%);
+/* labour law / immigration law */
+
+--entity-topic: hsl(200 40% 58%);
+/* conceptual legal topics */
+
+
+/* ---------------------------------
+   LAW CONTENT
+---------------------------------- */
+
+--entity-rule: hsl(12 60% 58%);
+/* statutory legal rule */
+
+--entity-procedure: hsl(32 55% 56%);
+/* procedural workflow */
+
+--entity-contract-type: hsl(26 52% 54%);
+/* special employment contract types */
+
+
+/* ---------------------------------
+   IMMIGRATION
+---------------------------------- */
+
+--entity-permit: hsl(280 50% 58%);
+/* visas / residence permits */
+
+
+/* ---------------------------------
+   HR / EMPLOYER OBLIGATIONS
+---------------------------------- */
+
+--entity-obligation: hsl(150 40% 55%);
+/* employer duties */
+
+--entity-benefit: hsl(135 38% 60%);
+/* employee benefits */
+
+
+/* ---------------------------------
+   INSTITUTIONS
+---------------------------------- */
+
+--entity-authority: hsl(260 45% 60%);
+/* government authorities */
+
+
+/* ---------------------------------
+   DOCUMENTS
+---------------------------------- */
+
+--entity-template: hsl(210 25% 70%);
+/* templates / legal documents */
+
+
+/* ======================================
+   Vedana domain entities — tuned
+====================================== */
+--entity-platform: hsl(195 85% 55%);
+/* Vedana platform — core system */
+
+--entity-company: hsl(215 18% 48%);
+/* organization / company */
+
+--entity-industry: hsl(38 85% 58%);
+/* industries served */
+
+--entity-concept: hsl(268 60% 60%);
+/* methodologies */
+
+--entity-component: hsl(160 60% 48%);
+/* infrastructure / tools */
+
+--entity-capability: hsl(145 65% 46%);
+/* platform capabilities */
+
+--entity-technology: hsl(210 70% 62%);
+/* underlying tech stack */
+
+/* ======================================
+   LEGAL DOMAIN ENTITIES
+====================================== */
+
+/* --------------------------------------
+   CASE GRAPH
+-------------------------------------- */
+
+--entity-case: hsl(221 68% 58%);
+/* court case */
+
+--entity-party: hsl(201 62% 60%);
+/* claimant / respondent */
+
+--entity-judge: hsl(213 55% 50%);
+/* judge */
+
+--entity-judgment: hsl(32 72% 60%);
+/* final ruling */
+
+
+/* --------------------------------------
+   LAW GRAPH
+-------------------------------------- */
+
+--entity-law: hsl(257 60% 58%);
+/* law */
+
+--entity-article: hsl(174 55% 52%);
+/* article */
+
+--entity-schedule: hsl(162 48% 54%);
+/* law schedules */
+
+--entity-regulation: hsl(188 60% 56%);
+/* regulations */
+
+
+/* --------------------------------------
+   AUTHORITIES
+-------------------------------------- */
+
+--entity-authority: hsl(218 22% 56%);
+/* regulator / registrar */
+
+--entity-court: hsl(226 30% 48%);
+/* court entity */
+}

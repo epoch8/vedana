@@ -1,0 +1,32 @@
+{
+  "name": "vedana-tech",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "build:versions": "node scripts/build-versions.mjs",
+    "build:all": "npm run build:versions && npm run build"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.4.0",
+    "@astrojs/check": "^0.9.6",
+    "antd": "^5.20.0",
+    "framer-motion": "^12.34.3",
+    "gifenc": "^1.0.3",
+    "mermaid": "^11.14.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "reactflow": "^11.11.4",
+    "typescript": "^5.9.3",
+    "unist-util-visit": "^5.1.0"
+  },
+  "devDependencies": {
+    "@astrojs/react": "^4.0.0",
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "astro": "^5.0.0"
+  }
+}

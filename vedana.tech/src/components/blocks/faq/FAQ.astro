@@ -1,0 +1,16 @@
+---
+interface Props {
+  id?: string;
+}
+
+const { id = "faq" } = Astro.props;
+---
+
+<div
+  id={id}
+  class="faq"
+  itemscope
+  itemtype="https://schema.org/FAQPage"
+>
+  <slot />
+</div>

@@ -1,0 +1,63 @@
+---
+// CTAButtons.astro
+---
+
+<div class="cta-buttons-space">
+  <a href="#signup" class="btn-start-free"> Start free </a>
+  <a href="#demo" class="btn-book-demo"> Book demo </a>
+</div>
+
+<style>
+  .cta-buttons-space {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px; /* Matches Space size="middle" */
+  }
+
+  .btn-start-free {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px; /* size="large" equivalent */
+    padding: 6.4px 15px;
+    font-size: 16px;
+    background: #fff;
+    color: #0f172a;
+    border: 1px solid transparent;
+    font-weight: 500;
+    border-radius: 0.75rem;
+    text-decoration: none;
+    transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.02);
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .btn-start-free:hover {
+    color: #4096ff;
+  }
+
+  .btn-book-demo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    padding: 6.4px 15px;
+    font-size: 16px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    font-weight: 500;
+    border-radius: 0.75rem;
+    text-decoration: none;
+    transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .btn-book-demo:hover {
+    color: #4096ff;
+    border-color: #4096ff;
+  }
+</style>

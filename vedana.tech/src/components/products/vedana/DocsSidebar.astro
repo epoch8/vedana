@@ -1,0 +1,183 @@
+---
+interface DocItem {
+  title: string;
+  slug: string;
+  href: string;
+  order: number;
+}
+
+interface DocSection {
+  id: string;
+  title: string;
+  order: number;
+  items: DocItem[];
+}
+
+interface Props {
+  sections: DocSection[];
+  currentSlug: string;
+}
+
+const { sections, currentSlug } = Astro.props;
+
+/* ========================================
+   HELPERS
+======================================== */
+
+function isSectionActive(section: DocSection) {
+  return section.items.some((item) => item.slug === currentSlug);
+}
+---
+
+<nav class="docs-sidebar">
+  <ul class="sidebar-list">
+
+    {sections.map((section) => {
+      const open = isSectionActive(section);
+
+      return (
+        <li class="sidebar-item">
+
+          <details class="sidebar-details" open={open}>
+            <summary class="sidebar-summary">
+              <span class="sidebar-section-title">
+                {section.title}
+              </span>
+
+              <span class="sidebar-arrow">
+                <svg
+                  viewBox="64 64 896 896"
+                  width="10"
+                  height="10"
+                  fill="currentColor"
+                >
+                  <path d="M884 256h-75c-5.1 0-9.9 2.5-12.9 6.6L512 654.2 227.9 262.6c-3-4.1-7.8-6.6-12.9-6.6h-75c-6.5 0-10.3 7.4-6.5 12.7l352.6 486.1c12.8 17.6 39 17.6 51.7 0l352.6-486.1c3.9-5.3.1-12.7-6.4-12.7z" />
+                </svg>
+              </span>
+            </summary>
+
+            <ul class="sidebar-sublist">
+              {section.items.map((item) => {
+                const active = item.slug === currentSlug;
+
+                return (
+                  <li class="sidebar-subitem">
+                    <a
+                      href={item.href}
+                      class:list={[
+                        "sidebar-link",
+                        { active },
+                      ]}
+                    >
+                      {item.title}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+
+        </li>
+      );
+    })}
+
+  </ul>
+</nav>
+
+<style>
+.docs-sidebar {
+  height: 100%;
+  padding-right: 16px;
+}
+
+/* LIST */
+
+.sidebar-list,
+.sidebar-sublist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sidebar-item {
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+/* SECTION */
+
+.sidebar-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 8px 12px;
+
+  cursor: pointer;
+  border-radius: 8px;
+
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  opacity: 0.6;
+}
+
+.sidebar-summary::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar-summary:hover {
+  opacity: 1;
+}
+
+.sidebar-section-title {
+  font-weight: 500;
+}
+
+/* ARROW */
+
+.sidebar-arrow {
+  display: flex;
+  align-items: center;
+  transition: transform 0.2s ease;
+}
+
+.sidebar-details:not([open]) .sidebar-arrow {
+  transform: rotate(-90deg);
+}
+
+/* ITEMS */
+
+.sidebar-subitem {
+  margin: 2px 0;
+}
+
+.sidebar-link {
+  display: block;
+
+  padding: 6px 12px 6px 20px;
+
+  font-size: 14px;
+  line-height: 1.4;
+
+  text-decoration: none;
+  color: inherit;
+
+  opacity: 0.8;
+  border-radius: 6px;
+
+  transition: all 0.15s ease;
+}
+
+.sidebar-link:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.sidebar-link.active {
+  opacity: 1;
+  font-weight: 500;
+  background: rgba(0, 0, 0, 0.08);
+}
+</style>

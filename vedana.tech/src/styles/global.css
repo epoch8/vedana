@@ -1,0 +1,35 @@
+/* antd v5 CSS reset */
+@import 'antd/dist/reset.css';
+
+/* Design tokens */
+@import "./tokens.css";
+@import "./ui.css";
+@import "./components.css";
+
+/* Box sizing */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Root reset */
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Body defaults */
+
+body {
+  font-family: var(--font-family-base);
+  line-height: var(--line-height-base);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* Page root wrapper */
+
+.page-root {
+  min-height: 100dvh;
+}

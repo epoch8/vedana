@@ -1,0 +1,153 @@
+---
+import styles from "./Table.module.css"
+
+interface TableColumn {
+  key: string
+  title: string
+  badge?: string
+  variant?: string
+}
+
+interface TableCell {
+  icon?: string
+  iconHtml?: string
+  title?: string
+  example?: string
+  text?: string
+  html?: string
+}
+
+interface TableRow {
+  id?: string
+  [key: string]: TableCell | string | undefined
+}
+
+interface TableData {
+  columns: TableColumn[]
+  rows: TableRow[]
+}
+
+const { table } = Astro.props as { table: TableData }
+
+const { columns, rows } = table
+
+function isCell(value: unknown): value is TableCell {
+  return typeof value === "object" && value !== null
+}
+---
+
+<div class={styles.table}>
+
+  <div class={styles.header}>
+
+    {columns.map((col: TableColumn) => (
+      <div class={styles.headerCell}>
+
+        {col.title}
+
+        {col.badge && (
+          <span
+            class={`${styles.badge} ${
+              col.variant === "semantic"
+                ? styles.badgePrimary
+                : ""
+            }`}
+          >
+            {col.badge}
+          </span>
+        )}
+
+      </div>
+    ))}
+
+  </div>
+
+  <div class={styles.body}>
+
+    {rows.map((row: TableRow) => (
+
+      <div class={styles.row}>
+
+        {columns.map((col: TableColumn) => {
+
+          const raw = row[col.key]
+
+          if (!isCell(raw)) {
+            return (
+              <div class={styles.cell}>
+                {typeof raw === "string" ? raw : null}
+              </div>
+            )
+          }
+
+          const cell = raw
+
+          return (
+
+            <div class={styles.cell}>
+
+              {/* MOBILE COLUMN LABEL */}
+
+              {col.key !== "scenario" && (
+                <div class={styles.mobileLabel}>
+                  {col.title}
+                </div>
+              )}
+
+              {/* ICON */}
+
+              {cell.icon && (
+                <span class={styles.icon}>
+                  {cell.icon}
+                </span>
+              )}
+
+              {cell.iconHtml && (
+                <span
+                  class={styles.icon}
+                  set:html={cell.iconHtml}
+                />
+              )}
+
+              <div>
+
+                {cell.title && (
+                  <div class={styles.cellTitle}>
+                    {cell.title}
+                  </div>
+                )}
+
+                {cell.example && (
+                  <div class={styles.cellExample}>
+                    {cell.example}
+                  </div>
+                )}
+
+                {cell.text && (
+                  <div class={styles.text}>
+                    {cell.text}
+                  </div>
+                )}
+
+                {cell.html && (
+                  <div
+                    class={styles.text}
+                    set:html={cell.html}
+                  />
+                )}
+
+              </div>
+
+            </div>
+
+          )
+
+        })}
+
+      </div>
+
+    ))}
+
+  </div>
+
+</div>

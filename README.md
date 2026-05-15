@@ -190,6 +190,10 @@ Workflows are generated based on configuration in each library's pyproject.toml.
 For details on configuring and using the CI/CD code generation tool,
 see [uv-workspace-codegen](https://github.com/epoch8/uv-workspace-codegen).
 
+## Documentation
+
+The product website and versioned documentation live at [vedana.tech/](vedana.tech/) in this same repository. Latest docs deploy on every push to `master`; pinned snapshots are built from `v*` tags. See [vedana.tech/README.md](vedana.tech/README.md) for details.
+
 ## Contributing
 
 TODO

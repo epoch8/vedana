@@ -1,0 +1,70 @@
+/* =========================================
+   GRAPH BREADCRUMB — ANCHOR STACK
+========================================= */
+
+/*
+  Breadcrumb отвечает только за размещение узлов.
+  Размером управляет Anchor.
+  Линия — часть Layout.
+*/
+
+
+/* -----------------------------------------
+   ROOT NAV (desktop)
+------------------------------------------ */
+
+.spine-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+
+/* -----------------------------------------
+   ANCHOR WRAPPER (desktop)
+------------------------------------------ */
+
+/*
+  Центр anchor должен совпадать с осью.
+  Смещаемся от фактического --anchor-size,
+  который приходит из Anchor.
+*/
+
+.spine-anchor {
+  position: relative;
+
+  left: calc(-1 * var(--anchor-size) / 2);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  z-index: 2;
+
+  transition:
+    transform var(--dur-fast) var(--ease-standard),
+    opacity var(--dur-fast) var(--ease-standard);
+}
+
+
+/* subtle lift */
+.spine-anchor:hover {
+  transform: translateY(-2px);
+}
+
+
+/* current state */
+.spine-anchor--current {
+  opacity: 1;
+}
+
+
+@media (max-width: 768px) {
+  .spine-anchor {
+    transform: scale(0.8);
+  }
+
+  .spine-nav {
+    gap: var(--space-3);
+  }
+}
