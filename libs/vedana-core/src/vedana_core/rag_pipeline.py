@@ -42,48 +42,32 @@ class DataModelSelection(BaseModel):
 
 
 dm_filter_base_system_prompt = """\
-Ты — помощник по анализу структуры графовой базы данных.
+You are an assistant that analyzes graph data model structure.
 
-Твоя задача: проанализировать вопрос пользователя и определить, какие элементы модели данных (узлы, связи, атрибуты, сценарии запросов) необходимы для формирования ответа.
+Your task is to analyze the user's question and determine which data model elements (nodes, links, attributes, query scenarios) are needed to produce an answer.
 
-**Правила выбора:**
-1. Выбирай только те элементы, которые ДЕЙСТВИТЕЛЬНО нужны для ответа на вопрос
-2. Если вопрос касается связи между сущностями — выбери соответствующие узлы И связь между ними
-3. Выбирай атрибуты, которые могут содержать искомую информацию или использоваться для фильтрации
-   - anchor_attribute_names: атрибуты узлов (находятся в разделе "Атрибуты узлов")
-   - link_attribute_names: атрибуты связей (находятся в разделе "Атрибуты связей")
-4. Выбирай сценарий запроса, который лучше всего соответствует типу вопроса пользователя
-5. Лучше выбрать чуть больше, чем упустить важное — но не выбирай всё подряд
+**Selection rules:**
+1. Select only the elements that are ACTUALLY needed to answer the question.
+2. If the question is about a relationship between entities, select the relevant nodes AND the link between them.
+3. Select attributes that may contain the required information or can be used for filtering.
+   - `anchor_attribute_names`: node attributes (found in the "Node Attributes" section)
+   - `link_attribute_names`: link attributes (found in the "Link Attributes" section)
+4. Select the query scenario that best matches the type of the user's question.
+5. It is better to select more than to miss something important, but do not select everything blindly.
 
-**Формат ответа:**
-Верни JSON с выбранными элементами. Используй ТОЧНЫЕ имена из предоставленной модели данных.
+**Response format:**
+Return JSON with the selected elements. Use the EXACT names from the provided data model.
 """
 
 dm_filter_user_prompt_template = """\
-**Вопрос пользователя:**
+**User question:**
 {user_query}
 
-**Модель данных:**
+**Data model:**
 {compact_data_model}
 
-Проанализируй вопрос и выбери необходимые элементы модели данных для формирования ответа.
+Analyze the question and select the required data model elements needed to produce the answer.
 """
-
-
-class StartPipeline:
-    """
-    Response for /start command
-    """
-
-    def __init__(self, data_model: DataModel) -> None:
-        self.data_model = data_model
-
-    async def __call__(self, ctx: ThreadContext) -> None:
-        lifecycle_events = await self.data_model.conversation_lifecycle_events()
-        start_response = lifecycle_events.get("/start")
-
-        message = start_response or "Bot online. No response for /start command in LifecycleEvents"
-        ctx.send_message(message)
 
 
 class RagPipeline:
@@ -102,7 +86,7 @@ class RagPipeline:
         data_model: DataModel,
         logger,
         threshold: float = 0.8,
-        top_n: int = 5,
+        top_n: int | None = None,
         model: str | None = None,
         filter_model: str | None = None,
         enable_filtering: bool | None = None,
@@ -112,7 +96,7 @@ class RagPipeline:
         self.data_model = data_model
         self.logger = logger or logging.getLogger(__name__)
         self.threshold = threshold
-        self.top_n = top_n
+        self.top_n = top_n or settings.embeddings_top_n
         self.model = model or settings.model
         self.filter_model = filter_model or settings.filter_model  # or self.model
         self.enable_filtering = enable_filtering or settings.enable_dm_filtering
@@ -149,7 +133,7 @@ class RagPipeline:
 
         except Exception as e:
             self.logger.exception(f"Error in RAG pipeline: {e}")
-            error_msg = "An error occurred while processing the request"  # не передаем ошибку пользователю в диалог
+            error_msg = "An error occurred while processing the request"
             ctx.send_message(error_msg)
 
             # Store error event
@@ -167,6 +151,17 @@ class RagPipeline:
         if self.enable_filtering:
             await ctx.update_agent_status("Analyzing query structure...")
             data_model_description, filter_selection = await self.filter_data_model(query, ctx)
+
+            # Send reasoning for enhanced context.
+            if not filter_selection.reasoning.startswith("Filtering failed"):
+                ctx.send_event(
+                    "context.dm_filter_reasoning",
+                    {
+                        "role": "assistant",
+                        "content": filter_selection.reasoning,
+                    },
+                )
+
         else:
             data_model_description = await self.data_model.to_text_descr()
             filter_selection = DataModelSelection()
@@ -278,11 +273,12 @@ class RagPipeline:
             if self.filter_model:  # if different model specified for filtering - use it
                 filter_llm.set_model(self.filter_model)
 
-            # Use structured output to get the selection
-            selection = await filter_llm.chat_completion_structured(messages, DataModelSelection)
-
-            if base_model:  # select base model back
-                ctx.llm.set_model(base_model)
+            try:
+                # Use structured output to get the selection
+                selection = await filter_llm.chat_completion_structured(messages, DataModelSelection)
+            finally:
+                if base_model:  # select base model back
+                    ctx.llm.set_model(base_model)
 
             if selection is None:
                 raise ValueError("LLM returned empty response")
@@ -315,7 +311,7 @@ class RagPipeline:
             self.logger.exception(f"Data model filtering failed: {e}. Using full data model.")
             descr = await self.data_model.to_text_descr()
             return descr, DataModelSelection(
-                reasoning=f"Filtering failed: {e}. Using full data model.",
+                reasoning=f"Filtering failed: {e}. Using full data model.",  # not passed into context
                 anchor_nouns=[],
                 link_sentences=[],
                 anchor_attribute_names=[],

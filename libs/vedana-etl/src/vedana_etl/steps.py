@@ -88,11 +88,13 @@ def get_data_model() -> Iterator[
                 "query",
                 "dtype",
                 "embed_threshold",
+                "embed_top_n",
             ]
         ],
     )
     anchor_attrs_df["embeddable"] = anchor_attrs_df["embeddable"].astype(bool)
     anchor_attrs_df["embed_threshold"] = anchor_attrs_df["embed_threshold"].astype(float)
+    anchor_attrs_df["embed_top_n"] = anchor_attrs_df["embed_top_n"].fillna(core_settings.embeddings_top_n).astype(int)
     anchor_attrs_df = anchor_attrs_df.dropna(subset=["anchor", "attribute_name"], how="any")
 
     link_attrs_df = loader.get_table("Link_attributes")
@@ -108,11 +110,13 @@ def get_data_model() -> Iterator[
                 "query",
                 "dtype",
                 "embed_threshold",
+                "embed_top_n",
             ]
         ],
     )
     link_attrs_df["embeddable"] = link_attrs_df["embeddable"].astype(bool)
     link_attrs_df["embed_threshold"] = link_attrs_df["embed_threshold"].astype(float)
+    link_attrs_df["embed_top_n"] = link_attrs_df["embed_top_n"].fillna(core_settings.embeddings_top_n).astype(int)
     link_attrs_df = link_attrs_df.dropna(subset=["link", "attribute_name"], how="any")
 
     anchors_df = loader.get_table("Anchors")
@@ -184,6 +188,7 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
                 query=attr_row.get("query", ""),
                 embeddable=bool(attr_row.get("embeddable", False)),
                 embed_threshold=float(attr_row.get("embed_threshold", 1.0)),
+                embed_top_n=int(attr_row.get("embed_top_n", core_settings.embeddings_top_n)),
             )
         )
 
@@ -221,6 +226,7 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
                 query=str(lattr_row.get("query", "")),
                 embeddable=bool(lattr_row.get("embeddable", False)),
                 embed_threshold=float(lattr_row.get("embed_threshold", 1.0)),
+                embed_top_n=int(lattr_row.get("embed_top_n", core_settings.embeddings_top_n)),
             )
         )
 

@@ -1,8 +1,8 @@
 import reflex as rx
 
-from vedana_backoffice.states.common import AppVersionState
-from vedana_backoffice.states.eval import EvalState, RunSummary
 from vedana_backoffice.states.chat import ChatState
+from vedana_backoffice.states.common import AppVersionState, DebugState
+from vedana_backoffice.states.eval import EvalState, RunSummary
 from vedana_backoffice.ui import app_header
 
 
@@ -21,7 +21,11 @@ def _selection_and_actions() -> rx.Component:
                 color_scheme="blue",
                 on_click=EvalState.run_selected_tests,
                 loading=EvalState.is_running,
-                disabled=rx.cond(EvalState.can_run, False, True),  # type: ignore[arg-type]
+                disabled=rx.cond(
+                    DebugState.debug_mode & ~DebugState.embeddings_model_available,
+                    True,
+                    rx.cond((EvalState.selected_count > 0) & ~EvalState.is_running, False, True),  # type: ignore[arg-type]
+                ),
             ),
             rx.spacer(),
             rx.button(
@@ -172,7 +176,18 @@ def _judge_card() -> rx.Component:
             rx.heading("Judge configuration", size="4"),
             rx.box(
                 rx.text("Judge model", weight="medium"),
-                rx.text(EvalState.judge_model, size="3"),
+                rx.cond(
+                    AppVersionState.debug_mode,
+                    rx.select(
+                        items=DebugState.available_models,
+                        value=EvalState.judge_model,
+                        on_change=EvalState.set_judge_model,
+                        width="100%",
+                        placeholder="Select model",
+                    ),
+                    rx.text(EvalState.judge_model_display, size="3"),
+                ),
+                width="100%",
                 padding_bottom="0.75em",
             ),
             rx.button(
@@ -224,57 +239,61 @@ def _pipeline_card() -> rx.Component:
                     rx.text("Pipeline model", weight="medium", width="100%"),
                     rx.cond(
                         ChatState.model_selection_allowed,
-                        rx.hstack(
-                            rx.select(
-                                items=["openai", "openrouter"],
-                                value=EvalState.provider,
-                                on_change=EvalState.set_provider,
-                                width="100%",
-                                placeholder="Provider",
-                            ),
-                            rx.cond(
-                                EvalState.provider == "openrouter",
-                                rx.input(
-                                    placeholder=rx.cond(
-                                        EvalState.default_openrouter_key_present,
-                                        "(Optional) custom OPENROUTER_API_KEY",
-                                        "(Required) OPENROUTER_API_KEY",
-                                    ),
-                                    type="password",
-                                    value=EvalState.custom_openrouter_key,
-                                    on_change=EvalState.set_custom_openrouter_key,
-                                    width="100%",
-                                    required=rx.cond(EvalState.default_openrouter_key_present, False, True),
-                                ),
-                            ),
-                            rx.select(
-                                items=EvalState.available_models_view,
-                                value=EvalState.pipeline_model,
-                                on_change=EvalState.set_pipeline_model,
-                                width="100%",
-                                placeholder="Select model",
-                            ),
-                            rx.checkbox(
-                                "Filter Data Model",
-                                checked=EvalState.enable_dm_filtering,
-                                on_change=EvalState.set_enable_dm_filtering,
-                                size="2",
-                            ),
-                            spacing="2",
-                            align="center",
-                            wrap="wrap",
+                        rx.select(
+                            items=DebugState.available_models,
+                            value=EvalState.pipeline_model,
+                            on_change=EvalState.set_pipeline_model,
                             width="100%",
+                            placeholder="Select model",
                         ),
-                        rx.badge(EvalState.pipeline_model, variant="surface", color_scheme="gray", size="3")
+                        rx.text(EvalState.pipeline_model, size="3"),
+                    ),
+                    # Filter Data Model — always visible
+                    rx.hstack(
+                        rx.checkbox(
+                            "Filter Data Model",
+                            checked=EvalState.enable_dm_filtering,
+                            on_change=EvalState.set_enable_dm_filtering,
+                            size="2",
+                        ),
+                        rx.cond(
+                            EvalState.enable_dm_filtering,
+                            rx.cond(
+                                AppVersionState.debug_mode,
+                                rx.select(
+                                    items=DebugState.available_models,
+                                    value=EvalState.dm_filter_model,
+                                    on_change=EvalState.set_dm_filter_model,
+                                    width="100%",
+                                    placeholder="Filter model",
+                                ),
+                                rx.text(EvalState.dm_filter_model_display, size="2", color="gray"),
+                            ),
+                            rx.fragment(),
+                        ),
+                        spacing="2",
+                        align="center",
+                        wrap="wrap",
+                        width="100%",
+                        margin_top="0.5em",
                     ),
                     padding_bottom="0.75em",
                     width="100%",
                 ),
                 rx.box(
                     rx.text("Embeddings", weight="medium"),
-                    rx.text(
-                        rx.cond(EvalState.embeddings_model != "", EvalState.embeddings_model, "—"),
-                        size="3",
+                    rx.cond(
+                        AppVersionState.debug_mode,
+                        rx.cond(
+                            DebugState.embeddings_model_available,
+                            rx.text(DebugState.embeddings_model, size="3"),
+                            rx.text(
+                                f"{EvalState.default_embeddings_model} (unavailable for provider)",
+                                size="3",
+                                color="red",
+                            ),
+                        ),
+                        rx.text(EvalState.default_embeddings_model, size="3"),
                     ),
                     rx.text(
                         EvalState.embeddings_dim_label,
@@ -343,6 +362,7 @@ def _tests_card() -> rx.Component:
             ),
             rx.table.cell(rx.text(row.get("eval_judge_rating", "—"))),
             _expandable_text(row, "eval_judge_comment"),
+            # rx.table.cell(rx.text(row.get("pipeline_cost", "—"), size="1", color="gray")),
         )
 
     return rx.card(
@@ -351,7 +371,14 @@ def _tests_card() -> rx.Component:
                 rx.heading("Test results", size="4"),
                 rx.spacer(),
                 rx.text(EvalState.pass_fail_summary, size="2", color="gray"),
-                rx.badge(EvalState.cost_label, color_scheme="gray", variant="soft"),
+                rx.hstack(
+                    rx.text("Answer:", size="1", color="gray"),
+                    rx.badge(EvalState.cost_label, color_scheme="gray", variant="soft"),
+                    rx.text("Judge:", size="1", color="gray"),
+                    rx.badge(EvalState.judge_cost_label, color_scheme="gray", variant="soft"),
+                    spacing="1",
+                    align="center",
+                ),
                 rx.select(
                     items=EvalState.tests_sort_options,
                     value=EvalState.selected_tests_sort,
@@ -388,6 +415,8 @@ def _tests_card() -> rx.Component:
                             rx.table.column_header_cell("Status"),
                             rx.table.column_header_cell("Rating"),
                             rx.table.column_header_cell("Judge comment"),
+                            # rx.table.column_header_cell("Pipeline cost"),
+                            # rx.table.column_header_cell("Judge cost"),
                         )
                     ),
                     rx.table.body(rx.foreach(EvalState.tests_rows, _row)),
@@ -533,6 +562,11 @@ def _compare_dialog() -> rx.Component:
                     ),
                     rx.badge(
                         f"Cost: ${summary['cost_total']:.3f}",
+                        color_scheme="gray",
+                        variant="soft",
+                    ),
+                    rx.badge(
+                        f"Judge cost: ${summary['judge_cost_total']:.3f}",
                         color_scheme="gray",
                         variant="soft",
                     ),

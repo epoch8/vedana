@@ -1,28 +1,25 @@
 [project]
-name = "ai-assistants-oss-ws"
+name = "ai-assistants-opensource-ws"
 version = "1"
-description = "Add your description here"
-readme = "README.md"
 requires-python = ">=3.12,<3.13"
 
 [tool.uv.workspace]
 members = [
-    "libs/jims-*",
-    "libs/vedana-*",
+    "apps/jims-demo",
+    "apps/stell",
     "apps/vedana",
-    "apps/vedana-*",
-    "apps/jims-*",
+    "libs/jims-api",
+    "libs/jims-backoffice",
+    "libs/jims-chatwoot",
+    "libs/jims-core",
+    "libs/jims-telegram",
+    "libs/jims-tui",
+    "libs/jims-widget",
+    "libs/stell-core",
+    "libs/vedana-backoffice",
+    "libs/vedana-core",
+    "libs/vedana-etl",
 ]
-
-[tool.uv.sources]
-jims-backoffice = { workspace = true }
-jims-core = { workspace = true }
-jims-api = { workspace = true }
-jims-telegram = { workspace = true }
-jims-tui = { workspace = true }
-vedana-backoffice = { workspace = true }
-vedana-core = { workspace = true }
-vedana-etl = { workspace = true }
 
 [tool.mypy]
 ignore_missing_imports = true
@@ -32,3 +29,6 @@ enable_incomplete_feature = ["NewGenericSyntax"]
 
 [tool.ruff]
 line-length = 120
+
+[tool.pyright]
+reportPrivateImportUsage = "none"

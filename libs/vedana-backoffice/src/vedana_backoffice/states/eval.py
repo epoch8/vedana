@@ -3,7 +3,6 @@ import difflib
 import hashlib
 import json
 import logging
-import os
 import statistics
 import traceback
 from dataclasses import asdict, dataclass
@@ -15,14 +14,20 @@ import reflex as rx
 import sqlalchemy as sa
 from datapipe.compute import run_steps
 from jims_core.db import ThreadDB, ThreadEventDB
-from jims_core.llms.llm_provider import LLMProvider
+from jims_core.llms.llm_provider import LLMProvider, LLMSettings
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from pydantic import BaseModel, Field
 from vedana_core.settings import settings as core_settings
 from vedana_etl.app import app as etl_app
 
-from vedana_backoffice.states.common import get_vedana_app, load_openrouter_models, HAS_OPENROUTER_KEY, datapipe_log_capture
+from vedana_backoffice.states.common import (
+    DebugState,
+    DEBUG_MODE,
+    EVAL_ENABLED,
+    datapipe_log_capture,
+    get_vedana_app,
+)
 from vedana_backoffice.util import safe_render_value
 
 
@@ -45,6 +50,7 @@ class RunSummary(TypedDict):
     pass_rate: float
     avg_rating: str  # rounded and converted to str
     cost_total: float
+    judge_cost_total: float
     test_run_name: str
     avg_answer_time_sec: float
     median_answer_time_sec: float
@@ -160,10 +166,23 @@ EMPTY_SUMMARY: RunSummary = {
     "pass_rate": 0.0,
     "avg_rating": "—",
     "cost_total": 0.0,
+    "judge_cost_total": 0.0,
     "test_run_name": "",
     "avg_answer_time_sec": 0.0,
     "median_answer_time_sec": 0.0,
 }
+
+
+eval_judge_prompt_template = """\
+You are a strict evaluation judge. Compare the model's answer with the golden answer and the expected retrieval context. 
+Consider whether the model's answer is factually aligned and sufficiently complete. 
+Use the provided technical info (retrieval queries) only as hints for whether the context seems adequate. 
+Return a JSON object with fields: test_status in {'pass','fail'}, comment, errors.
+
+In comments return answer scoring from 1 to 10, where:
+1 – totally wrong answer
+10 – totally correct answer
+"""
 
 
 class EvalState(rx.State):
@@ -177,36 +196,20 @@ class EvalState(rx.State):
     selected_question_ids: list[str] = []
     test_run_name: str = ""
     selected_scenario: str = "all"  # Filter by scenario
-    judge_model: str = ""
     judge_prompt_id: str = ""
     judge_prompt: str = ""
-    provider: str = "openai"
     pipeline_model: str = core_settings.model
-    embeddings_model: str = core_settings.embeddings_model
+    default_embeddings_model: str = core_settings.embeddings_model
     embeddings_dim: int = core_settings.embeddings_dim
-    custom_openrouter_key: str = ""
-    default_openrouter_key_present: bool = HAS_OPENROUTER_KEY
-    enable_dm_filtering: bool = bool(os.environ.get("ENABLE_DM_FILTERING", False))
-    _default_models: tuple[str, ...] = (
-        "gpt-5.1-chat-latest",
-        "gpt-5.1",
-        "gpt-5-chat-latest",
-        "gpt-5",
-        "gpt-5-mini",
-        "gpt-5-nano",
-        "gpt-4.1",
-        "gpt-4.1-mini",
-        "gpt-4.1-nano",
-        "gpt-4o",
-        "gpt-4o-mini",
-        "o4-mini",
-    )
-    openai_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
-    openrouter_models: list[str] = []
-    available_models: list[str] = list(set(list(_default_models) + [core_settings.model]))
+    enable_dm_filtering: bool = core_settings.enable_dm_filtering
+    available_models: list[str] = list({core_settings.model, core_settings.filter_model, core_settings.judge_model})
+    dm_filter_model: str = core_settings.filter_model
     dm_id: str = ""
+    judge_model: str = core_settings.judge_model
+
     tests_rows: list[dict[str, Any]] = []
     tests_cost_total: float = 0.0
+    tests_judge_cost_total: float = 0.0
     run_passed: int = 0
     run_failed: int = 0
     selected_run_id: str = ""
@@ -305,14 +308,16 @@ class EvalState(rx.State):
         return 0 < rows == self.selected_count
 
     @rx.var
-    def can_run(self) -> bool:
-        return (self.selected_count > 0) and (not self.is_running)
-
-    @rx.var
     def cost_label(self) -> str:
         if self.tests_cost_total > 0:
             return f"${self.tests_cost_total:.4f}"
         return "Cost data unavailable"
+
+    @rx.var
+    def judge_cost_label(self) -> str:
+        if self.tests_judge_cost_total > 0:
+            return f"${self.tests_judge_cost_total:.4f}"
+        return "—"
 
     @rx.var
     def tests_row_count(self) -> int:
@@ -358,8 +363,12 @@ class EvalState(rx.State):
         )
 
     @rx.var
-    def available_models_view(self) -> list[str]:
-        return self.available_models
+    def dm_filter_model_display(self) -> str:
+        return self.dm_filter_model
+
+    @rx.var
+    def judge_model_display(self) -> str:
+        return self.judge_model
 
     def toggle_question_selection(self, question: str, checked: bool) -> None:
         question = str(question or "").strip()
@@ -426,18 +435,16 @@ class EvalState(rx.State):
         if value in self.available_models:
             self.pipeline_model = value
 
-    def set_custom_openrouter_key(self, value: str) -> None:
-        self.custom_openrouter_key = str(value or "").strip()
-        # optional: could refetch models with the override; keep static to avoid extra calls
-
     def set_enable_dm_filtering(self, value: bool) -> None:
         self.enable_dm_filtering = value
 
-    async def set_provider(self, value: str) -> None:
-        self.provider = str(value or "openai")
-        if self.provider == "openrouter" and not self.openrouter_models:
-            self.openrouter_models = await load_openrouter_models()
-        self._sync_available_models()
+    def set_dm_filter_model(self, value: str) -> None:
+        if value in self.available_models:
+            self.dm_filter_model = value
+
+    def set_judge_model(self, value: str) -> None:
+        if value in self.available_models:
+            self.judge_model = value
 
     def set_compare_run_a(self, value: str) -> None:
         self.compare_run_a = str(value or "").strip()
@@ -454,21 +461,54 @@ class EvalState(rx.State):
         self.selected_question_ids = [q for q in (self.selected_question_ids or []) if q in valid]
 
     def _sync_available_models(self) -> None:
-        if self.provider == "openrouter":
-            models = self.openrouter_models
-            if not models:
-                self.provider = "openai"
-                models = self.openai_models
-        else:
-            models = self.openai_models
-
-        self.available_models = list(models)
+        """Realign selected pipeline model when model list changes."""
         if self.pipeline_model not in self.available_models and self.available_models:
-            self.pipeline_model = self.available_models[0]
+            for model in self.available_models:
+                if model.endswith(core_settings.model):
+                    self.pipeline_model = model
+                    break
+            else:
+                if "openrouter/openrouter/free" in self.available_models:  # openrouter provider
+                    self.pipeline_model = "openrouter/openrouter/free"  # Openrouter has an endpoint with all free models, set it as default
+                else:
+                    self.pipeline_model = self.available_models[0]
+
+    def _sync_dm_filter_model(self) -> None:
+        """Realign selected filter model when model list changes."""
+        if self.dm_filter_model not in self.available_models and self.available_models:
+            for model in self.available_models:
+                if model.endswith(core_settings.filter_model):
+                    self.dm_filter_model = model
+                    break
+            else:
+                if "openrouter/openrouter/free" in self.available_models:
+                    self.dm_filter_model = "openrouter/openrouter/free"
+                else:
+                    self.dm_filter_model = self.available_models[0]
+
+    def _sync_judge_model(self) -> None:
+        """Realign selected judge model when model list changes."""
+        if self.judge_model not in self.available_models and self.available_models:
+            for model in self.available_models:
+                if model.endswith(core_settings.judge_model):
+                    self.judge_model = model
+                    break
+            else:
+                if "openrouter/openrouter/free" in self.available_models:
+                    self.judge_model = "openrouter/openrouter/free"
+                else:
+                    self.judge_model = self.available_models[0]
+
+    @rx.event(background=True)  # type: ignore[operator]
+    async def refresh_model_list(self) -> None:
+        async with self:
+            self.available_models = await self.get_var_value(DebugState.available_models)  # type: ignore[arg-type]
+            self._sync_available_models()
+            self._sync_dm_filter_model()
+            self._sync_judge_model()
 
     def _resolved_pipeline_model(self) -> str:
-        provider = self.provider or "openai"
-        return f"{provider}/{self.pipeline_model}"
+        return self.pipeline_model
 
     def get_eval_gds_from_grist(self):
         step = next((s for s in etl_app.steps if s._name == "get_eval_gds_from_grist"), None)
@@ -509,13 +549,13 @@ class EvalState(rx.State):
         self._prune_selection()
 
     async def _load_judge_config(self) -> None:
-        self.judge_model = core_settings.judge_model
+        self.judge_model = core_settings.judge_model if not self.judge_model else self.judge_model
         self.judge_prompt_id = ""
         self.judge_prompt = ""
 
         vedana_app = await get_vedana_app()
         dm_pt = await vedana_app.data_model.prompt_templates()
-        judge_prompt = dm_pt.get("eval_judge_prompt")
+        judge_prompt = dm_pt.get("eval_judge_prompt", eval_judge_prompt_template)
 
         if judge_prompt:
             text_b = bytearray(judge_prompt, "utf-8")
@@ -675,6 +715,7 @@ class EvalState(rx.State):
             if not page_threads:
                 self.tests_rows = []
                 self.tests_cost_total = 0.0
+                self.tests_judge_cost_total = 0.0
                 self.run_passed = 0
                 self.run_failed = 0
                 return
@@ -695,6 +736,7 @@ class EvalState(rx.State):
         passed = 0
         failed = 0
         cost_total = 0.0
+        judge_cost_total = 0.0
         for thread in page_threads:
             cfg = thread.thread_config or {}
             evs = events_by_thread.get(thread.thread_id, [])
@@ -704,6 +746,7 @@ class EvalState(rx.State):
             rating_label = "—"
             run_label = self._format_run_label_with_name(thread.contact_id, cfg)
             test_date = run_label
+            row_pipeline_cost: float = 0.0
 
             for ev in evs:
                 if ev.event_type == "comm.assistant_message":
@@ -717,7 +760,9 @@ class EvalState(rx.State):
                                 cost_val = stats.get("requests_cost")
                                 try:
                                     if cost_val is not None:
-                                        cost_total += float(cost_val)
+                                        v = float(cost_val)
+                                        cost_total += v
+                                        row_pipeline_cost += v
                                 except (TypeError, ValueError):
                                     pass
                 elif ev.event_type == "eval.result":
@@ -725,6 +770,13 @@ class EvalState(rx.State):
                     judge_comment = ev.event_data.get("eval_judge_comment", judge_comment)
                     rating_label = str(ev.event_data.get("eval_judge_rating", rating_label))
                     test_date = self._format_run_label(ev.event_data.get("test_date", test_date))
+                    try:
+                        jc = ev.event_data.get("judge_cost")
+                        if jc is not None:
+                            v = float(jc)
+                            judge_cost_total += v
+                    except (TypeError, ValueError):
+                        pass
 
             if status == "pass":
                 passed += 1
@@ -744,11 +796,13 @@ class EvalState(rx.State):
                     "status_color": self._status_color(status),
                     "eval_judge_comment": safe_render_value(judge_comment),
                     "eval_judge_rating": rating_label,
+                    "pipeline_cost": f"${row_pipeline_cost:.6f}" if row_pipeline_cost else "—",
                 }
             )
 
         self.tests_rows = rows
         self.tests_cost_total = cost_total
+        self.tests_judge_cost_total = judge_cost_total
         self.run_passed = passed
         self.run_failed = failed
 
@@ -1124,7 +1178,7 @@ class EvalState(rx.State):
         )
         run_config = RunConfig(
             pipeline_model=self._resolved_pipeline_model(),
-            embeddings_model=self.embeddings_model,
+            embeddings_model=core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model),  # type: ignore[arg-type]
             embeddings_dim=self.embeddings_dim,
         )
         return {
@@ -1422,6 +1476,7 @@ class EvalState(rx.State):
         passed = 0
         failed = 0
         cost_total = 0.0
+        judge_cost_total = 0.0
         ratings: list[float] = []
         answer_times: list[float] = []
 
@@ -1482,6 +1537,12 @@ class EvalState(rx.State):
                         rating_val = None
                     if "gds_question" in ev.event_data:
                         question_text = str(ev.event_data["gds_question"])
+                    try:
+                        jc = ev.event_data.get("judge_cost")
+                        if jc is not None:
+                            judge_cost_total += float(jc)
+                    except (TypeError, ValueError):
+                        pass
 
             total += 1
             if status == "pass":
@@ -1521,6 +1582,7 @@ class EvalState(rx.State):
             "pass_rate": (passed / total) if total else 0.0,
             "avg_rating": str(round(avg_rating, 2) if ratings else "—"),
             "cost_total": round(cost_total, 3),
+            "judge_cost_total": round(judge_cost_total, 6),
             "test_run_name": meta_sample["test_run_name"]
             if "test_run_name" in meta_sample
             else (cfg_sample["test_run_name"] if "test_run_name" in cfg_sample else ""),
@@ -1578,8 +1640,7 @@ class EvalState(rx.State):
             "judge_model": self.judge_model,
             "judge_prompt_id": self.judge_prompt_id,
             "pipeline_model": resolved_model,
-            "pipeline_provider": self.provider,
-            "embeddings_model": self.embeddings_model,
+            "embeddings_model": core_settings.embeddings_model,
             "embeddings_dim": self.embeddings_dim,
             "dm_id": self.dm_id,
         }
@@ -1624,11 +1685,17 @@ class EvalState(rx.State):
         resolved_model = self._resolved_pipeline_model()
         pipeline.model = resolved_model
         pipeline.enable_filtering = self.enable_dm_filtering
+        pipeline.filter_model = self.dm_filter_model
 
-        ctx = await ctl.make_context()
-        if self.provider == "openrouter" and self.custom_openrouter_key:
-            ctx.llm.model_api_key = self.custom_openrouter_key
+        async with self:
+            pipeline_embeddings_model = core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model)  # type: ignore[arg-type]
 
+        ctx = await ctl.make_context(
+            llm_settings=LLMSettings(
+                model=resolved_model, 
+                embeddings_model=pipeline_embeddings_model
+            )
+        )
         events = await ctl.run_pipeline_with_context(pipeline, ctx)
 
         answer: str = ""
@@ -1641,19 +1708,22 @@ class EvalState(rx.State):
 
         return str(thread_id), answer, technical_info
 
-    async def _judge_answer(self, question_row: dict[str, Any], answer: str, tool_calls: str) -> tuple[str, str, int]:
-        """Judge model answer with current judge prompt/model and rating."""
+    async def _judge_answer(
+        self, question_row: dict[str, Any], answer: str, tool_calls: str
+    ) -> tuple[str, str, int, float]:
+        """Judge model answer with current judge prompt/model and rating.
+        Returns (status, comment, rating, judge_cost).
+        """
         judge_prompt = self.judge_prompt
         if not judge_prompt:
-            return "fail", "Judge prompt not loaded", 0
+            return "fail", "Judge prompt not loaded", 0, 0.0
 
-        provider = LLMProvider()  # todo use single LLMProvider per-thread
-        judge_model = self.judge_model
-        if judge_model:
-            try:
-                provider.set_model(judge_model)
-            except Exception:
-                logging.warning(f"Failed to set judge model {judge_model}")
+        provider = LLMProvider(
+            settings=LLMSettings(
+                model=self.judge_model, 
+                embeddings_model=core_settings.embeddings_model if not DEBUG_MODE else await self.get_var_value(DebugState.embeddings_model)  # type: ignore[arg-type]
+            )
+        )
 
         class JudgeResult(BaseModel):
             test_status: str = Field(description="pass / fail")
@@ -1680,17 +1750,18 @@ class EvalState(rx.State):
             )  # type: ignore[arg-type]
         except Exception as e:
             logging.exception(f"Judge failed for question '{question_row.get('gds_question')}': {e}")
-            return "fail", f"Judge failed: {e}", 0
+            return "fail", f"Judge failed: {e}", 0, 0.0
 
         if res is None:
-            return "fail", "", 0
+            return "fail", "", 0, 0.0
 
         try:
             rating = int(res.rating)
         except Exception:
             rating = 0
 
-        return res.test_status or "fail", res.comment or "", rating
+        judge_cost = sum(u.requests_cost for u in provider.usage.values())
+        return res.test_status or "fail", res.comment or "", rating, judge_cost
 
     async def _store_eval_result_event(self, thread_id: str, result_row: dict[str, Any]) -> None:
         """Persist eval result as a thread event for thread-based history. todo why is this needed?"""
@@ -1719,13 +1790,8 @@ class EvalState(rx.State):
             self.error_message = "Select at least one question to run tests."
             return
         if not self.judge_prompt:
-            self.error_message = "Judge prompt not loaded. Refresh judge config first."
+            self.error_message = "Judge prompt not loaded. Refresh data model first."
             return
-        if self.provider == "openrouter":
-            key = (self.custom_openrouter_key or os.environ.get("OPENROUTER_API_KEY") or "").strip()
-            if not key:
-                self.error_message = "OPENROUTER_API_KEY is required for OpenRouter provider."
-                return
 
         test_run_name = self.test_run_name.strip() or ""
 
@@ -1774,14 +1840,22 @@ class EvalState(rx.State):
                     )
                     tool_calls = self._format_tool_calls(tech)
                     async with self:
-                        status, comment, rating = await self._judge_answer(row, answer, tool_calls)
+                        status, comment, rating, judge_cost = await self._judge_answer(row, answer, tool_calls)
+
+                    pipeline_cost = sum(
+                        float(v)
+                        for stats in (tech.get("model_stats") or {}).values()
+                        if isinstance(stats, dict)
+                        for k, v in stats.items()
+                        if k == "requests_cost" and v is not None
+                    )
 
                     result_row = {
                         "judge_model": self.judge_model,
                         "judge_prompt_id": self.judge_prompt_id,
                         "dm_id": self.dm_id,
                         "pipeline_model": resolved_pipeline_model,
-                        "embeddings_model": self.embeddings_model,
+                        "embeddings_model": core_settings.embeddings_model,
                         "embeddings_dim": self.embeddings_dim,
                         "test_run_id": test_run_id,
                         "test_run_name": test_run_name,
@@ -1793,6 +1867,8 @@ class EvalState(rx.State):
                         "test_status": status,
                         "eval_judge_comment": comment,
                         "eval_judge_rating": rating,
+                        "judge_cost": judge_cost,
+                        "pipeline_cost": pipeline_cost,
                         "test_date": test_run_ts,
                         "thread_id": thread_id,
                     }
@@ -1877,13 +1953,22 @@ class EvalState(rx.State):
         self.tests_page = 0  # Reset to first page
         yield
         yield EvalState.load_eval_data_background()
+        yield EvalState.refresh_golden_dataset_background()
+
+    async def mount(self):
+        if EVAL_ENABLED:
+            # yield EvalState.load_eval_data_background()
+            if DEBUG_MODE:
+                yield DebugState.load_available_models()
 
     @rx.event(background=True)  # type: ignore[operator]
     async def load_eval_data_background(self):
         try:
             async with self:
-                self.openrouter_models = await load_openrouter_models()
+                self.available_models = await self.get_var_value(DebugState.available_models)
                 self._sync_available_models()
+                self._sync_dm_filter_model()
+                self._sync_judge_model()
                 await self._load_eval_questions()
                 self.tests_page_size = max(1, len(self.eval_gds_rows) * 2)
                 await self._load_judge_config()

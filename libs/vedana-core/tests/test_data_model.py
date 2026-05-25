@@ -5,6 +5,7 @@ import sqlalchemy.ext.asyncio as sa_aio
 from sqlalchemy.pool import StaticPool
 
 from vedana_core.data_model import DataModel
+from vedana_core.settings import settings as core_settings
 
 CREATE_REQUIRED_TABLES_SQL = [
     """
@@ -38,6 +39,7 @@ CREATE_REQUIRED_TABLES_SQL = [
         query TEXT,
         dtype TEXT,
         embed_threshold REAL,
+        embed_top_n INTEGER,
         PRIMARY KEY (anchor, attribute_name)
     )
     """,
@@ -51,6 +53,7 @@ CREATE_REQUIRED_TABLES_SQL = [
         query TEXT,
         dtype TEXT,
         embed_threshold REAL,
+        embed_top_n INTEGER,
         PRIMARY KEY (link, attribute_name)
     )
     """,
@@ -99,21 +102,21 @@ INSERT_TEST_DATA_SQL = [
     """,
     """
     INSERT INTO dm_anchor_attributes (anchor, attribute_name, description, data_example,
-                                     embeddable, query, dtype, embed_threshold) VALUES
+                                     embeddable, query, dtype, embed_threshold, embed_top_n) VALUES
     ('consultation', 'consultation_text', 'text', '', 1,
      'vts_fn(label=''consultation'', property=''consultation_text'', text=''<user question>'')',
-     'str', 0.05),
+     'str', 0.05, 7),
     ('faq', 'faq_question_text', 'extract topic and search using faq_question_text', '', 1,
-     'vts_fn(label=''faq'', property=''faq_question_text'', text=''<entity>'')', 'str', 0.01),
-    ('faq', 'faq_answer_text', '', '', 1, '', 'str', 0.2)
+     'vts_fn(label=''faq'', property=''faq_question_text'', text=''<entity>'')', 'str', 0.01, NULL),
+    ('faq', 'faq_answer_text', '', '', 1, '', 'str', 0.2, 0)
     """,
     """
     INSERT INTO dm_link_attributes (link, attribute_name, description, data_example,
-                                   embeddable, query, dtype, embed_threshold) VALUES
+                                   embeddable, query, dtype, embed_threshold, embed_top_n) VALUES
     ('DOCUMENT_has_DOCUMENT_CHUNK', 'chunk_order', 'order of chunk in document', '1', 0,
-     '', 'int', 0.0),
+     '', 'int', 0.0, NULL),
     ('DOCUMENT_CHUNK_has_FAQ', 'relevance_score', 'relevance score', '0.85', 1,
-     '', 'float', 0.1)
+     '', 'float', 0.1, 15)
     """,
     """
     INSERT INTO dm_queries (query_name, query_example) VALUES
@@ -172,10 +175,10 @@ async def test_dm_usage(test_sessionmaker, test_data):
     dm = DataModel.create(sessionmaker=test_sessionmaker)
 
     vis = set(await dm.vector_indices())
-    assert ("anchor", "consultation", "consultation_text", 0.05) in vis
-    assert ("anchor", "faq", "faq_question_text", 0.01) in vis
-    assert ("anchor", "faq", "faq_answer_text", 0.2) in vis
-    assert ("edge", "DOCUMENT_CHUNK_has_FAQ", "relevance_score", 0.1) in vis
+    assert ("anchor", "consultation", "consultation_text", 0.05, 7) in vis
+    assert ("anchor", "faq", "faq_question_text", 0.01, core_settings.embeddings_top_n) in vis
+    assert ("anchor", "faq", "faq_answer_text", 0.2, 0) in vis
+    assert ("edge", "DOCUMENT_CHUNK_has_FAQ", "relevance_score", 0.1, 15) in vis
 
     doc_links = {link.sentence for link in await dm.anchor_links("document")}
     assert "DOCUMENT_has_DOCUMENT_CHUNK" in doc_links

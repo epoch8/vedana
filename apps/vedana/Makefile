@@ -3,7 +3,7 @@ BASE_VERSION=$(shell uv version --short | sed 's/[\+\/]/-/g')
 BRANCH=$(shell git rev-parse --abbrev-ref HEAD | sed 's/[\+\/]/-/g')
 GIT_HASH=$(shell git rev-parse --short HEAD)
 
-REPO=ghcr.io/epoch8/ai-assistants-oss/vedana
+REPO=ghcr.io/epoch8/vedana/vedana
 
 ifeq ($(BRANCH),master)
 	VERSION=$(BASE_VERSION)
@@ -18,3 +18,6 @@ build:
 
 docker-run-it:
 	docker run --rm -it ${IMAGE} bash
+
+upload:
+	docker push ${IMAGE}

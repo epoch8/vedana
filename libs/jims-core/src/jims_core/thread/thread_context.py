@@ -4,7 +4,7 @@ from typing import Any, Type
 from uuid import UUID
 
 from jims_core.llms.llm_provider import LLMProvider
-from jims_core.thread.schema import CommunicationEvent, EventEnvelope
+from jims_core.thread.schema import CommunicationEvent, ComunicationEventWithButtons, EventEnvelope
 from jims_core.util import uuid7
 from pydantic import BaseModel
 
@@ -79,6 +79,19 @@ class ThreadContext:
             )
         )
 
+    def send_message_with_buttons(self, message: str, buttons: list[dict]) -> None:
+        """Sent a message with buttons to the thread"""
+
+        self.outgoing_events.append(
+            EventEnvelope[ComunicationEventWithButtons](
+                thread_id=self.thread_id,
+                event_id=uuid7(),
+                created_at=datetime.datetime.now(),
+                event_type="comm.assistant_message_with_buttons",
+                event_data=ComunicationEventWithButtons(role="assistant", content=message, buttons=buttons),
+            )
+        )
+
     def set_state(self, state_name: str, state: dict | BaseModel) -> None:
         """Send an event to set the state of the thread."""
         state_data = state.model_dump() if isinstance(state, BaseModel) else state
@@ -100,6 +113,22 @@ class ThreadContext:
             if event.event_type == target_state:
                 return state_type.model_validate(event.event_data)
         return None
+
+    def context(self, conversation_length: int = 20) -> list[CommunicationEvent]:
+        """Enriched history: comm.* + context.* (last N comm. messages + related context.* events)."""
+        comm_counter = 0
+        result: list[CommunicationEvent] = []
+        for event in reversed(self.events):  # + self.outgoing_events):
+            # we determine conversation length by counting comm.* events only. other types are extras related to answers.
+            if event.event_type.startswith("comm."):
+                result.append(CommunicationEvent(**event.event_data))
+                comm_counter += 1
+            if event.event_type.startswith("context."):
+                result.append(CommunicationEvent(**event.event_data))
+            if comm_counter > conversation_length:
+                break
+
+        return result[::-1]
 
     async def update_agent_status(self, status: str) -> None:
         """Update the agent status."""
