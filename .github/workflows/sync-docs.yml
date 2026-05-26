@@ -1,0 +1,44 @@
+name: Sync docs to vedana.tech
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'apps/vedana/docs/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-docs
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout vedana
+        uses: actions/checkout@v6
+
+      - name: Checkout vedana.tech
+        uses: actions/checkout@v6
+        with:
+          repository: epoch8/vedana.tech
+          path: _vedana_tech
+          token: ${{ secrets.DOCS_SYNC_TOKEN }}
+
+      - name: Sync docs
+        run: |
+          rsync -av --delete \
+            apps/vedana/docs/ \
+            _vedana_tech/src/content/docs/
+
+      - name: Commit and push
+        working-directory: _vedana_tech
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/content/docs/
+          git diff --staged --quiet && echo "No changes to sync" && exit 0
+          git commit -m "sync: docs from vedana@${{ github.sha }}"
+          git push
