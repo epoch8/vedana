@@ -1,0 +1,1 @@
+../../libs/vedana-backoffice/rxconfig.py

@@ -1,0 +1,136 @@
+x-app-common: &app-common
+  build:
+    context: ../../
+    dockerfile: apps/vedana/Dockerfile
+  volumes:
+    - ./data:/app/vedana/data
+  environment:
+    GRIST_API_KEY: "095081eeddd406bae50e8d034df81ed2832b44e8"
+    GRIST_DATA_MODEL_DOC_ID: "j6PTmqgw4caBDdQdpyz7au"
+    GRIST_TEST_SET_DOC_ID: "2FDgbBNtEDmgNc5AJ3ufkh"
+    GRIST_DATA_DOC_ID: "eB5kH8Z7NVErycp32wx1Ge"
+  env_file:
+    - .env
+  depends_on:
+    - memgraph
+    - db
+
+services:
+  db-migrate:
+    <<: *app-common
+    command: uv run alembic upgrade head
+    working_dir: /app/apps/vedana
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    <<: *app-common
+    ports:
+      - "9000:9000"
+      - "8000:8000"
+    command: vedana-backoffice-with-caddy
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      memgraph:
+        condition: service_started
+      db:
+        condition: service_healthy
+
+#  tg:
+#   <<: *app-common
+#   command: uv run python -m jims_telegram.main
+#   depends_on:
+#     db-migrate:
+#       condition: service_completed_successfully
+#     memgraph:
+#       condition: service_started
+#     db:
+#       condition: service_healthy
+
+  api:
+    <<: *app-common
+    ports:
+      - "8080:8080"
+    command: uv run python -m jims_api.main --app vedana_core.app:app --host 0.0.0.0 --port 8080
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      memgraph:
+        condition: service_started
+      db:
+        condition: service_healthy
+
+  widget:
+    <<: *app-common
+    ports:
+      - "8090:8090"
+    command: uv run python -m jims_widget.main --app vedana_core.app:app --host 0.0.0.0 --port 8090
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      memgraph:
+        condition: service_started
+      db:
+        condition: service_healthy
+
+  memgraph:
+    image: memgraph/memgraph-mage
+    ports:
+      - 7687:7687
+      - 7444:7444
+    volumes:
+      - mg_graph:/var/lib/memgraph
+    env_file: .env
+    restart: always
+    command:
+      ["--telemetry-enabled=false", "--storage-mode=IN_MEMORY_ANALYTICAL"]
+
+  memgraph-lab:
+    image: memgraph/lab
+    ports:
+      - 3000:3000
+    depends_on:
+      - memgraph
+
+  db:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grist:
+    image: gristlabs/grist:latest
+    environment:
+      GRIST_ORG_IN_PATH: "true"
+      GRIST_SESSION_SECRET: dev-secret
+    ports:
+      - "8484:8484"
+    volumes:
+      - ./infra/grist:/persist
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bash",
+          "-lc",
+          "wget -qO- http://localhost:8484/api/status || exit 1",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+
+volumes:
+  #  TODO: add complete snapshots for SQL and Cypherl (db / memgraph)
+  mg_graph:
+  grist_data:
+  postgres_data:
