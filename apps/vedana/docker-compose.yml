@@ -1,9 +1,12 @@
 x-app-common: &app-common
+  image: vedana/vedana:dev
   build:
     context: ../../
     dockerfile: apps/vedana/Dockerfile
   volumes:
     - ./data:/app/vedana/data
+    - ${HOME}/.kube/config-kind-vedana-local-docker:/root/.kube/config:ro
+    - /var/run/docker.sock:/var/run/docker.sock:ro
   environment:
     GRIST_API_KEY: "095081eeddd406bae50e8d034df81ed2832b44e8"
     GRIST_DATA_MODEL_DOC_ID: "j6PTmqgw4caBDdQdpyz7au"
@@ -14,6 +17,8 @@ x-app-common: &app-common
   depends_on:
     - memgraph
     - db
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
 
 services:
   db-migrate:

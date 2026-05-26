@@ -3,6 +3,43 @@ import reflex as rx
 from vedana_backoffice.states.etl import EtlState
 
 
+def _execution_status_badge(node: dict) -> rx.Component:
+    """Display execution status badge for a step."""
+    return rx.cond(
+        node.get("is_running", False),
+        rx.hstack(
+            rx.spinner(size="1"),
+            rx.badge(
+                rx.hstack(
+                    rx.text("Running", size="1"),
+                    rx.text(node.get("exec_progress_str", ""), size="1"),
+                    spacing="1",
+                ),
+                color_scheme="blue",
+                variant="soft",
+            ),
+            spacing="1",
+            align="center",
+        ),
+        rx.cond(
+            node.get("is_pending", False),
+            rx.badge("Queued", color_scheme="amber", variant="soft", size="1"),
+            rx.cond(
+                node.get("is_exec_failed", False),
+                rx.tooltip(
+                    rx.badge("Failed", color_scheme="red", variant="soft", size="1"),
+                    content=node.get("exec_error", "Unknown error"),
+                ),
+                rx.cond(
+                    node.get("is_completed", False),
+                    rx.badge("Done", color_scheme="green", variant="soft", size="1"),
+                    rx.box()
+                ),
+            ),
+        ),
+    )
+
+
 def _node_card(node: dict) -> rx.Component:
     is_table = node.get("node_type") == "table"  # step for transform, table for table
     return rx.card(
@@ -55,7 +92,16 @@ def _node_card(node: dict) -> rx.Component:
                             rx.text(node.get("last_run", "—"), size="1", color="gray"),
                             content="last run time (that produced changes)",
                         ),
+                        _execution_status_badge(node),
                         rx.hstack(
+                            rx.cond(
+                                node.get("has_pending", False) & ~node.get("is_running", False),
+                                rx.tooltip(
+                                    rx.badge("Stale", color_scheme="orange", variant="outline", size="1"),
+                                    content=node.get("pending_str", "Has pending records"),
+                                ),
+                                rx.box(),  # No badge for idle state
+                            ),
                             rx.tooltip(
                                 rx.text(node.get("rows_processed", 0), size="1", color="gray"),
                                 content="rows processed in last run",
@@ -78,7 +124,7 @@ def _node_card(node: dict) -> rx.Component:
                         width="100%",
                         justify="between",
                     ),
-                    rx.box(),
+                    _execution_status_badge(node),
                 ),
             ),
             spacing="2",

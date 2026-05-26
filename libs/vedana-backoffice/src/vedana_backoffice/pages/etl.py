@@ -32,6 +32,21 @@ def _graph_card() -> rx.Component:
                     width="12em",
                 ),
                 rx.button("Reset", variant="soft", size="1", on_click=EtlState.reset_filters),
+                rx.cond(
+                    EtlState.k8s_enabled,
+                    rx.hstack(
+                        rx.text("Execution", size="1", color="gray"),
+                        rx.select(
+                            items=["local", "k8s"],
+                            value=EtlState.execution_mode,
+                            on_change=EtlState.set_execution_mode,
+                            width="8em",
+                        ),
+                        spacing="2",
+                        align="center",
+                    ),
+                    rx.box(),
+                ),
                 rx.button("Run Selected", size="1", on_click=EtlState.run_selected, loading=EtlState.is_running),
                 rx.tooltip(
                     rx.button(
@@ -67,10 +82,167 @@ def _graph_card() -> rx.Component:
     )
 
 
+def _k8s_jobs_card() -> rx.Component:
+    """Card showing Kubernetes jobs status and management."""
+
+    def _job_row(job: dict) -> rx.Component:
+        """Render a single job row."""
+        return rx.table.row(
+            rx.table.cell(
+                rx.vstack(
+                    rx.text(
+                        job["name"],
+                        size="2",
+                        style={"fontFamily": "monospace"},
+                    ),
+                    rx.cond(
+                        job.get("steps_info", ""),
+                        rx.text(
+                            job.get("steps_info", ""),
+                            size="1",
+                            color="gray",
+                            style={"fontFamily": "monospace", "maxWidth": "300px", "overflow": "hidden", "textOverflow": "ellipsis"},
+                        ),
+                        rx.box(),
+                    ),
+                    spacing="0",
+                    align="start",
+                )
+            ),
+            rx.table.cell(
+                rx.badge(
+                    rx.cond(
+                        job["status"] == "completed",
+                        "COMPLETED",
+                        rx.cond(
+                            job["status"] == "running",
+                            "RUNNING",
+                            rx.cond(
+                                job["status"] == "failed",
+                                "FAILED",
+                                rx.cond(
+                                    job["status"] == "pending",
+                                    "PENDING",
+                                    "UNKNOWN",
+                                ),
+                            ),
+                        ),
+                    ),
+                    color_scheme=rx.cond(
+                        job["status"] == "completed",
+                        "green",
+                        rx.cond(
+                            job["status"] == "running",
+                            "blue",
+                            rx.cond(
+                                job["status"] == "failed",
+                                "red",
+                                "gray",
+                            ),
+                        ),
+                    ),
+                    size="1",
+                )
+            ),
+            rx.table.cell(
+                rx.text(
+                    job.get("created_str", "—"),
+                    size="1",
+                    color="gray",
+                )
+            ),
+            rx.table.cell(
+                rx.hstack(
+                    rx.button(
+                        "Logs",
+                        variant="ghost",
+                        size="1",
+                        on_click=EtlState.view_k8s_job_logs(job_name=job["name"]),  # type: ignore[arg-type,call-arg,func-returns-value]
+                    ),
+                    rx.button(
+                        "Delete",
+                        variant="ghost",
+                        size="1",
+                        color_scheme="red",
+                        on_click=EtlState.delete_k8s_job(job_name=job["name"]),  # type: ignore[arg-type,call-arg,func-returns-value]
+                    ),
+                    spacing="1",
+                )
+            ),
+        )
+
+    return rx.cond(
+        EtlState.k8s_jobs_open,
+        rx.card(
+            rx.hstack(
+                rx.heading("Kubernetes Jobs", size="3"),
+                rx.spacer(),
+                rx.hstack(
+                    rx.button(
+                        "↻",
+                        variant="ghost",
+                        color_scheme="gray",
+                        size="1",
+                        on_click=EtlState.load_k8s_jobs,
+                        loading=EtlState.k8s_jobs_loading,
+                    ),
+                    rx.button("Hide", variant="ghost", color_scheme="gray", size="1", on_click=EtlState.toggle_k8s_jobs),
+                    spacing="2",
+                    align="center",
+                ),
+                align="center",
+                width="100%",
+            ),
+            rx.cond(
+                EtlState.k8s_jobs_loading,
+                rx.box(rx.text("Loading jobs...", size="2", color="gray"), padding="1em"),
+                rx.cond(
+                    EtlState.k8s_jobs,
+                    rx.scroll_area(
+                        rx.table.root(
+                            rx.table.header(
+                                rx.table.row(
+                                    rx.table.column_header_cell("Job Name"),
+                                    rx.table.column_header_cell("Status"),
+                                    rx.table.column_header_cell("Created"),
+                                    rx.table.column_header_cell("Actions"),
+                                )
+                            ),
+                            rx.table.body(
+                                rx.foreach(EtlState.k8s_jobs, _job_row),
+                            ),
+                            variant="surface",
+                            style={"width": "100%"},
+                        ),
+                        type="always",
+                        scrollbars="vertical",
+                        style={"maxHeight": "30vh"},
+                    ),
+                    rx.box(rx.text("No Kubernetes jobs found", size="2", color="gray"), padding="1em"),
+                ),
+            ),
+            padding="1em",
+            width="100%",
+        ),
+        rx.card(
+            rx.hstack(
+                rx.heading("Kubernetes Jobs", size="3"),
+                rx.spacer(),
+                rx.button("Show", variant="ghost", color_scheme="gray", size="1", on_click=EtlState.toggle_k8s_jobs),
+                align="center",
+                width="100%",
+            ),
+            padding="1em",
+            width="100%",
+        ),
+    )
+
+
 def _pipeline_panel() -> rx.Component:
     return rx.vstack(
         _graph_card(),
-        rx.cond(EtlState.logs_open, _logs_bottom(), rx.box(width="100%")),
+        _k8s_jobs_card(),
+        _logs_bottom(),
         spacing="1",
         width="100%",
     )
@@ -104,22 +276,75 @@ def _pipeline_tabs() -> rx.Component:
 
 
 def _logs_bottom() -> rx.Component:
-    return rx.card(
-        rx.hstack(
-            rx.heading("Logs", size="3"),
-            rx.spacer(),
-            rx.button("Hide", variant="ghost", color_scheme="gray", size="1", on_click=EtlState.toggle_logs),
-            align="center",
+    return rx.cond(
+        EtlState.logs_open,
+        rx.card(
+            rx.hstack(
+                rx.heading("Logs", size="3"),
+                rx.spacer(),
+                rx.button("Hide", variant="ghost", color_scheme="gray", size="1", on_click=EtlState.toggle_logs),
+                align="center",
+                width="100%",
+            ),
+            rx.tabs.root(
+                rx.tabs.list(
+                    rx.tabs.trigger("System Logs", value="system"),
+                    rx.cond(
+                        EtlState.viewing_k8s_job_name,
+                        rx.tabs.trigger(
+                            rx.text(
+                                rx.cond(
+                                    EtlState.viewing_k8s_job_name,
+                                    rx.text(EtlState.viewing_k8s_job_name),
+                                    "K8s Job Logs",
+                                ),
+                                size="2",
+                            ),
+                            value="k8s_job",
+                        ),
+                        rx.box(),
+                    ),
+                ),
+                rx.tabs.content(
+                    rx.scroll_area(
+                        rx.vstack(rx.foreach(EtlState.logs, lambda m: rx.text(m))),
+                        type="always",
+                        scrollbars="vertical",
+                        style={"height": "44vh"},
+                    ),
+                    value="system",
+                ),
+                rx.cond(
+                    EtlState.viewing_k8s_job_name,
+                    rx.tabs.content(
+                        rx.scroll_area(
+                            rx.vstack(rx.foreach(EtlState.k8s_job_logs, lambda m: rx.text(m))),
+                            type="always",
+                            scrollbars="vertical",
+                            style={"height": "44vh"},
+                        ),
+                        value="k8s_job",
+                    ),
+                    rx.box(),
+                ),
+                value=EtlState.log_view_mode,
+                on_change=EtlState.set_log_view_mode,
+                default_value="system",
+            ),
+            padding="1em",
             width="100%",
         ),
-        rx.scroll_area(
-            rx.vstack(rx.foreach(EtlState.logs, lambda m: rx.text(m))),
-            type="always",
-            scrollbars="vertical",
-            style={"height": "22vh"},
+        rx.card(
+            rx.hstack(
+                rx.heading("Logs", size="3"),
+                rx.spacer(),
+                rx.button("Show", variant="ghost", color_scheme="gray", size="1", on_click=EtlState.toggle_logs),
+                align="center",
+                width="100%",
+            ),
+            padding="1em",
+            width="100%",
         ),
-        padding="1em",
-        width="100%",
     )
 
 
