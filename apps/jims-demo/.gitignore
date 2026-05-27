@@ -1,2 +1,10 @@
+*.db
+assets/external/
+.states
+__pycache__/
+.web
+*.py[cod]
 .env
 db.sqlite
+.web/
+reflex.lock/

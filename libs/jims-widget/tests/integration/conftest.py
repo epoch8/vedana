@@ -13,6 +13,19 @@ async def echo_pipeline(ctx: ThreadContext) -> None:
     ctx.send_message(f"Echo: {last}" if last else "Echo: (no message)")
 
 
+async def assistant_with_buttons_pipeline(ctx: ThreadContext) -> None:
+    """Mimics vedana-maytoni RAG follow-up: text answer + comm.assistant_buttons."""
+    ctx.send_message("Model answer")
+    ctx.send_event(
+        "comm.assistant_buttons",
+        {
+            "role": "assistant",
+            "content": "Нужен оператор?",
+            "buttons": [[{"text": "Позвать оператора", "id": "operator_handoff"}]],
+        },
+    )
+
+
 @pytest_asyncio.fixture(scope="session")
 async def sessionmaker() -> sa_aio.async_sessionmaker[sa_aio.AsyncSession]:
     engine = sa_aio.create_async_engine(
@@ -50,3 +63,17 @@ async def client(jims_app: JimsApp) -> AsyncClient:
 async def app(jims_app: JimsApp):
     """App instance for TestClient (WebSocket tests)."""
     return create_widget_app(jims_app, cors_origins=["http://example.com"])
+
+
+@pytest_asyncio.fixture(scope="session")
+async def jims_app_buttons(sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession]) -> JimsApp:
+    return JimsApp(
+        sessionmaker=sessionmaker,
+        pipeline=assistant_with_buttons_pipeline,
+        conversation_start_pipeline=None,
+    )
+
+
+@pytest_asyncio.fixture(scope="session")
+async def app_buttons(jims_app_buttons: JimsApp):
+    return create_widget_app(jims_app_buttons, cors_origins=["http://example.com"])

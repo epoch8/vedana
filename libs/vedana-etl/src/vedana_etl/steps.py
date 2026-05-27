@@ -197,13 +197,14 @@ def get_grist_data() -> Iterator[tuple[pd.DataFrame, pd.DataFrame]]:
     for _, l_row in dm_links_df.iterrows():
         a1 = str(l_row.get("anchor1")).strip()
         a2 = str(l_row.get("anchor2")).strip()
+        sentence = str(l_row["sentence"]).strip()
         if not a1 or not a2 or a1 not in dm_anchors or a2 not in dm_anchors:
             logger.error(f'Link type has invalid anchors "{a1} - {a2}", skipping')
             continue
-        dm_links[l_row.get("sentence")] = Link(
+        dm_links[sentence] = Link(
             anchor_from=dm_anchors[a1],
             anchor_to=dm_anchors[a2],
-            sentence=l_row.get("sentence"),
+            sentence=sentence,
             description=l_row.get("description", ""),
             query=l_row.get("query", ""),
             attributes=[],

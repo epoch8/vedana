@@ -31,8 +31,12 @@ def _graph_stats_card() -> rx.Component:
                     rx.cond(
                         (DashboardState.nodes_total_diff == 0) & (DashboardState.edges_total_diff == 0),  # type: ignore[operator]
                         "OK",
-                        "Warning!",
+                        rx.tooltip(
+                            "Warning!",
+                            content="Mismatch between ETL outputs and graph state. Try re-running the pipeline to sync states",
+                        ),
                     ),
+               
                     color_scheme=rx.cond(  # type: ignore[operator]
                         (DashboardState.nodes_total_diff == 0) & (DashboardState.edges_total_diff == 0),
                         "green",

@@ -6,8 +6,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "jims-core>=0.5.1",
+    "jims-backoffice",
     "jims-tui>=0.5.1",
     "jims-telegram>=0.5.1",
+    "reflex>=0.9.3,<0.9.5",
     "alembic>=1.15.2",
     "psycopg2-binary>=2.9.10",
     "asyncpg>=0.30.0",
@@ -17,5 +19,6 @@ dependencies = [
 
 [tool.uv.sources]
 jims-core     = { workspace = true }
+jims-backoffice = { workspace = true }
 jims-tui      = { workspace = true }
 jims-telegram = { workspace = true }

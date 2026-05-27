@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from jims_core.thread.thread_context import ThreadContext
+from jims_core.schema import Pipeline
 
 from vedana_core.data_model import DataModel
 from vedana_core.graph import Graph
@@ -70,7 +71,7 @@ Analyze the question and select the required data model elements needed to produ
 """
 
 
-class RagPipeline:
+class RagPipeline(Pipeline):
     """RAG Pipeline with data model filtering for optimized query processing.
 
     This pipeline adds an initial step that filters the data model based on
@@ -192,6 +193,7 @@ class RagPipeline:
             agent_query_events,
             vts_queries,
             cypher_queries,
+            tool_calls,
         ) = await agent.text_to_answer_with_vts_and_cypher(
             query,
             threshold=self.threshold,
@@ -205,6 +207,7 @@ class RagPipeline:
             "num_cypher_queries": len(cypher_queries),
             "model_used": self.model,
             "model_stats": {m: asdict(u) for m, u in ctx.llm.usage.items()},
+            "tool_calls": tool_calls,
         }
 
         # Add filtering info if applicable

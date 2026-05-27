@@ -1,3 +1,5 @@
+import asyncio
+import functools
 import logging
 import threading
 import time
@@ -13,11 +15,9 @@ import sqlalchemy as sa
 from datapipe.compute import run_steps
 from datapipe.step.batch_transform import BaseBatchTransformStep
 from vedana_core.settings import settings as core_settings
-from vedana_etl.app import app as etl_app
-from vedana_etl.app import pipeline
-from vedana_etl.config import DBCONN_DATAPIPE
 
 from vedana_backoffice.graph.build import build_canonical, derive_step_edges, derive_table_edges, refine_layer_orders
+from vedana_backoffice.project_runtime import get_etl_bindings
 from vedana_backoffice.util import safe_render_value
 
 
@@ -56,11 +56,135 @@ class EtlStepRunStats:
 # If gap between consecutive process_ts > threshold, it's a new run
 RUN_GAP_THRESHOLD_SECONDS = 300  # 5 minutes
 
+DEFAULT_PIPELINE_NAME = "main"
+
+
+@dataclass(frozen=True, slots=True)
+class StaticPipelineMetadata:
+    pipeline_steps: dict[str, tuple[dict[str, Any], ...]]
+    pipeline_flows: dict[str, tuple[str, ...]]
+    pipeline_stages: dict[str, tuple[str, ...]]
+    available_pipelines: tuple[str, ...]
+    available_tables: tuple[str, ...]
+
+
+def _empty_data_table_stats(table_name: str) -> EtlDataTableStats:
+    return EtlDataTableStats(
+        table_name=table_name,
+        process_ts=0.0,
+        row_count=0,
+        last_update_ts=0.0,
+        last_update_rows=0,
+        last_added_rows=0,
+        last_deleted_rows=0,
+    )
+
+
+@functools.cache
+def get_static_pipeline_metadata() -> StaticPipelineMetadata:
+    """Build pipeline topology once per process (static until app restart)."""
+    pipeline_buckets: dict[str, dict[str, Any]] = {}
+    pipeline_order: list[str] = []
+    tables: set[str] = set()
+
+    def get_bucket(name: str) -> dict[str, Any]:
+        key = str(name).strip() or DEFAULT_PIPELINE_NAME
+        if key not in pipeline_buckets:
+            pipeline_buckets[key] = {"steps": [], "flows": set(), "stages": set()}
+            pipeline_order.append(key)
+        return pipeline_buckets[key]
+
+    for idx, step in enumerate(get_etl_bindings().pipeline.steps):
+        inputs = [el.name for el in getattr(step, "inputs", [])]
+        outputs = [el.name for el in getattr(step, "outputs", [])]
+        labels = getattr(step, "labels", []) or []
+
+        meta = {
+            "index": idx,
+            "name": step.func.__name__,  # type: ignore[attr-defined]
+            "step_type": type(step).__name__,
+            "inputs": list(inputs),
+            "outputs": list(outputs),
+            "labels": list(labels),
+            "inputs_str": ", ".join([str(x) for x in list(inputs)]),
+            "outputs_str": ", ".join([str(x) for x in list(outputs)]),
+            "labels_str": ", ".join([f"{k}:{v}" for k, v in list(labels)]),
+        }
+
+        for input_name in inputs:
+            tables.add(input_name)
+        for output_name in outputs:
+            tables.add(output_name)
+
+        normalized_labels: list[tuple[str, str]] = []
+        for key, value in labels:
+            k = str(key)
+            v = str(value)
+            if v == "":
+                continue
+            normalized_labels.append((k, v))
+
+        pipeline_names = {v for k, v in normalized_labels if k == "pipeline"}
+        flow_labels = {v for k, v in normalized_labels if k == "flow"}
+        stage_labels = {v for k, v in normalized_labels if k == "stage"}
+
+        if not pipeline_names:
+            pipeline_names = {DEFAULT_PIPELINE_NAME}
+
+        for pipeline_name in pipeline_names:
+            bucket = get_bucket(pipeline_name)
+            bucket["steps"].append(meta)
+            bucket["flows"].update(flow_labels)
+            bucket["stages"].update(stage_labels)
+
+    get_bucket(DEFAULT_PIPELINE_NAME)
+
+    ordered_pipelines: list[str] = []
+    seen: set[str] = set()
+
+    if DEFAULT_PIPELINE_NAME in pipeline_buckets:
+        ordered_pipelines.append(DEFAULT_PIPELINE_NAME)
+        seen.add(DEFAULT_PIPELINE_NAME)
+
+    for name in pipeline_order:
+        if name in seen:
+            continue
+        ordered_pipelines.append(name)
+        seen.add(name)
+
+    for name in pipeline_buckets.keys():
+        if name in seen:
+            continue
+        ordered_pipelines.append(name)
+        seen.add(name)
+
+    if not ordered_pipelines:
+        ordered_pipelines = [DEFAULT_PIPELINE_NAME]
+
+    pipeline_steps = {
+        name: tuple(dict(step) for step in bucket["steps"])
+        for name, bucket in pipeline_buckets.items()
+    }
+    pipeline_flows = {name: tuple(sorted(bucket["flows"])) for name, bucket in pipeline_buckets.items()}
+    pipeline_stages = {name: tuple(sorted(bucket["stages"])) for name, bucket in pipeline_buckets.items()}
+
+    return StaticPipelineMetadata(
+        pipeline_steps=pipeline_steps,
+        pipeline_flows=pipeline_flows,
+        pipeline_stages=pipeline_stages,
+        available_pipelines=tuple(ordered_pipelines),
+        available_tables=tuple(sorted(tables)),
+    )
+
+
+def warm_static_pipeline_metadata() -> None:
+    get_static_pipeline_metadata()
+
 
 class EtlState(rx.State):
     """ETL control state and actions."""
 
-    default_pipeline_name = "main"
+    default_pipeline_name = DEFAULT_PIPELINE_NAME
 
     # Selections
     selected_flow: str = "all"
@@ -89,6 +213,8 @@ class EtlState(rx.State):
 
     # Run status
     is_running: bool = False
+    stats_loading: bool = False
+    stats_refresh_force: bool = False
     logs: list[str] = []
     max_log_lines: int = 2000
 
@@ -199,103 +325,55 @@ class EtlState(rx.State):
         self.logs.append(f"[{timestamp}] {msg}")
         self.logs = self.logs[-self.max_log_lines :]
 
-    def load_pipeline_metadata(self) -> None:
-        """Populate metadata by introspecting the ETL pipeline definition."""
+    def _hydrate_static_pipeline_metadata(self, static: StaticPipelineMetadata) -> None:
+        self.pipeline_steps = {name: [dict(step) for step in steps] for name, steps in static.pipeline_steps.items()}
+        self.pipeline_flows = {name: list(flows) for name, flows in static.pipeline_flows.items()}
+        self.pipeline_stages = {name: list(stages) for name, stages in static.pipeline_stages.items()}
+        self.available_pipelines = list(static.available_pipelines)
+        self.available_tables = list(static.available_tables)
 
-        pipeline_buckets: dict[str, dict[str, Any]] = {}
-        pipeline_order: list[str] = []
-        tables: set[str] = set()
-
-        def get_bucket(name: str) -> dict[str, Any]:
-            key = str(name).strip() or self.default_pipeline_name
-            if key not in pipeline_buckets:
-                pipeline_buckets[key] = {"steps": [], "flows": set(), "stages": set()}
-                pipeline_order.append(key)
-            return pipeline_buckets[key]
-
-        for idx, step in enumerate(pipeline.steps):
-            inputs = [el.name for el in getattr(step, "inputs", [])]
-            outputs = [el.name for el in getattr(step, "outputs", [])]
-            labels = getattr(step, "labels", []) or []
-
-            meta = {
-                "index": idx,
-                "name": step.func.__name__,  # type: ignore[attr-defined]
-                "step_type": type(step).__name__,
-                "inputs": list(inputs),
-                "outputs": list(outputs),
-                "labels": list(labels),
-                "inputs_str": ", ".join([str(x) for x in list(inputs)]),
-                "outputs_str": ", ".join([str(x) for x in list(outputs)]),
-                "labels_str": ", ".join([f"{k}:{v}" for k, v in list(labels)]),
-            }
-
-            for input_name in inputs:
-                tables.add(input_name)
-            for output_name in outputs:
-                tables.add(output_name)
-
-            normalized_labels: list[tuple[str, str]] = []
-            for key, value in labels:
-                k = str(key)
-                v = str(value)
-                if v == "":
-                    continue
-                normalized_labels.append((k, v))
-
-            pipeline_names = {v for k, v in normalized_labels if k == "pipeline"}
-            flow_labels = {v for k, v in normalized_labels if k == "flow"}
-            stage_labels = {v for k, v in normalized_labels if k == "stage"}
-
-            if not pipeline_names:
-                pipeline_names = {self.default_pipeline_name}
-
-            for pipeline_name in pipeline_names:
-                bucket = get_bucket(pipeline_name)
-                bucket["steps"].append(meta)
-                bucket["flows"].update(flow_labels)
-                bucket["stages"].update(stage_labels)
-
-        # Ensure default pipeline is always available even if no explicit labels exist.
-        get_bucket(self.default_pipeline_name)
-
-        self.pipeline_steps = {name: list(bucket["steps"]) for name, bucket in pipeline_buckets.items()}
-        self.pipeline_flows = {name: sorted(bucket["flows"]) for name, bucket in pipeline_buckets.items()}
-        self.pipeline_stages = {name: sorted(bucket["stages"]) for name, bucket in pipeline_buckets.items()}
-
-        ordered_pipelines: list[str] = []
-        seen: set[str] = set()
-        default_name = self.default_pipeline_name
-
-        if default_name in pipeline_buckets:
-            ordered_pipelines.append(default_name)
-            seen.add(default_name)
-
-        for name in pipeline_order:
-            if name in seen:
-                continue
-            ordered_pipelines.append(name)
-            seen.add(name)
-
-        for name in pipeline_buckets.keys():
-            if name in seen:
-                continue
-            ordered_pipelines.append(name)
-            seen.add(name)
-
-        if not ordered_pipelines:
-            ordered_pipelines = [default_name]
-
-        self.available_pipelines = ordered_pipelines
-        self.available_tables = sorted(tables)
-
-        self._load_table_stats()
-        self._load_step_stats()
+    def _apply_cached_pipeline_topology(self) -> None:
+        self._hydrate_static_pipeline_metadata(get_static_pipeline_metadata())
         self._apply_pipeline_selection(
             target_pipeline=self.selected_pipeline,
             preserve_filters=True,
             preserve_selection=True,
         )
+
+    def load_pipeline_metadata(self):  # type: ignore[misc]
+        """Load cached pipeline topology, then refresh DB stats in the background."""
+        self._apply_cached_pipeline_topology()
+        yield
+        yield type(self).load_pipeline_stats_background()
+
+    def reload_pipeline_metadata(self):  # type: ignore[misc]
+        """Reload button: refresh topology from cache and force stats reload."""
+        self.stats_refresh_force = True
+        self._apply_cached_pipeline_topology()
+        yield
+        yield type(self).load_pipeline_stats_background()
+
+    @rx.event(background=True)  # type: ignore[operator]
+    async def load_pipeline_stats_background(self):
+        async with self:
+            if self.stats_loading and not self.stats_refresh_force:
+                return
+            self.stats_loading = True
+            load_tables = self.data_view
+
+        try:
+            async with self:
+                await asyncio.to_thread(self._load_step_stats)
+                if load_tables:
+                    await asyncio.to_thread(self._load_table_stats)
+        except Exception as exc:
+            logging.warning("Failed to load ETL pipeline stats: %s", exc, exc_info=True)
+        finally:
+            async with self:
+                self.stats_loading = False
+                self.stats_refresh_force = False
+                self._rebuild_graph()
+            yield
 
     def set_pipeline(self, pipeline_name: str) -> None:
         """Switch active pipeline tab."""
@@ -377,7 +455,7 @@ class EtlState(rx.State):
         self.selection_source = "filter"
         self._update_filtered_steps()
 
-    def set_data_view(self, checked: bool) -> None:
+    def set_data_view(self, checked: bool):  # type: ignore[misc]
         """Toggle between step-centric and data-centric graph."""
         try:
             self.data_view = bool(checked)
@@ -385,6 +463,9 @@ class EtlState(rx.State):
             self.data_view = False
         # Do not alter filters or explicit selections automatically
         self._rebuild_graph()
+        if self.data_view:
+            yield
+            yield type(self).load_pipeline_stats_background()
 
     def toggle_node_selection(self, index: int) -> None:
         """Toggle selection; manual interactions become authoritative unless "all selected" case."""
@@ -776,7 +857,7 @@ class EtlState(rx.State):
                         )
                     else:  # data view: nodes are tables
                         table_name = name_by.get(sid, f"table_{sid}")
-                        rc = self.table_meta[table_name]
+                        rc = self.table_meta.get(table_name) or _empty_data_table_stats(table_name)
                         if rc.process_ts:
                             dt = datetime.fromtimestamp(rc.process_ts)
                             last_run_str = dt.strftime("%Y-%m-%d %H:%M")
@@ -936,7 +1017,7 @@ class EtlState(rx.State):
         A "run" is a group of consecutive timestamps where gaps are < RUN_GAP_THRESHOLD_SECONDS.
         This accounts for batch processing where each batch has different timestamps.
         """
-        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        con = get_etl_bindings().dbconn.con  # type: ignore[attr-defined]
         self.table_meta = {}
 
         for tname in list(self.available_tables):
@@ -1044,7 +1125,8 @@ class EtlState(rx.State):
 
     def _load_step_stats(self) -> None:
         """Load stats for each pipeline step by querying their transform meta tables."""
-        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        etl_app = get_etl_bindings().app
+        con = get_etl_bindings().dbconn.con  # type: ignore[attr-defined]
         self.step_meta = {}
 
         for idx, step in enumerate(etl_app.steps):
@@ -1145,6 +1227,7 @@ class EtlState(rx.State):
 
     def run_selected(self):  # type: ignore[override]
         """Run the ETL for selected labels in background, streaming logs."""
+        etl_app = get_etl_bindings().app
         if self.is_running:
             return None
 
@@ -1193,10 +1276,13 @@ class EtlState(rx.State):
                 self._stop_log_capture(handler, logger)
         finally:
             self.is_running = False
-            self.load_pipeline_metadata()
+            self.stats_refresh_force = True
             self._append_log("ETL run finished")
+            yield
+            yield type(self).load_pipeline_stats_background()
 
     def run_one_step(self, index: int | None = None):  # type: ignore[override]
+        etl_app = get_etl_bindings().app
         if self.is_running:
             return None
 
@@ -1284,7 +1370,7 @@ class EtlState(rx.State):
 
     def _load_preview_all_page(self) -> None:
         """Load all records (standard preview mode)."""
-        engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        engine = get_etl_bindings().dbconn.con  # type: ignore[attr-defined]
         table_name = self.preview_table_name
         if not table_name:
             return
@@ -1357,7 +1443,7 @@ class EtlState(rx.State):
         if not table_name:
             return
 
-        engine = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        engine = get_etl_bindings().dbconn.con  # type: ignore[attr-defined]
         meta_table = f"{table_name}_meta"
         offset = self.preview_page * self.preview_page_size
 

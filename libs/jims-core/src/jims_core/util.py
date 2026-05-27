@@ -75,6 +75,20 @@ def load_jims_app(app_name: str) -> Union["JimsApp", Awaitable["JimsApp"]]:
     app_mod = import_module(module_name)
     app = getattr(app_mod, app_attr)
 
-    assert isinstance(app, JimsApp) or asyncio.iscoroutine(app)
+    if isinstance(app, JimsApp):
+        return app
+    if asyncio.iscoroutine(app):
+        return app
+    if callable(app):
+        result = app()
+        if isinstance(result, JimsApp):
+            return result
+        if asyncio.iscoroutine(result):
+            return result
+        raise TypeError(
+            f"JIMS app factory {app_name!r} must return JimsApp or coroutine, got {type(result).__name__!r}"
+        )
 
-    return app
+    raise TypeError(
+        f"JIMS app reference {app_name!r} must be JimsApp, coroutine, or callable factory, got {type(app).__name__!r}"
+    )
