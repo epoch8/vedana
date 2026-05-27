@@ -1,8 +1,9 @@
 from jims_core.thread.thread_context import ThreadContext
+from jims_core.schema import Pipeline
 from vedana_core.data_model import DataModel
 
 
-class StartPipeline:
+class StartPipeline(Pipeline):
     """
     Response for /start command
     """

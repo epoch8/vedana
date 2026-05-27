@@ -1,211 +1,104 @@
+"""Vedana chat page — thin wrapper around :func:`jims_backoffice.chat_page`."""
+
+from __future__ import annotations
+
+import jims_backoffice
 import reflex as rx
 
-from vedana_backoffice.components.ui_chat import render_message_bubble
 from vedana_backoffice.states.chat import ChatState
-from vedana_backoffice.states.common import AppVersionState, DebugState
 from vedana_backoffice.ui import app_header
 
+DebugState = jims_backoffice.DebugState
+AppVersionState = jims_backoffice.AppVersionState
 
-def _message_row(msg: dict) -> rx.Component:
-    return render_message_bubble(
-        msg,
-        on_toggle_details=ChatState.toggle_details_by_id(message_id=msg["id"]),  # type: ignore[call-arg,func-returns-value]
+
+def _data_model_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.trigger(
+            rx.button(
+                "Data model",
+                variant="ghost",
+                color_scheme="gray",
+                size="1",
+                on_click=ChatState.load_data_model_text,
+            ),
+        ),
+        rx.dialog.content(
+            rx.vstack(
+                rx.hstack(
+                    rx.dialog.title("Data Model"),
+                    rx.spacer(),
+                    rx.button(
+                        "Reload",
+                        variant="soft",
+                        color_scheme="blue",
+                        size="1",
+                        on_click=ChatState.reload_data_model,
+                        loading=ChatState.is_refreshing_dm,
+                    ),
+                    rx.dialog.close(
+                        rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
+                    ),
+                    align="center",
+                    width="100%",
+                ),
+                rx.scroll_area(
+                    rx.markdown(ChatState.data_model_text),  # type: ignore[operator]
+                    type="always",
+                    scrollbars="vertical",
+                    style={"height": "70vh"},
+                ),
+                spacing="3",
+                width="100%",
+            ),
+            max_width="70vw",
+        ),
     )
 
 
-def page() -> rx.Component:
-    return rx.flex(
-        app_header(),
-        rx.box(
-            rx.scroll_area(
-                rx.vstack(
-                    rx.foreach(ChatState.messages, _message_row),
-                    spacing="3",
-                    width="100%",
-                    padding="1em",
-                ),
-                type="always",
-                scrollbars="vertical",
-                style={"height": "100%"},
-            ),
-            flex="1",
-            min_height="0",
-            width="100%",
-            overflow="hidden",
+def _dm_filter_extras() -> list[rx.Component]:
+    return [
+        _data_model_dialog(),
+        rx.checkbox(
+            "Filter Data Model",
+            checked=ChatState.enable_dm_filtering,
+            on_change=ChatState.set_enable_dm_filtering,
+            size="1",
         ),
-        # Typing indicator (above input bar)
         rx.cond(
-            ChatState.is_running,
-            rx.hstack(
-                rx.spinner(),
-                rx.text("Generating response..."),
-                spacing="2",
-                padding_x="1em",
-                padding_y="0.5em",
-                width="100%",
+            ChatState.enable_dm_filtering & AppVersionState.debug_mode,
+            rx.select(
+                items=DebugState.available_models,
+                value=ChatState.dm_filter_model,
+                on_change=ChatState.set_dm_filter_model,
+                width="16em",
+                placeholder="Filter model",
             ),
+            rx.text(ChatState.dm_filter_model, size="1", color="gray"),
         ),
-        # Fixed input bar at bottom
-        rx.box(
-            rx.vstack(
-                rx.hstack(
-                    rx.button(
-                        "Clear history",
-                        variant="ghost",
-                        color_scheme="gray",
-                        size="1",
-                        on_click=ChatState.reset_session,
-                        disabled=rx.cond(
-                            ChatState.chat_thread_id == "",
-                            True,  # no thread_id --> nothing to reset
-                            False,  # thread_id present --> can be reset
-                        ),
-                    ),
-                    rx.dialog.root(
-                        rx.dialog.trigger(
-                            rx.button(
-                                "Data model",
-                                variant="ghost",
-                                color_scheme="gray",
-                                size="1",
-                                on_click=ChatState.load_data_model_text,
-                            ),
-                        ),
-                        rx.dialog.content(
-                            rx.vstack(
-                                rx.hstack(
-                                    rx.dialog.title("Data Model"),
-                                    rx.spacer(),
-                                    rx.button(
-                                        "Reload",
-                                        variant="soft",
-                                        color_scheme="blue",
-                                        size="1",
-                                        on_click=ChatState.reload_data_model,
-                                        loading=ChatState.is_refreshing_dm,
-                                    ),
-                                    rx.dialog.close(
-                                        rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
-                                    ),
-                                    align="center",
-                                    width="100%",
-                                ),
-                                rx.scroll_area(
-                                    rx.markdown(ChatState.data_model_text),  # type: ignore[operator]
-                                    type="always",
-                                    scrollbars="vertical",
-                                    style={"height": "70vh"},
-                                ),
-                                spacing="3",
-                                width="100%",
-                            ),
-                            max_width="70vw",
-                        ),
-                    ),
-                    rx.checkbox(
-                        "Filter Data Model",
-                        checked=ChatState.enable_dm_filtering,
-                        on_change=ChatState.set_enable_dm_filtering,
-                        size="1",
-                    ),
-                    rx.cond(
-                        ChatState.enable_dm_filtering & AppVersionState.debug_mode,
-                        rx.select(
-                            items=DebugState.available_models,
-                            value=ChatState.dm_filter_model,
-                            on_change=ChatState.set_dm_filter_model,
-                            width="16em",
-                            placeholder="Filter model",
-                        ),
-                        rx.text(ChatState.dm_filter_model, size="1", color="gray"),
-                    ),
-                    rx.spacer(),
-                    rx.cond(
-                        AppVersionState.debug_mode,
-                        rx.cond(
-                            DebugState.embeddings_model_available,
-                            rx.text(
-                                f"Embeddings: {DebugState.embeddings_model}",
-                                size="1",
-                                color="gray",
-                            ),
-                            rx.text(
-                                f"Embeddings: {DebugState.default_embeddings_model} (unavailable for provider)",
-                                size="1",
-                                color="red",
-                            ),
-                        ),
-                        rx.fragment(),
-                    ),
-                    rx.hstack(
-                        rx.cond(
-                            ChatState.chat_thread_id != "",
-                            rx.hstack(
-                                rx.text("thread id: ", size="1", color="gray"),
-                                rx.button(
-                                    ChatState.chat_thread_id,
-                                    variant="soft",
-                                    size="1",
-                                    on_click=ChatState.open_jims_thread,
-                                ),
-                                spacing="1",
-                            ),
-                        ),
-                        rx.cond(
-                            ChatState.total_conversation_cost > 0,
-                            rx.text(
-                                "total cost: " + ChatState.total_conversation_cost_str,
-                                size="1",
-                                color="gray",
-                            ),
-                        ),
-                        spacing="2",
-                    ),
-                    align="end",
-                    width="100%",
+        rx.cond(
+            AppVersionState.debug_mode,
+            rx.cond(
+                DebugState.embeddings_model_available,
+                rx.text(
+                    "Embeddings: " + DebugState.embeddings_model,  # type: ignore[operator]
+                    size="1",
+                    color="gray",
                 ),
-                rx.form.root(
-                    rx.hstack(
-                        rx.input(
-                            placeholder="Type your message…",
-                            value=ChatState.input_text,
-                            on_change=ChatState.set_input,
-                            width="100%",
-                        ),
-                        rx.cond(
-                            ChatState.model_selection_allowed,
-                            rx.select(
-                                items=DebugState.available_models,
-                                value=ChatState.model,
-                                on_change=ChatState.set_model,
-                                width="20em",
-                                placeholder="Select model",
-                            ),
-                            rx.badge(ChatState.model, variant="surface", color_scheme="gray", size="3"),
-                        ),
-                        rx.button("Send", type="submit", loading=ChatState.is_running),
-                        spacing="2",
-                        width="100%",
-                    ),
-                    on_submit=ChatState.send,
-                    width="100%",
+                rx.text(
+                    "Embeddings: " + DebugState.default_embeddings_model + " (unavailable for provider)",
+                    size="1",
+                    color="red",
                 ),
-                spacing="2",
-                width="100%",
             ),
-            padding="1em",
-            style={
-                "backgroundColor": "var(--color-background)",
-                "borderTop": "1px solid var(--gray-a5)",
-                "flexShrink": "0",
-                "position": "relative",
-                "zIndex": "1000",
-            },
-            width="100%",
+            rx.fragment(),
         ),
-        direction="column",
-        height="100vh",
-        width="100%",
-        overflow="hidden",
-        on_mount=ChatState.mount,
+    ]
+
+
+def page() -> rx.Component:
+    return jims_backoffice.chat_page(
+        ChatState,
+        input_bar_extras=_dm_filter_extras(),
+        header=app_header,
     )

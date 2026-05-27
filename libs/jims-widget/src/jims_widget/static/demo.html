@@ -131,8 +131,6 @@
         --deep-chat-ai-bubble-bg: #f0f0f5;
         --deep-chat-ai-bubble-text: #1a1a2e;
       "
-      textInput='{"placeholder":{"text":"Type a message…"}}'
-      messageStyles='{"default":{"shared":{"bubble":{"borderRadius":"12px","padding":"10px 14px","maxWidth":"80%","fontSize":"0.92rem"}}}}'
     ></deep-chat>
   </div>
 
@@ -171,12 +169,76 @@
   <script type="module">
     import "https://cdn.jsdelivr.net/npm/deep-chat@2.4.1/dist/deepChat.bundle.js";
 
+    try {
+      const { linkify } = await import("https://esm.sh/remarkable@2.0.1/linkify");
+      window.remarkable_plugins = [{ plugin: linkify }];
+    } catch (e) {
+      console.warn("[jims-widget] linkify unavailable:", e);
+    }
+
     var wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
     var wsUrl = wsProtocol + "//" + location.host + "/ws/chat";
 
     var chat = document.getElementById("ai-chat");
-    chat.connect = { websocket: true, url: wsUrl };
-    chat.introMessage = { text: "Hi! I'm your AI Assistant. How can I help you?" };
+    chat.textInput = { placeholder: { text: "Type a message…" } };
+    chat.remarkable = { linkTarget: "_blank" };
+    chat.messageStyles = {
+      default: {
+        shared: {
+          bubble: {
+            borderRadius: "12px",
+            padding: "10px 14px",
+            maxWidth: "80%",
+            fontSize: "0.92rem",
+          },
+        },
+      },
+      html: {
+        shared: {
+          bubble: {
+            backgroundColor: "unset",
+            padding: "6px 8px",
+            maxWidth: "100%",
+            width: "100%",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          },
+        },
+      },
+    };
+
+    // Required for pipeline buttons (comm.assistant_buttons → HTML with .jims-widget-callback-btn).
+    // Deep Chat renders HTML in the shadow root; bind here per
+    // https://deepchat.dev/docs/messages/HTML/#htmlclassutilities
+    chat.htmlClassUtilities = {
+      "jims-widget-callback-btn": {
+        events: {
+          click: function (event) {
+            var t = event.target;
+            var el =
+              t && typeof t.closest === "function"
+                ? t.closest(".jims-widget-callback-btn")
+                : event.currentTarget;
+            var payload = el && el.dataset ? el.dataset.jimsCallback : "";
+            var buttonText = el && typeof el.textContent === "string" ? el.textContent.trim() : "";
+            if (payload) {
+              event.preventDefault();
+              event.stopPropagation();
+              chat.submitUserMessage({
+                text: buttonText || payload,
+                custom: { jimsCallback: payload },
+              });
+            }
+          },
+        },
+        styles: {
+          default: { cursor: "pointer" },
+          hover: { filter: "brightness(0.95)" },
+        },
+      },
+    };
+
     chat.displayLoadingBubble = true;
     chat.scrollButton = true;
 
@@ -184,9 +246,17 @@
       var body = typeof details.body === "string" ? JSON.parse(details.body) : details.body;
       var messages = body.messages || [];
       var last = messages[messages.length - 1];
-      var text = last ? (last.text || "") : "";
+      var fallbackText = last ? (last.text || "") : "";
+      var callbackText =
+        last &&
+        last.custom &&
+        typeof last.custom === "object" &&
+        typeof last.custom.jimsCallback === "string"
+          ? last.custom.jimsCallback
+          : "";
+      var outgoingText = callbackText || fallbackText;
       return Object.assign({}, details, {
-        body: JSON.stringify({ messages: [{ role: "user", text: text }] })
+        body: JSON.stringify({ messages: [{ role: "user", text: outgoingText }] })
       });
     };
 
@@ -202,13 +272,21 @@
         if (Array.isArray(payload)) return payload;
         if (typeof payload !== "object") return { text: String(payload) };
         if (payload.error) return { error: String(payload.error) };
-        if (payload.text != null) return { text: String(payload.text) };
-        if (payload.html || payload.files) return payload;
+        if (payload.text != null || payload.html != null || payload.files) {
+          var out = {};
+          if (payload.text != null) out.text = String(payload.text);
+          if (payload.html != null) out.html = String(payload.html);
+          if (payload.files) out.files = payload.files;
+          return out;
+        }
         return response;
       } catch (err) {
         return { error: "Failed to process server response" };
       }
     };
+
+    chat.connect = { websocket: true, url: wsUrl };
+    chat.introMessage = { text: "Hi! I'm your AI Assistant. How can I help you?" };
 
     // Fill in the embed snippet with the current origin
     var origin = location.origin;

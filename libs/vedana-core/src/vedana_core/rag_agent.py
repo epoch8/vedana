@@ -162,9 +162,10 @@ class RagAgent:
 
     async def text_to_answer_with_vts_and_cypher(
         self, text_query: str, threshold: float, top_n: int
-    ) -> tuple[str, list, list[VTSQuery], list[CypherQuery]]:
+    ) -> tuple[str, list, list[VTSQuery], list[CypherQuery], list[dict[str, Any]]]:
         vts_queries: list[VTSQuery] = []
         cypher_queries: list[CypherQuery] = []
+        tool_calls: list[dict[str, Any]] = []
 
         async def vts_fn(args: VTSArgs) -> str:
             label = args.label.value if isinstance(args.label, enum.Enum) else args.label
@@ -176,13 +177,29 @@ class RagAgent:
 
             vts_queries.append(VTSQuery(label, prop, args.text))
             vts_res = await self.search_vector_text(label, prop_type, prop, args.text, threshold=th, top_n=t_n)
-            return self.result_to_text(VTS_TOOL_NAME, vts_res)
+            result_text = self.result_to_text(VTS_TOOL_NAME, vts_res)
+            tool_calls.append(
+                {
+                    "tool": VTS_TOOL_NAME,
+                    "args": {"label": label, "property": prop, "text": args.text},
+                    "result": result_text,
+                }
+            )
+            return result_text
 
         async def cypher_fn(args: CypherArgs) -> str:
             self.logger.debug(f"cypher_fn({args})")
             cypher_queries.append(CypherQuery(args.query))
             res = await self.execute_cypher_query(args.query)
-            return self.result_to_text(CYPHER_TOOL_NAME, res)
+            result_text = self.result_to_text(CYPHER_TOOL_NAME, res)
+            tool_calls.append(
+                {
+                    "tool": CYPHER_TOOL_NAME,
+                    "args": {"query": args.query},
+                    "result": result_text,
+                }
+            )
+            return result_text
 
         vts_tool = Tool(
             VTS_TOOL_NAME,
@@ -210,7 +227,7 @@ class RagAgent:
             self.logger.warning(f"No answer found for {text_query}. Generating empty answer...")
             answer = await self.llm.generate_no_answer(self.ctx.context(settings.pipeline_history_length))
 
-        return answer, all_query_events, vts_queries, cypher_queries
+        return answer, all_query_events, vts_queries, cypher_queries, tool_calls
 
 
 def _remove_embeddings(val: Any):

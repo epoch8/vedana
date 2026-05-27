@@ -175,6 +175,13 @@
   script.textContent = `
     import "${DEEP_CHAT_CDN}";
 
+    try {
+      const { linkify } = await import("https://esm.sh/remarkable@2.0.1/linkify");
+      window.remarkable_plugins = [{ plugin: linkify }];
+    } catch (e) {
+      console.warn("[jims-widget] linkify unavailable:", e);
+    }
+
     const chat = document.querySelector("#jims-widget-panel deep-chat");
 
     const server = ${JSON.stringify(cfg.server)};
@@ -187,13 +194,7 @@
     if (${JSON.stringify(cfg.threadId)}) params.push("thread_id=" + encodeURIComponent(${JSON.stringify(cfg.threadId)}));
     if (params.length) wsUrl += "?" + params.join("&");
 
-    chat.connect = { websocket: true, url: wsUrl };
     chat.textInput = { placeholder: { text: "Type a message…" } };
-
-    const introMsg = ${JSON.stringify(cfg.introMessage)};
-    if (introMsg) {
-      chat.introMessage = { text: introMsg };
-    }
 
     chat.avatars = {
       ai: {
@@ -217,7 +218,86 @@
           },
         },
       },
+      html: {
+        shared: {
+          bubble: {
+            backgroundColor: "unset",
+            padding: "6px 8px",
+            maxWidth: "100%",
+            width: "100%",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          },
+        },
+      },
     };
+
+    // Pipeline buttons: bind click via htmlClassUtilities (Deep Chat shadow DOM).
+    // https://deepchat.dev/docs/messages/HTML/#htmlclassutilities
+    chat.htmlClassUtilities = {
+      "jims-widget-button-stack": {
+        styles: {
+          default: {
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "10px",
+            width: "100%",
+            boxSizing: "border-box",
+          },
+        },
+      },
+      "jims-widget-button-row": {
+        styles: {
+          default: {
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            gap: "8px",
+            width: "100%",
+          },
+        },
+      },
+      "jims-widget-callback-btn": {
+        events: {
+          click: (event) => {
+            const t = event.target;
+            const el =
+              t && typeof t.closest === "function"
+                ? t.closest(".jims-widget-callback-btn")
+                : event.currentTarget;
+            const payload = el && el.dataset ? el.dataset.jimsCallback : "";
+            const buttonText = el && typeof el.textContent === "string" ? el.textContent.trim() : "";
+            if (payload) {
+              event.preventDefault();
+              event.stopPropagation();
+              chat.submitUserMessage({
+                text: buttonText || payload,
+                custom: { jimsCallback: payload },
+              });
+            }
+          },
+        },
+        styles: {
+          default: {
+            cursor: "pointer",
+            minWidth: "12rem",
+            maxWidth: "100%",
+            padding: "10px 18px",
+            fontWeight: "600",
+          },
+          hover: { filter: "brightness(0.95)" },
+        },
+      },
+    };
+
+    chat.remarkable = { linkTarget: "_blank" };
+
+    const introMsg = ${JSON.stringify(cfg.introMessage)};
+    if (introMsg) {
+      chat.introMessage = { text: introMsg };
+    }
 
     chat.displayLoadingBubble = true;
     chat.scrollButton = true;
@@ -226,8 +306,19 @@
       const body = typeof details.body === "string" ? JSON.parse(details.body) : details.body;
       const messages = body.messages || [];
       const last = messages[messages.length - 1];
-      const text = last ? (last.text || "") : "";
-      return { ...details, body: JSON.stringify({ messages: [{ role: "user", text }] }) };
+      const fallbackText = last ? (last.text || "") : "";
+      const callbackText =
+        last &&
+        last.custom &&
+        typeof last.custom === "object" &&
+        typeof last.custom.jimsCallback === "string"
+          ? last.custom.jimsCallback
+          : "";
+      const outgoingText = callbackText || fallbackText;
+      return {
+        ...details,
+        body: JSON.stringify({ messages: [{ role: "user", text: outgoingText }] }),
+      };
     };
 
     chat.responseInterceptor = (response) => {
@@ -242,13 +333,20 @@
         if (Array.isArray(payload)) return payload;
         if (typeof payload !== "object") return { text: String(payload) };
         if (payload.error) return { error: String(payload.error) };
-        if (payload.text != null) return { text: String(payload.text) };
-        if (payload.html || payload.files) return payload;
+        if (payload.text != null || payload.html != null || payload.files) {
+          const out = {};
+          if (payload.text != null) out.text = String(payload.text);
+          if (payload.html != null) out.html = String(payload.html);
+          if (payload.files) out.files = payload.files;
+          return out;
+        }
         return response;
       } catch (err) {
         return { error: "Failed to process server response" };
       }
     };
+
+    chat.connect = { websocket: true, url: wsUrl };
   `;
   document.body.appendChild(script);
 })();

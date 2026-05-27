@@ -7,10 +7,8 @@ import pandas as pd
 import reflex as rx
 import sqlalchemy as sa
 from vedana_core.settings import settings as core_settings
-from vedana_etl.app import app as etl_app
-from vedana_etl.config import DBCONN_DATAPIPE
 
-from vedana_backoffice.states.common import get_vedana_app
+from vedana_backoffice.project_runtime import get_etl_bindings, get_vedana_app
 from vedana_backoffice.util import safe_render_value
 
 
@@ -123,13 +121,10 @@ class DashboardState(rx.State):
         self.selected_ingest_source_tab = value
 
     def _load_source_tabs(self) -> None:
-        self.ingest_source_tabs = list({str(v) for t in etl_app.steps for (k, v) in t.labels if k == "source"} | {"Grist"})
+        steps = get_etl_bindings().app.steps
+        self.ingest_source_tabs = list({str(v) for t in steps for (k, v) in t.labels if k == "source"} | {"Grist"})
         if self.selected_ingest_source_tab not in self.ingest_source_tabs:
             self.selected_ingest_source_tab = self.ingest_source_tabs[0]
-
-    def _append_log(self, msg: str) -> None:
-        """Log a message (for consistency with EtlState pattern)."""
-        logging.warning(msg)
 
     def load_dashboard(self):
         """Connecting with a background task. Used to trigger animations properly."""
@@ -184,7 +179,7 @@ class DashboardState(rx.State):
             graph_edges_count_by_label = {}
 
         since_ts = float(time.time() - self.time_window_days * 86400)
-        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        con = get_etl_bindings().dbconn.con  # type: ignore[attr-defined]
 
         # Nodes
         db_nodes_by_label: dict[str, int] = {}
@@ -308,7 +303,7 @@ class DashboardState(rx.State):
 
     def _load_datapipe_counters(self) -> None:
         """Query Datapipe DB for totals and per-type counts for staging tables."""
-        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        con = get_etl_bindings().dbconn.con  # type: ignore[attr-defined]
         try:
             with con.begin() as conn:
                 total_nodes = conn.execute(sa.text('SELECT COUNT(*) FROM "nodes"')).scalar()
@@ -345,7 +340,7 @@ class DashboardState(rx.State):
 
     def _load_embeddings_counters(self) -> None:
         """Query Datapipe DB for embedding table totals and grouped counts."""
-        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        con = get_etl_bindings().dbconn.con  # type: ignore[attr-defined]
         since_ts = float(time.time() - self.time_window_days * 86400)
 
         try:
@@ -508,7 +503,7 @@ class DashboardState(rx.State):
 
     def _load_change_metrics_window(self) -> None:
         """Compute adds/edits/deletes for nodes and edges within selected window based on *_meta tables."""
-        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        con = get_etl_bindings().dbconn.con  # type: ignore[attr-defined]
 
         since_ts = float(time.time() - self.time_window_days * 86400)
 
@@ -541,10 +536,12 @@ class DashboardState(rx.State):
 
     def _load_ingest_metrics_window(self) -> None:
         """Aggregate new/updated/deleted entries for ingest outputs grouped by source."""
-        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        etl = get_etl_bindings()
+        con = etl.dbconn.con  # type: ignore[attr-defined]
+        steps = etl.app.steps
 
         since_ts = float(time.time() - self.time_window_days * 86400)
-        sources = sorted({str(v) for t in etl_app.steps for (k, v) in t.labels if k == "source"} | {"grist"})
+        sources = sorted({str(v) for t in steps for (k, v) in t.labels if k == "source"} | {"grist"})
 
         breakdown_by_source: dict[str, list[dict[str, Any]]] = {}
         new_total_by_source: dict[str, int] = {}
@@ -554,7 +551,7 @@ class DashboardState(rx.State):
         for source in sources:
             tables = [
                 tt.name
-                for t in etl_app.steps
+                for t in steps
                 if ("stage", "extract") in t.labels and ("source", source) in t.labels
                 for tt in t.output_dts
             ]
@@ -637,7 +634,7 @@ class DashboardState(rx.State):
         if not table_name:
             return
 
-        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        con = get_etl_bindings().dbconn.con  # type: ignore[attr-defined]
 
         since_ts = float(time.time() - self.time_window_days * 86400)
         meta = f"{table_name}_meta"
@@ -725,7 +722,7 @@ class DashboardState(rx.State):
         try:
             df = pd.read_sql(q_join, con=con)
         except Exception as e:
-            self._append_log(f"Failed to load joined changes for {table_name}: {e}")
+            logging.warning(f"Failed to load joined changes for {table_name}: {e}")
             return
 
         # Only display data columns; hide change_type and timestamps
@@ -794,7 +791,7 @@ class DashboardState(rx.State):
             return
         base_table, label_col, key_cols = mapped
 
-        con = DBCONN_DATAPIPE.con  # type: ignore[attr-defined]
+        con = get_etl_bindings().dbconn.con  # type: ignore[attr-defined]
 
         since_ts = float(time.time() - self.time_window_days * 86400)
         meta = f"{base_table}_meta"
@@ -876,7 +873,7 @@ class DashboardState(rx.State):
         try:
             df = pd.read_sql(q_join, con=con)
         except Exception as e:
-            self._append_log(f"Failed to load joined label changes for {base_table}:{label}: {e}")
+            logging.warning(f"Failed to load joined label changes for {base_table}:{label}: {e}")
             return
 
         # Ensure key columns are present in columns list

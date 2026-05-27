@@ -1,3 +1,4 @@
+import html
 import json
 from pathlib import Path
 from uuid import UUID
@@ -6,6 +7,7 @@ from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from jims_core.app import JimsApp
+from jims_core.thread.schema import CommunicationEvent
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from loguru import logger
@@ -55,15 +57,10 @@ def create_widget_app(jims_app: JimsApp, cors_origins: list[str] | None = None) 
             except Exception:
                 pass
 
-        if ctl is None:
-            tid = uuid7()
-            ctl = await jims_app.new_thread(
-                contact_id=effective_contact_id,
-                thread_id=tid,
-                thread_config={"interface": "widget"},
-            )
-
-        logger.info(f"Widget WS connected: thread={ctl.thread.thread_id} contact={effective_contact_id}")
+        if ctl is not None:
+            logger.info(f"Widget WS connected: thread={ctl.thread.thread_id} contact={effective_contact_id}")
+        else:
+            logger.info(f"Widget WS connected: no thread yet, contact={effective_contact_id}")
 
         try:
             while True:
@@ -74,14 +71,28 @@ def create_widget_app(jims_app: JimsApp, cors_origins: list[str] | None = None) 
                     continue
 
                 try:
-                    assistant_text = await _handle_message(jims_app, ctl, user_text)
-                    await websocket.send_json({"text": assistant_text})
+                    if ctl is None:
+                        ctl = await jims_app.new_thread(
+                            contact_id=effective_contact_id,
+                            thread_id=uuid7(),
+                            thread_config={"interface": "widget"},
+                        )
+                        logger.info(
+                            f"Widget thread created on first message: "
+                            f"thread={ctl.thread.thread_id} contact={effective_contact_id}"
+                        )
+                    payload = await _handle_message(jims_app, ctl, user_text)
+                    await websocket.send_json(payload)
                 except Exception as exc:
-                    logger.exception(f"Pipeline error on thread {ctl.thread.thread_id}")
+                    thread_for_log = str(ctl.thread.thread_id) if ctl is not None else "<not-created>"
+                    logger.exception(f"Pipeline error on thread {thread_for_log}")
                     await websocket.send_json({"error": f"Processing error: {exc}"})
 
         except WebSocketDisconnect:
-            logger.info(f"Widget WS disconnected: thread={ctl.thread.thread_id}")
+            if ctl is not None:
+                logger.info(f"Widget WS disconnected: thread={ctl.thread.thread_id}")
+            else:
+                logger.info(f"Widget WS disconnected before first message: contact={effective_contact_id}")
 
     return app
 
@@ -125,14 +136,109 @@ def _extract_user_text(raw: str) -> str | None:
     return raw.strip() or None
 
 
-async def _handle_message(jims_app: JimsApp, ctl: ThreadController, user_text: str) -> str:
-    await ctl.store_user_message(uuid7(), user_text)
-    outgoing_events = await ctl.run_pipeline_with_context(jims_app.pipeline)
+def _normalize_button_rows(buttons: list) -> list[list[dict]]:
+    """Match jims-telegram row shape: list of rows, each row a list of {text, id?}."""
+    if not buttons:
+        return []
+    if all(isinstance(b, dict) for b in buttons):
+        return [buttons]  # type: ignore[list-item]
+    rows: list[list[dict]] = []
+    for row in buttons:
+        if isinstance(row, list):
+            rows.append([b for b in row if isinstance(b, dict)])
+    return rows
 
-    assistant_messages = [
-        str(ev.event_data.get("content", ""))
-        for ev in outgoing_events
-        if ev.event_type == "comm.assistant_message" and isinstance(ev.event_data, dict)
+
+def _buttons_to_widget_html(buttons: list) -> str:
+    """Build Deep Chat–friendly HTML for callback buttons (wired in jims-widget.js)."""
+    rows = _normalize_button_rows(buttons)
+    if not rows:
+        return ""
+    parts = [
+        '<div class="jims-widget-button-stack" style="display:flex;flex-direction:column;align-items:center;'
+        'gap:10px;margin-top:8px;width:100%;box-sizing:border-box;">'
     ]
+    for row in rows:
+        parts.append(
+            '<div class="jims-widget-button-row" style="display:flex;flex-wrap:wrap;gap:8px;'
+            'justify-content:center;width:100%;">'
+        )
+        for b in row:
+            label_v = b.get("text")
+            if label_v is None:
+                continue
+            label = html.escape(str(label_v))
+            raw_id = b.get("id") or b.get("callback_data") or label_v
+            raw_s = str(raw_id)
+            callback = raw_s if raw_s.startswith("btn:") else f"btn:{raw_s}"
+            safe_cb = html.escape(callback, quote=True)
+            parts.append(
+                '<button type="button" class="deep-chat-button jims-widget-callback-btn" '
+                'style="min-width:12rem;max-width:100%;padding:10px 18px;font-weight:600;" '
+                f'data-jims-callback="{safe_cb}">{label}</button>'
+            )
+        parts.append("</div>")
+    parts.append("</div>")
+    return "".join(parts)
 
-    return "\n\n".join(assistant_messages) if assistant_messages else "(no response)"
+
+def _widget_response_from_outgoing(outgoing_events: list) -> dict[str, str] | list[dict[str, str]]:
+    """Turn pipeline outgoing comm.* events into Deep Chat websocket payload(s).
+
+    Deep Chat does not render `html` when the same JSON object also has `text` — it keeps
+    only one type per message. When we have both, send a JSON array: text bubble first,
+    then an html-only bubble for buttons (see deep-chat bundle: text vs html branch).
+    """
+    text_chunks: list[str] = []
+    html_chunks: list[str] = []
+
+    for ev in outgoing_events:
+        if not isinstance(ev.event_data, dict):
+            continue
+        data = ev.event_data
+        if ev.event_type == "comm.assistant_message":
+            content = data.get("content")
+            if content:
+                text_chunks.append(str(content))
+        elif ev.event_type == "comm.assistant_message_with_buttons":
+            content = data.get("content")
+            if content:
+                text_chunks.append(str(content))
+            btn_html = _buttons_to_widget_html(data.get("buttons") or [])
+            if btn_html:
+                html_chunks.append(btn_html)
+        elif ev.event_type == "comm.assistant_buttons":
+            content = data.get("content")
+            if content:
+                text_chunks.append(str(content))
+            btn_html = _buttons_to_widget_html(data.get("buttons") or [])
+            if btn_html:
+                html_chunks.append(btn_html)
+
+    text = "\n\n".join(text_chunks) if text_chunks else ""
+    html_combined = "".join(html_chunks) if html_chunks else ""
+
+    if not text and not html_combined:
+        return {"text": "(no response)"}
+
+    if html_combined:
+        parts: list[dict[str, str]] = []
+        if text.strip():
+            parts.append({"text": text})
+        parts.append({"html": html_combined})
+        return parts if len(parts) > 1 else parts[0]
+
+    return {"text": text}
+
+
+async def _handle_message(jims_app: JimsApp, ctl: ThreadController, user_text: str) -> dict[str, str] | list[dict[str, str]]:
+    if user_text.startswith("btn:"):
+        await ctl.store_event_dict(
+            event_id=uuid7(),
+            event_type="comm.user_button_click",
+            event_data=dict(CommunicationEvent(role="user", content=user_text)),
+        )
+    else:
+        await ctl.store_user_message(uuid7(), user_text)
+    outgoing_events = await ctl.run_pipeline_with_context(jims_app.pipeline)
+    return _widget_response_from_outgoing(outgoing_events)

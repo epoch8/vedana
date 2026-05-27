@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import sqlalchemy.ext.asyncio as sa_aio
 from async_lru import alru_cache
 from jims_core.app import JimsApp
+# from jims_core.schema import Pipeline
 from loguru import logger
 
 from vedana_core.data_model import DataModel
@@ -17,13 +18,19 @@ from vedana_core.settings import settings as core_settings
 @dataclass
 class VedanaApp:
     sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession]
+    pipeline: RagPipeline
+    start_pipeline: StartPipeline
 
     graph: Graph
     vts: VectorStore
     data_model: DataModel
-    pipeline: RagPipeline
-    start_pipeline: StartPipeline
 
+    def __post_init__(self):
+        self.jims_app = JimsApp(
+            sessionmaker=self.sessionmaker,
+            pipeline=self.pipeline,
+            conversation_start_pipeline=self.start_pipeline,
+        )
 
 @alru_cache
 async def make_vedana_app() -> VedanaApp:
@@ -61,18 +68,9 @@ async def make_vedana_app() -> VedanaApp:
     )
 
 
-@alru_cache
 async def make_jims_app() -> JimsApp:
-    vedana_app = await make_vedana_app()
-
-    app = JimsApp(
-        sessionmaker=vedana_app.sessionmaker,
-        pipeline=vedana_app.pipeline,
-        conversation_start_pipeline=vedana_app.start_pipeline,
-    )
-
-    return app
+    return (await make_vedana_app()).jims_app
 
 
-# This creates a async coroutine which will be evaluated in the event loop
+# Coroutine consumed once by JIMS_APP=vedana_core.app:app standalone entrypoints.
 app = make_jims_app()
