@@ -100,7 +100,14 @@ File: `libs/vedana-etl/src/vedana_etl/settings.py`.
 
 | Variable             | Type | Default              | Description                          |
 | -------------------- | ---- | -------------------- | ------------------------------------- |
-| `DATAPIPE_PIPELINE`   | str  | `vedana_etl.app`     | Datapipe pipeline entry point.       |
+| `DATAPIPE_PIPELINE`   | str  | `vedana_etl.app`     | Datapipe pipeline entry point (`module[:attr]`, default attr `app`). Used by `datapipe run` / `datapipe api` and by the backoffice's `project_runtime.get_etl_bindings`. |
+
+## Backoffice
+
+| Variable                    | Type | Default                           | Description                          |
+| --------------------------- | ---- | --------------------------------- | ------------------------------------- |
+| `VEDANA_BACKOFFICE_DEBUG`   | bool | `false`                           | Enables dev-only features in the backoffice. |
+| `VEDANA_APP`                | str  | `vedana_core.app:make_vedana_app` | `module[:attr]` of a factory returning `vedana_core.app.VedanaApp`. Resolved by `vedana_backoffice.project_runtime.get_vedana_app`. The factory may be sync or async; the result is isinstance-checked against `VedanaApp`. |
 
 ## Prefixes and read order
 

@@ -131,14 +131,18 @@ ETL is split into "flows" via Datapipe labels: `regular`, `on-demand`, `eval`.
 
 See [Vedana ETL](./architecture/vedana-etl.md).
 
-### `vedana-backoffice`
+### `vedana-backoffice` (+ `jims-backoffice`)
 
 Reflex application providing the admin UI. Includes:
 
+- main dashboard (ingest health, graph vs. datapipe counts, recent changes);
 - chat with the assistant;
 - ETL inspector and manual pipeline run;
 - evaluation harness (golden dataset, runs, metrics);
-- prompt editor and data model viewer.
+- prompt editor and data model viewer;
+- JIMS thread inspector (list / drill into events).
+
+The backoffice is split into two libs: `jims-backoffice` carries the generic Chat / Eval / Thread-list UI as an installable library (state classes, Reflex components, the Caddy launcher), and `vedana-backoffice` is the Vedana-specific overlay — it adds the Main Dashboard, the sidebar shell, the Data Model viewer, and the `project_runtime` env-driven wiring (`VEDANA_APP`, `DATAPIPE_PIPELINE`). The same pattern lets tenant overlays (Stell, Maytoni-style) reuse `jims-backoffice` directly without forking.
 
 In docker-compose the backoffice runs behind a Caddy reverse proxy (CLI: `vedana-backoffice-with-caddy`).
 

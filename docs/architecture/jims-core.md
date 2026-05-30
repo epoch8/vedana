@@ -110,7 +110,19 @@ ctl = await ThreadController.new_thread(
 # or
 ctl = await ThreadController.from_thread_id(sessionmaker, thread_id)
 ctl = await ThreadController.latest_thread_from_contact_id(sessionmaker, from_contact_id=contact_id)
+
+# or look up / create by an external system's id (Chatwoot conversation id,
+# CRM ticket id, …). Idempotent — returns the existing thread if one is found.
+ctl = await ThreadController.new_thread_via_external_id(
+    sessionmaker,
+    external_id="chatwoot-conv-1234",
+    thread_config={"interface": "chatwoot"},
+    contact_id="user-42",  # optional
+)
+# also reachable via JimsApp: await jims_app.new_thread_via_external_id(...)
 ```
+
+The `external_id` is stored on the `threads` row (`threads.external_id`, indexed; migration `2026_04_10_1200-17f7b4956ca5_jims_add_external_id`).
 
 When a new thread is created, a `jims.lifecycle.thread_created` event is automatically recorded.
 

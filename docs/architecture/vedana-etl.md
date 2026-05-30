@@ -18,6 +18,7 @@ order: 4
 
 | File                                          | What's inside                                                |
 | --------------------------------------------- | ------------------------------------------------------------- |
+| `libs/vedana-etl/src/vedana_etl/app.py`       | The `DatapipeAPI` entry point — `app = DatapipeAPI(ds, Catalog({}), pipeline)`. This is what `DATAPIPE_PIPELINE=vedana_etl.app` points at, used by the `datapipe` CLI and `vedana-backoffice`'s ETL bindings. |
 | `libs/vedana-etl/src/vedana_etl/catalog.py`   | All Datapipe tables and their schemas.                       |
 | `libs/vedana-etl/src/vedana_etl/steps.py`     | Step implementations (`get_data_model`, `get_grist_data`, …). |
 | `libs/vedana-etl/src/vedana_etl/pipeline.py`  | Assembling the pipeline from steps.                           |
@@ -73,7 +74,7 @@ Vedana ETL relies on **strict naming conventions** to wire up the Data doc, the 
 
 ### Data doc — tables must be prefixed
 
-`GristDataProvider` discovers data tables purely by **prefix** (`libs/vedana-core/src/vedana_core/data_provider.py:69-94`):
+`GristDataProvider` discovers data tables purely by **prefix** (`libs/vedana-core/src/vedana_core/data_provider.py:68-94`):
 
 - Anchor tables — `Anchor_<noun>` (e.g. `Anchor_person`, `Anchor_interest`).
 - Link tables — `Link_<sentence>` (e.g. `Link_PERSON_has_INTEREST`).
@@ -82,7 +83,7 @@ The part after the prefix (`<noun>` / `<sentence>`) is what becomes the Memgraph
 
 ### Data Model doc — `noun` / `sentence` are the join keys
 
-In the Data Model doc the join is the other side of the same key (`libs/vedana-core/src/vedana_core/data_provider.py:174-178`, `libs/vedana-etl/src/vedana_etl/steps.py:160-200`):
+In the Data Model doc the join is the other side of the same key (`libs/vedana-etl/src/vedana_etl/steps.py:155-200`):
 
 | Data Model table          | Key column     | Joins to                                              |
 | -------------------------- | --------------- | ----------------------------------------------------- |
@@ -100,7 +101,7 @@ For each row in `Anchor_attributes`:
 - `attribute_name` must **literally match a column name** in the corresponding `Anchor_<noun>` table.
 - `attribute_name` is also the key Vedana stores in the Memgraph node's properties.
 
-Mismatch behaviour (`libs/vedana-etl/src/vedana_etl/steps.py:319`):
+Mismatch behaviour (`libs/vedana-etl/src/vedana_etl/steps.py:326`):
 
 ```python
 "attributes": {k: v for k, v in a.data.items() if k in dm_anchor_attrs} or {}
@@ -112,7 +113,7 @@ Mismatch behaviour (`libs/vedana-etl/src/vedana_etl/steps.py:319`):
 
 | Situation                                                                | Behaviour                                                                       |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| `Anchor_person` exists in Data, but `Anchors.noun = "person"` row is missing | ETL **logs an error and skips** the table (`steps.py:244-249` — `'Anchor "{anchor_type}" not described in data model, skipping'`); no nodes for this anchor land in Memgraph. |
+| `Anchor_person` exists in Data, but `Anchors.noun = "person"` row is missing | ETL **logs an error and skips** the table (`steps.py:252-258` — `'Anchor "{anchor_type}" not described in data model, skipping'`); no nodes for this anchor land in Memgraph. |
 | `Anchors.noun = "person"` exists in Data Model, but `Anchor_person` is missing from Data | ETL silently produces no nodes for `person`. No error.                          |
 | `Anchor_attributes` row references attribute `price`, but `Anchor_product` has no `price` column | The node is created without `price`. No error.                                  |
 | `Anchor_product` has a column not described in `Anchor_attributes`        | The column is dropped during node preparation. No error.                        |
