@@ -1,0 +1,58 @@
+---
+import BrandLogoStatic from "../logo/BrandLogoStatic.astro";
+
+import { footerNav, footerMeta } from "@/content/vedana/navigation/navigation";
+
+import styles from "./Footer.module.css";
+
+const year = new Date().getFullYear();
+---
+
+<footer class={styles.footer}>
+  <div class={styles.container}>
+    <div class={styles.grid}>
+
+      <!-- BRAND -->
+      <div class={styles.brand}>
+        <BrandLogoStatic />
+
+        {footerMeta.tagline && (
+          <p class={styles.tagline}>
+            {footerMeta.tagline}
+          </p>
+        )}
+      </div>
+
+      <!-- NAV -->
+      {footerNav
+        .filter((section) => section.enabled !== false)
+        .map((section) => (
+          <div class={styles.column}>
+            <h4 class={styles.colTitle}>{section.title}</h4>
+
+            <ul class={styles.links}>
+              {section.items
+                .filter((item) => item.enabled !== false)
+                .map((item) => (
+                  <li>
+                    <a
+                      href={item.href}
+                      target={item.external ? "_blank" : undefined}
+                      rel={item.external ? "noopener noreferrer" : undefined}
+                    >
+                      {item.label}
+                    </a>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        ))}
+
+    </div>
+  </div>
+
+  <!-- BOTTOM -->
+  <div class={styles.bottom}>
+    © {year} {footerMeta.company}
+  </div>
+</footer>

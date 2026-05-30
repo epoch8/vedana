@@ -1,0 +1,19 @@
+---
+import styles from "./EntityCard.module.css";
+
+export interface Props {
+  columns?: 1 | 2 | 3 | 4;
+  class?: string;
+}
+
+const {
+  columns = 3,
+  class: className
+} = Astro.props;
+---
+
+<div
+  class={`${styles["entity-card-list"]} ${styles[`entity-card-list--${columns}`]} ${className ?? ""}`.trim()}
+>
+  <slot />
+</div>

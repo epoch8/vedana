@@ -1,0 +1,267 @@
+/* ========================================
+   STACK ROOT
+======================================== */
+
+.stack {
+  position: relative;
+  width: 100%;
+}
+
+
+/* ========================================
+   HEADER
+======================================== */
+
+.stack__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.stack__type {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: capitalize;
+}
+
+.stack__controls {
+  display: flex;
+  gap: 4px;
+}
+
+.stack__btn {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    transform 120ms ease;
+}
+
+.stack__btn:hover {
+  background: var(--color-bg);
+}
+
+.stack__btn:active {
+  transform: translateY(1px);
+}
+
+
+/* ========================================
+   BODY
+======================================== */
+
+.stack__body {
+  position: relative;
+  width: 100%;
+}
+
+
+/* ========================================
+   STACK SHADOW LAYERS
+======================================== */
+
+.stack__shadow {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.stack__shadow:nth-child(1) {
+  transform: translateY(6px) scale(0.995);
+  opacity: 0.55;
+}
+
+.stack__shadow:nth-child(2) {
+  transform: translateY(12px) scale(0.99);
+  opacity: 0.28;
+}
+
+
+/* ========================================
+   FRONT PANEL
+======================================== */
+
+.stack__front {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+}
+
+
+/* ========================================
+   DESCRIPTION
+======================================== */
+
+.stack__description {
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+  max-width: 40ch;
+}
+
+
+/* ========================================
+   CARD STACK
+======================================== */
+
+.stack__front > [data-entity-id] {
+  display: none;
+}
+
+.stack__front > [data-entity-id][data-active="true"] {
+  display: block;
+}
+
+
+/* ========================================
+   GRAPH LINKS
+======================================== */
+
+[data-target-id] {
+  cursor: pointer;
+}
+
+[data-target-id]:active {
+  transform: scale(0.96);
+}
+
+
+/* ========================================
+   ENTITY CHIP GRAPH LINKS
+======================================== */
+
+.entity-chip[data-target-id] {
+  cursor: pointer;
+}
+
+.entity-chip[data-target-id]:hover {
+  background: color-mix(in srgb, var(--chip-color) 18%, transparent);
+  border-color: var(--chip-color);
+  transform: translateY(-1px);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.entity-chip[data-target-id]::after {
+  content: "↗";
+  font-size: 0.75em;
+  margin-left: 4px;
+  opacity: 0.4;
+}
+
+.entity-chip[data-graph-active] {
+  background: var(--chip-color);
+  color: white;
+  font-weight: 600;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--chip-color) 30%, transparent);
+}
+
+
+/* ========================================
+   GRAPH CARD HIGHLIGHT
+======================================== */
+
+[data-entity-id][data-graph-active] {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--entity-accent) 45%, transparent),
+    0 8px 18px rgba(0, 0, 0, 0.08);
+  background:
+    linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--entity-accent) 6%, transparent),
+      color-mix(in srgb, var(--entity-accent) 6%, transparent)
+    ),
+    var(--color-bg);
+}
+
+
+/* ========================================
+   SINGLE CARD MODE
+======================================== */
+
+.stack[data-has-stack="false"] .stack__shadow {
+  display: none;
+}
+
+.stack[data-has-stack="false"] [data-stack-prev],
+.stack[data-has-stack="false"] [data-stack-next] {
+  display: none;
+}
+
+/* ========================================
+   MOBILE ADAPTATION
+======================================== */
+
+@media (max-width: 640px) {
+
+  /* stack spacing */
+
+  .stack {
+    gap: 6px;
+  }
+
+  .stack__header {
+    margin-bottom: 6px;
+  }
+
+
+  /* buttons become touch-friendly */
+
+  .stack__btn {
+    font-size: 14px;
+    padding: 6px 10px;
+  }
+
+
+  /* shadow stack softer */
+
+  .stack__shadow:nth-child(1) {
+    transform: translateY(4px) scale(0.997);
+    opacity: 0.45;
+  }
+
+  .stack__shadow:nth-child(2) {
+    transform: translateY(8px) scale(0.992);
+    opacity: 0.22;
+  }
+
+
+  /* cards should not touch screen edges */
+
+  .stack__front {
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+
+
+  /* description becomes full width */
+
+  .stack__description {
+    max-width: none;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+
+  /* graph chip spacing */
+
+  .entity-chip {
+    font-size: 13px;
+  }
+
+}

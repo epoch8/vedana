@@ -1,0 +1,96 @@
+---
+import InternalLayout from "@/layouts/InternalLayout.astro";
+
+import { SEOBase } from "@content/vedana/seo/seo";
+import type { SEOConfig } from "@/lib/seo/types";
+
+import Footer from "@/components/products/vedana/footer/Footer.astro";
+
+import IconGrid from "@/components/blocks/icon-grid/IconGrid.astro";
+import IconGridItem from "@/components/blocks/icon-grid/IconGridItem.astro";
+
+import Callout from "@/components/blocks/callout/Callout.astro";
+
+import CardGrid from "../components/blocks/card-grid/CardGrid.astro";
+import CardGridItem from "../components/blocks/card-grid/CardGridItem.astro";
+
+import Timeline from "@/components/blocks/timeline/Timeline.astro";
+import TimelineItem from "@/components/blocks/timeline/TimelineItem.astro";
+
+import EntityBoard from "@/components/blocks/entity-card/EntityBoard.astro";
+import EntityStackCard from "@/components/blocks/entity-card/EntityStackCard.astro";
+import EntityStack from "@/components/blocks/entity-card/EntityStack.astro";
+import { EntityList } from "@/content/vedana/entity-registry/vedana.ts";
+import { groupEntitiesByType } from "@/lib/vedana/groupEntitiesByType";
+const entitiesByType = groupEntitiesByType(EntityList);
+
+import "../styles/global.css";
+import "@/styles/vedana/extra-tokens.css";
+
+
+const crumbs = [
+  { label: "Methodology", href: "/methodology" }
+];
+
+const pageSEO: Partial<SEOConfig> = {
+  title: "Vedana's Methodology",
+  description:
+    "Structured AI platform for different industries.",
+  canonical: "https://vedana.tech/methodology/",
+  og: {
+    type: "website",
+    image: "https://vedana.tech/og-methodology.png",
+    imageAlt: "edana's Methodology"
+  }
+};
+---
+
+<InternalLayout
+  baseSEO={SEOBase}
+  pageSEO={pageSEO}
+  crumbs={crumbs}
+>
+
+    <section class="page-hero">
+        <div class="page-hero-inner">
+            <h1 class="page-hero-title">
+                Methodology behind Vedana
+            </h1>
+
+          <p class="page-hero-lead">
+                Vedana is built on Minimal Modeling.
+          </p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container flow">
+
+<h2>Vedana knowledge graph </h2>
+
+  <EntityBoard columns={3}>
+    {Object.entries(entitiesByType).map(([entityType, entities]) => (
+      <EntityStack
+          entityType={entityType}
+          color={`var(--entity-${entityType})`}
+        >
+
+          {entities.map(entity => (
+            <EntityStackCard
+              id={entity.id}
+              title={entity.title}
+              entityType={entity.entityType}
+              color={entity.color}
+              attributes={entity.attributes ?? []}
+              relations={entity.relations ?? []}
+            />
+          ))}
+
+        </EntityStack>
+      ))}
+  </EntityBoard>
+          </div>
+    </section>
+        
+
+    <Footer />

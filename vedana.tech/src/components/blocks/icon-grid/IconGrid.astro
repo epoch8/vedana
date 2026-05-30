@@ -1,0 +1,22 @@
+---
+import styles from "./IconGrid.module.css";
+
+interface Props {
+  id?: string;
+  class?: string;
+}
+
+const {
+  id = "icon-grid",
+  class: className = "",
+} = Astro.props;
+---
+
+<div
+  id={id}
+  class={`${styles["icon-grid"]} ${className}`}
+>
+  <div class={styles["icon-grid__container"]}>
+    <slot />
+  </div>
+</div>

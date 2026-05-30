@@ -1,0 +1,61 @@
+---
+import BaseLayout from "@/layouts/baseLayout.astro";
+import { SEOBase } from "@content/vedana/seo/seo";
+
+import "@/styles/global.css";
+import "@/styles/vedana/extra-tokens.css";
+
+import EntityBoard from "@/components/blocks/entity-card/EntityBoard.astro";
+import EntityStackCard from "@/components/blocks/entity-card/EntityStackCard.astro";
+import EntityStack from "@/components/blocks/entity-card/EntityStack.astro";
+
+import { EntityList } from "@/content/vedana/entity-registry/legal-hr.ts";
+
+import { groupEntitiesByType } from "@/lib/vedana/groupEntitiesByType";
+
+const entitiesByType = groupEntitiesByType(EntityList);
+---
+<BaseLayout
+  baseSEO={SEOBase}
+  pageSEO={{
+    title: "Vedana — Data Model Examples",
+    description:
+      "Vedana builds structured knowledge graphs so AI answers follow business rules, not similarity guesses.",
+    canonical: "https://vedana.tech/guidebooks/entity-stack-2",
+  }}
+>
+
+<section class="section">
+    <div class="container flow">
+      <h2>Vedana knowledge graph example for legal</h2>
+      <p></p>
+
+      <EntityBoard columns={3}>
+
+        {Object.entries(entitiesByType).map(([entityType, entities]) => (
+
+          <EntityStack
+            entityType={entityType}
+            color={`var(--entity-${entityType})`}
+          >
+
+            {entities.map(entity => (
+              <EntityStackCard
+                id={entity.id}
+                title={entity.title}
+                entityType={entity.entityType}
+                color={entity.color}
+                attributes={entity.attributes ?? []}
+                relations={entity.relations ?? []}
+              />
+            ))}
+
+          </EntityStack>
+
+        ))}
+
+      </EntityBoard>
+</div>
+</section>
+
+</BaseLayout>

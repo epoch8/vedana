@@ -126,6 +126,10 @@ Highlights:
 
 OpenTelemetry traces, Prometheus metrics, and optional Sentry integration are wired into every pipeline run. See [Observability](docs/architecture/observability.md) and [Monitoring](docs/operations/monitoring.md).
 
+## Documentation
+
+The product website and versioned documentation live at [vedana.tech/](vedana.tech/) in this same repository. Latest docs deploy on every push to `master`; pinned snapshots are built from `v*` tags. See [vedana.tech/README.md](vedana.tech/README.md) for details.
+
 ## Contributing
 
 We welcome contributions — bug reports, feature requests, docs fixes, and code. Start here:

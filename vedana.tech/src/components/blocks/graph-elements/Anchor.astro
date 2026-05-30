@@ -1,0 +1,49 @@
+---
+import styles from "./Anchor.module.css";
+
+interface Props {
+  as?: keyof HTMLElementTagNameMap;
+  href?: string;
+
+  size?: "sm" | "md" | "lg" | number;
+  maxLines?: 1 | 2 | 3;
+
+  title?: string;
+  class?: string;
+}
+
+const {
+  as = "span",
+  href,
+  size = "md",
+  maxLines = 2,
+  title,
+  class: className,
+} = Astro.props;
+
+const Tag = (href ? "a" : as) as any;
+
+const sizeVar =
+  typeof size === "number"
+    ? `${size}px`
+    : size === "sm"
+      ? "var(--anchor-size-sm)"
+      : size === "lg"
+        ? "var(--anchor-size-lg)"
+        : "var(--anchor-size-md)";
+
+const ariaLabel =
+  typeof title === "string" ? title : undefined;
+---
+
+<Tag
+  class={`${styles.anchor} ${className ?? ""}`}
+  style={`--anchor-size:${sizeVar};--anchor-lines:${maxLines};`}
+  href={href}
+  title={title}
+  aria-label={ariaLabel}
+>
+  <span class={styles["anchor__text"]}>
+    <slot />
+  </span>
+</Tag>

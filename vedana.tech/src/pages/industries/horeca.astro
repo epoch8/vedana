@@ -1,0 +1,192 @@
+---
+import "@/styles/vedana/extra-tokens.css";
+
+import InternalLayout from "@/layouts/InternalLayout.astro";
+import { SEOBase } from "@content/vedana/seo/seo";
+import type { SEOConfig } from "@/lib/seo/types";
+
+import Callout from "@/components/blocks/callout/Callout.astro";
+
+import EntityBoard from "@/components/blocks/entity-card/EntityBoard.astro";
+import EntityStackCard from "@/components/blocks/entity-card/EntityStackCard.astro";
+import EntityStack from "@/components/blocks/entity-card/EntityStack.astro";
+import { EntityList } from "@/content/vedana/entity-registry/horeca.ts";
+import { groupEntitiesByType } from "@/lib/vedana/groupEntitiesByType";
+const entitiesByType = groupEntitiesByType(EntityList);
+
+
+import Timeline from "@/components/blocks/timeline/Timeline.astro";
+import TimelineItem from "@/components/blocks/timeline/TimelineItem.astro";
+
+import ProductDemo from "@/components/products/vedana/product-demo/ProductDemo.tsx";
+import { scenarios } from "@/content/vedana/demo/horeca"
+import { cardRegistry } from "@/content/vedana/demo/horeca"
+
+const bot = {
+  name: "Vedana AI assistant",
+  bubbleBg: "#eef3ff"
+};
+
+const user = {
+  name: "User",
+  bubbleBg: "#2A5BFF",
+  bubbleColor: "#fff"
+};
+
+
+const crumbs = [
+  { label: "Industries", href: "/industries" },
+  { label: "Horeca" }
+];
+
+const pageSEO: Partial<SEOConfig> = {
+  title: "Vedana for Horeca",
+  description:
+    "Structured AI platform for restaurants and hospitality.",
+  canonical: "https://vedana.tech/industries/horeca",
+  og: {
+    type: "website",
+    image: "https://vedana.tech/og-horeca.png",
+    imageAlt: "Vedana for Horeca"
+  }
+};
+---
+
+<InternalLayout
+  baseSEO={SEOBase}
+  pageSEO={pageSEO}
+  crumbs={crumbs}
+>
+
+    <section class="page-hero">
+        <div class="page-hero-inner">
+            <h1 class="page-hero-title">
+                HoReCa runs on expertise.<br />
+                But <strong>expertise is hard to scale</strong>.
+            </h1>
+
+          <p class="page-hero-lead">
+                Vedana is an open-core AI platform, that encodes your internal knowledge and operations logic into a <strong>structured knowledge graph</strong> – so AI answers are verified. That scales expertise across teams, services, and regions.
+          </p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container flow">
+        <h2>
+            Vedana saves your team expertise in <strong>AI-ready knowledge graph</strong>
+        </h2>
+            <Callout style="--callout-bg: hsl(75 30% 94%);">
+                <h3>
+                    Pre-modeled HoReCa ontology – ready to extend
+                </h3>
+                <p></p>
+                <p>
+                    VEDANA comes with a rich understanding of the HoReCa domain: brands, menu items, recipes, ingredients, equipment, supplies, beverages, certifications, service protocols and others.
+                </p>
+                <p>
+                    We extend this model with your internal logic, formats, and documents, so your assistant answers questions in your language – not just industry standards.
+                </p>
+            </Callout>
+<h3>
+    Any Domain = <strong>Anchors, Attributes, Links</strong>
+</h3>
+<p>
+    Vedana represents any business domain as a structured graph of <strong>anchors (entities), their attributes (properties), and explicit links (relationships)</strong>. <br/>
+    In this HoReCa mini-demo, dishes, ingredients, suppliers, and certifications are typed nodes connected by governed business logic. 
+    <br/>
+    <strong>This is the foundation of our methodology: structured modeling first, AI reasoning on top.</strong>
+</p>
+
+<EntityBoard columns={3}>
+
+  {Object.entries(entitiesByType).map(([entityType, entities]) => (
+
+    <EntityStack
+      entityType={entityType}
+      color={`var(--entity-${entityType})`}
+    >
+
+      {entities.map(entity => (
+        <EntityStackCard
+          id={entity.id}
+          title={entity.title}
+          entityType={entity.entityType}
+          color={entity.color}
+          attributes={entity.attributes ?? []}
+          relations={entity.relations ?? []}
+        />
+      ))}
+
+    </EntityStack>
+
+  ))}
+
+</EntityBoard>
+
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container flow">
+        <h2>
+            VEDANA makes all your knowledge accessible.
+        </h2>
+        <h3>
+            See how Vedana helps in HoReCa scenarios
+        </h3>
+
+          <div class="container">
+            <ProductDemo
+              scenarios={scenarios}
+              cardRegistry={cardRegistry}
+              client:load
+            />
+          </div>
+
+    <section class="section">
+        <div class="container flow">
+        <h2>
+            How Vedana turns documents into answers 
+        </h2>
+        <p></p>
+        <Timeline orientation="horizontal" lines={true}>
+            <TimelineItem index="1" title="Normalize data">
+                        <p>
+                        Pull data from messy pdfs, make data-model. A service-specific playbook guides Vedana how to think:<br/>
+                        
+                        “If query includes certification + menu item + ingredient → look for menu compatibility across all three entities.”
+                        <br />
+                        Logic is visible and customizable.
+                        </p>
+                        </TimelineItem> 
+                        <TimelineItem index="2" title="Make a playbook">
+                        <p>
+                        Vedana explores your knowledge graph:Menu Item → Recipe → Ingredient → Health & Safety Standardto trace dependencies and rules across layers.
+                        </p>
+                        </TimelineItem> 
+                        <TimelineItem index="3" title="Reason using the playbook">
+                        <p>
+                        Each answer is supported by your data: service specifications, health & safety regulations, menu compatibility logic — not hallucination.Feedback from users is logged and used to improve the Playbook.
+                        </p>
+                </Timeline>  
+        </div>
+    </section>
+    
+
+
+
+    <section class="section">
+        <div class="container flow">
+        <h2>
+            Page header H2-3
+        </h1>
+
+        <p>
+            Simple page text.
+        </p>
+        </div>
+    </section>
+
+
+</InternalLayout>

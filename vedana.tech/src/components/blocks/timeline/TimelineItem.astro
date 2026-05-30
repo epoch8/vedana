@@ -1,0 +1,33 @@
+---
+interface Props {
+  index?: number | string;
+  title?: string;
+}
+
+const { index, title } = Astro.props;
+---
+
+<li
+  class="timeline__item"
+  itemprop="step"
+  itemscope
+  itemtype="https://schema.org/HowToStep"
+>
+  <meta itemprop="position" content={String(index ?? "")} />
+
+  <div class="timeline__marker">
+    {index}
+  </div>
+
+  <div class="timeline__content">
+    {title && (
+      <h4 class="timeline__title" itemprop="name">
+        {title}
+      </h4>
+    )}
+
+    <div class="timeline__body" itemprop="text">
+      <slot />
+    </div>
+  </div>
+</li>

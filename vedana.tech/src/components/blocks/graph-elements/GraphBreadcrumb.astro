@@ -1,0 +1,48 @@
+---
+import Anchor from "./Anchor.astro";
+import styles from "./GraphBreadcrumb.module.css";
+
+type Crumb = {
+  label: string;
+  href?: string;
+};
+
+interface Props {
+  crumbs: Crumb[];
+  baseUrl?: string;
+  schema?: boolean;
+}
+
+const {
+  crumbs = [],
+  baseUrl,
+  schema = true
+} = Astro.props;
+
+const lastIndex = crumbs.length - 1;
+
+function isCurrent(i: number, c: Crumb) {
+  return !c.href || i === lastIndex;
+}
+---
+
+<nav class={styles["spine-nav"]} aria-label="Breadcrumb">
+  {crumbs.map((c, i) => {
+    const current = isCurrent(i, c);
+    const href = current ? undefined : c.href;
+
+    return (
+      <Anchor
+        href={href}
+        size="lg"
+        variant="circle"
+        class={`
+          ${styles["spine-anchor"]}
+          ${current ? styles["spine-anchor--current"] : ""}
+        `}
+      >
+        {c.label}
+      </Anchor>
+    );
+  })}
+</nav>

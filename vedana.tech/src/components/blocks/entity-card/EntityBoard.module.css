@@ -1,0 +1,201 @@
+/* ========================================
+   BOARD ROOT
+======================================== */
+
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+
+/* ========================================
+   TOOLBAR
+======================================== */
+
+.board__toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+
+/* ========================================
+   TABS
+======================================== */
+
+.board__tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tab {
+  padding: 6px 10px;
+  border-radius: 8px;
+
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+
+  font-size: 13px;
+  cursor: pointer;
+
+  opacity: 0.7;
+
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease;
+}
+
+.tab.is-active {
+  opacity: 1;
+  background: var(--color-bg);
+}
+
+
+/* ========================================
+   VIEWPORT
+======================================== */
+
+.board__viewport {
+  position: relative;
+}
+
+
+/* ========================================
+   LAYERS
+======================================== */
+
+.board__layer {
+  display: none;
+}
+
+.board__layer.is-active {
+  display: block;
+}
+
+
+/* ========================================
+   CARD MASONRY LAYOUT
+======================================== */
+
+.board__layer[data-view="cards"] {
+
+  column-gap: 20px;
+
+}
+
+
+/* column count */
+
+.board--1 .board__layer[data-view="cards"] {
+  column-count: 1;
+}
+
+.board--2 .board__layer[data-view="cards"] {
+  column-count: 2;
+}
+
+.board--3 .board__layer[data-view="cards"] {
+  column-count: 3;
+}
+
+.board--4 .board__layer[data-view="cards"] {
+  column-count: 4;
+}
+
+
+/* card items */
+
+.board__layer[data-view="cards"] > * {
+
+  break-inside: avoid;
+
+  width: 100%;
+
+  margin-bottom: 20px;
+
+}
+
+
+/* ========================================
+   GRAPH PLACEHOLDER
+======================================== */
+
+.board__graph-placeholder {
+
+  padding: 40px;
+
+  text-align: center;
+
+  color: var(--color-text-muted);
+
+  border: 1px dashed var(--color-border);
+  border-radius: 12px;
+
+}
+
+/* ========================================
+   TABLET ADAPTATION
+======================================== */
+
+@media (max-width: 1024px) {
+
+  .board--4 .board__layer[data-view="cards"] {
+    column-count: 3;
+  }
+
+  .board--3 .board__layer[data-view="cards"] {
+    column-count: 2;
+  }
+
+}
+
+
+/* ========================================
+   MOBILE ADAPTATION
+======================================== */
+
+@media (max-width: 640px) {
+
+  .board {
+    gap: 16px;
+  }
+
+
+  /* toolbar */
+
+  .board__toolbar {
+    justify-content: space-between;
+  }
+
+
+  /* tabs become scrollable if they appear later */
+
+  .board__tabs {
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+
+  /* force single column */
+
+  .board__layer[data-view="cards"] {
+    column-count: 1 !important;
+    column-gap: 0;
+  }
+
+
+  /* card spacing */
+
+  .board__layer[data-view="cards"] > * {
+    margin-bottom: 16px;
+  }
+
+
+  /* graph placeholder spacing */
+
+  .board__graph-placeholder {
+    padding: 28px;
+    font-size: 14px;
+  }
+
+}

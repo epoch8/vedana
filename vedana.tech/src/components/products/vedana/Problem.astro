@@ -1,0 +1,72 @@
+---
+import ProblemTable from "./ProblemTable.astro";
+---
+
+<section id="problem" class="problem-section">
+  <div class="container problem-inner">
+
+    <div class="problem-table-wrap">
+      <ProblemTable />
+    </div>
+
+    <div class="problem-link">
+      <a href="#demo" class="btn-secondary">
+        See how Vedana fixes this →
+      </a>
+    </div>
+
+  </div>
+</section>
+
+<style>
+.problem-section {
+  padding: var(--space-12) 0;
+  background: var(--color-bg);
+}
+
+/* Layout */
+
+.problem-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* Header */
+
+.problem-head {
+  max-width: var(--frame-copy-max-width);
+}
+
+/* Title */
+
+.problem-title {
+  margin: 0;
+
+  font-size: var(--frame-title-size);
+  font-weight: var(--frame-title-weight);
+  line-height: var(--frame-title-line-height);
+  letter-spacing: var(--frame-title-letter);
+  color: var(--frame-title-color);
+}
+
+@media (min-width: 768px) {
+  .problem-title {
+    font-size: var(--frame-title-size-md);
+  }
+}
+
+/* Table */
+
+.problem-table-wrap {
+  margin-top: var(--space-4);
+  overflow-x: auto;
+}
+
+/* CTA */
+
+.problem-link {
+  margin-top: var(--space-4);
+  font-size: var(--font-size-sm);
+}
+</style>

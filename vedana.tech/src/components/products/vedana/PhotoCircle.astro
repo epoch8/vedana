@@ -1,0 +1,35 @@
+---
+// PhotoCircle.astro
+import styles from './PhotoCircle.module.css';
+
+interface Props {
+  srcs?: string | string[];
+  alt?: string;
+}
+
+const { srcs = [], alt = 'Alexey Makhotkin' } = Astro.props;
+const list = Array.isArray(srcs) ? srcs : [srcs];
+
+// We can pass the array of sources to a client-side script via data attributes if needed,
+// but for simple image fallback, we can use an inline onerror handler.
+// E.g., onerror="this.onerror=null; this.src='next-src'"
+// Or since it's just a profile photo, we can just load the first one, or use a tiny script.
+
+const imgSrc = list.length > 0 ? list[0] : null;
+const fallbackData = list.join(',');
+---
+
+<div class={styles.circle}>
+  {imgSrc ? (
+    <img 
+      src={imgSrc} 
+      alt={alt} 
+      class={styles.photo} 
+      data-srcs={fallbackData}
+      onerror="let srcs = this.getAttribute('data-srcs').split(','); let idx = parseInt(this.getAttribute('data-idx') || '0'); if (idx + 1 < srcs.length) { this.setAttribute('data-idx', idx + 1); this.src = srcs[idx + 1]; } else { this.style.display = 'none'; this.nextElementSibling.style.display = 'flex'; }" 
+    />
+    <div class={styles.initials} style="display: none;">AM</div>
+  ) : (
+    <div class={styles.initials}>AM</div>
+  )}
+</div>

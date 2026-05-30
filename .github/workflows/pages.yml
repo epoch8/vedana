@@ -1,0 +1,75 @@
+name: Deploy vedana.tech (site + versioned docs) to GitHub Pages
+
+# Triggers:
+#  - push to master         → rebuild and republish latest docs
+#  - push of a v*.*.* tag   → rebuild including the new tagged snapshot
+#  - workflow_dispatch      → manual rebuild
+#
+# The build pipeline lives entirely in `vedana.tech/`:
+#  1. `npm ci`                                — install Astro/React deps
+#  2. `npm run build:versions`                — materialize docs from git tags
+#                                               into vedana.tech/.generated/
+#  3. `npm run build`                         — Astro static build to `dist/`
+#  4. upload-pages-artifact + deploy-pages    — publish to GitHub Pages
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history + tags for versioned docs)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: vedana.tech/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vedana.tech
+        run: npm ci
+
+      - name: Materialize docs version snapshots from git tags
+        working-directory: vedana.tech
+        run: npm run build:versions
+
+      - name: Build Astro site
+        working-directory: vedana.tech
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: vedana.tech/dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,426 @@
+---
+/*
+  DomainModelDiagram
+  Vedana transforms documents → entities → relations
+*/
+---
+
+<div class="diagram">
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1380 590" fill="none" role="img" aria-label="Vedana transforms documents into extracted entities and a domain data model">
+  <defs>
+    <filter id="shadowSoft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#0F172A" flood-opacity="0.08"></feDropShadow>
+    </filter>
+
+    <filter id="shadowCard" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#0F172A" flood-opacity="0.06"></feDropShadow>
+    </filter>
+
+    <linearGradient id="docBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#DDEAFE"></stop>
+      <stop offset="100%" stop-color="#C7D7F3"></stop>
+    </linearGradient>
+
+    <linearGradient id="docPink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F4DCE7"></stop>
+      <stop offset="100%" stop-color="#EBCFDA"></stop>
+    </linearGradient>
+
+    <linearGradient id="docGreen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#D7EFE8"></stop>
+      <stop offset="100%" stop-color="#C3E4DA"></stop>
+    </linearGradient>
+
+    <style>
+      .label {
+        font-family: Inter, system-ui, sans-serif;
+        fill: #0F172A;
+      }
+      .muted {
+        font-family: Inter, system-ui, sans-serif;
+        fill: #64748B;
+      }
+      .doc-filename {
+        font-family: Inter, system-ui, sans-serif;
+        font-size: 18px;
+        font-weight: 700;
+        fill: #334155;
+      }
+      .entity-text {
+        font-family: Inter, system-ui, sans-serif;
+        font-size: 24px;
+        font-weight: 700;
+        fill: #0F172A;
+      }
+      .model-title {
+        font-family: Inter, system-ui, sans-serif;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        fill: #94A3B8;
+      }
+      .relation-text {
+        font-family: Inter, system-ui, sans-serif;
+        font-size: 16px;
+        font-weight: 500;
+        fill: #334155;
+      }
+      .line {
+        stroke: #7A7A7A;
+        stroke-width: 3;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .line-product{
+        stroke:#6A99F0;
+        stroke-width:3;
+        stroke-linecap:round;
+        stroke-linejoin:round;
+        opacity:.55;
+      }
+      .line-cert{
+        stroke:#EC6FB1;
+        stroke-width:3;
+        stroke-linecap:round;
+        stroke-linejoin:round;
+        opacity:.55;
+        }
+    .line-supplier{
+        stroke:#59C97E;
+        stroke-width:3;
+        stroke-linecap:round;
+        stroke-linejoin:round;
+        opacity:.55;
+        }
+      .ghost {
+        opacity: 0.75;
+      }
+    </style>
+  </defs>
+
+  <!-- documents -->
+
+  <g id="documents">
+    <!-- blue doc -->
+    <g transform="translate(40 50) rotate(3 140 72)" filter="url(#shadowSoft)">
+      <rect x="0" y="0" width="280" height="144" rx="22" fill="url(#docBlue)"></rect>
+      <rect x="22" y="20" width="150" height="12" rx="6" fill="#B8C5DE"></rect>
+      <rect x="22" y="42" width="210" height="10" rx="5" fill="#BDC9E0"></rect>
+      <rect x="22" y="62" width="178" height="10" rx="5" fill="#C4D0E4"></rect>
+      <text x="22" y="108" class="doc-filename">product_spec.docx</text>
+    </g>
+
+    <!-- pink doc -->
+    <g transform="translate(46 232) rotate(-2 140 72)" filter="url(#shadowSoft)">
+      <rect x="0" y="0" width="280" height="144" rx="22" fill="url(#docPink)"></rect>
+      <rect x="22" y="20" width="148" height="12" rx="6" fill="#C4BFCE"></rect>
+      <rect x="22" y="42" width="206" height="10" rx="5" fill="#C8C2D1"></rect>
+      <rect x="22" y="62" width="176" height="10" rx="5" fill="#CEC8D6"></rect>
+      <text x="22" y="108" class="doc-filename">certificate_scan.pdf</text>
+    </g>
+
+    <!-- green doc -->
+    <g transform="translate(40 414) rotate(3 140 72)" filter="url(#shadowSoft)">
+      <rect x="0" y="0" width="280" height="144" rx="22" fill="url(#docGreen)"></rect>
+      <rect x="22" y="20" width="150" height="12" rx="6" fill="#B7D0CB"></rect>
+      <rect x="22" y="42" width="212" height="10" rx="5" fill="#BCD6D0"></rect>
+      <rect x="22" y="62" width="182" height="10" rx="5" fill="#C2DBD5"></rect>
+      <text x="22" y="108" class="doc-filename">supplier_contract.docx</text>
+    </g>
+  </g>
+
+  <!-- extracted entities -->
+
+  <g id="entities">
+    <text x="400" y="50" class="model-title">Extracted entities</text>
+
+    <!-- product -->
+    <g filter="url(#shadowCard)">
+      <rect x="390" y="96" width="250" height="88" rx="20" fill="#FFFFFF" stroke="#B7D0FF" stroke-width="2.5"></rect>
+      <circle cx="430" cy="140" r="14" fill="#DDEAFE" stroke="#6A99F0" stroke-width="2.5"></circle>
+      <text x="458" y="149" class="entity-text">Product</text>
+    </g>
+
+    <!-- certificate -->
+    <g filter="url(#shadowCard)">
+      <rect x="390" y="238" width="250" height="88" rx="20" fill="#FFFFFF" stroke="#F3C2DD" stroke-width="2.5"></rect>
+      <circle cx="430" cy="282" r="14" fill="#F9E1EE" stroke="#EC6FB1" stroke-width="2.5"></circle>
+      <text x="458" y="291" class="entity-text">Certificate</text>
+    </g>
+
+    <!-- supplier -->
+    <g filter="url(#shadowCard)">
+      <rect x="390" y="380" width="250" height="88" rx="20" fill="#FFFFFF" stroke="#BFE5CD" stroke-width="2.5"></rect>
+      <circle cx="430" cy="424" r="14" fill="#DDF4E6" stroke="#59C97E" stroke-width="2.5"></circle>
+      <text x="458" y="433" class="entity-text">Supplier</text>
+    </g>
+  </g>
+
+  <!-- connectors: docs -> entities -->
+
+  <g id="connectors-left" class="ghost">
+    <path id="flow1" class="line-product" d="M321 123 H357 Q372 123 372 138 V140 H390"></path>
+    <circle cx="321" cy="123" r="4" fill="#A3A3A3"></circle>
+    <circle cx="390" cy="140" r="4" fill="#A3A3A3"></circle>
+
+    <path id="flow2" class="line-cert" d="M326 304 H357 Q372 304 372 289 V282 H390"></path>
+    <circle cx="326" cy="304" r="4" fill="#A3A3A3"></circle>
+    <circle cx="390" cy="282" r="4" fill="#A3A3A3"></circle>
+
+    <path id="flow3" class="line-supplier" d="M321 485 H357 Q372 485 372 454 V424 H390"></path>
+    <circle cx="321" cy="485" r="4" fill="#A3A3A3"></circle>
+    <circle cx="390" cy="424" r="4" fill="#A3A3A3"></circle>
+  </g>
+
+  <!-- connectors: entities -> model -->
+
+  <g id="connectors-right" class="ghost">
+    <path id="flow4" class="line-product" d="M640 140 H702 Q720 140 720 158 V178 H780"></path>
+    <circle cx="640" cy="140" r="4" fill="#A3A3A3"></circle>
+    <circle cx="780" cy="178" r="4" fill="#A3A3A3"></circle>
+
+    <path id="flow5" class="line-cert" d="M640 282 H780"></path>
+    <circle cx="640" cy="282" r="4" fill="#A3A3A3"></circle>
+    <circle cx="780" cy="282" r="4" fill="#A3A3A3"></circle>
+
+    <path id="flow6" class="line-supplier" d="M640 424 H702 Q720 424 720 406 V386 H780"></path>
+    <circle cx="640" cy="424" r="4" fill="#A3A3A3"></circle>
+    <circle cx="780" cy="386" r="4" fill="#A3A3A3"></circle>
+  </g>
+
+  <g id="flow-dots">
+
+  <circle r="4" fill="#6A99F0">
+    <animateMotion dur="5s" repeatCount="indefinite">
+      <mpath href="#flow1"/>
+    </animateMotion>
+  </circle>
+
+  <circle r="4" fill="#EC6FB1">
+    <animateMotion dur="5s" begin="1s" repeatCount="indefinite">
+      <mpath href="#flow2"/>
+    </animateMotion>
+  </circle>
+
+  <circle r="4" fill="#59C97E">
+    <animateMotion dur="5s" begin="2s" repeatCount="indefinite">
+      <mpath href="#flow3"/>
+    </animateMotion>
+  </circle>
+
+  <circle r="4" fill="#6A99F0">
+  <animateMotion dur="5s" begin="2s" repeatCount="indefinite">
+    <mpath href="#flow4"/>
+  </animateMotion>
+</circle>
+
+  <circle r="4" fill="#EC6FB1">
+    <animateMotion dur="5s" begin="3s" repeatCount="indefinite">
+      <mpath href="#flow5"/>
+    </animateMotion>
+  </circle>
+
+  <circle r="4" fill="#59C97E">
+    <animateMotion dur="5s" begin="4s" repeatCount="indefinite">
+      <mpath href="#flow6"/>
+    </animateMotion>
+  </circle>
+
+  </g>
+
+  <!-- domain model -->
+
+</g>
+
+<g id="data-model">
+
+  <!-- container (расширен вправо) -->
+  <rect
+    x="780"
+    y="65"
+    width="560"
+    height="475"
+    rx="24"
+    fill="#F5F6F7"
+    stroke="#B0B0B0"
+    stroke-width="2"
+  />
+
+  <text
+    x="1040"
+    y="50"
+    text-anchor="middle"
+    class="model-title"
+  >
+    DATA MODEL
+  </text>
+
+  <!-- ===== lines (bottom layer) ===== -->
+
+  <!-- Product → Supplier (длиннее) -->
+  <line
+    x1="900"
+    y1="200"
+    x2="1225"
+    y2="200"
+    class="line"
+  />
+
+  <!-- Product → Certificate -->
+  <line
+    x1="900"
+    y1="200"
+    x2="1020"
+    y2="420"
+    class="line"
+  />
+
+  <!-- ===== nodes ===== -->
+
+  <!-- Product -->
+  <circle
+    cx="900"
+    cy="200"
+    r="74"
+    fill="#FFFFFF"
+    stroke="#6A99F0"
+    stroke-width="4"
+  />
+  <text
+    x="900"
+    y="210"
+    text-anchor="middle"
+    class="entity-text"
+  >
+    Product
+  </text>
+
+  <!-- Supplier (сдвинут правее) -->
+  <circle
+    cx="1225"
+    cy="200"
+    r="74"
+    fill="#FFFFFF"
+    stroke="#59C97E"
+    stroke-width="4"
+  />
+  <text
+    x="1225"
+    y="210"
+    text-anchor="middle"
+    class="entity-text"
+  >
+    Supplier
+  </text>
+
+  <!-- Certificate -->
+  <circle
+    cx="1020"
+    cy="420"
+    r="74"
+    fill="#FFFFFF"
+    stroke="#EC6FB1"
+    stroke-width="4"
+  />
+  <text
+    x="1020"
+    y="430"
+    text-anchor="middle"
+    class="entity-text"
+  >
+    Certificate
+  </text>
+
+  <!-- ===== relation pills ===== -->
+
+  <!-- supplied by -->
+  <rect
+    x="1010"
+    y="183"
+    width="110"
+    height="34"
+    rx="17"
+    fill="#FFFFFF"
+    stroke="#D1D5DB"
+    stroke-width="2"
+  />
+  <text
+    x="1065"
+    y="205"
+    text-anchor="middle"
+    class="relation-text"
+  >
+    supplied by
+  </text>
+
+  <!-- certified by -->
+  <rect
+    x="900"
+    y="290"
+    width="120"
+    height="34"
+    rx="17"
+    fill="#FFFFFF"
+    stroke="#D1D5DB"
+    stroke-width="2"
+  />
+  <text
+    x="959"
+    y="312"
+    text-anchor="middle"
+    class="relation-text"
+  >
+    certified by
+  </text>
+
+</g>
+
+</svg>
+
+</div>
+
+
+<style>
+
+.diagram{
+  width:100%;
+  max-width:1000px;
+  margin:0 auto;
+}
+
+svg{
+  width:100%;
+  height:auto;
+}
+
+.doc-text{
+  font-size:16px;
+  font-weight:600;
+  fill:#334155;
+  font-family:Inter, system-ui, sans-serif;
+}
+
+.entity-text{
+  font-size:20px;
+  font-weight:700;
+  fill:#0f172a;
+  font-family:Inter, system-ui, sans-serif;
+}
+
+.relation-label{
+  font-size:14px;
+  fill:#64748b;
+  font-weight:600;
+  font-family:Inter, system-ui, sans-serif;
+}
+
+.diagram-caption{
+  text-align:center;
+  margin-top:22px;
+  font-size:14px;
+  color:#64748b;
+}
+
+</style>

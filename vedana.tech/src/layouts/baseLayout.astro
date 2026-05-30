@@ -1,0 +1,139 @@
+---
+import { extendSEO } from "@/lib/seo/extend";
+import type { SEOConfig } from "@/lib/seo/types";
+
+import Nav from "@/components/blocks/header/Nav.astro";
+
+import { mainNav, footerNav } from "@/content/vedana/navigation/navigation";
+import {
+  buildMainNavSchema,
+  buildFooterNavSchema,
+} from "@/lib/seo/navigationSchema";
+
+interface Props {
+  baseSEO: SEOConfig;
+  pageSEO?: Partial<SEOConfig>;
+  structuredData?: object | object[];
+  lang?: string;
+  showNav?: boolean;
+}
+
+const {
+  baseSEO,
+  pageSEO,
+  structuredData,
+  lang = "en",
+  showNav = true,
+} = Astro.props;
+
+const currentPath = Astro.url.pathname;
+
+/* ======================================================
+   SEO MERGE
+====================================================== */
+
+const seo: SEOConfig = pageSEO
+  ? extendSEO(baseSEO, pageSEO)
+  : baseSEO;
+
+const {
+  title,
+  description,
+  canonical,
+  noindex,
+  og,
+  twitter,
+  siteUrl,
+} = seo;
+
+const resolvedCanonical = canonical || (siteUrl ? `${siteUrl}${currentPath}` : undefined);
+
+/* ======================================================
+   BASE URL (важно для schema!)
+====================================================== */
+
+const baseUrl =
+  (resolvedCanonical && new URL(resolvedCanonical).origin) ||
+  siteUrl ||
+  "https://vedana.tech";
+
+/* ======================================================
+   NAVIGATION SCHEMA (AUTO)
+====================================================== */
+
+const navigationSchemas = [
+  buildMainNavSchema(baseUrl, mainNav),
+  buildFooterNavSchema(baseUrl, footerNav),
+];
+
+/* ======================================================
+   MERGE ALL STRUCTURED DATA
+====================================================== */
+
+const allStructuredData = [
+  ...navigationSchemas,
+  ...(structuredData
+    ? Array.isArray(structuredData)
+      ? structuredData
+      : [structuredData]
+    : []),
+];
+---
+
+<!DOCTYPE html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+
+    {noindex && <meta name="robots" content="noindex,nofollow" />}
+    {resolvedCanonical && <link rel="canonical" href={resolvedCanonical} />}
+
+    {/* Open Graph */}
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content={og?.type ?? "website"} />
+    {resolvedCanonical && <meta property="og:url" content={resolvedCanonical} />}
+    {og?.image && <meta property="og:image" content={og.image} />}
+    {og?.imageAlt && (
+      <meta property="og:image:alt" content={og.imageAlt} />
+    )}
+
+    {/* Twitter */}
+    <meta
+      name="twitter:card"
+      content={twitter?.card ?? "summary_large_image"}
+    />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    {(twitter?.image ?? og?.image) && (
+      <meta
+        name="twitter:image"
+        content={twitter?.image ?? og?.image}
+      />
+    )}
+
+    {/* STRUCTURED DATA (UNIFIED) */}
+    {allStructuredData.map((item) => (
+      <script
+        type="application/ld+json"
+        set:html={JSON.stringify(item)}
+      />
+    ))}
+
+    {/* Extra head injection */}
+    <slot name="head" />
+  </head>
+
+  <body>
+    {showNav && <Nav items={mainNav} />}
+
+    <main>
+      <slot />
+    </main>
+  </body>
+</html>

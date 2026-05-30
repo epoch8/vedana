@@ -1,0 +1,117 @@
+/* =========================================
+   INTERNAL LAYOUT — STRUCTURAL AXIS
+   (baseline-synced)
+========================================= */
+
+/*
+  Концепция:
+
+  1. Одна вертикальная ось — fixed.
+  2. Ось начинается под header.
+  3. Первый anchor синхронизирован с baseline h1.
+  4. Breadcrumb живёт поверх оси.
+  5. Контент центрируется независимо.
+*/
+
+
+/* -----------------------------------------
+   ROOT WRAPPER
+------------------------------------------ */
+
+.internal-layout {
+  position: relative;
+}
+
+
+/* -----------------------------------------
+   GLOBAL VERTICAL AXIS
+------------------------------------------ */
+
+.internal-layout::before {
+  content: "";
+
+  position: fixed;
+
+  /* начинается строго под header */
+  top: var(--header-height);
+  bottom: 0;
+
+  left: var(--layout-left-offset);
+
+  width: var(--spine-line-width);
+  background: var(--spine-line-color);
+
+  opacity: 0.5;
+
+  z-index: 0;
+}
+
+
+/* -----------------------------------------
+   FIXED SPINE (BASELINE SYNCED)
+------------------------------------------ */
+
+/*
+  top рассчитывается в theme:
+
+  --internal-hero-offset: calc(
+      var(--header-height)
+      + var(--page-hero-padding-top)
+      + (var(--heading-1-size) * var(--heading-1-baseline-ratio))
+      - (var(--anchor-size-md) / 2)
+  );
+*/
+
+.spine {
+  position: fixed;
+
+  left: var(--layout-left-offset);
+  top: var(--internal-hero-offset);
+
+  width: var(--layout-spine-width);
+
+  display: flex;
+  flex-direction: column;
+
+  z-index: 2;
+}
+
+
+/* -----------------------------------------
+   CONTENT COLUMN
+------------------------------------------ */
+
+.content {
+  max-width: var(--container-wide);
+  margin: 0 auto;
+
+  padding-right: var(--container-padding-x);
+
+  /*
+    Контент отодвигается от фиксированной оси.
+    Spine не влияет на поток документа.
+  */
+  padding-left: var(--layout-content-offset);
+
+  min-width: 0;
+}
+
+
+/* -----------------------------------------
+   MOBILE
+------------------------------------------ */
+
+@media (max-width: 1024px) {
+  .spine {
+    display: none;
+  }
+
+  .internal-layout::before {
+    display: none;
+  }
+
+  .content {
+    padding-left: var(--container-padding-x);
+    padding-right: var(--container-padding-x);
+  }
+}

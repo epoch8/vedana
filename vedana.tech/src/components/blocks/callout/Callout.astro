@@ -1,0 +1,44 @@
+---
+import styles from "./Callout.module.css";
+
+interface Props extends astroHTML.JSX.HTMLAttributes {}
+
+const {
+  id,
+  class: className,
+  ...rest
+} = Astro.props;
+
+const classes = [
+  styles.callout,
+  className
+].filter(Boolean).join(" ");
+---
+
+<div
+  id={id}
+  class={classes}
+  {...rest}
+>
+  <div class={styles.callout__container}>
+    <div class={styles.callout__inner}>
+
+      {Astro.slots.has("icon") && (
+        <div class={styles.callout__icon}>
+          <slot name="icon" />
+        </div>
+      )}
+
+      <div class={styles.callout__content}>
+        <slot />
+      </div>
+
+      {Astro.slots.has("actions") && (
+        <div class={styles.callout__actions}>
+          <slot name="actions" />
+        </div>
+      )}
+
+    </div>
+  </div>
+</div>

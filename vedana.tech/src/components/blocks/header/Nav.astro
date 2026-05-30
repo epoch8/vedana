@@ -1,0 +1,130 @@
+---
+import styles from "./Nav.module.css";
+import BrandLogo from "../../products/vedana/logo/BrandLogo.astro";
+
+import { mainNav } from "@/content/vedana/navigation/navigation";
+
+/* ================================
+   ICONS MAP (без хардкода в JSX)
+================================ */
+
+import GithubIcon from "@/components/icons/GithubIcon.astro";
+
+const ICONS = {
+  github: GithubIcon,
+};
+
+/* ================================
+   PREPARE NAV
+================================ */
+
+const currentPath = Astro.url.pathname;
+
+const navItems = mainNav
+  .filter((item) => item.enabled !== false)
+  .map((item) => {
+    const isActive =
+      currentPath === item.href ||
+      currentPath.startsWith(item.href + "/");
+
+    return {
+      ...item,
+      isActive,
+    };
+  });
+
+/* ================================
+   Structured Data
+================================ */
+
+const siteUrl = Astro.site ?? "";
+
+const navigationSchema = {
+  "@context": "https://schema.org",
+  "@type": "SiteNavigationElement",
+  name: navItems.map((item) => item.label),
+  url: navItems.map((item) =>
+    siteUrl && item.href.startsWith("/")
+      ? `${siteUrl}${item.href}`
+      : item.href
+  ),
+};
+---
+
+<header
+  id="site-header"
+  class={styles["nav-header"]}
+  data-open="false"
+>
+  <div class={styles["nav-inner"]}>
+
+    <!-- BRAND -->
+    <div class={styles["nav-brand"]}>
+      <BrandLogo href="/#home" />
+    </div>
+
+    <!-- NAV -->
+    <nav
+      id="primary-nav"
+      class={styles["nav-links"]}
+      aria-label="Primary"
+      itemscope
+      itemtype="https://schema.org/SiteNavigationElement"
+    >
+      {navItems.map((item) => {
+        const Icon = item.icon ? ICONS[item.icon] : null;
+
+        return (
+          <a
+            href={item.href}
+            class={[
+              styles["nav-link"],
+              item.variant === "cta" && styles["nav-cta"],
+              item.variant === "icon" && styles["nav-icon"],
+              item.isActive && styles["nav-link--active"],
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            target={item.external ? "_blank" : undefined}
+            rel={item.external ? "noopener noreferrer" : undefined}
+            itemprop="url"
+            title={item.description}
+          >
+            {/* ICON */}
+            {item.variant === "icon" && Icon && (
+              <span class={styles["nav-icon-inner"]}>
+                <Icon />
+              </span>
+            )}
+
+            {/* LABEL (не показываем для чистых иконок, если захочешь) */}
+            {item.variant !== "icon" && (
+              <span itemprop="name">{item.label}</span>
+            )}
+          </a>
+        );
+      })}
+    </nav>
+
+    <!-- MOBILE -->
+    <button
+      id="menu-toggle"
+      class={styles["nav-menu-toggle"]}
+      aria-label="Toggle menu"
+      aria-controls="primary-nav"
+      aria-expanded="false"
+      type="button"
+    >
+      ☰
+    </button>
+
+  </div>
+</header>
+
+<div id="nav-overlay" class={styles["nav-overlay"]}></div>
+
+<script type="application/ld+json">
+  {JSON.stringify(navigationSchema)}
+</script>
+
+<script type="module" src="/src/components/blocks/header/nav.js"></script>

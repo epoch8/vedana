@@ -1,0 +1,435 @@
+/* =========================
+   HERO (component)
+========================= */
+
+.hero-section {
+  position: relative;
+  overflow: hidden;
+
+  padding:
+    var(--hero-padding-top)
+    var(--hero-padding-x)
+    var(--hero-padding-bottom);
+
+  text-align: center;
+
+  /* чистый фон */
+  background: #ffffff;
+}
+
+/* =========================
+   EDGE DEPTH
+   (легкое затемнение краев)
+========================= */
+
+.hero-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255,255,255,0) 40%,
+    rgba(248,250,252,0.45) 70%,
+    rgba(241,245,249,0.65) 100%
+  );
+
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* =========================
+   WHITE SPOTLIGHT
+========================= */
+
+.hero-section::after {
+  content: "";
+  position: absolute;
+
+  top: 44%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+
+  width: 1100px;
+  height: 620px;
+
+  background: radial-gradient(
+    circle,
+    rgba(255,255,255,1) 0%,
+    rgba(255,255,255,0.96) 20%,
+    rgba(255,255,255,0.85) 40%,
+    rgba(248,250,252,0.6) 65%,
+    transparent 90%
+  );
+
+  filter: blur(55px);
+
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* =========================
+   HERO CONTENT
+========================= */
+
+.hero-inner {
+  position: relative;
+  z-index: 10;
+
+  max-width: var(--hero-max-width);
+  margin: 0 auto;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  text-align: center;
+}
+
+/* =========================
+   DOCUMENT BACKGROUND
+========================= */
+
+.hero-docs {
+  position: absolute;
+  inset: 0;
+
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+
+  pointer-events: none;
+  z-index: 0;
+}
+
+
+/* =========================
+   DOCUMENT CARD
+========================= */
+
+/* =========================
+   DOCUMENT CARD
+========================= */
+
+.hero-docs .doc {
+  position: absolute;
+
+  width: 150px;
+  height: 190px;
+
+  border-radius: 22px;
+
+  opacity: 0.5;
+
+  border: 1px solid rgba(15,23,42,0.05);
+
+  box-shadow:
+    0 45px 90px rgba(15,23,42,0.10),
+    0 12px 24px rgba(15,23,42,0.05);
+
+  overflow: hidden;
+
+  transform:
+    rotate(var(--r))
+    scale(var(--s,1));
+
+  filter:
+    blur(var(--b,0.6px))
+    saturate(0.95);
+
+  /* бумажная текстура */
+
+  background-image:
+    radial-gradient(rgba(0,0,0,0.02) 1px, transparent 1px);
+
+  background-size: 4px 4px;
+}
+
+/* =========================
+   PAPER LIGHT
+========================= */
+
+.hero-docs .doc::before {
+  content:"";
+
+  position:absolute;
+  inset:0;
+
+  background:linear-gradient(
+    180deg,
+    rgba(255,255,255,0.65) 0%,
+    rgba(255,255,255,0.25) 35%,
+    rgba(255,255,255,0) 60%
+  );
+}
+
+
+/* =========================
+   PAPER TEXTURE
+========================= */
+
+.hero-docs .doc::after {
+  content:"";
+
+  position:absolute;
+
+  left:16px;
+  right:40px;
+  top:22px;
+
+  height:3px;
+
+  border-radius:2px;
+
+  background:rgba(15,23,42,0.12);
+
+  box-shadow:
+    0 10px 0 rgba(15,23,42,0.10),
+    0 20px 0 rgba(15,23,42,0.08),
+    0 30px 0 rgba(15,23,42,0.06);
+}
+
+
+/* =========================
+   DOCUMENT TEXT LINES
+========================= */
+
+.hero-docs .doc span {
+  position: absolute;
+
+  left: 16px;
+  right: 40px;
+  top: 22px;
+  height: 3px;
+
+  border-radius: 2px;
+
+  background: rgba(15,23,42,0.12);
+
+  box-shadow:
+    0 10px 0 rgba(15,23,42,0.10),
+    0 20px 0 rgba(15,23,42,0.08),
+    0 30px 0 rgba(15,23,42,0.06);
+}
+
+
+/* =========================
+   DEPTH LAYERS
+========================= */
+
+.hero-docs .doc:nth-child(3n) {
+  --s: 1.12;
+  opacity: 0.62;
+}
+
+.hero-docs .doc:nth-child(4n) {
+  --s: 0.82;
+  --b: 1.8px;
+  opacity: 0.32;
+}
+
+.hero-docs .doc:nth-child(7n) {
+  --b: 2.2px;
+  opacity: 0.25;
+}
+
+/* =========================
+   TITLE
+========================= */
+
+.hero-title {
+  margin: 0;
+
+  color: var(--color-text-strong);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+/* =========================
+   LEAD
+========================= */
+
+.hero-lead {
+  margin-top: var(--space-6);
+
+  font-size: var(--font-size-lg);
+  line-height: 1.65;
+
+  color: var(--color-text-muted);
+
+  max-width: 560px;
+
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hero-lead strong {
+  color: var(--color-text-strong);
+  font-weight: 600;
+}
+
+/* =========================
+   CTA
+========================= */
+
+.hero-ctas {
+  margin-top: var(--space-8);
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  gap: var(--hero-ctas-gap);
+
+  flex-wrap: wrap;
+}
+
+/* =========================
+   FEATURE STRIP
+========================= */
+
+.hero-features {
+  margin-top: var(--space-7);
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  gap: 28px;
+
+  font-size: var(--font-size-sm);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+
+  color: var(--color-text-subtle);
+}
+
+.hero-features span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hero-features span::before {
+  content: "";
+
+  width: 5px;
+  height: 5px;
+
+  border-radius: 50%;
+
+  background: var(--color-primary);
+
+  opacity: 0.45;
+
+  margin-right: 10px;
+}
+
+/* =========================
+   LINK CTA
+========================= */
+
+.btn--link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  text-decoration: none;
+}
+
+.btn--link:hover {
+  color: var(--color-primary-hover);
+    text-decoration: none;
+
+}
+
+.btn--link span {
+  transition: transform .2s ease;
+}
+
+.btn--link:hover span {
+  transform: translateX(3px);
+}
+/* =========================
+   FRAME COPY (component)
+========================= */
+
+.frame-copy {
+  max-width: var(--frame-copy-max-width);
+  display: grid;
+  gap: var(--frame-copy-gap);
+  text-align: center;
+}
+
+/* Uses heading scale automatically */
+
+.frame-title {
+  margin: 0;
+}
+
+.frame-text,
+.frame-lead {
+  margin: 0;
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.frame-lead {
+  color: var(--color-text);
+}
+
+.frame-accent {
+  color: var(--color-primary);
+}
+
+
+/* ======================================================
+   PAGE HERO — INTERNAL
+====================================================== */
+
+.page-hero {
+  position: relative;
+
+  padding-top: var(--page-hero-padding-top);
+  padding-bottom: var(--page-hero-padding-bottom);
+}
+
+/* Container inner */
+
+.page-hero-inner {
+  max-width: var(--page-hero-max-width);
+}
+
+/* Title */
+
+.page-hero-title {
+  margin: 0 0 var(--space-8) 0;
+}
+
+/* Lead */
+
+.page-hero-lead {
+  max-width: var(--page-hero-lead-max-width);
+
+  margin: 0;
+
+  font-size: var(--font-size-lg);
+  line-height: 1.6;
+
+  color: var(--color-text-muted);
+}
+
+
+.center-image {
+  display: block;
+  margin: 32px auto;
+
+  padding: 12px; /* ← вот это ты хотела */
+
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+
+  background: #fff; /* чтобы padding выглядел как карточка */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}

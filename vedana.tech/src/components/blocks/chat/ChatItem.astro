@@ -1,0 +1,58 @@
+---
+import styles from "./Chat.module.css";
+
+interface Participant {
+  name: string;
+  avatar?: string;
+  bubbleBg?: string;
+  bubbleColor?: string;
+}
+
+interface Props {
+  participant: 1 | 2;
+
+  text?: string;
+
+  participant1: Participant;
+  participant2: Participant;
+}
+
+const { participant, text, participant1, participant2 } = Astro.props;
+
+const isLeft = participant === 1;
+const p = isLeft ? participant1 : participant2;
+const hasSlot = Astro.slots.default;
+---
+
+<div class={`${styles.messageRow} ${isLeft ? styles.left : styles.right}`}>
+
+  {isLeft && (
+    <div class={styles.avatar}>
+      {p.avatar
+        ? <img src={p.avatar} alt={p.name} />
+        : <div class={styles.avatarPlaceholder}></div>
+      }
+    </div>
+  )}
+
+  <div class={styles.messageBlock}>
+    <div class={styles.name}>{p.name}</div>
+
+    <div
+      class={styles.bubble}
+      style={`background:${p.bubbleBg || ""}; color:${p.bubbleColor || ""}`}
+    >
+      {hasSlot ? <slot /> : text}
+    </div>
+  </div>
+
+  {!isLeft && (
+    <div class={styles.avatar}>
+      {p.avatar
+        ? <img src={p.avatar} alt={p.name} />
+        : <div class={styles.avatarPlaceholder}></div>
+      }
+    </div>
+  )}
+
+</div>

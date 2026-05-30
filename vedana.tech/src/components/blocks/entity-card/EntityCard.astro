@@ -1,0 +1,68 @@
+---
+import styles from "./EntityCard.module.css";
+
+export interface Attribute {
+  key: string;
+  value?: string;
+  href?: string;
+  external?: boolean;
+}
+
+export interface Props {
+  title: string;
+  attributes: Attribute[];
+  hint?: string;
+  class?: string;
+}
+
+const {
+  title,
+  attributes,
+  hint,
+  class: className
+} = Astro.props;
+---
+
+<article class={`${styles["entity-card"]} ${className ?? ""}`.trim()}>
+  <header class={styles["entity-card__header"]}>
+    <div class={styles["entity-card__title"]}>
+      {title}
+    </div>
+
+    {hint && (
+      <div class={styles["entity-card__hint"]}>
+        {hint}
+      </div>
+    )}
+  </header>
+
+  <div class={styles["entity-card__body"]}>
+    {attributes.map((attr) => {
+      const rel = attr.external ? "noreferrer noopener" : undefined;
+      const target = attr.external ? "_blank" : undefined;
+
+      return (
+        <div class={styles["entity-item"]}>
+          <div class={styles["entity-item__key"]}>
+            {attr.key}
+          </div>
+
+          <div class={styles["entity-item__value"]}>
+            {attr.href ? (
+              <a
+                href={attr.href}
+                rel={rel}
+                target={target}
+                class={styles["entity-item__link"]}
+              >
+                {attr.value ?? attr.href}
+              </a>
+            ) : (
+              attr.value
+            )}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+</article>

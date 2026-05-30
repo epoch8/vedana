@@ -1,0 +1,34 @@
+---
+import styles from "./Button.module.css";
+
+interface Props extends astroHTML.JSX.HTMLAttributes {
+  href?: string;
+  variant?: "primary" | "secondary" | "ghost" | "link";
+  size?: "sm" | "md" | "lg";
+}
+
+const {
+  href,
+  variant = "primary",
+  size = "md",
+  class: className,
+  ...rest
+} = Astro.props;
+
+const classes = [
+  styles.btn,
+  styles[`btn--${variant}`],
+  styles[`btn--${size}`],
+  className
+].filter(Boolean).join(" ");
+---
+
+{href ? (
+  <a href={href} class={classes} {...rest}>
+    <slot />
+  </a>
+) : (
+  <button class={classes} {...rest}>
+    <slot />
+  </button>
+)}

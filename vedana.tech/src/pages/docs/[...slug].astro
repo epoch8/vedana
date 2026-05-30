@@ -1,0 +1,76 @@
+---
+import { getCollection, render, type CollectionEntry } from "astro:content";
+import type { GetStaticPaths } from "astro";
+
+import DocsLayout from "../../layouts/DocsLayout.astro";
+import { LATEST_ID } from "../../lib/docs/versions";
+
+type Doc = CollectionEntry<"docs">;
+
+/* ========================================
+   STATIC PATHS
+======================================== */
+
+export const getStaticPaths = (async () => {
+  const allDocs: Doc[] = await getCollection("docs");
+  const { SECTION_ORDER } = await import("../../lib/docs/navigation");
+  const knownSections = new Set(SECTION_ORDER.map((s) => s.id));
+
+  const docsEntries = allDocs.filter(
+    (entry) => entry.data.section && knownSections.has(entry.data.section)
+  );
+
+  return docsEntries.map((entry) => {
+    const slug = (entry.data as any).slug ?? entry.id;
+
+    return {
+      params: { slug },
+      props: { entry },
+    };
+  });
+}) satisfies GetStaticPaths;
+
+/* ========================================
+   PROPS
+======================================== */
+
+interface Props {
+  entry: Doc;
+}
+
+const { entry } = Astro.props;
+
+/* ========================================
+   CURRENT SLUG + VERSION
+======================================== */
+
+const currentSlug = (entry.data as any).slug ?? entry.id;
+const currentVersion: string =
+  (entry.data as any).version ?? LATEST_ID;
+
+/* ========================================
+   RENDER CONTENT
+======================================== */
+
+const { Content, headings } = await render(entry);
+---
+
+<DocsLayout
+  currentSlug={currentSlug}
+  currentVersion={currentVersion}
+  headings={headings}
+  title={entry.data.title}
+>
+
+  <article class="docs-article">
+
+    <Content />
+  </article>
+
+</DocsLayout>
+
+<style>
+.docs-article {
+  width: 100%;
+}
+</style>

@@ -1,0 +1,29 @@
+---
+import styles from "./IconGrid.module.css";
+
+interface Props {
+  title?: string;
+  text?: string; // HTML allowed
+}
+
+const { title, text } = Astro.props;
+---
+
+<div class={styles["icon-grid__item"]}>
+  <div class={styles["icon-grid__icon-wrapper"]}>
+    <slot name="icon" />
+  </div>
+
+  {title && (
+    <h3 class={styles["icon-grid__title"]}>
+      {title}
+    </h3>
+  )}
+
+  {text && (
+    <div
+      class={styles["icon-grid__text"]}
+      set:html={text}
+    />
+  )}
+</div>

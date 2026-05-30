@@ -1,0 +1,32 @@
+---
+import styles from "./FAQ.module.css";
+
+interface Props {
+  question: string;
+}
+
+const { question } = Astro.props;
+---
+
+<details
+  class={styles.item}
+  itemprop="mainEntity"
+  itemscope
+  itemtype="https://schema.org/Question"
+>
+  <summary class={styles.summary}>
+    <span itemprop="name">{question}</span>
+    <span class={styles.icon}>+</span>
+  </summary>
+
+  <div
+    class={styles.content}
+    itemprop="acceptedAnswer"
+    itemscope
+    itemtype="https://schema.org/Answer"
+  >
+    <div itemprop="text">
+      <slot />
+    </div>
+  </div>
+</details>
