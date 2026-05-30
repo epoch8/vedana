@@ -2,7 +2,7 @@
 title: Vedana Documentation
 ---
 
-# Vedana Documentation
+# Vedana Semantic RAG Documentation
 
 > Licensed under the **[Apache License 2.0](https://github.com/epoch8/vedana/blob/main/LICENSE)** — free for commercial and non-commercial use, including modification and redistribution.
 
