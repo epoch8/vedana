@@ -62,7 +62,6 @@ vedana/
 │   ├── jims-telegram/       # Telegram adapter for JIMS
 │   ├── jims-tui/            # Terminal UI for testing JIMS pipelines
 │   ├── jims-widget/         # Embeddable chat widget for JIMS
-│   ├── jims-max/            # Internal MAX/VK adapter (optional)
 │   ├── vedana-core/         # The RAG pipeline: data-model filtering, Cypher generation, vector search, answer synthesis
 │   ├── vedana-backoffice/   # Reflex admin UI for Vedana (chat, ETL runner, metrics, prompt tuning)
 │   └── vedana-etl/          # Datapipe-based incremental ETL: Grist → Memgraph + pgvector
