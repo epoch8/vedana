@@ -24,8 +24,10 @@ JIMS tables are defined in `jims_core.db`:
 ```python
 class ThreadDB(Base):
     __tablename__ = "threads"
-    thread_id: UUID  # PK
-    contact_id: str  # indexed
+    thread_id: UUID    # PK
+    contact_id: str    # indexed
+    external_id: str   # nullable, indexed — id of the conversation in an external system
+                       # (Chatwoot conversation id, CRM ticket id, …)
     created_at: datetime
     thread_config: JSONB
 
@@ -44,6 +46,7 @@ Notes:
 
 - `event_data` is stored as Postgres `JSON` (with a SQLite `JSON` variant for tests). See `jims_core/db.py:46`.
 - `event_domain` / `event_name` exist in the schema but are not written today — only `event_type` is populated.
+- `external_id` is used by `ThreadController.new_thread_via_external_id` for idempotent thread lookup from integrations (Chatwoot, etc.). Indexed but non-unique. Added by migration `2026_04_10_1200-17f7b4956ca5_jims_add_external_id`.
 - `created_at` is set by the server.
 - One thread = one chain of events ordered by `created_at`.
 

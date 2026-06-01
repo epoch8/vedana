@@ -101,9 +101,16 @@ See [HTTP API](../api/http-api.md).
 
 ### Backoffice
 
-| Variable                    | Purpose                                                              |
-| --------------------------- | --------------------------------------------------------------------- |
-| `VEDANA_BACKOFFICE_DEBUG`   | Enables dev-only features in the backoffice (test stands, manual queries). |
+| Variable                    | Purpose                                                              | Default                          |
+| --------------------------- | --------------------------------------------------------------------- | --------------------------------- |
+| `VEDANA_BACKOFFICE_DEBUG`   | Enables dev-only features in the backoffice (test stands, manual queries). | `false`                      |
+| `VEDANA_APP`                | `module[:attr]` of a factory returning `vedana_core.app.VedanaApp`. Lets you point the backoffice at a tenant/deployment-specific app factory without forking. | `vedana_core.app:make_vedana_app` |
+
+### Datapipe / ETL bindings
+
+| Variable             | Purpose                                                                                                            | Default          |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| `DATAPIPE_PIPELINE`  | Datapipe app entry point (`module[:attr]`, default attr `app`). Used by `datapipe run` / `datapipe api` and by the backoffice ETL bindings (`project_runtime.get_etl_bindings`). The ETL config module is derived as `<package>.config`. | `vedana_etl.app` |
 
 ## Observability
 

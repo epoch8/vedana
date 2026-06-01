@@ -201,6 +201,24 @@ If the answer is still empty, `RagAgent` runs the fallback `LLM.generate_no_answ
 
 ## Application assembly
 
+`vedana_core.app.VedanaApp` is the public container:
+
+```python
+@dataclass
+class VedanaApp:
+    sessionmaker: async_sessionmaker[AsyncSession]
+    pipeline: RagPipeline
+    start_pipeline: StartPipeline
+    graph: Graph
+    vts: VectorStore
+    data_model: DataModel
+
+    # populated in __post_init__:
+    jims_app: JimsApp  # JimsApp(sessionmaker=…, pipeline=…, conversation_start_pipeline=…)
+```
+
+External code (the backoffice, project overlays) reaches the JIMS app and the RAG pipeline through attributes — `vedana_app.jims_app`, `vedana_app.pipeline`, `vedana_app.data_model`. `vedana_backoffice.project_runtime.get_vedana_app()` isinstance-checks the return value of the `VEDANA_APP` factory against `VedanaApp`, so the dataclass shape is part of the contract.
+
 `vedana_core.app.make_vedana_app()`:
 
 ```python
