@@ -4,7 +4,7 @@ on:
   push:
     branches: [master]
     paths:
-      - 'apps/vedana/docs/**'
+      - 'docs/**'
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
       - name: Sync docs
         run: |
           rsync -av --delete \
-            apps/vedana/docs/ \
+            docs/ \
             _vedana_tech/src/content/docs/
 
       - name: Commit and push
