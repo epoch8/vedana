@@ -93,11 +93,6 @@ libs/
 │       ├── chat_app.py
 │       └── main.py
 │
-├── jims-max/                 # VK Max messenger integration
-│   └── src/jims_max/
-│       ├── main.py            # CLI entry point
-│       └── controller.py      # MaxController — message handling and pipeline wiring
-│
 ├── jims-backoffice/          # minimal FastAPI backoffice (for JIMS demos)
 │   └── src/jims_backoffice/
 │       ├── app.py             # route setup, healthcheck, HTML landing

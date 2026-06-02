@@ -80,7 +80,7 @@ Beyond Prometheus, `LLMProvider` keeps a local `usage: dict[str, ModelUsage]` co
 
 ### Starting metrics
 
-JIMS CLIs accept a `--metrics-port` option. Defaults differ per service so two services can run on the same host without colliding: `jims-api` / `jims-telegram` / `jims-max` default to **8000**; `jims-widget` defaults to **8001**. Run, for example:
+JIMS CLIs accept a `--metrics-port` option. Defaults differ per service so two services can run on the same host without colliding: `jims-api` / `jims-telegram` default to **8000**; `jims-widget` defaults to **8001**. Run, for example:
 
 ```bash
 uv run python -m jims_api.main --app vedana_core.app:app --port 8080 --metrics-port 8000

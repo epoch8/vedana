@@ -79,7 +79,7 @@ flowchart LR
    - Memgraph: snapshot + cypherl dumps (see [Storage Model](../architecture/storage-model.md)).
    - Grist: document export.
 5. **Turn on Sentry** — `SENTRY_DSN` + `SENTRY_ENVIRONMENT`.
-6. **Turn on Prometheus scraping** — on each service's `--metrics-port`. Defaults differ per service to avoid port collisions when several CLIs run on the same host: `jims-api` / `jims-telegram` / `jims-max` default to **8000**; `jims-widget` defaults to **8001**. In a Compose / Kubernetes setup where each service runs in its own container, you can keep these defaults; if you co-locate services, override with explicit `--metrics-port`. See [API Overview → Common CLI configuration](../api/overview.md).
+6. **Turn on Prometheus scraping** — on each service's `--metrics-port`. Defaults differ per service to avoid port collisions when several CLIs run on the same host: `jims-api` / `jims-telegram` default to **8000**; `jims-widget` defaults to **8001**. In a Compose / Kubernetes setup where each service runs in its own container, you can keep these defaults; if you co-locate services, override with explicit `--metrics-port`. See [API Overview → Common CLI configuration](../api/overview.md).
 7. **Pin Docker image versions** — don't use `:latest` for Memgraph and Grist in production. Pin tags.
 
 ### A service unit (systemd, as an example)
