@@ -12,6 +12,7 @@ from jims_core.thread.thread_context import ThreadContext
 from pydantic import BaseModel, Field, create_model
 
 from vedana_core.graph import Graph, Record
+from vedana_core.reranker import Reranker
 from vedana_core.vts import VectorStore
 from vedana_core.llm import LLM, Tool
 from vedana_core.settings import settings
@@ -48,10 +49,12 @@ class VTSArgs(BaseModel):
     label: str = Field(description="node label")
     property: str = Field(description="node property to search in")
     text: str = Field(description="text to search similar")
+    rerank_top_k: int | None = Field(default=None, description="Number of top relevant results to keep after reranking; omit to keep all")
 
 
 class CypherArgs(BaseModel):
     query: str = Field(description="Cypher query")
+    rerank_top_k: int | None = Field(default=None, description="Number of top relevant results to keep after reranking; omit to keep all")
 
 
 class GetHistoryArgs(BaseModel):
@@ -74,6 +77,7 @@ class RagAgent:
         llm: LLM,
         ctx: ThreadContext,
         logger: logging.Logger | None = None,
+        reranker: Reranker | None = None
     ) -> None:
         self.graph = graph
         self.vts = vts
@@ -83,6 +87,7 @@ class RagAgent:
         self._vts_args = self._build_vts_arg_model(data_model_vts_indices)
         self.data_model_description = data_model_description
         self.ctx = ctx
+        self.reranker = reranker
 
     def _build_vts_arg_model(self, vts_indices) -> Type[VTSArgs]:
         """Create a Pydantic model with Enum-constrained fields for the VTS tool."""
@@ -145,7 +150,38 @@ class RagAgent:
         rows_str = "\n".join(row_to_text(row) for row in result)
         return f"Query: {query}\nRows:\n{rows_str}"
 
-    async def execute_cypher_query(self, query, rows_limit: int = 30) -> QueryResult:
+    async def apply_reranker(self, query: str, result: list[Record] | Exception, tool_name: str, top_k: int | None = None) -> str:
+        if self.reranker is None:
+            return self.result_to_text(tool_name, result)
+        if isinstance(result, Exception) or not result:
+            return self.result_to_text(tool_name, result)
+        docs = [row_to_text(row) for row in result]
+        if len(docs) > settings.reranker_max_docs:
+            self.logger.warning(
+                f"apply_reranker({tool_name}): {len(docs)} docs exceeds limit "
+                f"{settings.reranker_max_docs}, truncating pool before rerank"
+            )
+            docs = docs[:settings.reranker_max_docs]
+        try:
+            reranked = await self.reranker.rerank(  # type: ignore[union-attr]
+                self.ctx.llm, query, docs, top_k or len(docs),
+            )
+        except Exception as e:
+            self.logger.warning(f"apply_reranker({tool_name}): reranker failed ({e})")
+            reranked = []
+        if not reranked:
+            # Reranker errored or returned nothing: fall back to the incoming
+            # (similarity / ORDER BY) order instead of dropping every candidate,
+            # which would push the agent onto broader, less selective fallbacks.
+            self.logger.warning(f"apply_reranker({tool_name}): empty rerank, falling back to input order")
+            kept = docs[:top_k] if top_k else docs
+        else:
+            self.logger.debug(f"apply_reranker({tool_name}): {len(docs)} docs → top scores: {[round(r.score, 3) for r in reranked[:3]]}")
+            kept = [item.text for item in reranked]
+        rows_str = "\n".join(kept)
+        return f"Query: {tool_name}\nRows:\n{rows_str}"
+
+    async def execute_cypher_query(self, query, rows_limit: int) -> QueryResult:
         try:
             return list(islice(await self.graph.execute_ro_cypher_query(query), rows_limit))
         except Exception as e:
@@ -177,7 +213,7 @@ class RagAgent:
 
             vts_queries.append(VTSQuery(label, prop, args.text))
             vts_res = await self.search_vector_text(label, prop_type, prop, args.text, threshold=th, top_n=t_n)
-            result_text = self.result_to_text(VTS_TOOL_NAME, vts_res)
+            result_text = await self.apply_reranker(text_query, vts_res, VTS_TOOL_NAME, top_k=args.rerank_top_k)
             tool_calls.append(
                 {
                     "tool": VTS_TOOL_NAME,
@@ -190,8 +226,8 @@ class RagAgent:
         async def cypher_fn(args: CypherArgs) -> str:
             self.logger.debug(f"cypher_fn({args})")
             cypher_queries.append(CypherQuery(args.query))
-            res = await self.execute_cypher_query(args.query)
-            result_text = self.result_to_text(CYPHER_TOOL_NAME, res)
+            cypher_res = await self.execute_cypher_query(args.query, rows_limit=settings.cypher_rows_limit)
+            result_text = await self.apply_reranker(text_query, cypher_res, CYPHER_TOOL_NAME, top_k=args.rerank_top_k)
             tool_calls.append(
                 {
                     "tool": CYPHER_TOOL_NAME,
@@ -221,6 +257,7 @@ class RagAgent:
             data_descr=self.data_model_description,
             messages=self.ctx.context(settings.pipeline_history_length),
             tools=tools,
+            ctx=self.ctx,
         )
 
         if not answer:

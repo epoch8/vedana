@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
@@ -28,10 +30,16 @@ class VedanaCoreSettings(BaseSettings):
     embeddings_top_n: int = 10
 
     pipeline_history_length: int = 20
+    cypher_rows_limit: int = 1000  # ~ for reranker
 
     memgraph_uri: str
     memgraph_user: str
     memgraph_pwd: str
+
+    reranker_backend: Literal["disabled", "cohere"] = "disabled"
+    reranker_model: str = "cohere/rerank-v3.5"
+    reranker_max_docs: int = 1000  # recommended max size
+    cohere_api_key: str | None = None
 
 
 settings = VedanaCoreSettings()  # type: ignore

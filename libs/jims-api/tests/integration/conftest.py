@@ -3,12 +3,19 @@ import sqlalchemy.ext.asyncio as sa_aio
 from httpx import ASGITransport, AsyncClient
 from jims_core.app import JimsApp
 from jims_core.db import Base
-from jims_core.thread.thread_context import ThreadContext
+from jims_core.thread.thread_context import StatusEvent, ThreadContext
 
 from jims_api.main import create_api
 
 
 async def echo_pipeline(ctx: ThreadContext) -> None:
+    last = ctx.get_last_user_message()
+    ctx.send_message(f"Echo: {last}" if last else "Echo: (no message)")
+
+
+async def status_pipeline(ctx: ThreadContext) -> None:
+    await ctx.update_agent_status(StatusEvent("Thinking...", "thinking"))
+    await ctx.update_agent_status(StatusEvent("Searching knowledge base...", "searching_knowledge_base"))
     last = ctx.get_last_user_message()
     ctx.send_message(f"Echo: {last}" if last else "Echo: (no message)")
 
@@ -43,6 +50,23 @@ async def jims_app(sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession])
 @pytest_asyncio.fixture
 async def client(jims_app: JimsApp):
     app = create_api(jims_app, api_key=None)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+
+@pytest_asyncio.fixture
+async def status_jims_app(sessionmaker: sa_aio.async_sessionmaker[sa_aio.AsyncSession]) -> JimsApp:
+    return JimsApp(
+        sessionmaker=sessionmaker,
+        pipeline=status_pipeline,
+        conversation_start_pipeline=None,
+    )
+
+
+@pytest_asyncio.fixture
+async def status_client(status_jims_app: JimsApp):
+    app = create_api(status_jims_app, api_key=None)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac

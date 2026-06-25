@@ -14,6 +14,7 @@ dependencies = [
     "jims-backoffice",
     "vedana-core",
     "vedana-etl",
+    "vedana-mcp",
 ]
 
 [project.scripts]
@@ -26,6 +27,7 @@ packages = ["vedana_backoffice"]
 jims-backoffice = { workspace = true }
 vedana-core = { workspace = true }
 vedana-etl  = { workspace = true }
+vedana-mcp  = { workspace = true }
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]

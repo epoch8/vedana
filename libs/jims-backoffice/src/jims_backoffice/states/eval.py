@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from jims_backoffice.app_loader import get_jims_app
 from jims_backoffice.states.common import DEBUG_MODE, EVAL_ENABLED, DebugState
 from jims_backoffice.states.jims import ThreadViewState
-from jims_backoffice.util import safe_render_value, xlsx_bytes
+from jims_backoffice.util import csv_bytes, safe_render_value
 
 _default_llm_settings = LLMSettings()  # type: ignore
 
@@ -1024,17 +1024,17 @@ class EvalState(rx.State, mixin=True):
             run_part = str(raw).replace(":", "-").replace("/", "-") or "all"
         return rows, run_part
 
-    async def export_tests_xlsx(self):
-        """Export test results matching active filters to .xlsx."""
+    async def export_tests_csv(self):
+        """Export test results matching active filters to .csv."""
         rows, run_part = await self._build_export_rows()
         if not rows:
             return rx.toast.info("No test results to export.")
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        filename = f"eval_results_{run_part}_{ts}.xlsx"
-        return rx.download(data=xlsx_bytes(rows, list(self._EXPORT_COLUMNS)), filename=filename)
+        filename = f"eval_results_{run_part}_{ts}.csv"
+        return rx.download(data=csv_bytes(rows, list(self._EXPORT_COLUMNS)), filename=filename)
 
-    async def export_compare_a_xlsx(self):
-        """Export run A from the compare dialog to .xlsx."""
+    async def export_compare_a_csv(self):
+        """Export run A from the compare dialog to .csv."""
         contact_id = self._resolve_run_contact(self.compare_run_a)
         if not contact_id:
             return rx.toast.error("No run selected for A.")
@@ -1042,10 +1042,10 @@ class EvalState(rx.State, mixin=True):
         if not rows:
             return rx.toast.info("No test results for run A.")
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        return rx.download(data=xlsx_bytes(rows, list(self._EXPORT_COLUMNS)), filename=f"eval_{run_part}_{ts}.xlsx")
+        return rx.download(data=csv_bytes(rows, list(self._EXPORT_COLUMNS)), filename=f"eval_{run_part}_{ts}.csv")
 
-    async def export_compare_b_xlsx(self):
-        """Export run B from the compare dialog to .xlsx."""
+    async def export_compare_b_csv(self):
+        """Export run B from the compare dialog to .csv."""
         contact_id = self._resolve_run_contact(self.compare_run_b)
         if not contact_id:
             return rx.toast.error("No run selected for B.")
@@ -1053,7 +1053,7 @@ class EvalState(rx.State, mixin=True):
         if not rows:
             return rx.toast.info("No test results for run B.")
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        return rx.download(data=xlsx_bytes(rows, list(self._EXPORT_COLUMNS)), filename=f"eval_{run_part}_{ts}.xlsx")
+        return rx.download(data=csv_bytes(rows, list(self._EXPORT_COLUMNS)), filename=f"eval_{run_part}_{ts}.csv")
 
     def _resolve_run_contact(self, label: str) -> str:
         if not label:

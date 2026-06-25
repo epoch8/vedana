@@ -9,8 +9,14 @@ from jims_core.util import uuid7
 from pydantic import BaseModel
 
 
+@dataclass(frozen=True)
+class StatusEvent:
+    message: str
+    status_type: str
+
+
 class StatusUpdater:
-    async def update_status(self, status: str) -> None:
+    async def update_status(self, status: StatusEvent | str) -> None:
         pass
 
 
@@ -130,7 +136,7 @@ class ThreadContext:
 
         return result[::-1]
 
-    async def update_agent_status(self, status: str) -> None:
+    async def update_agent_status(self, status: StatusEvent | str) -> None:
         """Update the agent status."""
         if self.status_updater:
             await self.status_updater.update_status(status)

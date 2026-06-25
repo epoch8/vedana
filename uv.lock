@@ -19,6 +19,7 @@ members = [
     "vedana-backoffice",
     "vedana-core",
     "vedana-etl",
+    "vedana-mcp",
 ]
 
 [[package]]
@@ -4359,6 +4360,7 @@ dependencies = [
     { name = "orjson" },
     { name = "vedana-core" },
     { name = "vedana-etl" },
+    { name = "vedana-mcp" },
 ]
 
 [package.dev-dependencies]
@@ -4376,6 +4378,7 @@ requires-dist = [
     { name = "orjson", specifier = ">=3.11.3" },
     { name = "vedana-core", editable = "libs/vedana-core" },
     { name = "vedana-etl", editable = "libs/vedana-etl" },
+    { name = "vedana-mcp", editable = "libs/vedana-mcp" },
 ]
 
 [package.metadata.requires-dev]
@@ -4397,6 +4400,7 @@ dependencies = [
     { name = "alembic" },
     { name = "async-lru" },
     { name = "asyncpg" },
+    { name = "cohere" },
     { name = "grist-api" },
     { name = "jims-core" },
     { name = "jims-telegram" },
@@ -4433,6 +4437,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.13.0" },
     { name = "async-lru", specifier = ">=2.0.5" },
     { name = "asyncpg", specifier = ">=0.29.0" },
+    { name = "cohere", specifier = ">=6.1.0" },
     { name = "grist-api", specifier = ">=0.1.1" },
     { name = "jims-core", editable = "libs/jims-core" },
     { name = "jims-telegram", editable = "libs/jims-telegram" },
@@ -4509,6 +4514,23 @@ dev = [
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "ruff", specifier = ">=0.14.10" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250822" },
+]
+
+[[package]]
+name = "vedana-mcp"
+version = "0.1.0"
+source = { editable = "libs/vedana-mcp" }
+dependencies = [
+    { name = "fastmcp" },
+    { name = "httpx" },
+    { name = "vedana-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastmcp", specifier = ">=3.2.4" },
+    { name = "httpx" },
+    { name = "vedana-core", editable = "libs/vedana-core" },
 ]
 
 [[package]]

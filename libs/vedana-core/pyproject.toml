@@ -27,6 +27,7 @@ dependencies = [
     "litellm>=1.79.0",
     "aioitertools>=0.12.0",
     "async-lru>=2.0.5",
+    "cohere>=6.1.0",
 ]
 
 [tool.uv.sources]

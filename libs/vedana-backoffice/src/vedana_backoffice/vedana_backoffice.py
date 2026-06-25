@@ -27,6 +27,7 @@ from vedana_backoffice.states.chat import ChatState
 from vedana_backoffice.states.etl import EtlState, warm_static_pipeline_metadata
 from vedana_backoffice.states.eval import EvalState
 from vedana_backoffice.states.main_dashboard import DashboardState
+from vedana_mcp.auth import McpAuthSettings
 
 
 async def _resolve_jims_app():
@@ -41,6 +42,17 @@ jims_backoffice.register_eval_state(EvalState)
 warm_static_pipeline_metadata()
 
 app = rx.App(stylesheets=["/styles.css"])
+
+if McpAuthSettings().enable_mcp:
+    from vedana_mcp.mcp import mcp as _vedana_mcp
+    import vedana_mcp.tools_rag  # noqa: F401
+    import vedana_mcp.tools_graph  # noqa: F401
+
+    mcp_app = _vedana_mcp.http_app(path="/")
+    app.register_lifespan_task(mcp_app.lifespan)
+    assert app._api is not None, "Reflex app._api is not initialized"
+    app._api.mount("/mcp", mcp_app)
+
 app.add_page(main_dashboard_page, route="/", title="Vedana Backoffice", on_load=DashboardState.load_dashboard)
 app.add_page(etl_page, route="/etl", title="ETL", on_load=EtlState.load_pipeline_metadata)
 app.add_page(chat_page, route="/chat", title="Chat", on_load=ChatState.reset_session)

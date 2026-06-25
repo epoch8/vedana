@@ -1,9 +1,10 @@
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Iterable, Type
+from typing import Iterable, Type, cast
 
 import backoff
 import litellm
+from litellm.types.rerank import RerankResponse
 from prometheus_client import Counter
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,6 +19,7 @@ class LLMSettings(BaseSettings):
     )
 
     model: str = "gpt-4.1-mini"
+    reranker_backend: str = "cohere"
     embeddings_model: str = "text-embedding-3-large"
     embeddings_dim: int = 1024
 
@@ -42,6 +44,13 @@ llm_usage_completion_tokens_total = Counter(
     "Total number of tokens used in the completion for LLM",
     ["model"],
 )
+
+
+@dataclass
+class RerankResultItem:
+    index: int
+    score: float
+    text: str
 
 
 @dataclass
@@ -70,6 +79,7 @@ class LLMProvider:
     def __init__(self, settings: LLMSettings | None = None) -> None:
         self._settings = settings or env_settings
         self.model = self._settings.model
+        self.reranker_backend = self._settings.reranker_backend
         self.embeddings_model = self._settings.embeddings_model
         self.embeddings_dim = self._settings.embeddings_dim
         self.max_batch_size = self._settings.embeddings_max_batch_size
@@ -106,6 +116,38 @@ class LLMProvider:
         llm_calls_total.labels(completion.model).inc()
         llm_usage_prompt_tokens_total.labels(completion.model).inc(prompt_tokens)
         llm_usage_completion_tokens_total.labels(completion.model).inc(completion_tokens)
+
+    @backoff.on_exception(backoff.expo, Exception, max_tries=3)
+    async def arerank(
+        self,
+        query: str,
+        docs: list[str],
+        top_n: int,
+        model: str,
+        api_key: str | None = None,
+    ) -> list[RerankResultItem]:
+        raw = await litellm.arerank(
+            model=model,
+            custom_llm_provider=self.reranker_backend,
+            query=query,
+            documents=docs,
+            top_n=top_n,
+            api_key=api_key,
+        )
+        response = cast(RerankResponse, raw)
+        cost: float = response._hidden_params.get("response_cost") or 0
+        self.usage[model].observe(request_cost=cost)
+        llm_calls_total.labels(model).inc()
+        if response.results is None:
+            return []
+        return [
+            RerankResultItem(
+                index=result["index"],
+                score=result["relevance_score"],
+                text=docs[result["index"]],
+            )
+            for result in response.results
+        ]
 
     def observe_create_embedding(self, res: litellm.EmbeddingResponse) -> None:
         usage = res.usage
