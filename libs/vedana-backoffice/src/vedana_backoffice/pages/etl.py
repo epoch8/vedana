@@ -1,0 +1,366 @@
+import reflex as rx
+
+from vedana_backoffice.components.etl_graph import etl_graph
+from vedana_backoffice.states.etl import EtlState
+from vedana_backoffice.ui import app_header
+
+
+def _graph_card() -> rx.Component:
+    return rx.card(
+        rx.hstack(
+            rx.heading("ETL Pipeline", size="4"),
+            rx.spacer(),
+            rx.hstack(
+                rx.hstack(
+                    rx.text("Data view", size="1", color="gray"),
+                    rx.switch(checked=EtlState.data_view, on_change=EtlState.set_data_view),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.text("Flow", size="1", color="gray"),
+                rx.select(
+                    items=EtlState.available_flows,
+                    value=EtlState.selected_flow,
+                    on_change=EtlState.set_flow,
+                    width="12em",
+                ),
+                rx.text("Stage", size="1", color="gray"),
+                rx.select(
+                    items=EtlState.available_stages,
+                    value=EtlState.selected_stage,
+                    on_change=EtlState.set_stage,
+                    width="12em",
+                ),
+                rx.button("Reset", variant="soft", size="1", on_click=EtlState.reset_filters),
+                rx.button("Run Selected", size="1", on_click=EtlState.run_selected, loading=EtlState.is_running),
+                rx.tooltip(
+                    rx.button(
+                        "↻",
+                        variant="ghost",
+                        color_scheme="gray",
+                        size="1",
+                        on_click=EtlState.reload_pipeline_metadata,
+                        loading=EtlState.stats_loading,
+                    ),
+                    content="Reload metadata",
+                ),
+                spacing="3",
+                align="center",
+            ),
+            align="center",
+            width="100%",
+        ),
+        rx.scroll_area(
+            rx.box(
+                etl_graph(),
+                style={
+                    "position": "relative",
+                    "minWidth": EtlState.graph_width_css,
+                    "minHeight": EtlState.graph_height_css,
+                },
+            ),
+            type="always",
+            scrollbars="both",
+            style={"height": "65vh", "width": "100%"},
+        ),
+        padding="1em",
+        width="100%",
+    )
+
+
+def _pipeline_panel() -> rx.Component:
+    return rx.vstack(
+        _graph_card(),
+        rx.cond(EtlState.logs_open, _logs_bottom(), rx.box(width="100%")),
+        spacing="1",
+        width="100%",
+    )
+
+
+def _pipeline_tabs() -> rx.Component:
+    return rx.tabs.root(
+        rx.tabs.list(
+            rx.foreach(
+                EtlState.available_pipelines,
+                lambda name: rx.tabs.trigger(
+                    rx.cond(name, name, EtlState.default_pipeline_name),
+                    value=name,
+                ),
+            ),
+            style={"gap": "0.75rem"},
+        ),
+        rx.foreach(
+            EtlState.available_pipelines,
+            lambda name: rx.tabs.content(
+                _pipeline_panel(),
+                value=name,
+                style={"width": "100%"},
+            ),
+        ),
+        value=EtlState.selected_pipeline,
+        on_change=EtlState.set_pipeline,
+        default_value=EtlState.default_pipeline_name,
+        style={"width": "100%"},
+    )
+
+
+def _logs_bottom() -> rx.Component:
+    return rx.card(
+        rx.hstack(
+            rx.heading("Logs", size="3"),
+            rx.spacer(),
+            rx.button("Hide", variant="ghost", color_scheme="gray", size="1", on_click=EtlState.toggle_logs),
+            align="center",
+            width="100%",
+        ),
+        rx.scroll_area(
+            rx.vstack(rx.foreach(EtlState.logs, lambda m: rx.text(m))),
+            type="always",
+            scrollbars="vertical",
+            style={"height": "22vh"},
+        ),
+        padding="1em",
+        width="100%",
+    )
+
+
+def _preview_styled_table() -> rx.Component:
+    """Table with row styling for changes view and expandable cells."""
+
+    def _expandable_cell(row: dict[str, rx.Var], col: rx.Var) -> rx.Component:
+        """Create an expandable/collapsible cell for long text content."""
+        row_id = row.get("row_id", "")
+        return rx.table.cell(
+            rx.box(
+                rx.cond(
+                    row.get("expanded", False),
+                    rx.text(
+                        row.get(col, "—"),  # type: ignore[call-overload]
+                        size="1",
+                        white_space="pre-wrap",
+                        style={"wordBreak": "break-word"},
+                    ),
+                    rx.text(
+                        row.get(col, "—"),  # type: ignore[call-overload]
+                        size="1",
+                        style={
+                            "display": "-webkit-box",
+                            "WebkitLineClamp": "2",
+                            "WebkitBoxOrient": "vertical",
+                            "overflow": "hidden",
+                            "textOverflow": "ellipsis",
+                            "maxWidth": "400px",
+                            "wordBreak": "break-word",
+                        },
+                    ),
+                ),
+                cursor="pointer",
+                on_click=EtlState.toggle_preview_row_expand(row_id=row_id),  # type: ignore[arg-type,call-arg,func-returns-value]
+                style={"minWidth": "0", "width": "100%"},
+            ),
+            style={"minWidth": "0"},
+        )
+
+    def _make_row_renderer(row: dict[str, rx.Var]):
+        """Create a column renderer that captures the row context."""
+        return lambda col: _expandable_cell(row, col)
+
+    def _row(r: dict[str, rx.Var]) -> rx.Component:
+        return rx.table.row(
+            rx.foreach(EtlState.preview_columns, _make_row_renderer(r)),
+            style=r.get("row_style", {}),
+        )
+
+    return rx.table.root(
+        rx.table.header(
+            rx.table.row(
+                rx.foreach(
+                    EtlState.preview_columns,
+                    lambda c: rx.table.column_header_cell(c),
+                )
+            )
+        ),
+        rx.table.body(rx.foreach(EtlState.preview_rows, _row)),
+        variant="surface",
+        style={"width": "100%", "tableLayout": "auto"},
+    )
+
+
+def _table_preview_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.vstack(
+                rx.hstack(
+                    rx.dialog.title(
+                        rx.cond(
+                            EtlState.preview_display_name,
+                            EtlState.preview_display_name,
+                            rx.cond(EtlState.preview_table_name, EtlState.preview_table_name, ""),
+                        ),
+                        size="4",
+                    ),
+                    rx.spacer(),
+                    rx.hstack(
+                        rx.text("Last run changes", size="1", color="gray"),
+                        rx.switch(
+                            checked=EtlState.preview_changes_only,
+                            on_change=EtlState.toggle_preview_changes_only,
+                            size="1",
+                        ),
+                        spacing="2",
+                        align="center",
+                    ),
+                    rx.dialog.close(
+                        rx.button("Close", variant="ghost", color_scheme="gray", size="1"),
+                    ),
+                    align="center",
+                    width="100%",
+                ),
+                rx.cond(
+                    EtlState.has_preview,
+                    rx.vstack(
+                        rx.scroll_area(
+                            _preview_styled_table(),
+                            type="always",
+                            scrollbars="both",
+                            style={"maxHeight": "68vh", "maxWidth": "calc(90vw - 3em)"},
+                        ),
+                        # Server-side pagination controls with legend
+                        rx.hstack(
+                            rx.text(EtlState.preview_rows_display, size="2", color="gray"),
+                            # Color legend (only shown in changes view)
+                            rx.cond(
+                                EtlState.preview_changes_only,
+                                rx.hstack(
+                                    rx.hstack(
+                                        rx.box(
+                                            style={
+                                                "width": "12px",
+                                                "height": "12px",
+                                                "backgroundColor": "rgba(34,197,94,0.12)",
+                                                "borderRadius": "2px",
+                                            }
+                                        ),
+                                        rx.text("Added", size="1", color="gray"),
+                                        spacing="1",
+                                        align="center",
+                                    ),
+                                    rx.hstack(
+                                        rx.box(
+                                            style={
+                                                "width": "12px",
+                                                "height": "12px",
+                                                "backgroundColor": "rgba(245,158,11,0.12)",
+                                                "borderRadius": "2px",
+                                            }
+                                        ),
+                                        rx.text("Updated", size="1", color="gray"),
+                                        spacing="1",
+                                        align="center",
+                                    ),
+                                    rx.hstack(
+                                        rx.box(
+                                            style={
+                                                "width": "12px",
+                                                "height": "12px",
+                                                "backgroundColor": "rgba(239,68,68,0.12)",
+                                                "borderRadius": "2px",
+                                            }
+                                        ),
+                                        rx.text("Deleted", size="1", color="gray"),
+                                        spacing="1",
+                                        align="center",
+                                    ),
+                                    spacing="3",
+                                    align="center",
+                                ),
+                                rx.box(),
+                            ),
+                            rx.spacer(),
+                            rx.hstack(
+                                rx.button(
+                                    "⏮",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=EtlState.preview_first_page,
+                                    disabled=~EtlState.preview_has_prev,
+                                ),
+                                rx.button(
+                                    "← Prev",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=EtlState.preview_prev_page,
+                                    disabled=~EtlState.preview_has_prev,
+                                ),
+                                rx.text(
+                                    EtlState.preview_page_display,
+                                    size="2",
+                                    style={"minWidth": "100px", "textAlign": "center"},
+                                ),
+                                rx.button(
+                                    "Next →",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=EtlState.preview_next_page,
+                                    disabled=~EtlState.preview_has_next,
+                                ),
+                                rx.button(
+                                    "⏭",
+                                    variant="soft",
+                                    size="1",
+                                    on_click=EtlState.preview_last_page,
+                                    disabled=~EtlState.preview_has_next,
+                                ),
+                                spacing="2",
+                                align="center",
+                            ),
+                            width="100%",
+                            align="center",
+                            padding_top="0.5em",
+                        ),
+                        width="100%",
+                        spacing="2",
+                    ),
+                    rx.cond(
+                        EtlState.preview_changes_only,
+                        rx.box(rx.text("No changes in last run")),
+                        rx.box(rx.text("No data")),
+                    ),
+                ),
+                spacing="3",
+                width="100%",
+            ),
+            style={
+                "maxWidth": "90vw",
+                "maxHeight": "85vh",
+                "width": "fit-content",
+                "minWidth": "400px",
+            },
+        ),
+        open=EtlState.preview_open,
+        on_open_change=EtlState.set_preview_open,
+    )
+
+
+def page() -> rx.Component:
+    return rx.flex(
+        app_header(),
+        rx.box(
+            rx.vstack(
+                _pipeline_tabs(),
+                _table_preview_dialog(),
+                align="start",
+                spacing="1",
+                width="100%",
+            ),
+            flex="1",
+            min_height="0",
+            overflow="auto",
+            padding="1em",
+            width="100%",
+        ),
+        direction="column",
+        height="100vh",
+        overflow="hidden",
+        width="100%",
+    )

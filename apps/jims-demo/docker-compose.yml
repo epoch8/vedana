@@ -1,0 +1,51 @@
+x-app-common: &app-common
+  build:
+    context: ../..
+    dockerfile: apps/jims-demo/Dockerfile
+  env_file:
+    - .env
+  environment:
+    JIMS_APP: jims_demo.app:app
+    JIMS_DB_CONN_URI: postgresql://postgres:postgres@postgres:5432/postgres
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db-migrate:
+    <<: *app-common
+    command: uv run alembic upgrade head
+    working_dir: /app/apps/jims-demo
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backoffice:
+    <<: *app-common
+    ports:
+      - "9000:9000"
+      - "8000:8000"
+    command: jims-backoffice-with-caddy
+    working_dir: /app/apps/jims-demo
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

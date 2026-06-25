@@ -1,0 +1,35 @@
+[project]
+name = "ai-assistants-opensource-ws"
+version = "1"
+requires-python = ">=3.12,<3.13"
+
+[tool.uv.workspace]
+members = [
+    "apps/jims-demo",
+    "apps/stell",
+    "apps/vedana",
+    "libs/jims-api",
+    "libs/jims-backoffice",
+    "libs/jims-chatwoot",
+    "libs/jims-core",
+    "libs/jims-telegram",
+    "libs/jims-tui",
+    "libs/jims-widget",
+    "libs/stell-core",
+    "libs/vedana-backoffice",
+    "libs/vedana-core",
+    "libs/vedana-etl",
+    "libs/vedana-mcp",
+]
+
+[tool.mypy]
+ignore_missing_imports = true
+follow_imports = "silent"
+namespace_packages = true
+enable_incomplete_feature = ["NewGenericSyntax"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.pyright]
+reportPrivateImportUsage = "none"

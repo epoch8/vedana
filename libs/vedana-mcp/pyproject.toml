@@ -1,0 +1,24 @@
+[project]
+name = "vedana-mcp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Rudolf Shenfeld", email = "nerudxlf@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=3.2.4",
+    "httpx",
+    "vedana-core",
+]
+
+[project.scripts]
+vedana-mcp = "vedana_mcp.app:main"
+
+[tool.uv.sources]
+vedana-core = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.9.26,<0.10.0"]
+build-backend = "uv_build"
