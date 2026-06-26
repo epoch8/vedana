@@ -8,7 +8,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from jims_core.app import JimsApp
 from jims_core.schema import Pipeline
-from jims_core.thread.thread_context import StatusUpdater
+from jims_core.thread.thread_context import StatusEvent, StatusUpdater
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import uuid7
 from loguru import logger
@@ -53,7 +53,7 @@ class TelegramStatusUpdater(StatusUpdater):
         self.bot = bot
         self.chat_id = chat_id
 
-    async def update_status(self, status: str) -> None:
+    async def update_status(self, status: StatusEvent | str) -> None:
         await self.bot.send_chat_action(
             chat_id=self.chat_id,
             action="typing",
