@@ -9,6 +9,7 @@ from loguru import logger
 from vedana_core.data_model import DataModel
 from vedana_core.db import get_sessionmaker
 from vedana_core.graph import Graph, MemgraphGraph
+from vedana_core.reranker import CohereReranker, Reranker
 from vedana_core.vts import VectorStore, PGVectorStore
 from vedana_core.rag_pipeline import RagPipeline
 from vedana_core.start_pipeline import StartPipeline
@@ -32,6 +33,16 @@ class VedanaApp:
             conversation_start_pipeline=self.start_pipeline,
         )
 
+def set_reranker() -> Reranker | None:
+    if core_settings.reranker_backend == "cohere":
+        if not core_settings.cohere_api_key:
+            raise ValueError("COHERE_API_KEY is required when RERANKER_BACKEND=cohere")
+        logger.info(f"Reranker enabled: cohere / {core_settings.reranker_model}")
+        return CohereReranker(model=core_settings.reranker_model, api_key=core_settings.cohere_api_key)
+    logger.info("Reranker disabled")
+    return None
+
+
 @alru_cache
 async def make_vedana_app() -> VedanaApp:
     sessionmaker = get_sessionmaker()
@@ -47,6 +58,7 @@ async def make_vedana_app() -> VedanaApp:
     )
 
     data_model = DataModel(sessionmaker=sessionmaker)
+    reranker = set_reranker()
 
     pipeline = RagPipeline(
         graph=graph,
@@ -54,6 +66,7 @@ async def make_vedana_app() -> VedanaApp:
         data_model=data_model,
         logger=logger,
         threshold=0.8,
+        reranker=reranker,
     )
 
     start_pipeline = StartPipeline(data_model=data_model)

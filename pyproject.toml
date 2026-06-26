@@ -19,6 +19,7 @@ members = [
     "libs/vedana-backoffice",
     "libs/vedana-core",
     "libs/vedana-etl",
+    "libs/vedana-mcp",
 ]
 
 [tool.mypy]

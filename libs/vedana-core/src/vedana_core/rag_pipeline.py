@@ -9,10 +9,16 @@ from jims_core.schema import Pipeline
 
 from vedana_core.data_model import DataModel
 from vedana_core.graph import Graph
+from vedana_core.reranker import Reranker
 from vedana_core.vts import VectorStore
 from vedana_core.llm import LLM
 from vedana_core.rag_agent import RagAgent
 from vedana_core.settings import settings
+from vedana_core.strings import (
+    STATUS_ANALYZING_QUERY,
+    STATUS_PROCESSING_QUESTION,
+    STATUS_SEARCHING_KNOWLEDGE_BASE,
+)
 
 
 class DataModelSelection(BaseModel):
@@ -91,6 +97,7 @@ class RagPipeline(Pipeline):
         model: str | None = None,
         filter_model: str | None = None,
         enable_filtering: bool | None = None,
+        reranker: Reranker | None = None
     ):
         self.graph = graph
         self.vts = vts
@@ -101,6 +108,7 @@ class RagPipeline(Pipeline):
         self.model = model or settings.model
         self.filter_model = filter_model or settings.filter_model  # or self.model
         self.enable_filtering = enable_filtering or settings.enable_dm_filtering
+        self.reranker = reranker
 
     async def __call__(self, ctx: ThreadContext) -> None:
         """Main pipeline execution - implements JIMS Pipeline protocol."""
@@ -113,7 +121,7 @@ class RagPipeline(Pipeline):
 
         try:
             # Update status
-            await ctx.update_agent_status("Processing your question...")
+            await ctx.update_agent_status(STATUS_PROCESSING_QUESTION)
 
             # Process the query using RAG
             answer, agent_query_events, technical_info = await self.process_rag_query(user_query, ctx)
@@ -150,7 +158,7 @@ class RagPipeline(Pipeline):
     async def process_rag_query(self, query: str, ctx: ThreadContext) -> tuple[str, list, dict[str, Any]]:
         # 1. Filter data model
         if self.enable_filtering:
-            await ctx.update_agent_status("Analyzing query structure...")
+            await ctx.update_agent_status(STATUS_ANALYZING_QUERY)
             data_model_description, filter_selection = await self.filter_data_model(query, ctx)
 
             # Send reasoning for enhanced context.
@@ -173,7 +181,7 @@ class RagPipeline(Pipeline):
 
         # 2. Create LLM and agent with filtered data model; Step 1 LLM costs are counted since same ctx.llm is used
         llm = LLM(ctx.llm, prompt_templates=prompt_templates, logger=self.logger)
-        await ctx.update_agent_status("Searching knowledge base...")
+        await ctx.update_agent_status(STATUS_SEARCHING_KNOWLEDGE_BASE)
 
         if self.model != llm.llm.model:  # and settings.debug:
             llm.llm.set_model(self.model)
@@ -186,6 +194,7 @@ class RagPipeline(Pipeline):
             llm=llm,
             ctx=ctx,
             logger=self.logger,
+            reranker=self.reranker
         )
 
         (

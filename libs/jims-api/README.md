@@ -33,6 +33,7 @@ Send the token as `Authorization: Bearer <token>`.
 
 - `GET /healthz`
 - `POST /api/v1/chat`
+- `POST /api/v1/chat/stream`
 
 ### `POST /api/v1/chat`
 
@@ -66,3 +67,34 @@ Response:
 ```
 
 Send the API token as `Authorization: Bearer <token>` (see [Authentication](#authentication) above).
+
+### `POST /api/v1/chat/stream`
+
+Same request body as `/api/v1/chat`, but the response is a `text/event-stream` (SSE) instead of a single JSON object.
+Use this to show the user live progress (e.g. "Searching knowledge base...") while the pipeline is running.
+
+Request: same as `/api/v1/chat`.
+
+The stream emits the following event types:
+
+- `status` - an agent status update, emitted while the pipeline is running:
+  ```
+  event: status
+  data: {"status": "Searching knowledge base...", "type": "searching_knowledge_base"}
+  ```
+  `type` is a stable identifier; `status` is a string that may change between releases.
+- `result` - the final response, with the same shape as the `/api/v1/chat` response body:
+  ```
+  event: result
+  data: {"thread_id": "...", "created_new_thread": true, "assistant_messages": ["Hi!"], "events": [...]}
+  ```
+- `error` - sent instead of `result` if the pipeline raised an exception:
+  ```
+  event: error
+  data: {"detail": "Pipeline error: ..."}
+  ```
+
+A stream always ends with either a `result` or an `error` event.
+
+Note: browsers' `EventSource` API cannot send custom headers, so it can't be used directly with
+`Authorization: Bearer <token>` auth. Consume this endpoint with `fetch` and read the response body as a stream instead.

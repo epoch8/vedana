@@ -5,6 +5,8 @@ from typing import Awaitable, Callable, Iterable
 import openai
 from jims_core.llms.llm_provider import LLMProvider
 from jims_core.thread.schema import CommunicationEvent
+from jims_core.thread.thread_context import ThreadContext
+from vedana_core.strings import STATUS_FORMULATING_ANSWER
 from openai.types.chat import (
     ChatCompletionMessageParam,
     ChatCompletionToolMessageParam,
@@ -55,15 +57,17 @@ class LLM:
         data_descr: str,
         messages: Iterable,
         tools: list[Tool],
+        ctx: ThreadContext,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
         tool_names = [t.name for t in tools]
         msgs = make_cypher_query_with_tools_dialog(data_descr, self.prompt_templates, messages, tool_names=tool_names)
-        return await self.create_completion_with_tools(msgs, tools=tools)
+        return await self.create_completion_with_tools(msgs, tools=tools, ctx=ctx)
 
     async def create_completion_with_tools(
         self,
         messages: list[ChatCompletionMessageParam],
         tools: Iterable[Tool],
+        ctx: ThreadContext,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
         messages = messages.copy()
         tool_defs = [tool.openai_def for tool in tools]
@@ -88,6 +92,11 @@ class LLM:
 
         max_iters = 5
         for i in range(max_iters):
+            if i > 0:
+                # we already have tool results from the previous iteration(s) -
+                # this call either asks for more tools or produces the final answer
+                await ctx.update_agent_status(STATUS_FORMULATING_ANSWER)
+
             msg, tool_calls = await self.llm.chat_completion_with_tools(
                 messages=messages,
                 tools=tool_defs,
@@ -111,6 +120,7 @@ class LLM:
 
             if i == max_iters - 1:
                 self.logger.warning(f"Reached tool call iteration limit ({max_iters}). Exiting tool call loop")
+                await ctx.update_agent_status(STATUS_FORMULATING_ANSWER)
                 finalize_prompt = self.prompt_templates.get("finalize_answer_tmplt", finalize_answer_tmplt)
                 finalize_msg = {"role": "system", "content": finalize_prompt}
                 final_msg = await self.llm.chat_completion_plain(messages + [finalize_msg])

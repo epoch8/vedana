@@ -1,13 +1,17 @@
 import asyncio
+import json
 from contextlib import asynccontextmanager
-from typing import Any, Awaitable, AsyncIterator
+from typing import Any, AsyncIterator, Awaitable
 from uuid import UUID
 
 import click
 import httpx
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.responses import StreamingResponse
 from jims_core.app import JimsApp
+from jims_core.thread.schema import EventEnvelope
+from jims_core.thread.thread_context import StatusEvent, StatusUpdater
 from jims_core.thread.thread_controller import ThreadController
 from jims_core.util import (
     load_jims_app,
@@ -39,6 +43,25 @@ class ChatResponse(BaseModel):
     created_new_thread: bool
     assistant_messages: list[str]
     events: list[ApiEvent]
+
+
+def extract_assistant_messages(outgoing_events: list[EventEnvelope]) -> list[str]:
+    return [
+        str(ev.event_data.get("content", ""))
+        for ev in outgoing_events
+        if ev.event_type == "comm.assistant_message" and isinstance(ev.event_data, dict)
+    ]
+
+
+def to_api_events(outgoing_events: list[EventEnvelope]) -> list[ApiEvent]:
+    return [
+        ApiEvent(
+            event_type=ev.event_type,
+            event_data=ev.event_data if isinstance(ev.event_data, dict) else {},
+            # todo filter comm.* events only?
+        )
+        for ev in outgoing_events
+    ]
 
 
 def _extract_token(authorization: str | None) -> str | None:
@@ -84,6 +107,44 @@ async def _resolve_jims_app(app_name: str) -> JimsApp:
     return loaded_app
 
 
+class SseStatusUpdater(StatusUpdater):
+    def __init__(self, queue: asyncio.Queue[StatusEvent | None]) -> None:
+        self.queue = queue
+
+    async def update_status(self, status: StatusEvent | str) -> None:
+        if isinstance(status, StatusEvent):
+            await self.queue.put(status)
+
+
+def sse_format(event: str, data: dict[str, Any]) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
+
+
+async def get_or_create_thread(jims_app: JimsApp, req: "ChatRequest") -> tuple[ThreadController, bool]:
+    created_new_thread = False
+
+    if req.thread_id is not None:
+        ctl = await ThreadController.from_thread_id(jims_app.sessionmaker, req.thread_id)
+        if ctl is None:
+            raise HTTPException(status_code=404, detail=f"Thread '{req.thread_id}' not found")
+    else:
+        ctl = await ThreadController.latest_thread_from_contact_id(jims_app.sessionmaker, req.contact_id)
+
+    if ctl is None:
+        created_new_thread = True
+        thread_id = uuid7()
+        ctl = await jims_app.new_thread(
+            contact_id=req.contact_id,
+            thread_id=thread_id,
+            thread_config=req.thread_config,
+        )
+
+        if req.run_conversation_start_on_new_thread and jims_app.conversation_start_pipeline is not None:
+            await ctl.run_pipeline_with_context(jims_app.conversation_start_pipeline)
+
+    return ctl, created_new_thread
+
+
 def create_api(
     jims_app: JimsApp, api_key: str | None, authentik_url: str | None = None, authentik_app_slug: str | None = None
 ) -> FastAPI:
@@ -103,26 +164,7 @@ def create_api(
 
     @app.post("/api/v1/chat", response_model=ChatResponse, dependencies=[Depends(require_auth)])
     async def chat(req: ChatRequest) -> ChatResponse:
-        created_new_thread = False
-
-        if req.thread_id is not None:
-            ctl = await ThreadController.from_thread_id(jims_app.sessionmaker, req.thread_id)
-            if ctl is None:
-                raise HTTPException(status_code=404, detail=f"Thread '{req.thread_id}' not found")
-        else:
-            ctl = await ThreadController.latest_thread_from_contact_id(jims_app.sessionmaker, req.contact_id)
-
-        if ctl is None:
-            created_new_thread = True
-            thread_id = uuid7()
-            ctl = await jims_app.new_thread(
-                contact_id=req.contact_id,
-                thread_id=thread_id,
-                thread_config=req.thread_config,
-            )
-
-            if req.run_conversation_start_on_new_thread and jims_app.conversation_start_pipeline is not None:
-                await ctl.run_pipeline_with_context(jims_app.conversation_start_pipeline)
+        ctl, created_new_thread = await get_or_create_thread(jims_app, req)
 
         await ctl.store_event_dict(
             event_id=uuid7(),
@@ -136,20 +178,8 @@ def create_api(
             logger.exception("Pipeline execution failed")
             raise HTTPException(status_code=500, detail=f"Pipeline error: {exc}") from exc
 
-        assistant_messages = [
-            str(ev.event_data.get("content", ""))
-            for ev in outgoing_events
-            if ev.event_type == "comm.assistant_message" and isinstance(ev.event_data, dict)
-        ]
-
-        response_events = [
-            ApiEvent(
-                event_type=ev.event_type,
-                event_data=ev.event_data if isinstance(ev.event_data, dict) else {},
-                # todo filter comm.* events only?
-            )
-            for ev in outgoing_events
-        ]
+        assistant_messages = extract_assistant_messages(outgoing_events)
+        response_events = to_api_events(outgoing_events)
 
         return ChatResponse(
             thread_id=ctl.thread.thread_id,
@@ -157,6 +187,48 @@ def create_api(
             assistant_messages=assistant_messages,
             events=response_events,
         )
+
+    @app.post("/api/v1/chat/stream", dependencies=[Depends(require_auth)])
+    async def chat_stream(req: ChatRequest) -> StreamingResponse:
+        ctl, created_new_thread = await get_or_create_thread(jims_app, req)
+
+        await ctl.store_event_dict(
+            event_id=uuid7(),
+            event_type=req.event_type,
+            event_data={"role": "user", "content": req.message},
+        )
+
+        status_queue: asyncio.Queue[StatusEvent | None] = asyncio.Queue()
+        ctx = await ctl.make_context()
+        ctx = ctx.with_status_updater(SseStatusUpdater(status_queue))
+
+        async def event_stream() -> AsyncIterator[str]:
+            pipeline_task = asyncio.create_task(ctl.run_pipeline_with_context(jims_app.pipeline, ctx))
+            pipeline_task.add_done_callback(lambda _: status_queue.put_nowait(None))
+
+            try:
+                while (status := await status_queue.get()) is not None:
+                    yield sse_format("status", {"status": status.message, "type": status.status_type})
+
+                try:
+                    outgoing_events = pipeline_task.result()
+                except Exception as exc:
+                    logger.exception("Pipeline execution failed")
+                    yield sse_format("error", {"detail": f"Pipeline error: {exc}"})
+                    return
+
+                result = ChatResponse(
+                    thread_id=ctl.thread.thread_id,
+                    created_new_thread=created_new_thread,
+                    assistant_messages=extract_assistant_messages(outgoing_events),
+                    events=to_api_events(outgoing_events),
+                )
+                yield sse_format("result", result.model_dump(mode="json"))
+            finally:
+                if not pipeline_task.done():
+                    pipeline_task.cancel()
+
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
 
     return app
 
