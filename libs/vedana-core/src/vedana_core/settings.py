@@ -41,5 +41,11 @@ class VedanaCoreSettings(BaseSettings):
     reranker_max_docs: int = 1000  # recommended max size
     cohere_api_key: str | None = None
 
+    mcp_call_timeout: float = 120  # seconds per remote MCP tool call (agentic tools are slow)
+    # JSON list of MCP servers whose tools are added to the rag agent:
+    # [{"name": "salary", "url": "https://.../mcp", "token": "..."}]
+    # Note: the URL must include the /mcp path — FastMCP's HTTP transport serves at /mcp.
+    mcp_servers: str = ""
+
 
 settings = VedanaCoreSettings()  # type: ignore

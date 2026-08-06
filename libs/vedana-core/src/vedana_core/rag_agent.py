@@ -4,7 +4,7 @@ import logging
 import re
 from dataclasses import dataclass
 from itertools import islice
-from typing import Any, Mapping, Type
+from typing import Any, Mapping, Sequence, Type
 
 import neo4j
 import neo4j.graph
@@ -14,15 +14,14 @@ from pydantic import BaseModel, Field, create_model
 from vedana_core.graph import Graph, Record
 from vedana_core.reranker import Reranker
 from vedana_core.vts import VectorStore
-from vedana_core.llm import LLM, Tool
+from vedana_core.llm import CYPHER_TOOL_NAME, LLM, VTS_TOOL_NAME, Tool, ToolLike
 from vedana_core.settings import settings
 
 QueryResult = list[Record] | Exception
 
 
 # TODO replace with VTSArgs and CypherArgs
-class CypherQuery(str):
-    ...
+class CypherQuery(str): ...
 
 
 @dataclass
@@ -49,20 +48,59 @@ class VTSArgs(BaseModel):
     label: str = Field(description="node label")
     property: str = Field(description="node property to search in")
     text: str = Field(description="text to search similar")
-    rerank_top_k: int | None = Field(default=None, description="Number of top relevant results to keep after reranking; omit to keep all")
+    rerank_top_k: int | None = Field(
+        default=None, description="Number of top relevant results to keep after reranking; omit to keep all"
+    )
 
 
 class CypherArgs(BaseModel):
     query: str = Field(description="Cypher query")
-    rerank_top_k: int | None = Field(default=None, description="Number of top relevant results to keep after reranking; omit to keep all")
+    rerank_top_k: int | None = Field(
+        default=None, description="Number of top relevant results to keep after reranking; omit to keep all"
+    )
 
 
 class GetHistoryArgs(BaseModel):
     max_history: int = Field(20000, description="Maximum text length to retrieve from history. Cuts off on messages")
 
 
-VTS_TOOL_NAME = "vector_text_search"
-CYPHER_TOOL_NAME = "cypher"
+class _RecordingTool:
+    """Per-invocation, non-mutating proxy around an external (e.g. MCP) tool.
+
+    `extra_tools` instances may be cached process-wide (see `vedana_core.mcp_tools.load_mcp_tools`)
+    and reused across many `text_to_answer_with_vts_and_cypher` calls, so we must NOT
+    mutate the inner tool (e.g. monkeypatch `.call`) — that would leak state / re-wrap on
+    every invocation. Instead we build a fresh, throwaway proxy per call that
+    forwards to the inner tool and records into *this invocation's* tool_calls
+    list, mirroring how `vts_fn`/`cypher_fn` record their own calls.
+    """
+
+    def __init__(self, inner: ToolLike, tool_calls: list[dict[str, Any]], logger: logging.Logger) -> None:
+        self._inner = inner
+        self._tool_calls = tool_calls
+        self._logger = logger
+        self.name = inner.name
+        self.description = inner.description
+        self.openai_def = inner.openai_def
+
+    async def call(self, args_json: str) -> str:
+        try:
+            args = json.loads(args_json)
+        except ValueError:
+            args = {"raw": args_json}
+
+        try:
+            result = await self._inner.call(args_json)
+        except Exception as e:
+            # Unlike built-in tools (whose failures are logged by
+            # LLM.create_completion_with_tools._execute_tool_call), external tools are called
+            # through this proxy, so a swallowed exception here would otherwise produce zero
+            # log output even if the remote server errors on every call. Log it ourselves.
+            self._logger.warning(f"Error executing external tool {self.name}: {e}", exc_info=True)
+            result = f"Error executing tool {self.name}: {e}"
+
+        self._tool_calls.append({"tool": self.name, "args": args, "result": result})
+        return result
 
 
 class RagAgent:
@@ -77,12 +115,14 @@ class RagAgent:
         llm: LLM,
         ctx: ThreadContext,
         logger: logging.Logger | None = None,
-        reranker: Reranker | None = None
+        reranker: Reranker | None = None,
+        extra_tools: Sequence[ToolLike] | None = None,
     ) -> None:
         self.graph = graph
         self.vts = vts
         self.llm = llm
         self.logger = logger or logging.getLogger(__name__)
+        self.extra_tools: Sequence[ToolLike] = extra_tools or []
         self._vts_meta_args: dict[str, dict[str, tuple[str, float, int]]] = {}
         self._vts_args = self._build_vts_arg_model(data_model_vts_indices)
         self.data_model_description = data_model_description
@@ -150,7 +190,9 @@ class RagAgent:
         rows_str = "\n".join(row_to_text(row) for row in result)
         return f"Query: {query}\nRows:\n{rows_str}"
 
-    async def apply_reranker(self, query: str, result: list[Record] | Exception, tool_name: str, top_k: int | None = None) -> str:
+    async def apply_reranker(
+        self, query: str, result: list[Record] | Exception, tool_name: str, top_k: int | None = None
+    ) -> str:
         if self.reranker is None:
             return self.result_to_text(tool_name, result)
         if isinstance(result, Exception) or not result:
@@ -161,10 +203,13 @@ class RagAgent:
                 f"apply_reranker({tool_name}): {len(docs)} docs exceeds limit "
                 f"{settings.reranker_max_docs}, truncating pool before rerank"
             )
-            docs = docs[:settings.reranker_max_docs]
+            docs = docs[: settings.reranker_max_docs]
         try:
             reranked = await self.reranker.rerank(  # type: ignore[union-attr]
-                self.ctx.llm, query, docs, top_k or len(docs),
+                self.ctx.llm,
+                query,
+                docs,
+                top_k or len(docs),
             )
         except Exception as e:
             self.logger.warning(f"apply_reranker({tool_name}): reranker failed ({e})")
@@ -176,7 +221,9 @@ class RagAgent:
             self.logger.warning(f"apply_reranker({tool_name}): empty rerank, falling back to input order")
             kept = docs[:top_k] if top_k else docs
         else:
-            self.logger.debug(f"apply_reranker({tool_name}): {len(docs)} docs → top scores: {[round(r.score, 3) for r in reranked[:3]]}")
+            self.logger.debug(
+                f"apply_reranker({tool_name}): {len(docs)} docs → top scores: {[round(r.score, 3) for r in reranked[:3]]}"
+            )
             kept = [item.text for item in reranked]
         rows_str = "\n".join(kept)
         return f"Query: {tool_name}\nRows:\n{rows_str}"
@@ -251,7 +298,8 @@ class RagAgent:
             cypher_fn,
         )
 
-        tools: list[Tool] = [vts_tool, cypher_tool]
+        tools: list[ToolLike] = [vts_tool, cypher_tool]
+        tools.extend(_RecordingTool(t, tool_calls, self.logger) for t in self.extra_tools)
 
         all_query_events, answer = await self.llm.generate_cypher_query_with_tools(
             data_descr=self.data_model_description,

@@ -4415,6 +4415,11 @@ dependencies = [
     { name = "vedana-etl" },
 ]
 
+[package.optional-dependencies]
+mcp = [
+    { name = "fastmcp" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "dotenv" },
@@ -4438,6 +4443,7 @@ requires-dist = [
     { name = "async-lru", specifier = ">=2.0.5" },
     { name = "asyncpg", specifier = ">=0.29.0" },
     { name = "cohere", specifier = ">=6.1.0" },
+    { name = "fastmcp", marker = "extra == 'mcp'", specifier = ">=3.2.4" },
     { name = "grist-api", specifier = ">=0.1.1" },
     { name = "jims-core", editable = "libs/jims-core" },
     { name = "jims-telegram", editable = "libs/jims-telegram" },
@@ -4451,6 +4457,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0.41" },
     { name = "vedana-etl", editable = "libs/vedana-etl" },
 ]
+provides-extras = ["mcp"]
 
 [package.metadata.requires-dev]
 dev = [

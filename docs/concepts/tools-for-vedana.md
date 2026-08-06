@@ -24,11 +24,11 @@ What the agent **cannot** do:
 - bypass restrictions defined in the playbook;
 - access data outside the declared data model.
 
-This is by design — it's what makes the system predictable, auditable, and safe to deploy in production.
+This is by design — it's what makes the system predictable, auditable, and safe to deploy in production. It also means the toolset itself is closed at any given moment: the agent only ever picks among the tools it was actually handed (built-in and, if configured, MCP-provided) — it never fabricates one.
 
 ## Built-in tools
 
-Vedana ships with two core tools out of the box: `vector_text_search` and `cypher` (see `libs/vedana-core/src/vedana_core/rag_agent.py`).
+Vedana ships with two core tools out of the box: `vector_text_search` and `cypher` (see `libs/vedana-core/src/vedana_core/rag_agent.py`). The toolset isn't fixed to just these two, though — see [Extending tools](#extending-tools) below for adding your own or connecting an MCP server.
 
 ## When to use which tool
 
@@ -127,7 +127,9 @@ It can pick **vector search**, **cypher**, or **a combination of both**.
 
 ## Extending tools
 
-Tools are extensible. If your domain needs capabilities beyond Cypher and vector search, you can implement a custom tool:
+Tools are extensible. If your domain needs capabilities beyond Cypher and vector search, there are two ways to add them:
+
+**In-process, via code** — implement a custom tool for:
 
 - external API queries;
 - calculations;
@@ -141,6 +143,8 @@ A custom tool must:
 - be registered with the agent.
 
 See [Writing a Custom Tool](../guides/custom-tools.md).
+
+**Out-of-process, via an MCP server** — point `MCP_SERVERS` at any [MCP](https://modelcontextprotocol.io/)-compatible server and its tools are discovered and added to the agent automatically, prefixed with the server name (e.g. `salary_ask`) to keep names distinct across servers. This needs the optional `mcp` extra (`pip install vedana-core[mcp]`) and requires no code changes. See [Configuration](../getting-started/configuration.md) for `MCP_SERVERS`/`MCP_CALL_TIMEOUT`.
 
 ## The determinism boundary
 

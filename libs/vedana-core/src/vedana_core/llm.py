@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Awaitable, Callable, Iterable
+from typing import Any, Awaitable, Callable, Iterable, Mapping, Protocol
 
 import openai
 from jims_core.llms.llm_provider import LLMProvider
@@ -14,6 +14,38 @@ from openai.types.chat import (
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+# Names of the built-in tools (defined in `rag_agent.py`). Kept here rather than in
+# `rag_agent.py` because this is the shared leaf module both `rag_agent.py` and
+# `mcp_tools.py` already depend on - letting `mcp_tools.py` import them from `rag_agent.py`
+# would mean anyone using it standalone transitively pulls in the whole agent module
+# (neo4j, Graph, VectorStore, Reranker), and would become a real import cycle if `RagAgent`
+# ever called into `mcp_tools.py` itself.
+VTS_TOOL_NAME = "vector_text_search"
+CYPHER_TOOL_NAME = "cypher"
+
+
+class ToolLike(Protocol):
+    """Structural interface the tool-call loop actually needs from a tool.
+
+    `Tool` satisfies this by construction. It also lets callers (e.g. `RagAgent`) pass in
+    tools that aren't `Tool` instances — such as MCP-backed tools or the recording proxy
+    wrapping them — without a concrete dependency on this module's `Tool` class.
+    """
+
+    name: str
+    description: str
+
+    @property
+    def openai_def(self) -> Mapping[str, Any]:
+        """Read-only in the protocol (a `@property`, not a plain attribute) so mypy treats it
+        covariantly - a plain `dict`/TypedDict attribute on a concrete tool class satisfies
+        this even though its exact type differs (e.g. `Tool.openai_def` is the TypedDict
+        `openai.pydantic_function_tool` returns; `MCPTool.openai_def` is a plain dict).
+        """
+        ...
+
+    async def call(self, args_json: str) -> str: ...
 
 
 class Tool[T: BaseModel]:
@@ -56,7 +88,7 @@ class LLM:
         self,
         data_descr: str,
         messages: Iterable,
-        tools: list[Tool],
+        tools: Iterable[ToolLike],
         ctx: ThreadContext,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
         tool_names = [t.name for t in tools]
@@ -66,7 +98,7 @@ class LLM:
     async def create_completion_with_tools(
         self,
         messages: list[ChatCompletionMessageParam],
-        tools: Iterable[Tool],
+        tools: Iterable[ToolLike],
         ctx: ThreadContext,
     ) -> tuple[list[ChatCompletionMessageParam], str]:
         messages = messages.copy()

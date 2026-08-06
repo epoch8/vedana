@@ -42,6 +42,10 @@ Vedana runs on top of [LiteLLM](https://www.litellm.ai/). Model names follow the
 | `ENABLE_DM_FILTERING`        | Enables the data model filtering step before the main agent. Reduces tokens for large data models.   | `true`       |
 | `PIPELINE_HISTORY_LENGTH`    | How many recent `comm.*` messages to feed into the agent's context.                                  | `20`         |
 | `DEBUG`                      | Turns on additional logging and dev features.                                                         | `false`      |
+| `MCP_SERVERS`                | JSON list of MCP servers whose tools are added to the agent alongside `vector_text_search`/`cypher`. Requires the `mcp` extra (`pip install vedana-core[mcp]`). The URL must include the `/mcp` path — a common footgun. Example: `MCP_SERVERS=[{"name": "salary", "url": "https://example.com/mcp", "token": "..."}]` | `""` (off)   |
+| `MCP_CALL_TIMEOUT`           | Seconds allowed per remote MCP tool call (agentic tools can be slow, especially on the first call).  | `120`        |
+
+> **Note on the `MCP_` namespace.** `MCP_SERVERS`/`MCP_CALL_TIMEOUT` configure vedana-core's MCP *client* — servers it connects out to. This is a different concern from `libs/vedana-mcp` (the MCP *server* side, exposing Vedana itself as an MCP server), whose own settings happen to also use an `MCP_` prefix for their own auth fields. Same prefix, unrelated settings — don't mix them up.
 
 The threshold and `top_n` parameters for vector search are configured in code (`RagPipeline(threshold=0.8, top_n=5)`) and in the `embed_threshold` of every embeddable attribute in the data model.
 

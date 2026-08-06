@@ -33,6 +33,8 @@ File: `libs/vedana-core/src/vedana_core/settings.py`.
 | `MEMGRAPH_URI`                  | str    | —                        | Memgraph Bolt URI.                                                  |
 | `MEMGRAPH_USER`                 | str    | —                        | Memgraph user.                                                     |
 | `MEMGRAPH_PWD`                  | str    | —                        | Memgraph password.                                                  |
+| `MCP_SERVERS`                    | str    | `""` (empty)              | JSON list of MCP servers whose tools are added to the rag agent alongside `vector_text_search`/`cypher`, e.g. `[{"name": "salary", "url": "https://.../mcp", "token": "..."}]`. The URL must include the `/mcp` path. Requires the `mcp` extra (`vedana-core[mcp]`) to be installed. **Not** the same namespace as `libs/vedana-mcp`'s own `MCP_`-prefixed settings (that's the MCP *server* side's auth config — unrelated). |
+| `MCP_CALL_TIMEOUT`               | float  | `120`                     | Seconds allowed per remote MCP tool call. Agentic remote tools can be slow, especially on the first call.  |
 
 ## LLM Provider (`LLMSettings`)
 
