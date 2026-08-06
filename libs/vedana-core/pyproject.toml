@@ -28,8 +28,14 @@ dependencies = [
     "aioitertools>=0.12.0",
     "async-lru>=2.0.5",
     "cohere>=6.1.0",
-    "fastmcp>=3.2.4",
 ]
+
+[project.optional-dependencies]
+# fastmcp pulls in a full MCP *server* stack (uvicorn, starlette, websockets, authlib,
+# cryptography, ...) that's only needed if MCP_SERVERS is actually configured - keep it out
+# of the default install for a published library. `vedana_core.mcp_tools._mcp_client_cls`
+# lazy-imports fastmcp and warns (rather than crashing) if this extra isn't installed.
+mcp = ["fastmcp>=3.2.4"]
 
 [tool.uv.sources]
 jims-core     = { workspace = true }
