@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from typing import Awaitable, Callable, Iterable
 
@@ -7,6 +8,7 @@ from jims_core.llms.llm_provider import LLMProvider
 from jims_core.thread.schema import CommunicationEvent
 from jims_core.thread.thread_context import ThreadContext
 from vedana_core.strings import STATUS_FORMULATING_ANSWER
+from vedana_core.settings import settings
 from openai.types.chat import (
     ChatCompletionMessageParam,
     ChatCompletionToolMessageParam,
@@ -38,6 +40,102 @@ class Tool[T: BaseModel]:
             result: str = await asyncio.to_thread(self.fn, fn_args)  # type: ignore
 
         return result
+
+
+def _mcp_client_cls():
+    """Indirection point so tests can substitute a fake fastmcp Client."""
+    from fastmcp import Client
+
+    return Client
+
+
+_mcp_tools_cache: list["MCPTool"] | None = None
+
+
+class MCPTool:
+    """A remote MCP server tool exposed through the same interface as Tool.
+
+    openai_def is built straight from the MCP inputSchema — no pydantic model needed.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        input_schema: dict,
+        server_url: str,
+        token: str | None,
+        remote_name: str,
+    ) -> None:
+        self.name = name
+        self.description = description
+        self.server_url = server_url
+        self.token = token
+        self.remote_name = remote_name
+        self.openai_def = {
+            "type": "function",
+            "function": {"name": name, "description": description, "parameters": input_schema},
+        }
+
+    async def call(self, args_json: str) -> str:
+        try:
+            args = json.loads(args_json)
+        except ValueError:
+            return f"Invalid tool args: {args_json}"
+        # Agentic remote tools (e.g. salary_ask -> databao agent) can take a minute,
+        # especially the first call that builds the remote context.
+        client = _mcp_client_cls()(self.server_url, auth=self.token, timeout=settings.mcp_call_timeout)
+        async with client:
+            result = await client.call_tool(self.remote_name, args)
+        texts = [c.text for c in getattr(result, "content", []) if getattr(c, "text", None)]
+        return "\n".join(texts) if texts else str(result)
+
+
+async def load_mcp_tools(logger: logging.Logger | None = None) -> list[MCPTool]:
+    """Discover tools on all MCP servers from settings.mcp_servers (JSON list).
+
+    Cached per process. A server that is down is skipped with a warning —
+    the pipeline keeps working with the built-in tools.
+    """
+    global _mcp_tools_cache
+    logger = logger or logging.getLogger(__name__)
+    if _mcp_tools_cache is not None:
+        return _mcp_tools_cache
+    raw = settings.mcp_servers
+    if not raw:
+        _mcp_tools_cache = []
+        return _mcp_tools_cache
+    try:
+        servers = json.loads(raw)
+    except ValueError as e:
+        logger.warning(f"MCP_SERVERS setting is not valid JSON, ignoring: {e}")
+        _mcp_tools_cache = []
+        return _mcp_tools_cache
+    tools: list[MCPTool] = []
+    for srv in servers:
+        try:
+            client = _mcp_client_cls()(srv["url"], auth=srv.get("token"), timeout=30)
+            async with client:
+                remote = await client.list_tools()
+            for t in remote:
+                tools.append(
+                    MCPTool(
+                        name=f"{srv['name']}_{t.name}",
+                        description=t.description or "",
+                        input_schema=t.inputSchema,
+                        server_url=srv["url"],
+                        token=srv.get("token"),
+                        remote_name=t.name,
+                    )
+                )
+            logger.info(f"MCP server {srv['name']}: loaded {len(remote)} tools")
+        except Exception as e:
+            logger.warning(f"MCP server {srv.get('name')} unavailable, skipping: {e}")
+    # Don't cache an empty result if servers WERE configured: a configured-but-currently
+    # -unreachable server should be retried on the next call rather than sticking forever.
+    if tools or not servers:
+        _mcp_tools_cache = tools
+    return tools
 
 
 class LLM:

@@ -11,7 +11,7 @@ from vedana_core.data_model import DataModel
 from vedana_core.graph import Graph
 from vedana_core.reranker import Reranker
 from vedana_core.vts import VectorStore
-from vedana_core.llm import LLM
+from vedana_core.llm import LLM, load_mcp_tools
 from vedana_core.rag_agent import RagAgent
 from vedana_core.settings import settings
 from vedana_core.strings import (
@@ -194,7 +194,8 @@ class RagPipeline(Pipeline):
             llm=llm,
             ctx=ctx,
             logger=self.logger,
-            reranker=self.reranker
+            reranker=self.reranker,
+            extra_tools=await load_mcp_tools(self.logger),
         )
 
         (

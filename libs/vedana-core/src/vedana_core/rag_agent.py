@@ -65,6 +65,39 @@ VTS_TOOL_NAME = "vector_text_search"
 CYPHER_TOOL_NAME = "cypher"
 
 
+class _RecordingTool:
+    """Per-invocation, non-mutating proxy around an external (e.g. MCP) tool.
+
+    `extra_tools` instances may be cached process-wide (see `load_mcp_tools`)
+    and reused across many `text_to_answer_with_vts_and_cypher` calls, so we must NOT
+    mutate the inner tool (e.g. monkeypatch `.call`) — that would leak state / re-wrap on
+    every invocation. Instead we build a fresh, throwaway proxy per call that
+    forwards to the inner tool and records into *this invocation's* tool_calls
+    list, mirroring how `vts_fn`/`cypher_fn` record their own calls.
+    """
+
+    def __init__(self, inner: Any, tool_calls: list[dict[str, Any]]) -> None:
+        self._inner = inner
+        self._tool_calls = tool_calls
+        self.name = inner.name
+        self.description = inner.description
+        self.openai_def = inner.openai_def
+
+    async def call(self, args_json: str) -> str:
+        try:
+            args = json.loads(args_json)
+        except ValueError:
+            args = {"raw": args_json}
+
+        try:
+            result = await self._inner.call(args_json)
+        except Exception as e:
+            result = f"Error executing tool {self.name}: {e}"
+
+        self._tool_calls.append({"tool": self.name, "args": args, "result": result})
+        return result
+
+
 class RagAgent:
     _vts_args: type[VTSArgs]
 
@@ -77,12 +110,14 @@ class RagAgent:
         llm: LLM,
         ctx: ThreadContext,
         logger: logging.Logger | None = None,
-        reranker: Reranker | None = None
+        reranker: Reranker | None = None,
+        extra_tools: list | None = None,
     ) -> None:
         self.graph = graph
         self.vts = vts
         self.llm = llm
         self.logger = logger or logging.getLogger(__name__)
+        self.extra_tools = extra_tools or []
         self._vts_meta_args: dict[str, dict[str, tuple[str, float, int]]] = {}
         self._vts_args = self._build_vts_arg_model(data_model_vts_indices)
         self.data_model_description = data_model_description
@@ -251,7 +286,7 @@ class RagAgent:
             cypher_fn,
         )
 
-        tools: list[Tool] = [vts_tool, cypher_tool]
+        tools: list[Any] = [vts_tool, cypher_tool] + [_RecordingTool(t, tool_calls) for t in self.extra_tools]
 
         all_query_events, answer = await self.llm.generate_cypher_query_with_tools(
             data_descr=self.data_model_description,
