@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, create_model
 from vedana_core.graph import Graph, Record
 from vedana_core.reranker import Reranker
 from vedana_core.vts import VectorStore
-from vedana_core.llm import LLM, Tool, ToolLike
+from vedana_core.llm import CYPHER_TOOL_NAME, LLM, VTS_TOOL_NAME, Tool, ToolLike
 from vedana_core.settings import settings
 
 QueryResult = list[Record] | Exception
@@ -62,10 +62,6 @@ class CypherArgs(BaseModel):
 
 class GetHistoryArgs(BaseModel):
     max_history: int = Field(20000, description="Maximum text length to retrieve from history. Cuts off on messages")
-
-
-VTS_TOOL_NAME = "vector_text_search"
-CYPHER_TOOL_NAME = "cypher"
 
 
 class _RecordingTool:

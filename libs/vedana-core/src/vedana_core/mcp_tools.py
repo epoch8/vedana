@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from async_lru import alru_cache
 
-from vedana_core.rag_agent import CYPHER_TOOL_NAME, VTS_TOOL_NAME
+from vedana_core.llm import CYPHER_TOOL_NAME, VTS_TOOL_NAME
 from vedana_core.settings import settings
 
 _module_logger = logging.getLogger(__name__)
@@ -23,8 +23,9 @@ _module_logger = logging.getLogger(__name__)
 _VALID_TOOL_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 # Built-in tool names an MCP server must not be able to shadow in `tools_map`. Imported from
-# rag_agent rather than redefined here (no circular import: rag_agent only depends on llm.py,
-# not on this module) so the two can't drift apart.
+# llm.py (the shared leaf module) rather than from rag_agent so this module doesn't have to
+# pull in the whole agent stack (neo4j, Graph, VectorStore, Reranker) just to know the two
+# reserved names.
 _RESERVED_TOOL_NAMES = frozenset({VTS_TOOL_NAME, CYPHER_TOOL_NAME})
 
 # Discovery (`list_tools`) is a cheap handshake against the MCP server, unlike an actual tool

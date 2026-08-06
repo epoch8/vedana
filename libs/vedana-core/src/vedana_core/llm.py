@@ -15,6 +15,15 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
+# Names of the built-in tools (defined in `rag_agent.py`). Kept here rather than in
+# `rag_agent.py` because this is the shared leaf module both `rag_agent.py` and
+# `mcp_tools.py` already depend on - letting `mcp_tools.py` import them from `rag_agent.py`
+# would mean anyone using it standalone transitively pulls in the whole agent module
+# (neo4j, Graph, VectorStore, Reranker), and would become a real import cycle if `RagAgent`
+# ever called into `mcp_tools.py` itself.
+VTS_TOOL_NAME = "vector_text_search"
+CYPHER_TOOL_NAME = "cypher"
+
 
 class ToolLike(Protocol):
     """Structural interface the tool-call loop actually needs from a tool.
