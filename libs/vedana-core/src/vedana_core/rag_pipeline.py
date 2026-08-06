@@ -11,7 +11,8 @@ from vedana_core.data_model import DataModel
 from vedana_core.graph import Graph
 from vedana_core.reranker import Reranker
 from vedana_core.vts import VectorStore
-from vedana_core.llm import LLM, load_mcp_tools
+from vedana_core.llm import LLM
+from vedana_core.mcp_tools import load_mcp_tools
 from vedana_core.rag_agent import RagAgent
 from vedana_core.settings import settings
 from vedana_core.strings import (
@@ -97,7 +98,7 @@ class RagPipeline(Pipeline):
         model: str | None = None,
         filter_model: str | None = None,
         enable_filtering: bool | None = None,
-        reranker: Reranker | None = None
+        reranker: Reranker | None = None,
     ):
         self.graph = graph
         self.vts = vts
