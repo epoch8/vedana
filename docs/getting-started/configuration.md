@@ -22,8 +22,9 @@ Vedana runs on top of [LiteLLM](https://www.litellm.ai/). Model names follow the
 
 | Variable                          | Purpose                                                                                                | Default                       |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| `MODEL`                            | Main model: user answers and Cypher generation. Always set this explicitly in `.env`. ([why](../api/configuration-reference.md#llm-provider-llmsettings)) | `gpt-4.1`                     |
-| `FILTER_MODEL`                     | Model for the data model filtering step (see [`RagPipeline.filter_data_model`](../architecture/vedana-core.md#data-model-filtering)). Usually smaller and faster. | `gpt-4.1-mini`               |
+| `MODEL`                            | Main model: user answers and Cypher generation. Always set this explicitly in `.env`. ([why](../api/configuration-reference.md#llm-provider-llmsettings)) | `gpt-4.1-mini`                |
+| `REASONING_EFFORT`                 | Reasoning effort for the main agent calls. Ignored by models that don't support it.                    | `disable`                     |
+| `FILTER_MODEL`                     | Model for the data model filtering step (see [`RagPipeline.filter_data_model`](../architecture/vedana-core.md#data-model-filtering)), the scenario selection fallback and source extraction. Usually smaller and faster. | `gpt-4.1-mini`               |
 | `JUDGE_MODEL`                      | Model for the evaluation pipeline (LLM-as-judge).                                                       | `gpt-4.1-mini`                |
 | `EMBEDDINGS_MODEL`                 | Embeddings model.                                                                                       | `text-embedding-3-large`      |
 | `EMBEDDINGS_DIM`                   | Embeddings dimensionality. Changing this requires a SQL migration.                                      | `1024`                        |
@@ -33,17 +34,43 @@ Vedana runs on top of [LiteLLM](https://www.litellm.ai/). Model names follow the
 | `EMBEDDINGS_MODEL_API_KEY`         | Same for the embeddings model.                                                                           | `None`                        |
 | `OPENROUTER_API_BASE_URL`          | OpenRouter endpoint (you can change it to your own gateway).                                            | `https://openrouter.ai/api/v1`|
 
-> **Note on `MODEL`.** Vedana has two settings classes that both read the `MODEL` env var (`VedanaCoreSettings` and `LLMSettings` from jims-core). Their built-in fallback defaults differ (`gpt-4.1` vs `gpt-4.1-nano`) but in any real deployment you should set `MODEL` explicitly in `.env` — both classes then read the same value. See [Configuration Reference → LLM Provider](../api/configuration-reference.md#llm-provider-llmsettings) for details.
+> **Note on `MODEL`.** Vedana has two settings classes that both read the `MODEL` env var (`VedanaCoreSettings` and `LLMSettings` from jims-core). Their built-in fallback defaults differ (`gpt-4.1-mini` vs `gpt-4.1-nano`) but in any real deployment you should set `MODEL` explicitly in `.env` — both classes then read the same value. See [Configuration Reference → LLM Provider](../api/configuration-reference.md#llm-provider-llmsettings) for details.
 
 ## RAG pipeline
 
 | Variable                    | Purpose                                                                                              | Default      |
 | --------------------------- | ----------------------------------------------------------------------------------------------------- | ------------ |
-| `ENABLE_DM_FILTERING`        | Enables the data model filtering step before the main agent. Reduces tokens for large data models.   | `true`       |
+| `ENABLE_DM_FILTERING`        | Enables the data model filtering step before the main agent. Reduces tokens for large data models.   | `false`      |
+| `EXTRACT_SOURCES`            | Extracts and grounds the sources the answer relied on (needs `is_source` attributes).                 | `false`      |
 | `PIPELINE_HISTORY_LENGTH`    | How many recent `comm.*` messages to feed into the agent's context.                                  | `20`         |
+| `CYPHER_ROWS_LIMIT`          | Maximum rows returned by the `cypher` tool.                                                           | `1000`       |
+| `TIMEZONE`                   | Timezone for `{current_date}` in the agent prompt.                                                    | `UTC`        |
 | `DEBUG`                      | Turns on additional logging and dev features.                                                         | `false`      |
 
-The threshold and `top_n` parameters for vector search are configured in code (`RagPipeline(threshold=0.8, top_n=5)`) and in the `embed_threshold` of every embeddable attribute in the data model.
+The threshold and `top_n` parameters for vector search are set per embeddable attribute in the data model (`embed_threshold`, `embed_top_n`); `EMBEDDINGS_THRESHOLD` (`0.8`) and `EMBEDDINGS_TOP_N` (`10`) are the fallbacks.
+
+### Scenario routing and the agent loop
+
+| Variable                          | Purpose                                                                                   | Default   |
+| --------------------------------- | ------------------------------------------------------------------------------------------ | --------- |
+| `SCENARIO_ROUTING_THRESHOLD`      | Embedding similarity needed to accept a scenario without further checks.                  | `0.8`     |
+| `SCENARIO_ROUTING_TOP_N`          | Routing examples fetched per request.                                                      | `10`      |
+| `SCENARIO_RERANK_THRESHOLD` / `SCENARIO_RERANK_MARGIN` / `SCENARIO_RERANK_SIMILARITY_FLOOR` | Acceptance rules when routing reranks candidates. | `0.3` / `0.1` / `0.5` |
+| `AGENT_MAX_ITERS`                 | Default tool-calling round budget.                                                          | `5`       |
+| `AGENT_MAX_ITERS_CEILING`         | Hard limit on rounds, including after scenario switches.                                   | `12`      |
+| `AGENT_MAX_SCENARIO_SWITCHES`     | How many times the agent may switch scenarios per request.                                  | `2`       |
+
+See [Scenario routing](../data-model/scenario-routing.md) and [Tool choice & the agent loop](../architecture/agent-loop.md).
+
+### Extra tools
+
+| Variable                          | Purpose                                                                                   | Default      |
+| --------------------------------- | ------------------------------------------------------------------------------------------ | ------------ |
+| `RERANKER_BACKEND`                | `cohere` enables reranking of tool results and routing candidates (`COHERE_API_KEY`, `RERANKER_MODEL`, `RERANKER_MAX_DOCS`). | `disabled` |
+| `ENABLE_WEB_SEARCH`               | Registers the `web_search` tool (`WEB_SEARCH_MODEL`, `WEB_SEARCH_CONTEXT_SIZE`).            | `false`      |
+| `VEDANA_MCP_TOOL_SERVERS`         | JSON list of remote MCP servers whose tools the agent can call (`VEDANA_MCP_TOOL_CALL_TIMEOUT`). | empty    |
+
+See [External MCP tools](../guides/mcp-tools.md) and the [Configuration Reference](../api/configuration-reference.md) for every variable.
 
 ## Databases
 

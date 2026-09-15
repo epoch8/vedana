@@ -20,6 +20,13 @@ Traces are created in several places:
 | `memgraph.text_search`                | `vedana_core.graph.MemgraphGraph`                     | `memgraph.label`, `memgraph.fts_query`, `memgraph.limit`         |
 | `memgraph.vector_search`              | `vedana_core.vts.MemgraphVectorStore`                 | label, prop_type, prop_name, top_n, threshold, query             |
 | `pgvector.vector_search`              | `vedana_core.vts.PGVectorStore`                       | same + the generated SQL                                           |
+| `pgvector.scenario_search`            | `vedana_core.vts.PGVectorStore`                       | `pgvector.top_n`, `pgvector.query`                                 |
+| `llm.arerank`                         | `jims_core.llms.llm_provider.LLMProvider`             | reranker calls (not covered by the LiteLLM instrumentor)            |
+| `rag.filter_data_model`               | `vedana_core.rag_pipeline.RagPipeline`                | wraps scenario routing and data model filtering                    |
+| `rag.agent_loop`                      | `vedana_core.llm.LLM`                                 | the whole tool-calling loop                                         |
+| `rag.finalize_answer`                 | `vedana_core.llm.LLM`                                 | the finalisation call after the round budget is exhausted          |
+| `rag.generate_no_answer`              | `vedana_core.llm.LLM`                                 | the "nothing found" fallback                                        |
+| `rag.extract_sources`                 | `vedana_core.llm.LLM`                                 | source extraction after the answer                                 |
 
 Typical trace hierarchy (the `llm.*` rows below are illustrative — the actual span names come from `openinference.instrumentation.litellm` and use the provider/operation names from LiteLLM, e.g. `litellm.completion`. Vedana does not create custom `llm.chat_completion_*` spans itself):
 
@@ -32,7 +39,8 @@ gantt
     section Pipeline
     jims.run_pipeline_with_context :a1, 0, 12400
 
-    section Filter step
+    section Routing / filter
+    pgvector.scenario_search :a0, 50, 50
     litellm.completion (FILTER_MODEL, structured) :a2, 100, 1200
 
     section Tool iter 1
@@ -113,6 +121,8 @@ Inside `RagPipeline`, debug logs reveal:
 
 - data model filtering parameters;
 - the reasoning produced by the filtering step;
+- each tool-calling round: active scenario, `tool_choice` and allowed tools;
+- `select_scenario` switches (logged at `INFO`);
 - parameters of every vts/cypher tool call;
 - end of the tool-calling loop.
 

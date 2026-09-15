@@ -50,7 +50,7 @@ Vedana runs on LiteLLM, so theoretically — any. In practice:
 - **Google Gemini** — large context, cheap, sometimes worse at following step-by-step playbooks.
 - **Local models via Ollama** — workable for on-prem, but tool-calling quality is much lower.
 
-For production we recommend `gpt-4.1-mini` or `claude-3.5-haiku` as the main model, plus a small model (`gpt-4.1-nano`, `gemini-2.0-flash`) for filtering. The shipped `apps/vedana/.env.example` sets `MODEL="gpt-4.1-mini"`, so the recommended default and the file you copy from match. The class-level fallbacks in `VedanaCoreSettings` (`gpt-4.1`) and `LLMSettings` (`gpt-4.1-nano`) are safety nets for when the env var isn't set at all — for any real deployment, set `MODEL` explicitly in `.env`.
+For production we recommend `gpt-4.1-mini` or `gemini-2.5-flash` as the main model, plus a smaller model for filtering. The shipped `apps/vedana/.env.example` sets `MODEL="gpt-4.1-mini"`, so the recommended default and the file you copy from match. The class-level fallbacks in `VedanaCoreSettings` (`gpt-4.1-mini`) and `LLMSettings` (`gpt-4.1-nano`) are safety nets for when the env var isn't set at all — for any real deployment, set `MODEL` explicitly in `.env`.
 
 ## How much data can Vedana handle?
 

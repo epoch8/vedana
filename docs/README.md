@@ -11,7 +11,7 @@ title: Vedana Documentation
 Vedana is built around three components:
 
 - **JIMS** (*Just an Integrated Multiagent System*) — a framework for managing message flows, events, threads, and LLM providers.
-- **Vedana Core** — the RAG pipeline with data model filtering, Cypher generation, and vector search.
+- **Vedana Core** — the RAG pipeline with scenario routing, data model filtering, Cypher generation, vector search, and source grounding.
 - **Vedana ETL** — an incremental pipeline built with [Datapipe](https://github.com/epoch8/datapipe) that syncs the data model and the data itself from [Grist](https://github.com/gristlabs/grist-core) into [Memgraph](https://memgraph.com/) and [pgvector](https://github.com/pgvector/pgvector).
 
 ## Where to start
@@ -50,7 +50,9 @@ Depending on your role:
 - [Vedana ETL](./architecture/vedana-etl.md) — Datapipe catalog, steps, incremental loading.
 - [Vedana Backoffice](./architecture/vedana-backoffice.md) — Reflex admin UI, chat, ETL runner, metrics.
 - [Storage Model](./architecture/storage-model.md) — Postgres, Memgraph, pgvector, Grist.
-- [Observability](./architecture/observability.md) — OpenTelemetry, Prometheus, Sentry.
+- [Observability](./architecture/observability.md) — OpenTelemetry, Prometheus, Sentry, thread events.
+- [Tool Choice & Agent Loop](./architecture/agent-loop.md) — scenario policy, allowed tools, round budget, scenario switching.
+- [Sources & Grounding](./architecture/sources.md) — extracting and verifying the sources an answer relies on.
 
 ### Data Model
 
@@ -61,6 +63,7 @@ Depending on your role:
 - [Queries (playbook)](./data-model/queries.md)
 - [Prompts](./data-model/prompts.md)
 - [ConversationLifecycle](./data-model/conversation-lifecycle.md)
+- [Scenario Routing](./data-model/scenario-routing.md)
 
 ### Data Ingestion
 
@@ -93,6 +96,7 @@ Depending on your role:
 - [Customizing Prompts](./guides/customizing-prompts.md)
 - [Writing a Custom Tool](./guides/custom-tools.md)
 - [Multi-tenancy](./guides/multi-tenancy.md)
+- [External MCP Tools](./guides/mcp-tools.md)
 
 ### Product (for PMs)
 

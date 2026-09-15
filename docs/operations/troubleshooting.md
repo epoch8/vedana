@@ -12,7 +12,7 @@ A collection of common problems and how to fix them.
 
 ### `docker compose up` — `db-migrate` fails on pgvector
 
-**Symptom:** the Alembic migration `2dfad73e5cce_move_emb_to_pgvector` fails with `extension "vector" is not available`.
+**Symptom:** the pgvector Alembic migration fails with `extension "vector" is not available`.
 
 **Cause:** the Postgres provider doesn't allow auto-creating extensions.
 
@@ -69,46 +69,23 @@ If you've recreated Memgraph with a different password — drop the `mg_graph` v
 
 ### `Data model filtering failed` in the logs
 
-**Symptom:** the logs show `Data model filtering failed: ...`. Chat answers become slower and worse.
+**Symptom:** `Data model filtering failed: ...`. The pipeline fell back to the full model.
 
-**Cause:** the data model filtering step crashed; the pipeline fell back to the full model.
+**Check:** `FILTER_MODEL` is reachable; if you overrode `dm_filter_prompt` / `dm_filter_user_prompt`, they still format. To disable the step, set `ENABLE_DM_FILTERING=false`.
 
-**Things to check:**
+### Data model load fails with `Unsupported tool_choice values` / `Unsupported max_iters values`
 
-- the `FILTER_MODEL` is reachable and didn't error out;
-- the data model isn't too big for structured output (if there are too many descriptions, the LLM may fail to comply);
-- check `dm_filter_prompt` / `dm_filter_user_prompt` — if you overrode them, there may be a syntax error.
+A Queries row has an invalid `tool_choice` or `max_iters`. Correct the cells (blank is the default) and re-run `data_model_steps`. See [Queries](../data-model/queries.md#fields).
 
-**Workaround:** set `ENABLE_DM_FILTERING=false`. That makes requests more expensive but more stable.
+## Scenario routing and playbook
 
-## Assistant answers
+Wrong scenario, empty `rag.scenario_routing.matches`, or every request falling through to the LLM step: see [Scenario routing → Tuning](../data-model/scenario-routing.md#tuning).
 
-### The assistant gives a vague / generic answer
+### The agent says a tool is "not available in the current scenario"
 
-**Checklist:**
+The active scenario's `tools_allowed` doesn't list that tool. Names are case-sensitive (`mcp__catalog__ask`). Add it and reload the data model.
 
-1. Open Details for the answer in the backoffice. Which tool calls did it make?
-2. If only `vector_text_search` — the playbook is the issue: it should use cypher for a structural question. Check `Queries`.
-3. If cypher ran but returned an empty result — verify there's data in the graph (Memgraph Lab).
-4. If cypher didn't return the expected attribute — add/refine the `query` field in `Anchor_attributes`.
-
-### The assistant uses the wrong anchor
-
-**Cause:** the anchor's description is ambiguous or incomplete; the LLM doesn't know when to use it.
-
-**Fix:** improve `description` — add specific scenarios "use this anchor when …".
-
-### The assistant invents an attribute / link
-
-**Cause:** the system prompt isn't strict enough about "don't go beyond the data model".
-
-**Fix:** override `generate_answer_with_tools_tmplt` and add: "If the needed attribute/link isn't in graph_composition, don't make it up — say so".
-
-### The assistant gives the right answer but in the wrong format
-
-**Cause:** the format isn't pinned in the playbook or the system prompt.
-
-**Fix:** in the Queries for the corresponding intent, specify a step "Format the answer as: …" — a concrete template.
+Vague, wrong-format, or invented answers are playbook / prompt issues — see [Queries](../data-model/queries.md) and [Quality Metrics & Evaluation](../product/evaluation.md).
 
 ## Vector search
 
@@ -119,8 +96,8 @@ If you've recreated Memgraph with a different password — drop the `mg_graph` v
 1. Is the attribute `embeddable=true`?
 2. Did ETL run `generate_embeddings` without errors?
 3. Are there rows for that attribute in `rag_anchor_embeddings`?
-4. embed_threshold isn't cranked to 0.95+ (try 0.5 to rule out the threshold).
-5. Embedding dimensions match (`EMBEDDINGS_DIM` in .env vs the model's actual dimensionality).
+4. `embed_threshold` isn't cranked to 0.95+ (try 0.5 to rule out the threshold).
+5. Embedding dimensions match (`EMBEDDINGS_DIM` in `.env` vs the model's actual dimensionality).
 
 ### Vector search returns junk
 
@@ -129,6 +106,8 @@ If you've recreated Memgraph with a different password — drop the `mg_graph` v
 - threshold too low → raise to 0.7+;
 - an attribute is embeddable that shouldn't be (e.g. a numeric code) → drop embeddable;
 - embeddings were built on the previous model after `EMBEDDINGS_MODEL` was changed → rebuild embeddings.
+
+See [Tuning Embeddings & Thresholds](../guides/tuning-embeddings.md).
 
 ## Cypher
 
@@ -161,18 +140,11 @@ If you've recreated Memgraph with a different password — drop the `mg_graph` v
 **Checklist:**
 
 1. `jims_pipeline_run_duration_seconds` metrics — where does it grow?
-2. If it's LLM latency — look at traces. Maybe additional tool-call iterations crept in.
-3. If it's Memgraph latency — add indexes (`CREATE INDEX ON :Product(price)` for frequently-filtered fields).
-4. If it's pgvector latency — add an HNSW index on `rag_anchor_embeddings.embedding` manually (`CREATE INDEX ... USING hnsw (embedding vector_cosine_ops)`). Vedana's Alembic migrations do **not** create this index automatically — its optimal parameters depend on your row count, dimensionality, and recall/latency target, so it's left as an explicit operator decision.
+2. If it's LLM latency — look at traces. Extra tool-call rounds are a common cause.
+3. If it's Memgraph latency — add/check indexes on frequently filtered fields (`CREATE INDEX ON :Label(property)`).
+4. If it's pgvector latency — add/check an HNSW index (see [Limitations](../product/limitations.md#possible-bottlenecks-at-scale)).
 
-### Very expensive requests (lots of tokens)
-
-**Causes and fixes:**
-
-- **Data model filtering is disabled.** `ENABLE_DM_FILTERING=true` is the default and is the right setting in production — keep it on. Only turn it off (`false`) if you're debugging the agent's behaviour with the full data model in context, or if your data model is so small that the filtering step costs more than it saves. If you've explicitly set it to `false`, set it back to `true`. (Same recommendation appears in [Cost Management](./costs.md#5-keep-data-model-filtering-on) — the two pages agree: keep it on by default.)
-- Large data model in context → override rendering templates to drop `query` fields.
-- `pipeline_history_length` too large → drop to 10–15.
-- Many retry iterations → improve the playbook so the agent picks the right path immediately.
+Token spend: [Cost Management](./costs.md).
 
 ## Sentry / Logs
 
@@ -182,9 +154,6 @@ If you've recreated Memgraph with a different password — drop the `mg_graph` v
 
 - `SENTRY_DSN` is empty or wrong.
 - The `--enable-sentry` CLI flag wasn't passed.
-- Errors are swallowed inside the pipeline (`RagPipeline` catches exceptions and writes via `logger.exception`, but Sentry sees them via the handler).
-
-**Check:** temporarily add `raise Exception("test")` to the pipeline and verify it reaches Sentry.
 
 ### Prometheus metrics are empty
 
@@ -196,5 +165,6 @@ If you've recreated Memgraph with a different password — drop the `mg_graph` v
 
 ## What's next
 
-- [Monitoring & Metrics](./operations/monitoring.md)
-- [Cost Management](./operations/costs.md)
+- [Monitoring & Metrics](./monitoring.md)
+- [Cost Management](./costs.md)
+- [Scenario routing](../data-model/scenario-routing.md)

@@ -102,7 +102,10 @@ The main endpoint. Accepts a user message, runs it through the pipeline, returns
           "num_vts_queries": 0,
           "num_cypher_queries": 1,
           "model_used": "gpt-4.1-mini",
-          "model_stats": {"gpt-4.1-mini": {"requests_count": 3, "prompt_tokens": 5421, ...}}
+          "model_stats": {"gpt-4.1-mini": {"requests_count": 3, "prompt_tokens": 5421, ...}},
+          "tool_calls": [{"tool": "cypher", "args": {"query": "MATCH ..."}, "result": {"rows": [...]}}],
+          "sources": [],
+          "scenario": {"active": "What are <person>'s interests?", "switches": 0, "rounds_used": 1, "budget": 5}
         },
         "threshold": 0.8
       }
@@ -116,7 +119,7 @@ The main endpoint. Accepts a user message, runs it through the pipeline, returns
 | `thread_id`            | Thread ID (new or existing).                                                       |
 | `created_new_thread`   | Whether a thread was created in this request.                                      |
 | `assistant_messages`   | List of assistant messages from this run (usually one).                            |
-| `events`               | All outgoing events: `comm.assistant_message`, `rag.query_processed`, `rag.data_model_filtered`, etc. |
+| `events`               | All outgoing events: `comm.assistant_message`, `rag.scenario_routing`, `rag.selected_scenario`, `rag.query_processed`, `rag.data_model_filtered`, `rag.sources`, etc. See [Observability → Thread events](../architecture/observability.md#thread-events). |
 
 **Errors**:
 

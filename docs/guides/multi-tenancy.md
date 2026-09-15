@@ -55,7 +55,7 @@ A defense-in-depth layer for Pattern A: intercept every Cypher query before it h
 
 Currently there is **no built-in hook for this** in `vedana_core`. You have two options:
 
-- Subclass `RagAgent.text_to_answer_with_vts_and_cypher` and wrap the Cypher executor with a validator (similar to the [Custom tools](./custom-tools.md) recipe).
+- Subclass `RagAgent` and, in `answer_question`, replace the `cypher` tool from `build_tools(...)` with one whose handler validates the query before calling `Graph.execute_ro_cypher_query` (similar to the [Custom tools](./custom-tools.md) recipe).
 - Add a Cypher-rewrite step that parses the query and either appends the filter or rejects it.
 
 **TODO** — once a stable hook (`_cypher_interceptor` / `register_cypher_validator`) lands, document the canonical recipe here. Tracked alongside the [custom-tools hook request](./custom-tools.md).

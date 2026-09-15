@@ -33,9 +33,11 @@ It pays back on big and important domains. For a weekend prototype Vedana is ove
 
 A single Vedana request is typically 2–10 seconds:
 
+- scenario routing: an embedding lookup, plus a rerank or a small LLM call when the match isn't confident;
 - 1 LLM call for data model filtering (optional);
-- up to 5 tool-calling iterations (LLM + Cypher / vector search);
-- finalisation (if iterations are exhausted).
+- tool-calling rounds (LLM + Cypher / vector search) — 5 by default, set per scenario with `max_iters`, never more than `AGENT_MAX_ITERS_CEILING` (12);
+- finalisation (if the round budget is exhausted);
+- source extraction after the answer is sent (optional; doesn't delay the answer).
 
 Compared to "one LLM call with RAG context" (1–3 sec), that's slower. Acceptable for an interactive chat, can be tight for a real-time API.
 
@@ -49,8 +51,8 @@ What helps:
 
 Each request includes:
 
-- 1 LLM call for filtering (~1–3k prompt tokens);
-- 1–5 main agent LLM calls (each — 5–20k prompt tokens + 200–2000 completion tokens);
+- 0–1 LLM calls for scenario selection and 0–1 for filtering (~1–3k prompt tokens each);
+- 1–5 main agent LLM calls by default (each — 5–20k prompt tokens + 200–2000 completion tokens);
 - embeddings as needed.
 
 On `gpt-4.1-mini` a typical request is ~ $0.001–$0.005. On `gpt-4.1` — an order of magnitude more expensive.
@@ -62,7 +64,8 @@ What helps:
 - a small model for filtering;
 - a sensible `pipeline_history_length` (don't drag the entire thread);
 - compact data model rendering templates (see [Customizing Prompts](../guides/customizing-prompts.md));
-- keep data model filtering on.
+- data model filtering on large data models;
+- a small `max_iters` on simple scenarios.
 
 ## Dependence on Grist
 
@@ -74,7 +77,7 @@ If Grist isn't acceptable for you, move to your own source via [Custom ETL](../d
 
 - `--storage-mode=IN_MEMORY_ANALYTICAL` (the compose default) — all data in RAM. Big datasets need a big instance.
 - restarting Memgraph without a snapshot = data loss. Production configs always include snapshot/replication.
-- complex Cypher queries can block. The 30-row limit (`RagAgent.execute_cypher_query`) caps the result, not the execution time.
+- complex Cypher queries can block. `CYPHER_ROWS_LIMIT` (default 1000) caps the result, not the execution time.
 
 ## LLM hallucinations don't fully disappear
 
@@ -94,7 +97,8 @@ What helps:
 
 - Vedana **has no built-in** authn/authz inside requests. Data access is controlled only at the API gateway / reverse proxy layer.
 - Cypher runs in read-only mode but **in one graph space**. If multiple tenants share the graph, user A may receive user B's data (if the corresponding query goes through).
-- The LLM may attempt to generate malicious Cypher — read-only mode protects writes, but `OOM` queries are possible (though `rows_limit=30` minimises that).
+- The LLM may attempt to generate malicious Cypher — read-only mode protects writes, but `OOM` queries are possible (`CYPHER_ROWS_LIMIT` caps only the rows returned; lower it if that's a concern).
+- Remote MCP tools and `web_search` send the agent's arguments outside your infrastructure. Allow them only in scenarios where that's acceptable (`tools_allowed`).
 - For multi-tenancy: either separate graphs per tenant, or strict filtering by `tenant_id` in every anchor (via cypher templates).
 
 ## Not suitable for

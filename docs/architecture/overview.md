@@ -60,13 +60,17 @@ The CLI scripts of the repository are described in the project [README.md](https
                        ▼
                 ┌──────────────────┐
                 │ RagPipeline      │  vedana-core
-                │  (Pipeline      ─┼──▶ DataModelFiltering (LLM #1, small model)
+                │  (Pipeline      ─┼──▶ Scenario routing (pgvector + optional rerank / small LLM)
                 │   protocol)      │
-                │                  ├──▶ RagAgent.text_to_answer_with_vts_and_cypher
-                │                  │       ├─▶ Tool: vector_text_search → pgvector
-                │                  │       └─▶ Tool: cypher → Memgraph
+                │                  ├──▶ DataModelFiltering (optional)
                 │                  │
-                │                  └──▶ ctx.send_message(answer)
+                │                  ├──▶ RagAgent.answer_question
+                │                  │       ├─▶ Tool: vector_text_search → pgvector
+                │                  │       ├─▶ Tool: cypher → Memgraph
+                │                  │       └─▶ Tools: select_scenario / web_search / MCP
+                │                  │
+                │                  ├──▶ ctx.send_message(answer)
+                │                  └──▶ sources + technical events
                 └──────┬───────────┘
                        │
                        ▼
@@ -104,18 +108,22 @@ RAG logic and integration with storage.
 
 - **`VedanaApp`**, **`make_vedana_app`**, **`make_jims_app`** (`vedana_core.app`) — factories that assemble `RagPipeline`, `Graph`, `VectorStore`, `DataModel`.
 - **`RagPipeline`** (`vedana_core.rag_pipeline`) — the `Pipeline` implementation. Steps:
-  1. data model filtering (optional);
-  2. building the `RagAgent`;
-  3. invoking `text_to_answer_with_vts_and_cypher`;
-  4. sending the answer and the `rag.query_processed` / `rag.error` events.
-- **`RagAgent`** (`vedana_core.rag_agent`) — the agent with two tools:
+  1. scenario routing (when the data model has queries);
+  2. data model filtering (optional);
+  3. building the `RagAgent` and invoking `answer_question`;
+  4. sending the answer;
+  5. source extraction (optional) and the `rag.selected_scenario` / `rag.query_processed` / `rag.error` events.
+- **`RagAgent`** (`vedana_core.rag_agent`) — the agent. Its toolset is built per request by `vedana_core.tools`:
   - `vector_text_search` (with a `VTSArgs`/`Enum` schema based on available indices);
-  - `cypher` (with a 30-row limit and read-only mode).
+  - `cypher` (read-only, up to `CYPHER_ROWS_LIMIT` rows);
+  - `select_scenario` (switch the playbook scenario mid-loop);
+  - optional `web_search` and remote MCP tools (`vedana_core.mcp_tools`).
+- **`RunState`** (`vedana_core.run_state`) — per-request loop state: active scenario, allowed tools, `tool_choice`, round budget.
 - **`Graph` / `MemgraphGraph`** (`vedana_core.graph`) — async Memgraph client (via the neo4j driver), including helpers for indices and schema introspection (`llm_util.schema()`).
 - **`VectorStore` / `PGVectorStore`** (`vedana_core.vts`) — on top of pgvector, cosine similarity over `rag_anchor_embeddings` and `rag_edge_embeddings`.
 - **`DataModel`** (`vedana_core.data_model`) — reads Anchors / Links / Attributes / Queries / Prompts / ConversationLifecycle from the `dm_*` tables in Postgres (populated from Grist by ETL). Contains the `dm_*_descr_template` templates that render the model into LLM-friendly text.
-- **`StartPipeline`** (`vedana_core.start_pipeline`) — a separate pipeline that handles the `/start` command and reads the response from `ConversationLifecycle`. (A duplicate definition exists in `vedana_core.rag_pipeline` for historical reasons; `vedana_core.app` imports from `start_pipeline.py`.)
-- **`LLM`** + **`Tool`** (`vedana_core.llm`) — wrapper over `LLMProvider` with a tool-calling loop (up to 5 iterations), structured prompts, and finalisation templates.
+- **`StartPipeline`** (`vedana_core.start_pipeline`) — a separate pipeline that handles the `/start` command and reads the response from `ConversationLifecycle`.
+- **`LLM`** + **`Tool`** (`vedana_core.llm`) — wrapper over `LLMProvider` with a tool-calling loop (round budget from the active scenario, 5 by default), structured prompts, finalisation templates and source extraction.
 
 See [Vedana Core](./architecture/vedana-core.md).
 
@@ -124,7 +132,7 @@ See [Vedana Core](./architecture/vedana-core.md).
 ETL pipeline built on [Datapipe](https://github.com/epoch8/datapipe).
 
 - **`vedana_etl.catalog`** — tables and storages (Postgres + Memgraph + pgvector).
-- **`vedana_etl.steps`** — functions `get_data_model`, `get_grist_data`, `prepare_nodes`, `prepare_edges`, `pass_df_to_memgraph`, `generate_embeddings`, `ensure_memgraph_*_indexes`, `get_eval_gds_from_grist`.
+- **`vedana_etl.steps`** — functions `get_data_model`, `generate_scenario_example_embeddings`, `bump_dm_updated_at`, `get_grist_data`, `prepare_nodes`, `prepare_edges`, `pass_df_to_memgraph`, `generate_embeddings`, `ensure_memgraph_*_indexes`, `get_eval_gds_from_grist`.
 - **`vedana_etl.pipeline`** — assembles the Datapipe pipeline from the steps: `data_model_steps`, `grist_steps`, `memgraph_steps`, `eval_steps`.
 
 ETL is split into "flows" via Datapipe labels: `regular`, `on-demand`, `eval`.

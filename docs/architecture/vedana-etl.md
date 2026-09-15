@@ -43,6 +43,9 @@ flowchart LR
     S1 --> T6[(dm_prompts)]
     S1 --> T7[(dm_conversation_lifecycle)]
 
+    T5 --> SX[generate_scenario_example_embeddings] --> T8[(dm_scenario_examples)]
+    T1 & T2 & T3 & T4 & T5 & T6 & T7 & T8 --> BU[bump_dm_updated_at] --> T9[(dm_updated_at)]
+
     S2 --> N1[(grist_nodes)]
     S2 --> E1[(grist_edges)]
 
@@ -64,8 +67,8 @@ flowchart LR
 
     classDef store fill:#e3f2fd,stroke:#1976d2
     classDef step fill:#fff3e0,stroke:#f57c00
-    class T1,T2,T3,T4,T5,T6,T7,N1,E1,N2,E2,M1,M2,MG1,MG2,V1,V2,EV store
-    class S1,S2,SE,P1,P2,I1,I2,L1,L2,EM1,EM2 step
+    class T1,T2,T3,T4,T5,T6,T7,T8,T9,N1,E1,N2,E2,M1,M2,MG1,MG2,V1,V2,EV store
+    class S1,S2,SE,SX,BU,P1,P2,I1,I2,L1,L2,EM1,EM2 step
 ```
 
 ## Naming conventions in Grist
@@ -162,9 +165,11 @@ Populated by `data_model_steps` from Grist:
 | `dm_anchor_attributes`          | properties of nodes                                            |
 | `dm_links`                      | edge types                                                      |
 | `dm_link_attributes`            | properties of edges                                             |
-| `dm_queries`                    | playbook                                                        |
+| `dm_queries`                    | playbook (`query_name`, `query_example`, `tool_choice`, `tools_allowed`, `max_iters`, `routing_examples`) |
 | `dm_prompts`                    | prompt templates                                                 |
-| `dm_conversation_lifecycle`     | system messages (e.g. `/start`)                                |
+| `dm_conversation_lifecycle`     | system messages (e.g. `/start`) and status message overrides   |
+| `dm_scenario_examples`          | embedded routing examples (`query_name`, `example_question`, `embedding`) used by [scenario routing](../data-model/scenario-routing.md) |
+| `dm_updated_at`                 | single-row stamp (`id = "data_model"`, `updated_at`) that invalidates the runtime `DataModel` cache |
 
 ### Raw data from Grist
 
@@ -204,7 +209,7 @@ The vector dimensionality is `core_settings.embeddings_dim` (default 1024). Chan
 
 | Table       | What it stores                                                                |
 | ----------- | ------------------------------------------------------------------------------ |
-| `eval_gds`  | the golden dataset from Grist: `gds_question, gds_answer, question_scenario, question_comment, question_context` |
+| `eval_gds`  | the golden dataset from Grist: `gds_question, gds_answer, question_scenario, query_scenario, question_comment, question_context` |
 
 ## Pipeline steps
 
@@ -214,11 +219,35 @@ The vector dimensionality is `core_settings.embeddings_dim` (default 1024). Chan
 BatchGenerate(
     func=steps.get_data_model,
     outputs=[dm_anchors, dm_anchor_attributes, dm_link_attributes, dm_links, dm_queries, dm_prompts, dm_conversation_lifecycle],
-    labels=[("flow", "regular"), ("flow", "on-demand"), ("stage", "extract"), ("source", "Data Model"), ("stage", "data-model")],
-)
+    labels=[...],
+),
+BatchTransform(
+    func=steps.generate_scenario_example_embeddings,
+    inputs=[dm_queries],
+    outputs=[dm_scenario_examples],
+    transform_keys=["query_name"],
+    labels=[...],
+),
+DatatableTransform(
+    func=steps.bump_dm_updated_at,
+    inputs=[dm_anchors, dm_anchor_attributes, dm_link_attributes, dm_links, dm_queries, dm_scenario_examples, dm_prompts, dm_conversation_lifecycle],
+    outputs=[dm_updated_at],
+    labels=[...],
+),
 ```
 
-`get_data_model()` is a generator that reads Grist via `GristCsvDataProvider`, picks the relevant tables (`Links`, `Anchor_attributes`, `Link_attributes`, `Anchors`, `Queries`, `Prompts`, `ConversationLifecycle`), normalises them, and yields a tuple of DataFrames.
+`get_data_model()` is a generator that reads Grist via `GristAPIDataProvider`, picks the relevant tables (`Links`, `Anchor_attributes`, `Link_attributes`, `Anchors`, `Queries`, `Prompts`, `ConversationLifecycle`), normalises them, and yields a tuple of DataFrames. For `Queries` it normalises and validates the policy columns:
+
+- `tool_choice` — blank → `auto`; anything other than `auto` / `required` / `none` fails the step;
+- `tools_allowed` — Choice List or comma/newline text → a canonical comma-separated string; blank → the default tools;
+- `max_iters` — blank → `AGENT_MAX_ITERS`; anything other than a positive integer fails the step;
+- `routing_examples` — Choice List, kept as a list.
+
+Columns missing from the Grist table get their defaults, and `is_source` on attribute tables defaults to `false`.
+
+`generate_scenario_example_embeddings` explodes `routing_examples` into one row per `(query_name, example_question)` and embeds each question with `LLMProvider.create_embeddings_sync`.
+
+`bump_dm_updated_at` writes a new `dm_updated_at` stamp only when one of the data model tables actually changed. The running application checks the stamp and reloads its cached data model (and re-discovers MCP tools) when it moves — no restart needed.
 
 ### `grist_steps`
 
@@ -275,7 +304,7 @@ def get_pipeline(custom_steps: list) -> Pipeline:
     ])
 ```
 
-`get_data_model_pipeline()` is a separate entry point that loads only the data model (for example, after editing the playbook without re-running data ingestion).
+`get_data_model_pipeline()` is a separate entry point that loads only the data model (for example, after editing the playbook without re-running data ingestion). It includes the routing example embeddings and the `dm_updated_at` stamp.
 
 ## How to run
 

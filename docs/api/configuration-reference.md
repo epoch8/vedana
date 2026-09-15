@@ -23,16 +23,70 @@ File: `libs/vedana-core/src/vedana_core/settings.py`.
 | `GRIST_DATA_MODEL_DOC_ID`       | str    | —                        | DocId of the document with the data model.                        |
 | `GRIST_DATA_DOC_ID`             | str    | —                        | DocId of the document with the data.                              |
 | `DEBUG`                         | bool   | `false`                  | Verbose logs and dev features.                                    |
-| `MODEL`                         | str    | `gpt-4.1`                | Main LLM model used by `RagPipeline` / `RagAgent` for answer generation and Cypher. **This is the value that wins in the standard pipeline** — Vedana Core overrides the inner LLM provider on every call. |
-| `ENABLE_DM_FILTERING`           | bool   | `true`                   | Enable the data model filtering step.                             |
-| `FILTER_MODEL`                  | str    | `gpt-4.1-mini`           | Model used for filtering.                                          |
+| `TIMEZONE`                      | str    | `UTC`                    | Timezone for `{current_date}` in the agent prompt.                 |
+| `MODEL`                         | str    | `gpt-4.1-mini`           | Main LLM model used by `RagPipeline` / `RagAgent` for answer generation and Cypher. **This is the value that wins in the standard pipeline** — Vedana Core overrides the inner LLM provider on every call. |
+| `REASONING_EFFORT`              | str    | `disable`                | Passed to the agent loop, finalisation and no-answer calls. Models that don't support it ignore it (LiteLLM runs with `drop_params=True`). |
+| `ENABLE_DM_FILTERING`           | bool   | `false`                  | Enable the data model filtering step.                             |
+| `FILTER_MODEL`                  | str    | `gpt-4.1-mini`           | Model used for filtering, the scenario selection fallback and source extraction. |
 | `JUDGE_MODEL`                   | str    | `gpt-4.1-mini`           | Model used for evaluation (LLM-as-judge).                          |
+| `EXTRACT_SOURCES`               | bool   | `false`                  | Extract and ground answer sources after the answer is sent. See [Sources & grounding](../architecture/sources.md). |
 | `EMBEDDINGS_MODEL`              | str    | `text-embedding-3-large` | Embeddings model.                                                  |
 | `EMBEDDINGS_DIM`                | int    | `1024`                   | Embedding dimensions.                                               |
+| `EMBEDDINGS_THRESHOLD`          | float  | `0.8`                    | Fallback `embed_threshold` when an attribute has none.             |
+| `EMBEDDINGS_TOP_N`              | int    | `10`                     | Fallback `embed_top_n` for attributes, and the pipeline's `top_n`. |
 | `PIPELINE_HISTORY_LENGTH`       | int    | `20`                     | How many recent `comm.*` messages go into the context.            |
+| `CYPHER_ROWS_LIMIT`             | int    | `1000`                   | Maximum rows returned by the `cypher` tool.                         |
 | `MEMGRAPH_URI`                  | str    | —                        | Memgraph Bolt URI.                                                  |
 | `MEMGRAPH_USER`                 | str    | —                        | Memgraph user.                                                     |
 | `MEMGRAPH_PWD`                  | str    | —                        | Memgraph password.                                                  |
+
+### Scenario routing
+
+See [Scenario routing](../data-model/scenario-routing.md).
+
+| Variable                            | Type   | Default | Description                                                                 |
+| ----------------------------------- | ------ | ------- | ---------------------------------------------------------------------------- |
+| `SCENARIO_ROUTING_THRESHOLD`        | float  | `0.8`   | Embedding similarity needed to accept a scenario without rerank; below it, rerank may run. |
+| `SCENARIO_ROUTING_TOP_N`            | int    | `10`    | How many routing examples are fetched per request.                           |
+| `SCENARIO_RERANK_THRESHOLD`         | float  | `0.3`   | Lowest rerank score the top scenario can have.                                |
+| `SCENARIO_RERANK_MARGIN`            | float  | `0.1`   | How far the top scenario must lead the next one.                              |
+| `SCENARIO_RERANK_SIMILARITY_FLOOR`  | float  | `0.5`   | Lowest embedding similarity for a scenario picked by rerank.                  |
+
+### Agent loop
+
+See [Tool choice & the agent loop](../architecture/agent-loop.md).
+
+| Variable                        | Type | Default | Description                                                      |
+| ------------------------------- | ---- | ------- | ----------------------------------------------------------------- |
+| `AGENT_MAX_ITERS`               | int  | `5`     | Default round budget, and default `max_iters` for scenarios.     |
+| `AGENT_MAX_ITERS_CEILING`       | int  | `12`    | Hard limit on the budget, including after scenario switches.     |
+| `AGENT_MAX_SCENARIO_SWITCHES`   | int  | `2`     | Maximum `select_scenario` switches per request.                  |
+
+### Web search
+
+| Variable                    | Type                        | Default      | Description                                     |
+| --------------------------- | --------------------------- | ------------ | ------------------------------------------------ |
+| `ENABLE_WEB_SEARCH`         | bool                        | `false`      | Register the `web_search` tool.                  |
+| `WEB_SEARCH_MODEL`          | str                         | `MODEL`      | Model that runs web searches (must support search). |
+| `WEB_SEARCH_CONTEXT_SIZE`   | `low` / `medium` / `high`   | `medium`     | How much search context to use.                 |
+
+### Reranker
+
+| Variable              | Type                    | Default               | Description                                                     |
+| --------------------- | ----------------------- | --------------------- | ---------------------------------------------------------------- |
+| `RERANKER_BACKEND`    | `disabled` / `cohere`   | `disabled`            | Turns on reranking for tool results and scenario routing.        |
+| `RERANKER_MODEL`      | str                     | `cohere/rerank-v3.5`  | Rerank model name in LiteLLM.                                    |
+| `RERANKER_MAX_DOCS`   | int                     | `1000`                | Rows above this number are cut before reranking.                 |
+| `COHERE_API_KEY`      | str                     | —                     | Cohere API key.                                                  |
+
+### MCP client
+
+See [External MCP tools](../guides/mcp-tools.md). Requires the `vedana-core[mcp]` extra.
+
+| Variable                         | Type        | Default | Description                                                        |
+| -------------------------------- | ----------- | ------- | ------------------------------------------------------------------- |
+| `VEDANA_MCP_TOOL_SERVERS`        | JSON list   | empty   | `[{"name": "...", "url": "https://.../mcp", "token": "..."}]`       |
+| `VEDANA_MCP_TOOL_CALL_TIMEOUT`   | float (s)   | `120`   | Timeout for each remote tool call.                                  |
 
 ## LLM Provider (`LLMSettings`)
 
@@ -40,7 +94,7 @@ File: `libs/jims-core/src/jims_core/llms/llm_provider.py`.
 
 `LLMSettings` is the inner provider used by `jims-core`. It reads the same `MODEL` env var as `VedanaCoreSettings`, but if you instantiate `jims-core` standalone (without `vedana-core`), no override happens and the fallback default (`gpt-4.1-nano`) applies.
 
-> **Which `MODEL` actually runs?** In the standard Vedana stack the two classes read the **same env var**, so whatever you put in `.env` (e.g. `MODEL=gpt-4.1-mini`) is used by both. The defaults differ only as a safety net for standalone `jims-core` users who don't set the env var: vedana-core falls back to `gpt-4.1` (heavier, better tool-calling), jims-core falls back to `gpt-4.1-nano` (cheap, OK for non-RAG flows). **For all production deployments — set `MODEL` explicitly in `.env`.**
+> **Which `MODEL` actually runs?** In the standard Vedana stack the two classes read the **same env var**, so whatever you put in `.env` (e.g. `MODEL=gpt-4.1-mini`) is used by both. The defaults differ only as a safety net for standalone `jims-core` users who don't set the env var: vedana-core falls back to `gpt-4.1-mini`, jims-core falls back to `gpt-4.1-nano` (cheap, OK for non-RAG flows). **For all production deployments — set `MODEL` explicitly in `.env`.**
 
 | Variable                          | Type   | Default                          | Description                                                            |
 | --------------------------------- | ------ | -------------------------------- | ----------------------------------------------------------------------- |
@@ -111,7 +165,7 @@ File: `libs/vedana-etl/src/vedana_etl/settings.py`.
 
 ## Prefixes and read order
 
-- `vedana_core.settings` uses `env_prefix=""` (no prefix) and reads `apps/vedana/.env` (working directory must be `apps/vedana`).
+- `vedana_core.settings` uses `env_prefix=""` (no prefix) and reads `apps/vedana/.env` (working directory must be `apps/vedana`). The exceptions are the MCP client settings, which use the explicit `VEDANA_MCP_` names.
 - `vedana_etl.settings` — same.
 - `jims_core.llms.llm_provider.LLMSettings` — same.
 - JIMS CLI wrappers use `auto_envvar_prefix="JIMS"` (`click`), so the `--api-key` flag can be provided as `JIMS_API_KEY=...`.

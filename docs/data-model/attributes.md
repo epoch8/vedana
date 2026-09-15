@@ -32,7 +32,9 @@ Both have the **same column structure**; the only difference is what they're att
 | **description**     | str    | Human-readable description — goes into the LLM context.                                                    |
 | **data_example**    | str    | A real example value (`999.00`, `"Vilnius"`, `true`).                                                      |
 | **embeddable**      | bool   | Whether to build an embedding of this field for semantic search.                                           |
-| **embed_threshold** | float  | Minimum similarity for a result to be returned (0..1). Only applies if `embeddable=true`. If the cell is empty, `DataModel.get_anchors` falls back to `1.0` (effectively "never match"); `RagPipeline.__init__` also defines a pipeline-level fallback `threshold=0.8` used when no per-attribute threshold is registered for a `(label, property)` pair. **Always set this explicitly for embeddable attributes** — the doc-level recommendation is to start around `0.7` and tune.                  |
+| **embed_threshold** | float  | Minimum similarity for a result to be returned (0..1). Only applies if `embeddable=true`. If the Grist cell is empty, ETL stores `0.0`, which accepts every result. `DataModel` falls back to `EMBEDDINGS_THRESHOLD` (default `0.8`) only when the value is missing from `dm_*_attributes` altogether (e.g. a custom data model source); `RagPipeline.__init__` also defines a pipeline-level fallback `threshold=0.8` used when no per-attribute threshold is registered for a `(label, property)` pair. **Always set this explicitly for embeddable attributes** — the doc-level recommendation is to start around `0.7` and tune.                  |
+| **embed_top_n**     | int    | How many results `vector_text_search` returns for this attribute. Only applies if `embeddable=true`. If the cell is empty, `EMBEDDINGS_TOP_N` (default `10`) is used. |
+| **is_source**       | bool   | Optional, default `false`. Marks the attribute as a citable identifier (document ID, URL, legal identifier). Only values retrieved into these attributes can appear as answer sources. See [is_source](#is_source). |
 | **query**           | str    | Cypher to fetch this attribute (or its "owner" node).                                                       |
 | **dtype**           | str    | Hint string. Stored as-is in `dm_*_attributes` (`steps.py:90, 109`). Used by the LLM in the data-model description, and — only for `str`, `int`, `float`, `bool` — by `vedana_core.utils.cast_dtype` for value coercion in Grist providers. There is no enum validation of the string itself; other common values (`date`, `datetime`, `enum`, `url`, `file`) are hints to the LLM only and pass through Grist providers as-is. Make sure it matches the actual stored format.                       |
 
@@ -89,6 +91,14 @@ Controls how close a query must be to a stored value for the result to be return
 | FAQ                             | 0.70–0.78 |
 
 The threshold can be set **per attribute** — useful when some fields require precision (names, SKUs) and others tolerate fuzziness (descriptions). See [Tuning Embeddings & Thresholds](../guides/tuning-embeddings.md) for the full tuning loop.
+
+## is_source
+
+`is_source = true` marks an attribute as a **citable identifier** — the thing a user can follow to check the answer: `document.url`, `document.document_id`, `law.eli_id`.
+
+With `EXTRACT_SOURCES=true`, after each answer Vedana extracts the sources the answer relied on and keeps only IDs that were actually retrieved into an `is_source` attribute during that request.
+
+See [Sources & grounding](../architecture/sources.md).
 
 ## dtype
 
@@ -160,6 +170,7 @@ If an attribute isn't declared — it **doesn't exist** for the assistant, even 
 - [ ] `dtype` matches the actual format.
 - [ ] `embeddable` is set correctly (only for text).
 - [ ] `embed_threshold` is set (if embeddable).
+- [ ] `is_source` is set if the value is a citable identifier.
 - [ ] `query` works — verified in Memgraph Lab.
 - [ ] You've considered whether this should be a link.
 

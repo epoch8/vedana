@@ -32,7 +32,8 @@ FAQ is **not a hardcoded pre-step in the pipeline** — there's no special "is t
 ```mermaid
 flowchart TD
     Q[User:<br/>"What's the return policy?"] --> RP[RagPipeline]
-    RP --> DMF[Data model filtering<br/>e.g. faq + return_policy anchors]
+    RP --> SR[Scenario routing<br/>e.g. FAQ scenario]
+    SR --> DMF["Data model filtering, optional<br/>e.g. faq + return_policy anchors"]
     DMF --> AG[RagAgent decides<br/>which tool to use]
     AG --> VTS["vector_text_search<br/>label=faq, property=question"]
     VTS --> S{High similarity to<br/>a stored faq.question?}
@@ -43,11 +44,12 @@ flowchart TD
 
 What actually happens at runtime:
 
-1. The user's question enters `RagPipeline.process_rag_query` (see [Vedana Core architecture](../architecture/vedana-core.md#rag-pipeline)).
-2. Data model filtering may include or exclude the `faq` anchor depending on the question.
-3. The agent looks at the available data model and decides which tool to invoke. For a known intent it issues `vector_text_search(label="faq", property="question", text=<user question>)`.
-4. pgvector returns rows from the `faq` anchor whose `question` similarity ≥ the attribute's `embed_threshold`.
-5. The agent reads the `answer` field of the matching row and returns it (often verbatim, sometimes lightly rephrased depending on the system prompt).
+1. The user's question enters `RagPipeline.generate_answer` (see [Vedana Core architecture](../architecture/vedana-core.md#ragpipeline)).
+2. [Scenario routing](../data-model/scenario-routing.md) picks a playbook scenario — if you have an FAQ scenario with good `routing_examples`, FAQ-style questions land on it.
+3. Data model filtering (when enabled) may include or exclude the `faq` anchor depending on the question.
+4. The agent looks at the available data model and the scenario's guidance and decides which tool to invoke. For a known intent it issues `vector_text_search(label="faq", property="question", text=<user question>)`.
+5. pgvector returns rows from the `faq` anchor whose `question` similarity ≥ the attribute's `embed_threshold`.
+6. The agent reads the `answer` field of the matching row and returns it (often verbatim, sometimes lightly rephrased depending on the system prompt).
 
 If no row matches above the threshold, the agent simply doesn't find an FAQ answer and proceeds with other tool calls (Cypher over structured anchors, vector search over `document_chunk`, etc.) — the same as for any other question type.
 
