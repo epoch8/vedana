@@ -6,7 +6,7 @@ order: 6
 
 # Prompts
 
-The **Prompts** table stores text templates that Vedana uses across the pipeline. The `name` column is the **key** that the code looks up the template by. If a row for the name isn't found, the built-in default is used (see `vedana_core.llm` and `vedana_core.data_model`).
+The **Prompts** table stores text templates that Vedana uses across the pipeline. The `name` column is the **key** that the code looks up the template by. If a row for the name isn't found, the built-in default is used (see `vedana_core.llm`, `vedana_core.rag_pipeline` and `vedana_core.data_model`).
 
 ## Fields
 
@@ -19,28 +19,34 @@ The **Prompts** table stores text templates that Vedana uses across the pipeline
 
 | Key                                  | Where it's used                                                       | Placeholders                                       |
 | ------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------- |
-| `generate_answer_with_tools_tmplt`   | Main system prompt for the agent (`LLM.generate_cypher_query_with_tools`) | `{tools}`, `{graph_description}`              |
+| `generate_answer_with_tools_tmplt`   | Main system prompt for the agent (`LLM.answer_with_tools`)            | `{graph_description}`, `{tools}`, `{current_date}` |
+| `scenario_select_prompt`             | System prompt for the LLM step that picks a scenario when routing isn't confident | —                                     |
+| `scenario_select_user_prompt`        | User prompt for the same step                                          | `{user_query}`, `{scenarios}`                     |
+| `scenario_routing_rerank_query`      | Query text sent to the reranker during [scenario routing](./scenario-routing.md). **If this key isn't set, routing never reranks.** | `{user_query}` |
 | `dm_filter_prompt`                   | System prompt for the data model filtering step                       | —                                                   |
 | `dm_filter_user_prompt`              | User prompt for the data model filtering step                          | `{user_query}`, `{compact_data_model}`            |
-| `finalize_answer_tmplt`              | System prompt for finalisation after the tool-calling loop is exhausted | —                                                 |
+| `finalize_answer_tmplt`              | System prompt for finalisation after the round budget is exhausted     | —                                                   |
 | `generate_no_answer_tmplt`           | Prompt for the "nothing found" scenario                                | —                                                   |
+| `answer_with_sources_tmplt`          | System prompt for [source extraction](../architecture/sources.md)     | —                                                   |
 | `dm_descr_template`                  | Template that renders the entire data model                            | `{anchors}`, `{anchor_attrs}`, `{links}`, `{link_attrs}`, `{queries}` |
 | `dm_anchor_descr_template`           | Template for one anchor row                                             | `{anchor.noun}`, `{anchor.description}`, `{anchor.id_example}`, `{anchor.query}` |
 | `dm_attr_descr_template`             | Template for one attribute row                                          | `{anchor.noun}`, `{attr.name}`, `{attr.description}`, `{attr.example}`, `{attr.query}` |
 | `dm_link_descr_template`             | Template for one link row                                               | `{link.sentence}`, `{link.description}`, `{link.query}` |
 | `dm_link_attr_descr_template`        | Template for one link attribute row                                     | `{link.sentence}`, `{attr.name}`, `{attr.description}`, `{attr.example}`, `{attr.query}` |
-| `dm_query_descr_template`            | Template for one Queries row                                             | `{query.name}`, `{query.example}`                  |
+| `dm_query_descr_template`            | Template for one Queries row                                             | `{id}`, `{query.name}`, `{query.example}`          |
 
 ## Defaults
 
-Every template has a default hardcoded in the code. That means you can run Vedana without entries in `Prompts` — it'll just work with the built-in prompts (in Russian by default for Vedana's defaults).
+Every template has a default hardcoded in the code. That means you can run Vedana without entries in `Prompts` — it'll just work with the built-in prompts.
 
 Defaults:
 
 - `generate_answer_with_tools_tmplt` — the main system prompt for the agent; see `vedana_core/llm.py`.
+- `scenario_select_*` — prompts for the scenario LLM step; see `vedana_core/rag_pipeline.py`. `scenario_routing_rerank_query` has no default.
 - `dm_filter_*` — prompts for data model filtering; see `vedana_core/rag_pipeline.py`.
 - `finalize_answer_tmplt` — finalisation.
 - `generate_no_answer_tmplt` — "nothing found" message.
+- `answer_with_sources_tmplt` — source extraction; see `vedana_core/llm.py`.
 - `dm_*_descr_template` — render the data model into human-readable sections.
 
 The full text of the defaults is in the source:
@@ -58,7 +64,20 @@ The most common — override for:
 - **tone and style** of the assistant (formal/friendly, formal "you" / informal "you");
 - **domain vocabulary**: "we issue orders", not "we hand over goods";
 - **hard rules**: "never answer about competitor prices", "decline when personal data is mentioned";
-- **answer format**: always return a list, always include a link, always mention the ID.
+- **answer format**: always return a list, always include a link, always mention the ID;
+- **dates**: add `{current_date}` when questions depend on "today" (deadlines, validity periods).
+
+### Scenario selection (`scenario_select_prompt` / `scenario_select_user_prompt`)
+
+Override when the LLM step picks the wrong scenario for ambiguous questions — for example, to tell it which scenario wins when two look alike, or to prefer a specific scenario over a catch-all.
+
+### Routing rerank query (`scenario_routing_rerank_query`)
+
+Set this to enable reranking during routing (with `RERANKER_BACKEND=cohere`). Point it at the detail embeddings tend to blur, such as the country or product family:
+
+```text
+Which scenario handles this question: {user_query}. Pay attention to the country mentioned.
+```
 
 ### Filtering prompt (`dm_filter_prompt` / `dm_filter_user_prompt`)
 
@@ -81,6 +100,10 @@ When nothing was found. Worth overriding to:
 - give a contact point (support, feedback form);
 - avoid over-apologising — sounds fake.
 
+### Source extraction (`answer_with_sources_tmplt`)
+
+Override to change what counts as a source — for example, "list only the primary statute, not secondary publications". Extracted IDs are still grounded against retrieved data.
+
 ### Data model rendering templates
 
 Override if you want:
@@ -102,7 +125,7 @@ Changes take effect immediately after refresh.
 
 - **Don't write a prompt-novel.** The longer the system prompt, the more expensive every request is (it goes into every LLM call in the thread).
 - **Clear "do / don't" rules** work better than vague guidelines.
-- **List tools explicitly** if you want to constrain choices: "Use only cypher; vector_text_search — only if cypher returns an empty result".
+- **Constrain tools in the playbook, not the prompt.** `tools_allowed` and `tool_choice` on a scenario are enforced; "use only cypher" in a prompt is only a suggestion.
 - **Test prompts through evaluation**, not "by feel" in chat — that gives you a hit-rate metric, not a subjective feeling.
 - **Version**: give the prompt a date/version suffix (`vedana_main_v3`) and keep older versions next to it so you can roll back.
 
@@ -120,10 +143,10 @@ That helps you understand whether the LLM is **really** receiving what you wrote
 ## What NOT to change unnecessarily
 
 - **Template key names.** They are hard-coded in source; a wrong name means the code falls back to the default, not your text.
-- **Placeholders (`{tools}`, `{graph_description}`, `{user_query}`, `{compact_data_model}`).** Without them the templates won't work.
+- **Placeholders (`{graph_description}`, `{user_query}`, `{compact_data_model}`, `{scenarios}`, `{id}`).** Without them the templates won't work.
 - **Final "verify" instructions.** If you want to check answer correctness, do it via evaluation — don't bake "double-check yourself" into the prompt.
 
 ## What's next
 
-- [Prompts reference](../data-model/prompts.md) — full list of templates.
+- [Customizing Prompts](../guides/customizing-prompts.md) — examples of overrides.
 - [Evaluation](../product/evaluation.md) — how to measure the impact of changes.

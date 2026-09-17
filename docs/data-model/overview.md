@@ -18,7 +18,7 @@ The data model is **not the data**, it's the schema. The data itself (products, 
 | **Anchor_attributes**     | yes                                     | properties of nodes                                                        |
 | **Links**                 | yes                                     | edge types (relationships)                                                 |
 | **Link_attributes**       | only if edges have attributes           | properties of edges                                                        |
-| **Queries**               | no                                      | the playbook — scenarios for typical questions                            |
+| **Queries**               | no                                      | the playbook — scenarios for typical questions and their tool policy |
 | **Prompts**               | no                                      | overrides for prompt templates                                             |
 | **ConversationLifecycle** | no                                      | responses to lifecycle events (`/start`, etc.)                            |
 
@@ -30,28 +30,29 @@ For each request:
 
 1. ETL has already synced Grist → the `dm_*` tables in Postgres.
 2. `DataModel` reads the tables and builds in-memory `Anchor`, `Link`, `Attribute`, `Query`, `Prompt` objects.
-3. (Optional) The data model filtering step (`RagPipeline.filter_data_model`) picks only the elements relevant to the current question.
-4. `DataModel.to_text_descr(...)` renders the chosen elements into text using the `dm_*_descr_template` templates (or their overrides from the `Prompts` table).
-5. That text is inserted into the system prompt for the main agent.
+3. [Scenario routing](./scenario-routing.md) picks the playbook scenario for the question.
+4. (Optional) The data model filtering step (`RagPipeline.filter_data_model`) picks only the graph elements relevant to the current question.
+5. `DataModel.to_text_descr(...)` renders the chosen elements and the chosen scenario into text using the `dm_*_descr_template` templates (or their overrides from the `Prompts` table).
+6. That text is inserted into the system prompt for the main agent.
 
 ## Rendering templates
 
-By default the data model is rendered into five sections. Section headers in the built-in template (`vedana_core.data_model.dm_descr_template`) are in Russian:
+By default the data model is rendered into five sections (`vedana_core.data_model.dm_descr_template`):
 
-- `## Узлы:` — anchors;
-- `## Атрибуты узлов:` — anchor attributes;
-- `## Связи между узлами:` — links;
-- `## Атрибуты связей:` — link attributes;
-- `## Типичные вопросы:` — typical questions (playbook).
+- `## Nodes:` — anchors;
+- `## Node attributes:` — anchor attributes;
+- `## Links between nodes:` — links;
+- `## Link attributes:` — link attributes;
+- `## Typical question answering scenarios:` — the selected playbook scenario(s).
 
-You can override these by setting `dm_descr_template` in the `Prompts` table — e.g. to translate them to English:
+With the default row templates the result looks like this:
 
 ```text
 ## Nodes:
-- Product: A sellable product...; example ID: product_id: "p-001"; query: MATCH (p:product) WHERE ...
+- Product: A sellable product...; example ID: "p-001"; query: MATCH (p:product) WHERE ...
 
 ## Node attributes:
-- Product.price: Price in EUR; example: 999.0; query: ...
+- product.price: Price in EUR; example: 999.0; retrieval query: ...
 
 ## Links:
 - PRODUCT_belongs_to_CATEGORY: a product belongs to a category; example query: MATCH ...
@@ -94,5 +95,6 @@ You can override any of these in the `Prompts` table to change the format the LL
 - [Attributes](./data-model/attributes.md)
 - [Links](./data-model/links.md)
 - [Queries](./data-model/queries.md)
+- [Scenario Routing](./data-model/scenario-routing.md)
 - [Prompts](./data-model/prompts.md)
 - [ConversationLifecycle](./data-model/conversation-lifecycle.md)

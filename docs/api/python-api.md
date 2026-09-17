@@ -151,7 +151,7 @@ class CalcArgs(BaseModel):
 async def calc_fn(args: CalcArgs) -> str:
     return str(eval(args.expression))  # demo, not for prod
 
-calc_tool = Tool(
+calc_tool = Tool.from_pydantic(
     name="calculator",
     description="Evaluate an arithmetic expression",
     args_cls=CalcArgs,
@@ -159,7 +159,7 @@ calc_tool = Tool(
 )
 ```
 
-Add it to the `tools` list in your pipeline / overridden `RagAgent`.
+Add it to the tools list in your overridden `RagAgent.answer_question`, and list `calculator` in `tools_allowed` of the playbook scenarios that should use it. Tools from other services can be connected without code through [MCP](../guides/mcp-tools.md).
 
 ## ETL programmatically
 

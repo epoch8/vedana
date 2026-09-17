@@ -46,12 +46,22 @@ In Vedana this unfolds as:
 
 ```
 User → ThreadController → RagPipeline →
-   1) DataModelFiltering (optional, picks relevant anchors/links)
-   2) RagAgent with tools:
+   1) Scenario routing (picks the playbook scenario for the question)
+   2) Scenario policy (allowed tools, tool_choice, round budget)
+   3) DataModelFiltering (optional, picks relevant anchors/links/attributes)
+   4) RagAgent with tools:
         - vector_text_search (search over pgvector embeddings)
         - cypher (Memgraph query)
-   3) The LLM assembles the final answer from the tool results
+        - select_scenario, web_search, MCP tools (when allowed)
+   5) The LLM assembles the final answer from the tool results,
+      then (optionally) the sources are extracted and grounded
 ```
+
+1. **Scenario routing.** If the playbook has scenarios, Vedana picks the one that fits the question best. It first matches the question against each scenario's example questions using embeddings; if that isn't conclusive, it can rerank the candidates; as a last resort, a small LLM chooses from the candidates. See [Scenario routing](../data-model/scenario-routing.md).
+2. **Scenario policy.** The chosen scenario decides which tools the agent can use (`tools_allowed`), how the first round treats tools (`tool_choice`), and how many rounds the agent gets (`max_iters`).
+3. **Data model filtering (optional).** An LLM narrows the data model to the anchors, links and attributes the question needs. If filtering is off, the agent sees the full data model plus the guidance for the chosen scenario only.
+4. **Agent loop.** The agent calls `vector_text_search`, `cypher` and whatever else is allowed. If the first scenario turns out to be wrong, it can switch scenarios partway through. See [Tool choice & the agent loop](../architecture/agent-loop.md).
+5. **Answer, then sources.** The answer is sent to the user first. After that, Vedana can pull out the sources the answer relied on and check them against the data that was actually retrieved. See [Sources & grounding](../architecture/sources.md).
 
 ## Required properties
 
@@ -75,7 +85,9 @@ Technically that means:
 - **a knowledge graph in Memgraph** — anchors, attributes, links;
 - **a vector store in pgvector** — embeddings for the attributes flagged `embeddable`;
 - **a data model** — the description of anchors / links / queries / prompts in Grist, read at runtime;
-- **a playbook (query scenarios)** — a set of steps the LLM should follow for typical intents;
+- **a playbook (query scenarios)** — a set of steps the LLM should follow for typical intents, together with the tools each intent may use;
+- **scenario routing** — example questions per scenario, matched by embeddings, so each question gets the right playbook entry;
+- **source grounding** — cited sources are checked against what the tools actually retrieved;
 - **a LiteLLM wrapper** — so you can switch providers without touching the code.
 
 Next: [Data Model for Vedana](./concepts/data-model-for-vedana.md) → [Tools for Vedana](./concepts/tools-for-vedana.md) → [Playbook for Vedana](./concepts/playbook-for-vedana.md).

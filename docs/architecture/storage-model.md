@@ -143,7 +143,7 @@ In docker-compose Memgraph runs with `--storage-mode=IN_MEMORY_ANALYTICAL`. This
 - the **Data** doc (`GRIST_DATA_DOC_ID`) — domain tables;
 - the **Test Set** doc (`GRIST_TEST_SET_DOC_ID`) — the golden dataset.
 
-Reading is done through `vedana_core.data_provider.GristCsvDataProvider` (Grist's CSV API) or `GristAPIDataProvider`.
+Reading is done through `vedana_core.data_provider.GristAPIDataProvider` (Grist's REST API).
 
 You can use managed Grist (`https://api.getgrist.com`) or self-host (`gristlabs/grist`).
 

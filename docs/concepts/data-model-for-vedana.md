@@ -117,6 +117,8 @@ The **Queries** table describes named retrieval strategies for specific question
 
 - **query_name** — the question pattern (`Who likes <interest>?`).
 - **query_example** — a step-by-step instruction: which tool to call first, with what parameters, what to do with the result, which tool to call next.
+- **tool_choice**, **tools_allowed**, **max_iters** — the scenario's tool policy: whether its first round must call a tool, which tools it may use, and how many rounds it gets.
+- **routing_examples** — example user questions that [scenario routing](../data-model/scenario-routing.md) matches the incoming question against.
 
 `query_example` must be **concrete and step-by-step**, not an abstract description. See [Queries / Playbook](../data-model/queries.md).
 
@@ -125,16 +127,18 @@ The **Queries** table describes named retrieval strategies for specific question
 Stores prompt templates the system uses for various tasks. Template names match keys in the code:
 
 - `generate_answer_with_tools_tmplt` — the main system prompt for the agent.
+- `scenario_select_prompt`, `scenario_select_user_prompt`, `scenario_routing_rerank_query` — prompts for scenario routing.
 - `dm_filter_prompt`, `dm_filter_user_prompt` — prompts for the data model filtering step.
 - `finalize_answer_tmplt` — the finalization prompt after the tool-calling loop is exhausted.
 - `generate_no_answer_tmplt` — the prompt for the "nothing found" case.
+- `answer_with_sources_tmplt` — the prompt for extracting answer sources.
 - `dm_descr_template`, `dm_anchor_descr_template`, `dm_link_descr_template`, `dm_attr_descr_template`, `dm_link_attr_descr_template`, `dm_query_descr_template` — templates that render the data model into text for the LLM.
 
 See [Prompts](../data-model/prompts.md).
 
 ### 6. ConversationLifecycle
 
-Messages tied to the conversation lifecycle: response to `/start`, etc.
+Messages tied to the conversation lifecycle: response to `/start`, status messages shown while a request runs, etc.
 
 - **event** — the event name.
 - **text** — the message or instruction.
@@ -168,24 +172,30 @@ The data model goes directly into the LLM context. The assistant sees:
 - the list of anchor types and their descriptions;
 - the attributes of each anchor with types and descriptions;
 - the links between anchors;
-- the scenarios (Queries) for typical questions.
+- the scenario (Queries) chosen for the question.
 
 If something isn't described in the data model — it **doesn't exist** for the assistant, even if the data is in the graph.
 
+### Scenario routing
+
+Before the agent starts, Vedana picks the one playbook scenario that fits the question. The question is matched against each scenario's `routing_examples` using embeddings; unclear cases can be reranked, and a small model (`FILTER_MODEL`) makes the final pick when neither is confident. Only the chosen scenario's guidance goes into the prompt, and its tool policy is applied to the agent.
+
+See [Scenario routing](../data-model/scenario-routing.md).
+
 ### Data model filtering
 
-For non-trivial domains the full data model description can be large — dozens of anchor types, hundreds of attributes, several Query scenarios — and feeding all of it into the main model on every turn is both expensive and noisy.
+For non-trivial domains the full data model description can be large — dozens of anchor types, hundreds of attributes — and feeding all of it into the main model on every turn is both expensive and noisy.
 
-To handle this, Vedana adds a **data model filtering** step in front of the main answer-generation loop:
+To handle this, Vedana can add a **data model filtering** step in front of the main answer-generation loop. It is off by default; enable it with `ENABLE_DM_FILTERING=true`.
 
-1. A small, fast model (`FILTER_MODEL`, by default `gpt-4.1-mini`) receives the user's question together with the full data model description.
-2. It picks the subset of **anchors, links, attributes, and Queries** that are actually relevant to the question.
-3. Only that filtered slice goes into the main model's context.
+1. A small, fast model (`FILTER_MODEL`, by default `gpt-4.1-mini`) receives the user's question together with the compact data model description.
+2. It picks the subset of **anchors, links and attributes** that are actually relevant to the question. The scenario has already been chosen by routing.
+3. Only that filtered slice (plus the chosen scenario and any `is_source` attributes of the selected entities) goes into the main model's context.
 
 This filtering step has two useful side effects:
 
-- **Token economy on large data models.** The bigger your domain, the larger the win — filtering is what makes Vedana practical on data models with hundreds of attributes. On very small data models (e.g. the LIMIT test dataset) the gain is negligible, and you can disable filtering via `ENABLE_DM_FILTERING=false`.
-- **Explicit reasoning before the answer.** Because the filter model has to *name* which anchors / links / queries are relevant, it effectively performs a small chain-of-thought step about the question before any retrieval happens. The main model then starts with a clearly-scoped problem rather than the entire schema.
+- **Token economy on large data models.** The bigger your domain, the larger the win — filtering is what makes Vedana practical on data models with hundreds of attributes. On small data models (e.g. the LIMIT test dataset) the gain is negligible, which is why it's off by default.
+- **Explicit reasoning before the answer.** Because the filter model has to *name* which anchors / links / attributes are relevant, it effectively performs a small chain-of-thought step about the question before any retrieval happens. The main model then starts with a clearly-scoped problem rather than the entire schema.
 
 See [`RagPipeline.filter_data_model`](../architecture/vedana-core.md#data-model-filtering) for the implementation, and the `FILTER_MODEL` / `ENABLE_DM_FILTERING` entries in the [Configuration guide](../getting-started/configuration.md) for tuning.
 

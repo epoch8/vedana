@@ -95,15 +95,15 @@ Ruff sorts automatically (`isort` mode).
 Use Google-style docstrings for functions with non-trivial semantics:
 
 ```python
-async def process_rag_query(self, query: str, ctx: ThreadContext) -> tuple[str, list, dict]:
-    """Run the full RAG pipeline for a single user query.
+async def generate_answer(self, query: str, ctx: ThreadContext) -> RagAnswer:
+    """Run scenario routing, data model filtering and the agent loop for a single user query.
 
     Args:
         query: The user's question text.
         ctx: Thread context containing history and LLM provider.
 
     Returns:
-        A tuple of (answer, agent_query_events, technical_info).
+        The answer together with the agent trace, tool calls and selected scenario.
 
     Raises:
         Exception: Any unhandled exception from data model loading or tool execution.
@@ -119,7 +119,7 @@ For trivial functions (getters, simple wrappers) docstrings aren't needed.
 Vedana is async-first. Write functions as `async def` except when:
 
 - the function is purely computational (no I/O);
-- the function is called from a sync context (e.g. `Tool.fn` supports sync because `Tool.call` wraps it in `asyncio.to_thread`).
+- the function is called from a sync context (ETL steps, CLI helpers). Tool handlers are always async — wrap blocking work in `asyncio.to_thread`.
 
 In async functions:
 
@@ -137,8 +137,9 @@ Example from `RagPipeline.__call__`:
 
 ```python
 try:
-    answer, ... = await self.process_rag_query(user_query, ctx)
-    ctx.send_message(answer)
+    rag = await self.generate_answer(user_query, ctx)
+    ctx.send_message(rag.answer)
+    await self.send_answer_details(user_query, rag, ctx)
 except Exception as e:
     self.logger.exception(f"Error in RAG pipeline: {e}")
     ctx.send_message("An error occurred while processing the request")  # generic for the user

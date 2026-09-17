@@ -30,6 +30,14 @@ Each row in the Queries table is one intent. Fields:
 
 - **query_name** — a short name or pattern for the question (`Who likes <interest>?`, `Give product information`).
 - **query_example** — a step-by-step instruction: which tool to call first, with what parameters, what to do with the result, which tool to call next.
+- **tool_choice** — whether the scenario's first round may (`auto`), must (`required`) or must not (`none`) call tools.
+- **tools_allowed** — the only tools this scenario can call.
+- **max_iters** — how many tool rounds the scenario gets.
+- **routing_examples** — example questions used to route incoming questions to this scenario.
+
+## How an intent is recognised
+
+For each question, [scenario routing](../data-model/scenario-routing.md) compares the question with every scenario's `routing_examples` and picks the best match. If embeddings aren't conclusive, candidates can be reranked, and a small LLM makes the final choice. If the agent later finds the scenario doesn't fit, it can switch to another one with the `select_scenario` tool — within a small, fixed number of switches.
 
 ## Intent-based behaviour
 
@@ -76,7 +84,9 @@ Why: delivery details are usually in text documents; vector search is appropriat
 
 ## What the playbook controls
 
-**Tool selection.** You can specify that an intent always uses Cypher, or prefers vector search, or applies a hybrid scheme, or never answers without tool results. This removes random tool choice.
+**Tool selection.** You can specify that an intent always uses Cypher, or prefers vector search, or applies a hybrid scheme, or never answers without tool results. `tools_allowed` and `tool_choice` enforce this: the agent physically can't call a tool the scenario doesn't allow, and `required` / `none` force or forbid tool calls.
+
+**Effort.** `max_iters` caps how long the agent may explore for an intent — a simple lookup needs a couple of rounds, a research-style question may need more.
 
 **Response instructions.** You can describe what each answer should contain for each intent: price and availability for product queries, address and phone for location queries, cited document chunks for policy queries. Answers become consistent and domain-specific instead of generic.
 
@@ -97,6 +107,8 @@ Together they fully specify runtime behaviour: one defines the structure of the 
 2. Create a row:
    - `query_name` — the type of question.
    - `query_example` — the step-by-step instruction for the assistant.
+   - `routing_examples` — a few example questions for this intent.
+   - optionally `tool_choice`, `tools_allowed`, `max_iters`.
 3. In the backoffice → ETL, refresh the data model (run `data_model_steps`).
 
 Example `query_example`:

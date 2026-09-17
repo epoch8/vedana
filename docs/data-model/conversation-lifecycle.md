@@ -19,7 +19,7 @@ It's the simplest mechanism in Vedana: a clean lookup by event name.
 
 ## How it works
 
-`StartPipeline` (`vedana_core.rag_pipeline.StartPipeline`) is a separate JIMS pipeline wired up as `conversation_start_pipeline` in `JimsApp`. On the first message in a new thread or on `/start` it:
+`StartPipeline` (`vedana_core.start_pipeline.StartPipeline`) is a separate JIMS pipeline wired up as `conversation_start_pipeline` in `JimsApp`. On the first message in a new thread or on `/start` it:
 
 1. Reads `ConversationLifecycle` via `DataModel.conversation_lifecycle_events()`.
 2. Picks the value for the `/start` key.
@@ -27,6 +27,20 @@ It's the simplest mechanism in Vedana: a clean lookup by event name.
 4. If not found — sends the default message "Bot online. No response for /start command in LifecycleEvents".
 
 There are no LLM calls, no tools, no Cypher — it's a pure table lookup.
+
+## Status messages
+
+While a request runs, users see status messages. They are ConversationLifecycle rows too: add a row whose `event` is one of the keys below and whose `text` is your wording — for example, to translate them.
+
+| event                          | Default text                     | Shown when                                                            |
+| ------------------------------ | -------------------------------- | ---------------------------------------------------------------------- |
+| `processing_question`          | Processing your question...      | the request starts                                                     |
+| `analyzing_query`              | Analyzing query structure...     | scenario routing or data model filtering begins                        |
+| `searching_knowledge_base`     | Searching knowledge base...      | the agent loop begins                                                  |
+| `formulating_answer`           | Formulating the answer...        | every round after the first, and before finalising                     |
+| `taking_longer_than_expected`  | Taking longer than expected...   | rounds go past `AGENT_MAX_ITERS` after a scenario switch               |
+
+If a key has no row, the default text is used. The defaults live in `vedana_core.strings`; `DataModel.status_resolver()` applies the overrides.
 
 ## When to use
 

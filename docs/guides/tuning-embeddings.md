@@ -87,11 +87,11 @@ stmt = (
 
 ## `top_n` limits
 
-`top_n` (default 5) is how many results to return per tool call. Too many — bloats LLM context and pays for extra tokens. Too few — risks missing the right one.
+`top_n` is how many results to return per tool call. Too many — bloats LLM context and pays for extra tokens. Too few — risks missing the right one.
 
-Start: `top_n=5`. For document questions with very specific queries — sometimes `top_n=3`. For broad exploratory questions — `top_n=10`.
+It's set **per attribute** with `embed_top_n` in Anchor_attributes / Link_attributes; empty cells use `EMBEDDINGS_TOP_N` (default `10`). For document questions with very specific queries — sometimes `3`–`5`. For broad exploratory questions — `10` or more.
 
-Tune at the `RagPipeline(top_n=...)` level or inside the tool call (if you've rewritten the agent).
+With a reranker enabled (`RERANKER_BACKEND=cohere`), you can afford a larger `embed_top_n`: results are reranked against the user's question and the agent can keep only the best with `rerank_top_k`.
 
 ## Budget
 

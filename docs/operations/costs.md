@@ -36,14 +36,15 @@ In Sentry / Datadog you can build a "cost per request" dashboard via recording r
 
 ### 1. A small model for filtering
 
-The cheapest optimisation. Set `FILTER_MODEL=gpt-4.1-nano` or `gemini-2.0-flash`. This model doesn't answer the user — it only picks relevant anchors / links for the main model's context. Simple task → cheap model.
+The cheapest optimisation. Set `FILTER_MODEL=gpt-4.1-nano` or `gemini-2.0-flash`. This model doesn't answer the user — it only picks relevant anchors / links for the main model's context, chooses a scenario when routing isn't confident, and extracts sources. Simple task → cheap model.
 
-### 2. Two-tier system
+### 2. Save on tool calls for simpler questions
 
-- Simple / frequent questions — cheap model (mini/nano).
-- Complex / rare questions — expensive model (gpt-4.1, claude-sonnet).
+give simple scenarios a small `max_iters` and use `tool_choice = none` for smalltalk, so they never pay for extra rounds or graph context.
 
-Routing — through an explicit classification step (you can add it as a pre-step in your `Pipeline`).
+### 2a. Route scenarios by embeddings rather than LLM
+
+Every question that [scenario routing](../data-model/scenario-routing.md) accepts from embeddings alone skips a `FILTER_MODEL` call - embeddins are cheaper than generation.
 
 ### 3. Caching
 
@@ -60,9 +61,11 @@ The `cached_tokens` metric tells you whether it's working.
 
 See [Customizing Prompts → compact rendering](../guides/customizing-prompts.md#example-compact-data-model-rendering). Drop `query` fields from the description (the LLM generates Cypher itself anyway). Can shrink the context 2–3x.
 
-### 5. Keep data model filtering on
+### 5. Enable data model filtering on large data models
 
-`ENABLE_DM_FILTERING=true` (default). A small model quickly picks relevant anchors → the main model sees a compact context. The bigger the data model, the bigger the savings.
+`ENABLE_DM_FILTERING=true` (the default is `false`). A small model quickly picks relevant anchors → the main model sees a compact context. The bigger the data model, the bigger the savings; on small data models the extra call can cost more than it saves.
+
+Even without filtering, only the chosen scenario's guidance goes into the prompt, so a large playbook doesn't inflate every request.
 
 ### 6. Lower `pipeline_history_length`
 
@@ -135,6 +138,7 @@ Total: $130–300/month for ~ 1000 requests/day.
 ## Optimisation checklist
 
 - [ ] `FILTER_MODEL` is small (nano/mini).
+- [ ] Frequent scenarios have `routing_examples`; simple ones have a small `max_iters`.
 - [ ] Prompt caching is on (via the provider).
 - [ ] Data model rendering templates are compact.
 - [ ] `pipeline_history_length` is tuned.

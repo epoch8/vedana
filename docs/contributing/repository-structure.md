@@ -106,14 +106,20 @@ libs/
 │   └── src/vedana_core/
 │       ├── app.py             # VedanaApp, make_*_app
 │       ├── data_model.py      # Anchor, Link, Attribute, DataModel
-│       ├── data_provider.py   # Grist API/CSV providers
+│       ├── data_provider.py   # Grist API provider
 │       ├── db.py              # get_sessionmaker
+│       ├── eval_reports.py    # evaluation reports
 │       ├── graph.py           # Graph, MemgraphGraph
-│       ├── llm.py             # LLM, Tool, prompt templates
+│       ├── llm.py             # LLM, Tool, prompt templates, tool-calling loop
+│       ├── mcp_tools.py       # remote MCP tool discovery and wrappers
 │       ├── rag_agent.py       # RagAgent
-│       ├── rag_pipeline.py    # RagPipeline, StartPipeline
+│       ├── rag_pipeline.py    # RagPipeline, scenario routing, data model filtering
+│       ├── run_state.py       # RunState (scenario, allowed tools, round budget)
 │       ├── settings.py        # VedanaCoreSettings
-│       ├── start_pipeline.py
+│       ├── source_grounding.py # ground_sources
+│       ├── start_pipeline.py  # StartPipeline
+│       ├── strings.py         # default status messages
+│       ├── tools.py           # vector_text_search, cypher, select_scenario, web_search
 │       ├── utils.py
 │       └── vts.py             # VectorStore, PGVectorStore, MemgraphVectorStore
 │
@@ -194,7 +200,8 @@ On merge to `main`:
 | I want to...                                          | Go to...                                                       |
 | ---------------------------------------------------- | -------------------------------------------------------------- |
 | Change how a user question is answered               | `libs/vedana-core/src/vedana_core/rag_pipeline.py` (`RagPipeline`) |
-| Add a new tool                                        | `libs/vedana-core/src/vedana_core/rag_agent.py` + `llm.py`     |
+| Add a new tool                                        | `libs/vedana-core/src/vedana_core/tools.py` (`build_tools`) + `llm.py` (`Tool`) |
+| Change scenario routing or the agent loop policy      | `libs/vedana-core/src/vedana_core/rag_pipeline.py` + `run_state.py` + `llm.py` |
 | Change how the data model is read                     | `libs/vedana-core/src/vedana_core/data_model.py`               |
 | Change thread / event structure                       | `libs/jims-core/src/jims_core/thread/`                         |
 | Add a new ETL data source                             | `libs/vedana-etl/src/vedana_etl/steps.py` + `pipeline.py`     |

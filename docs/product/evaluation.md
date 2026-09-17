@@ -40,6 +40,7 @@ In the Grist Test Set doc (`GRIST_TEST_SET_DOC_ID`), tables:
 | `gds_question`      | the question                                                          |
 | `gds_answer`        | the reference answer                                                  |
 | `question_scenario` | scenario category (structured / document / FAQ / smalltalk / edge)   |
+| `query_scenario`    | expected playbook scenario(s) — `query_name` values from Queries      |
 | `question_comment`  | author note                                                            |
 | `question_context`  | additional context for evaluation                                      |
 
@@ -55,6 +56,7 @@ The golden dataset lives in the **Golden Dataset** Grist doc (`GRIST_TEST_SET_DO
 | `gds_answer`         | the reference (expected) answer                                                       |
 | `question_scenario`  | category (e.g. `structured` / `document` / `faq` / `smalltalk` / `edge`) — used for filtering in the UI |
 | `question_context`   | optional extra context the judge can use when grading                                 |
+| `query_scenario`     | optional Choice List — the `query_name` of the scenario the question should be routed to (see [Scenario columns](#scenario-columns)) |
 
 Reference answers should be short and factual. For structured questions, the exact value from the graph. For document questions, the key information a correct answer would contain.
 
@@ -97,6 +99,17 @@ The pipeline:
 
 ![Eval results](../images/eval%203.png)
 
+## Scenario columns
+
+The `Gds` table has two optional scenario columns (both Grist Choice Lists):
+
+- **`question_scenario`** — free-form tags for grouping questions. The backoffice Eval page can filter by these.
+- **`query_scenario`** — the `query_name` of the [playbook scenario](../data-model/queries.md) the question should be routed to. It is stored in `eval_gds.query_scenario`, so you can check routing by comparing it with the `rag.selected_scenario` event of each answer, or with `rag.query_processed.technical_info.scenario.active` to account for scenario switches as well.
+
+Routing mistakes and retrieval mistakes look the same in the Hit Rate. Checking `query_scenario` first tells you which one to fix: [scenario routing](../data-model/scenario-routing.md) (routing examples, thresholds) or the scenario itself (`query_example`, tools).
+
+> **Keep routing examples out of the test set.** If a `gds_question` is also in a scenario's `routing_examples`, it matches itself with similarity ≈ 1.0 and routing looks perfect in the eval. Write routing examples as paraphrases or similar questions, never copies of test questions.
+
 ## Metrics
 
 ### Hit Rate (a.k.a. `pass_rate`)
@@ -118,7 +131,7 @@ Beyond the aggregate, eval gives a **per-question breakdown**: which questions p
 | -------------------------------------------------- | --------------------------------------------------------------------- |
 | Structural questions fail (names, dates, values)   | Anchor / attribute not described, or ETL didn't run                  |
 | Document questions fail                             | Bad chunking, no embeddings, wrong playbook                           |
-| Whole category of questions fails                  | Playbook routes the intent to the wrong tool                          |
+| Whole category of questions fails                  | Playbook routes the intent to the wrong tool, or scenario routing picks the wrong scenario (compare with `query_scenario`) |
 | Inconsistent for similar questions                  | embed_threshold too low or too high                                  |
 | LLM-judge says "partially correct"                  | The answer is right but not in the expected format — fix the playbook |
 
@@ -132,7 +145,7 @@ Beyond the aggregate, eval gives a **per-question breakdown**: which questions p
 Eval is most useful as an iteration loop, not a one-off check.
 
 1. Find a failure pattern in the breakdown.
-2. Apply **one** change: data model, playbook, embed_threshold, chunking.
+2. Apply **one** change: data model, playbook, routing examples, embed_threshold, chunking.
 3. Re-run ETL (if needed).
 4. Re-run eval.
 5. Compare Hit Rate before and after.

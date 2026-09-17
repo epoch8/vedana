@@ -65,7 +65,7 @@ Open question for the engineering team:
 
 To decide before launch:
 
-- How long do we keep raw user messages? (GDPR / 152-ФЗ typically expect either a defined retention or a user-driven delete.)
+- How long do we keep raw user messages? (GDPR typically expect either a defined retention or a user-driven delete.)
 - Do we keep `event_data` forever and only purge anonymised metadata after N days, or purge whole rows?
 - How do we honour a "delete my data" request — by `contact_id`, by `thread_id`, or by an external user identifier?
 
@@ -80,15 +80,15 @@ DELETE FROM thread_events WHERE created_at < NOW() - INTERVAL '180 days';
 
 - [ ] Is there an established retention policy at Epoch8 for production Vedana installations? Document it here.
 
-## 152-ФЗ / GDPR checklist
+## GDPR checklist
 
-For the Russian-law (152-ФЗ) and GDPR-relevant deployments:
+For GDPR-relevant deployments:
 
 - [ ] **Data Processing Agreement (DPA)** — template DPA between the customer and Epoch8 (or whoever runs the Vedana instance). **TODO — link to the template.**
 - [ ] **Lawful basis** — is processing covered by consent, contract, or legitimate interest? Document per customer.
 - [ ] **Subject access rights** — how a user gets a copy / deletion of their data (see [Data retention](#data-retention)).
 - [ ] **Sub-processor list** — at minimum the LLM provider (OpenAI / Anthropic / Vertex / OpenRouter) is a sub-processor. Embeddings model too.
-- [ ] **Data residency** — confirm which region your Postgres / Memgraph / Grist live in. For 152-ФЗ this must include Russia.
+- [ ] **Data residency** — confirm which region your Postgres / Memgraph / Grist live in.
 - [ ] **Breach notification** — internal runbook + customer-facing SLA.
 
 ## Audit log for Cypher
